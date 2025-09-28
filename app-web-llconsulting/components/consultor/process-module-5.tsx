@@ -37,8 +37,11 @@ interface ContractedCandidate {
 }
 
 export function ProcessModule5({ process }: ProcessModule5Props) {
+  // Incluir TODOS los candidatos del proceso, no solo los aprobados
   const [candidates, setCandidates] = useState(
-    getCandidatesByProcess(process.id).filter((c) => c.client_response === "aprobado"),
+    getCandidatesByProcess(process.id).filter((c) => 
+      c.client_response === "aprobado" || c.client_response === "rechazado" || c.client_response === "observado"
+    ),
   )
 
   const [contractedCandidates, setContractedCandidates] = useState<ContractedCandidate[]>([])
@@ -60,7 +63,19 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       satisfaction_survey_pending: true,
     }
 
-    setContractedCandidates([...contractedCandidates, contractedCandidate])
+    // Verificar si ya existe un candidato contratado con este ID
+    const existingIndex = contractedCandidates.findIndex((cc) => cc.id === selectedCandidate.id)
+    
+    if (existingIndex >= 0) {
+      // Actualizar candidato existente
+      const updatedContracted = [...contractedCandidates]
+      updatedContracted[existingIndex] = contractedCandidate
+      setContractedCandidates(updatedContracted)
+    } else {
+      // Agregar nuevo candidato
+      setContractedCandidates([...contractedCandidates, contractedCandidate])
+    }
+
     setShowContractDialog(false)
     setContractForm({
       contracted: false,
@@ -80,6 +95,50 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     return contractedCandidates.some((c) => c.id === candidateId)
   }
 
+  // Función para cambiar el estado de respuesta del cliente
+  const handleClientResponseChange = (candidateId: string, newResponse: "aprobado" | "rechazado" | "observado") => {
+    setCandidates(prevCandidates => 
+      prevCandidates.map(candidate => 
+        candidate.id === candidateId 
+          ? { ...candidate, client_response: newResponse }
+          : candidate
+      )
+    )
+    
+    // Si el cliente rechaza, automáticamente marcar como no contratado
+    if (newResponse === "rechazado") {
+      setContractedCandidates(prevContracted => 
+        prevContracted.map(contracted => 
+          contracted.id === candidateId 
+            ? { ...contracted, contracted: false }
+            : contracted
+        )
+      )
+    }
+  }
+
+  // Función para editar un candidato ya procesado
+  const handleEditContractedCandidate = (candidate: Candidate) => {
+    const contractedCandidate = contractedCandidates.find((cc) => cc.id === candidate.id)
+    if (contractedCandidate) {
+      setContractForm({
+        contracted: contractedCandidate.contracted,
+        contract_date: contractedCandidate.contract_date ?? "",
+        continues: contractedCandidate.continues,
+        observations: contractedCandidate.observations ?? "",
+      })
+    } else {
+      setContractForm({
+        contracted: false,
+        contract_date: "",
+        continues: true,
+        observations: "",
+      })
+    }
+    setSelectedCandidate(candidate)
+    setShowContractDialog(true)
+  }
+
   const handleProcessClosure = () => {
     console.log(`Proceso cerrado: ${closureType}`)
     console.log(`Vacantes llenas: ${contractedCount}/${totalVacancies}`)
@@ -91,7 +150,17 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     alert(`Proceso cerrado ${closureType === "completo" ? "completamente" : "parcialmente"}`)
   }
 
-  const allNotApproved = candidates.every((c) => c.client_response !== "aprobado")
+  // Lógica para determinar si se puede volver al Módulo 2
+  const allCandidatesNotContracted = candidates.every((candidate) => {
+    const contractedCandidate = contractedCandidates.find((cc) => cc.id === candidate.id)
+    return !contractedCandidate || !contractedCandidate.contracted
+  })
+  
+  const allCandidatesRejected = candidates.every((c) => c.client_response === "rechazado")
+  
+  // El botón se habilita si TODOS los candidatos están rechazados O no contratados
+  const canReturnToModule2 = allCandidatesRejected || (allCandidatesNotContracted && candidates.length > 0)
+
   const hasContracted = contractedCandidates.some((c) => c.contracted)
 
   const contractedCount = contractedCandidates.filter((c) => c.contracted).length
@@ -117,15 +186,32 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         <p className="text-muted-foreground">Gestiona la contratación final y seguimiento de candidatos</p>
       </div>
 
-      {allNotApproved && (
+      {canReturnToModule2 && (
         <Card className="border-cyan-200 bg-cyan-50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-cyan-800">No hay candidatos aprobados</h3>
-                <p className="text-sm text-cyan-600">Necesitas volver al Módulo 2 para gestionar más candidatos</p>
+                <h3 className="font-semibold text-cyan-800">
+                  {allCandidatesRejected 
+                    ? "Todos los candidatos fueron rechazados" 
+                    : "Proceso sin candidatos contratados"
+                  }
+                </h3>
+                <p className="text-sm text-cyan-600">
+                  {allCandidatesRejected 
+                    ? "Puedes volver al Módulo 2 para gestionar nuevos candidatos" 
+                    : "Puedes volver al Módulo 2 para continuar con el proceso de selección"
+                  }
+                </p>
               </div>
-              <Button variant="outline" className="border-cyan-300 text-cyan-700 hover:bg-cyan-100 bg-transparent">
+              <Button 
+                variant="outline" 
+                className="border-cyan-300 text-cyan-700 hover:bg-cyan-100 bg-transparent"
+                onClick={() => {
+                  // Aquí podrías implementar la navegación al Módulo 2
+                  console.log("Navegando al Módulo 2...")
+                }}
+              >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Volver a Módulo 2
               </Button>
@@ -163,13 +249,19 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Select defaultValue={candidate.client_response || ""}>
+                      <Select 
+                        value={candidate.client_response || ""} 
+                        onValueChange={(value: "aprobado" | "rechazado" | "observado") => 
+                          handleClientResponseChange(candidate.id, value)
+                        }
+                      >
                         <SelectTrigger className="w-32">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="aprobado">Sí</SelectItem>
                           <SelectItem value="rechazado">No</SelectItem>
+                          <SelectItem value="observado">Observado</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -182,14 +274,64 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                       />
                     </TableCell>
                     <TableCell>
-                      {!isAlreadyProcessed(candidate.id) ? (
-                        <Button size="sm" onClick={() => openContractDialog(candidate)}>
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Contratación
-                        </Button>
-                      ) : (
-                        <Badge variant="outline">Procesado</Badge>
-                      )}
+                      {(() => {
+                        const contractedCandidate = contractedCandidates.find((cc) => cc.id === candidate.id)
+                        
+                        // Si el cliente rechazó, siempre mostrar "No contratado"
+                        if (candidate.client_response === "rechazado") {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-red-600 border-red-300">
+                                <XCircle className="mr-1 h-3 w-3" />
+                                No contratado
+                              </Badge>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleEditContractedCandidate(candidate)}
+                              >
+                                Editar
+                              </Button>
+                            </div>
+                          )
+                        }
+                        
+                        if (contractedCandidate) {
+                          return contractedCandidate.contracted ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="default" className="bg-green-100 text-green-800">
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                                Contratado
+                              </Badge>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleEditContractedCandidate(candidate)}
+                              >
+                                Editar
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">No contratado</Badge>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleEditContractedCandidate(candidate)}
+                              >
+                                Editar
+                              </Button>
+                            </div>
+                          )
+                        } else {
+                          return (
+                            <Button size="sm" onClick={() => openContractDialog(candidate)}>
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Contratación
+                            </Button>
+                          )
+                        }
+                      })()}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -211,7 +353,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         <Card>
           <CardHeader>
             <CardTitle>Resumen de Contrataciones</CardTitle>
-            <CardDescription>Estado final de los candidatos procesados</CardDescription>
+            <CardDescription>Estado final de los candidatos no contratados</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="mb-6 p-4 bg-muted rounded-lg">

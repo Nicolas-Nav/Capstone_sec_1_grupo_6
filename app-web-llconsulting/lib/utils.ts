@@ -40,6 +40,7 @@ export function getStatusColor(status: string): string {
     en_progreso: "bg-cyan-100 text-cyan-800",
     completado: "bg-green-100 text-green-800",
     cancelado: "bg-red-100 text-red-800",
+    congelado: "bg-orange-100 text-orange-800",
 
     // Candidate statuses
     postulado: "bg-gray-100 text-gray-800",

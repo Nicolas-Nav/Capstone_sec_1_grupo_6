@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { serviceTypeLabels, getCandidatesByProcess } from "@/lib/mock-data"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { serviceTypeLabels, getCandidatesByProcess, processStatusLabels } from "@/lib/mock-data"
 import { formatDate, getStatusColor } from "@/lib/utils"
-import { Building2, User, Calendar, Target, FileText, Download } from "lucide-react"
-import type { Process } from "@/lib/types"
+import { Building2, User, Calendar, Target, FileText, Download, Settings } from "lucide-react"
+import type { Process, ProcessStatus } from "@/lib/types"
 import { useState } from "react"
 
 interface ProcessModule1Props {
@@ -25,6 +26,9 @@ export function ProcessModule1({ process }: ProcessModule1Props) {
     address: "",
   })
 
+  const [processStatus, setProcessStatus] = useState<ProcessStatus>(process.status)
+  const [statusChangeReason, setStatusChangeReason] = useState("")
+
   const candidates = getCandidatesByProcess(process.id)
   const isEvaluationProcess =
     process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral"
@@ -35,6 +39,26 @@ export function ProcessModule1({ process }: ProcessModule1Props) {
   const handlePersonalDataSubmit = () => {
     console.log("Saving personal data:", personalData)
     // Here you would save the personal data and proceed to module 4
+  }
+
+  const handleStatusChange = (newStatus: ProcessStatus) => {
+    setProcessStatus(newStatus)
+    console.log(`Process status changed to: ${newStatus}`)
+    console.log(`Reason: ${statusChangeReason}`)
+    // Here you would save the status change to the backend
+  }
+
+  const canChangeStatus = (currentStatus: ProcessStatus, newStatus: ProcessStatus) => {
+    // No se puede cambiar a "completado" desde el módulo 1
+    if (newStatus === "completado") return false
+    
+    // No se puede cambiar de "cancelado" o "congelado" a estados activos sin razón
+    if ((currentStatus === "cancelado" || currentStatus === "congelado") && 
+        (newStatus === "iniciado" || newStatus === "en_progreso")) {
+      return statusChangeReason.trim().length > 0
+    }
+    
+    return true
   }
 
   return (
@@ -101,11 +125,8 @@ export function ProcessModule1({ process }: ProcessModule1Props) {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Estado</p>
-                <Badge className={getStatusColor(process.status)}>
-                  {process.status === "creado" && "Creado"}
-                  {process.status === "iniciado" && "Iniciado"}
-                  {process.status === "en_progreso" && "En Progreso"}
-                  {process.status === "completado" && "Completado"}
+                <Badge className={getStatusColor(processStatus)}>
+                  {processStatusLabels[processStatus]}
                 </Badge>
               </div>
             </div>
@@ -152,6 +173,112 @@ export function ProcessModule1({ process }: ProcessModule1Props) {
               <p className="text-sm font-medium">Teléfono</p>
               <p className="text-sm text-muted-foreground">{process.client.contacts[0]?.phone || 'Sin teléfono'}</p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Process Status Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Gestión del Estado del Proceso
+          </CardTitle>
+          <CardDescription>
+            Cambia el estado del proceso según sea necesario. Disponible para todos los tipos de proceso.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="current-status">Estado Actual</Label>
+              <div className="mt-1">
+                <Badge className={getStatusColor(processStatus)}>
+                  {processStatusLabels[processStatus]}
+                </Badge>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="new-status">Nuevo Estado</Label>
+              <Select
+                value={processStatus}
+                onValueChange={(value: ProcessStatus) => {
+                  if (canChangeStatus(process.status, value)) {
+                    setProcessStatus(value)
+                  }
+                }}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="creado">Creado</SelectItem>
+                  <SelectItem value="iniciado">Iniciado</SelectItem>
+                  <SelectItem value="en_progreso">En Progreso</SelectItem>
+                  <SelectItem value="congelado">Congelado</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {(processStatus === "cancelado" || processStatus === "congelado") && (
+            <div className="space-y-2">
+              <Label htmlFor="status-reason">
+                {processStatus === "cancelado" ? "Motivo de Cancelación" : "Motivo de Congelamiento"}
+              </Label>
+              <Textarea
+                id="status-reason"
+                value={statusChangeReason}
+                onChange={(e) => setStatusChangeReason(e.target.value)}
+                placeholder={
+                  processStatus === "cancelado" 
+                    ? "Describe el motivo por el cual se cancela el proceso..."
+                    : "Describe el motivo por el cual se congela el proceso..."
+                }
+                rows={3}
+                className="resize-none"
+              />
+            </div>
+          )}
+
+          {processStatus !== process.status && (
+            <div className="flex gap-2 pt-2">
+              <Button 
+                onClick={() => handleStatusChange(processStatus)}
+                variant={processStatus === "cancelado" ? "destructive" : "default"}
+                className={
+                  processStatus === "cancelado" 
+                    ? "bg-red-600 hover:bg-red-700" 
+                    : processStatus === "congelado"
+                    ? "bg-orange-600 hover:bg-orange-700"
+                    : ""
+                }
+              >
+                {processStatus === "cancelado" ? "Cancelar Proceso" : 
+                 processStatus === "congelado" ? "Congelar Proceso" : 
+                 "Actualizar Estado"}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setProcessStatus(process.status)
+                  setStatusChangeReason("")
+                }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          )}
+
+          {/* Status Information */}
+          <div className="mt-4 p-3 bg-muted rounded-lg">
+            <h4 className="font-medium text-sm mb-2">Información sobre Estados:</h4>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li><strong>Congelado:</strong> Pausa temporal del proceso. Se puede reactivar más tarde.</li>
+              <li><strong>Cancelado:</strong> Termina definitivamente el proceso. Requiere motivo.</li>
+              <li><strong>En Progreso:</strong> El proceso está activo y en desarrollo.</li>
+            </ul>
           </div>
         </CardContent>
       </Card>

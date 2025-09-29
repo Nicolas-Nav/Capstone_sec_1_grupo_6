@@ -144,6 +144,11 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     alert(`Proceso cerrado ${closureType === "completo" ? "completamente" : "parcialmente"}`)
   }
 
+  // Variables de conteo
+  const contractedCount = contractedCandidates.filter((c) => c.hiring_status === "contratado").length
+  const totalVacancies = process.vacancies || 1
+  const hasContracted = contractedCandidates.some((c) => c.hiring_status === "contratado")
+
   // Lógica para determinar si se puede volver al Módulo 2
   const allCandidatesNotContracted = candidates.every((candidate) => {
     const contractedCandidate = contractedCandidates.find((cc) => cc.id === candidate.id)
@@ -155,13 +160,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     return contractedCandidate?.hiring_status === "no_seleccionado"
   })
   
-  // El botón se habilita si TODOS los candidatos están rechazados O no contratados
-  const canReturnToModule2 = allCandidatesRejected || (allCandidatesNotContracted && candidates.length > 0)
-
-  const hasContracted = contractedCandidates.some((c) => c.hiring_status === "contratado")
-
-  const contractedCount = contractedCandidates.filter((c) => c.hiring_status === "contratado").length
-  const totalVacancies = process.vacancies || 1
+  // Verificar si hay vacantes sin llenar
+  const hasUnfilledVacancies = contractedCount < totalVacancies
+  
+  // El botón se habilita si:
+  // 1. TODOS los candidatos están rechazados O no contratados
+  // 2. O si hay vacantes sin llenar (para continuar el proceso)
+  const canReturnToModule2 = allCandidatesRejected || (allCandidatesNotContracted && candidates.length > 0) || hasUnfilledVacancies
   const allVacanciesFilled = contractedCount >= totalVacancies
   const canClose = contractedCandidates.length > 0
 
@@ -270,12 +275,16 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                 <h3 className="font-semibold text-cyan-800">
                   {allCandidatesRejected 
                     ? "Todos los candidatos fueron no seleccionados" 
+                    : hasUnfilledVacancies
+                    ? `Vacantes sin llenar: ${totalVacancies - contractedCount} de ${totalVacancies}`
                     : "Proceso sin candidatos contratados"
                   }
                 </h3>
                 <p className="text-sm text-cyan-600">
                   {allCandidatesRejected 
                     ? "Puedes volver al Módulo 2 para gestionar nuevos candidatos" 
+                    : hasUnfilledVacancies
+                    ? "Puedes volver al Módulo 2 para continuar con el proceso de selección y llenar las vacantes restantes"
                     : "Puedes volver al Módulo 2 para continuar con el proceso de selección"
                   }
                 </p>

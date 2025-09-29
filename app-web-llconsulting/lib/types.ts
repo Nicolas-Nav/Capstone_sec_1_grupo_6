@@ -7,7 +7,7 @@ export type ServiceType =
   | "evaluacion_psicolaboral"
   | "test_psicolaboral"
 
-export type ProcessStatus = "creado" | "iniciado" | "en_progreso" | "completado" | "cancelado"
+export type ProcessStatus = "creado" | "iniciado" | "en_progreso" | "completado" | "cancelado" | "congelado"
 
 export type CandidateStatus = "postulado" | "presentado" | "aprobado" | "rechazado" | "contratado"
 

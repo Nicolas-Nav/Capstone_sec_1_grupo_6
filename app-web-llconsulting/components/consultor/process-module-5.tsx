@@ -623,14 +623,6 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   <SelectItem value="envio_carta_oferta">Envío de carta oferta</SelectItem>
                   <SelectItem value="aceptacion_carta_oferta">Aceptación de carta oferta</SelectItem>
                   <SelectItem value="rechazo_carta_oferta">Rechazo de carta oferta</SelectItem>
-                  
-                  {/* Solo mostrar estos estados si el estado actual es "envio_carta_oferta" */}
-                  {contractForm.hiring_status === "envio_carta_oferta" && (
-                    <>
-                      <SelectItem value="contratado">Contratado</SelectItem>
-                      <SelectItem value="no_contratado">No contratado</SelectItem>
-                    </>
-                  )}
                 </SelectContent>
               </Select>
             </div>

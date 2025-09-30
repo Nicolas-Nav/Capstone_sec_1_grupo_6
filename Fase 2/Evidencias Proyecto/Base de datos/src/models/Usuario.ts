@@ -15,12 +15,10 @@ interface UsuarioAttributes {
     contrasena_usuario: string;
     activo_usuario: boolean;
     rol_usuario: number;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-// Atributos opcionales para crear (Sequelize maneja created_at y updated_at)
-interface UsuarioCreationAttributes extends Optional<UsuarioAttributes, 'created_at' | 'updated_at'> { }
+// Atributos opcionales para crear
+interface UsuarioCreationAttributes extends Optional<UsuarioAttributes, 'rut_usuario'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -36,9 +34,6 @@ class Usuario extends Model<UsuarioAttributes, UsuarioCreationAttributes> implem
     public activo_usuario!: boolean;
     public rol_usuario!: number;
 
-    // Timestamps (manejados automáticamente por Sequelize)
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -186,9 +181,7 @@ Usuario.init({
     // Configuración del modelo
     sequelize,
     tableName: 'usuario',           // Nombre de la tabla en la BD
-    timestamps: true,               // Habilitar created_at y updated_at
-    createdAt: 'created_at',        // Nombre de la columna created_at
-    updatedAt: 'updated_at',        // Nombre de la columna updated_at
+    timestamps: false,              // Deshabilitar created_at y updated_at
     underscored: true,              // Usar snake_case para nombres de columnas
 
     // Índices

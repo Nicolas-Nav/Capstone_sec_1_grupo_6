@@ -6,13 +6,11 @@ import sequelize from '@/config/database';
 // ===========================================
 
 interface EstadoCandidatoAttributes {
-    id_estado_candidato: number;
-    nombre_estado_candidato: string;
-    created_at?: Date;
-    updated_at?: Date;
+  id_estado_candidato: number;
+  nombre_estado_candidato: string;
 }
 
-interface EstadoCandidatoCreationAttributes extends Optional<EstadoCandidatoAttributes, 'id_estado_candidato' | 'created_at' | 'updated_at'> { }
+interface EstadoCandidatoCreationAttributes extends Optional<EstadoCandidatoAttributes, 'id_estado_candidato'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface EstadoCandidatoCreationAttributes extends Optional<EstadoCandidatoAttr
 class EstadoCandidato extends Model<EstadoCandidatoAttributes, EstadoCandidatoCreationAttributes> implements EstadoCandidatoAttributes {
     public id_estado_candidato!: number;
     public nombre_estado_candidato!: string;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -189,9 +185,7 @@ EstadoCandidato.init({
 }, {
     sequelize,
     tableName: 'estado_candidato',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+  timestamps: false,
     underscored: true,
     indexes: [
         {

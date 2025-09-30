@@ -8,11 +8,9 @@ import sequelize from '@/config/database';
 interface RubroAttributes {
   id_rubro: number;
   nombre_rubro: string;
-  created_at?: Date;
-  updated_at?: Date;
 }
 
-interface RubroCreationAttributes extends Optional<RubroAttributes, 'id_rubro' | 'created_at' | 'updated_at'> {}
+interface RubroCreationAttributes extends Optional<RubroAttributes, 'id_rubro'> {}
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface RubroCreationAttributes extends Optional<RubroAttributes, 'id_rubro' |
 class Rubro extends Model<RubroAttributes, RubroCreationAttributes> implements RubroAttributes {
   public id_rubro!: number;
   public nombre_rubro!: string;
-  public readonly created_at!: Date;
-  public readonly updated_at!: Date;
 
   // ===========================================
   // MÉTODOS PERSONALIZADOS
@@ -63,9 +59,7 @@ Rubro.init({
 }, {
   sequelize,
   tableName: 'rubro',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
+  timestamps: false,
   underscored: true,
   indexes: [
     {

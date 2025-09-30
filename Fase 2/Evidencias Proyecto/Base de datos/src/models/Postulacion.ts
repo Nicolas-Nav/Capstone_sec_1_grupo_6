@@ -21,11 +21,9 @@ interface PostulacionAttributes {
     id_estado_candidato: number;
     id_solicitud: number;
     id_portal_postulacion: number;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_rech_obs_cliente' | 'comentario_modulo5_cliente' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion' | 'created_at' | 'updated_at'> { }
+interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_rech_obs_cliente' | 'comentario_modulo5_cliente' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -46,8 +44,6 @@ class Postulacion extends Model<PostulacionAttributes, PostulacionCreationAttrib
     public id_estado_candidato!: number;
     public id_solicitud!: number;
     public id_portal_postulacion!: number;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -235,9 +231,7 @@ Postulacion.init({
 }, {
     sequelize,
     tableName: 'postulacion',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

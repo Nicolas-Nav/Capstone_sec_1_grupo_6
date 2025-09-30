@@ -8,11 +8,9 @@ import sequelize from '@/config/database';
 interface TipoServicioAttributes {
     codigo_servicio: string;
     nombre_servicio: string;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface TipoServicioCreationAttributes extends Optional<TipoServicioAttributes, 'created_at' | 'updated_at'> { }
+interface TipoServicioCreationAttributes extends Optional<TipoServicioAttributes, 'codigo_servicio'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface TipoServicioCreationAttributes extends Optional<TipoServicioAttributes
 class TipoServicio extends Model<TipoServicioAttributes, TipoServicioCreationAttributes> implements TipoServicioAttributes {
     public codigo_servicio!: string;
     public nombre_servicio!: string;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -71,9 +67,7 @@ TipoServicio.init({
 }, {
     sequelize,
     tableName: 'tiposervicio',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

@@ -12,11 +12,9 @@ interface PublicacionAttributes {
     url_publicacion: string;
     id_solicitud: number;
     id_portal_postulacion: number;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface PublicacionCreationAttributes extends Optional<PublicacionAttributes, 'id_publicacion' | 'created_at' | 'updated_at'> { }
+interface PublicacionCreationAttributes extends Optional<PublicacionAttributes, 'id_publicacion'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -29,8 +27,6 @@ class Publicacion extends Model<PublicacionAttributes, PublicacionCreationAttrib
     public url_publicacion!: string;
     public id_solicitud!: number;
     public id_portal_postulacion!: number;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 }
 
 // ===========================================
@@ -112,9 +108,7 @@ Publicacion.init({
 }, {
     sequelize,
     tableName: 'publicacion',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

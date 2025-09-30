@@ -13,11 +13,9 @@ interface ContactoAttributes {
   cargo_contacto: string;
   id_cliente: number;
   id_ciudad: number;
-  created_at?: Date;
-  updated_at?: Date;
 }
 
-interface ContactoCreationAttributes extends Optional<ContactoAttributes, 'id_contacto' | 'created_at' | 'updated_at'> {}
+interface ContactoCreationAttributes extends Optional<ContactoAttributes, 'id_contacto'> {}
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -31,8 +29,6 @@ class Contacto extends Model<ContactoAttributes, ContactoCreationAttributes> imp
   public cargo_contacto!: string;
   public id_cliente!: number;
   public id_ciudad!: number;
-  public readonly created_at!: Date;
-  public readonly updated_at!: Date;
 
   // ===========================================
   // MÉTODOS PERSONALIZADOS
@@ -145,9 +141,7 @@ Contacto.init({
 }, {
   sequelize,
   tableName: 'contacto',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
+  timestamps: false,
   underscored: true,
   indexes: [
     {

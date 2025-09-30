@@ -258,7 +258,7 @@ Postulacion.belongsTo(PortalPostulacion, {
 // Publicacion -> Relaciones múltiples
 Publicacion.belongsTo(Solicitud, {
     foreignKey: 'id_solicitud',
-    as: 'solicitud'
+    as: 'solicitudPublicacion'
 });
 Publicacion.belongsTo(PortalPostulacion, {
     foreignKey: 'id_portal_postulacion',

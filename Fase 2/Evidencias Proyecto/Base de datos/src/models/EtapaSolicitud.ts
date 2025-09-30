@@ -8,11 +8,9 @@ import sequelize from '@/config/database';
 interface EtapaSolicitudAttributes {
     id_etapa_solicitud: number;
     nombre_etapa: string;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface EtapaSolicitudCreationAttributes extends Optional<EtapaSolicitudAttributes, 'id_etapa_solicitud' | 'created_at' | 'updated_at'> { }
+interface EtapaSolicitudCreationAttributes extends Optional<EtapaSolicitudAttributes, 'id_etapa_solicitud'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface EtapaSolicitudCreationAttributes extends Optional<EtapaSolicitudAttrib
 class EtapaSolicitud extends Model<EtapaSolicitudAttributes, EtapaSolicitudCreationAttributes> implements EtapaSolicitudAttributes {
     public id_etapa_solicitud!: number;
     public nombre_etapa!: string;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 }
 
 // ===========================================
@@ -52,9 +48,7 @@ EtapaSolicitud.init({
 }, {
     sequelize,
     tableName: 'etapasolicitud',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

@@ -15,11 +15,9 @@ interface SolicitudAttributes {
     id_descripcioncargo: number;
     rut_usuario: string;
     id_etapa_solicitud: number;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface SolicitudCreationAttributes extends Optional<SolicitudAttributes, 'id_solicitud' | 'created_at' | 'updated_at'> { }
+interface SolicitudCreationAttributes extends Optional<SolicitudAttributes, 'id_solicitud'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -34,8 +32,6 @@ class Solicitud extends Model<SolicitudAttributes, SolicitudCreationAttributes> 
     public id_descripcioncargo!: number;
     public rut_usuario!: string;
     public id_etapa_solicitud!: number;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -156,9 +152,7 @@ Solicitud.init({
 }, {
     sequelize,
     tableName: 'solicitud',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

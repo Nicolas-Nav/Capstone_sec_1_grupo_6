@@ -9,11 +9,9 @@ interface ComunaAttributes {
   id_ciudad: number;
   nombre_comuna: string;
   id_region: number;
-  created_at?: Date;
-  updated_at?: Date;
 }
 
-interface ComunaCreationAttributes extends Optional<ComunaAttributes, 'id_ciudad' | 'created_at' | 'updated_at'> {}
+interface ComunaCreationAttributes extends Optional<ComunaAttributes, 'id_ciudad'> {}
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -23,8 +21,6 @@ class Comuna extends Model<ComunaAttributes, ComunaCreationAttributes> implement
   public id_ciudad!: number;
   public nombre_comuna!: string;
   public id_region!: number;
-  public readonly created_at!: Date;
-  public readonly updated_at!: Date;
 }
 
 // ===========================================
@@ -67,9 +63,7 @@ Comuna.init({
 }, {
   sequelize,
   tableName: 'comuna',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
+  timestamps: false,
   underscored: true,
   indexes: [
     {

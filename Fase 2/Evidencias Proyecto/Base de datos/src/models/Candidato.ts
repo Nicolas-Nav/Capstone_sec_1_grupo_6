@@ -22,11 +22,9 @@ interface CandidatoAttributes {
     id_ciudad?: number;
     id_nacionalidad?: number;
     id_rubro?: number;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface CandidatoCreationAttributes extends Optional<CandidatoAttributes, 'id_candidato' | 'rut_candidato' | 'edad_candidato' | 'fecha_nacimiento_candidato' | 'software_herramientas' | 'nivel_ingles' | 'id_ciudad' | 'id_nacionalidad' | 'id_rubro' | 'created_at' | 'updated_at'> { }
+interface CandidatoCreationAttributes extends Optional<CandidatoAttributes, 'id_candidato' | 'rut_candidato' | 'edad_candidato' | 'fecha_nacimiento_candidato' | 'software_herramientas' | 'nivel_ingles' | 'id_ciudad' | 'id_nacionalidad' | 'id_rubro'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -48,8 +46,6 @@ class Candidato extends Model<CandidatoAttributes, CandidatoCreationAttributes> 
     public id_ciudad?: number;
     public id_nacionalidad?: number;
     public id_rubro?: number;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -232,9 +228,7 @@ Candidato.init({
 }, {
     sequelize,
     tableName: 'candidato',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {
@@ -246,9 +240,6 @@ Candidato.init({
         },
         {
             fields: ['id_nacionalidad']
-        },
-        {
-            fields: ['id_rubro']
         },
         {
             fields: ['id_rubro']

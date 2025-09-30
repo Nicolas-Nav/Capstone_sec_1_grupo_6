@@ -8,11 +8,9 @@ import sequelize from '@/config/database';
 interface PortalPostulacionAttributes {
   id_portal_postulacion: number;
   nombre_portal_postulacion: string;
-  created_at?: Date;
-  updated_at?: Date;
 }
 
-interface PortalPostulacionCreationAttributes extends Optional<PortalPostulacionAttributes, 'id_portal_postulacion' | 'created_at' | 'updated_at'> {}
+interface PortalPostulacionCreationAttributes extends Optional<PortalPostulacionAttributes, 'id_portal_postulacion'> {}
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface PortalPostulacionCreationAttributes extends Optional<PortalPostulacion
 class PortalPostulacion extends Model<PortalPostulacionAttributes, PortalPostulacionCreationAttributes> implements PortalPostulacionAttributes {
   public id_portal_postulacion!: number;
   public nombre_portal_postulacion!: string;
-  public readonly created_at!: Date;
-  public readonly updated_at!: Date;
 
   // ===========================================
   // MÉTODOS PERSONALIZADOS
@@ -64,9 +60,7 @@ PortalPostulacion.init({
 }, {
   sequelize,
   tableName: 'portal_postulacion',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
+  timestamps: false,
   underscored: true,
   indexes: [
     {

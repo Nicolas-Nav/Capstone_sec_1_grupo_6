@@ -9,11 +9,9 @@ interface EstadoSolicitudHistAttributes {
     fecha_cambio_estado_solicitud: Date;
     id_estado_solicitud: number;
     id_solicitud: number;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface EstadoSolicitudHistCreationAttributes extends Optional<EstadoSolicitudHistAttributes, 'created_at' | 'updated_at'> { }
+interface EstadoSolicitudHistCreationAttributes extends Optional<EstadoSolicitudHistAttributes, 'fecha_cambio_estado_solicitud'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -23,8 +21,6 @@ class EstadoSolicitudHist extends Model<EstadoSolicitudHistAttributes, EstadoSol
     public fecha_cambio_estado_solicitud!: Date;
     public id_estado_solicitud!: number;
     public id_solicitud!: number;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -132,9 +128,7 @@ EstadoSolicitudHist.init({
 }, {
     sequelize,
     tableName: 'estado_solicitud_hist',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

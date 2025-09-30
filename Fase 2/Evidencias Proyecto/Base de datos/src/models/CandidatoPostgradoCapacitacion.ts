@@ -9,11 +9,9 @@ interface CandidatoPostgradoCapacitacionAttributes {
     fecha_obtencion: Date;
     id_postgradocapacitacion: number;
     id_candidato: number;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface CandidatoPostgradoCapacitacionCreationAttributes extends Optional<CandidatoPostgradoCapacitacionAttributes, 'created_at' | 'updated_at'> { }
+interface CandidatoPostgradoCapacitacionCreationAttributes extends Optional<CandidatoPostgradoCapacitacionAttributes, 'fecha_obtencion'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -23,8 +21,6 @@ class CandidatoPostgradoCapacitacion extends Model<CandidatoPostgradoCapacitacio
     public fecha_obtencion!: Date;
     public id_postgradocapacitacion!: number;
     public id_candidato!: number;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 }
 
 // ===========================================
@@ -73,9 +69,7 @@ CandidatoPostgradoCapacitacion.init({
 }, {
     sequelize,
     tableName: 'candidatopostgradocapacitacion',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

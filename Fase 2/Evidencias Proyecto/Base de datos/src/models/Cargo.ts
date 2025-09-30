@@ -8,11 +8,9 @@ import sequelize from '@/config/database';
 interface CargoAttributes {
     id_cargo: number;
     nombre_cargo: string;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface CargoCreationAttributes extends Optional<CargoAttributes, 'id_cargo' | 'created_at' | 'updated_at'> { }
+interface CargoCreationAttributes extends Optional<CargoAttributes, 'id_cargo'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface CargoCreationAttributes extends Optional<CargoAttributes, 'id_cargo' |
 class Cargo extends Model<CargoAttributes, CargoCreationAttributes> implements CargoAttributes {
     public id_cargo!: number;
     public nombre_cargo!: string;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -63,9 +59,7 @@ Cargo.init({
 }, {
     sequelize,
     tableName: 'cargo',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

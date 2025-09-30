@@ -8,11 +8,9 @@ import sequelize from '@/config/database';
 interface RegionAttributes {
     id_region: number;
     nombre_region: string;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface RegionCreationAttributes extends Optional<RegionAttributes, 'id_region' | 'created_at' | 'updated_at'> { }
+interface RegionCreationAttributes extends Optional<RegionAttributes, 'id_region'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface RegionCreationAttributes extends Optional<RegionAttributes, 'id_region
 class Region extends Model<RegionAttributes, RegionCreationAttributes> implements RegionAttributes {
     public id_region!: number;
     public nombre_region!: string;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 }
 
 // ===========================================
@@ -52,9 +48,7 @@ Region.init({
 }, {
     sequelize,
     tableName: 'region',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

@@ -8,11 +8,9 @@ import sequelize from '@/config/database';
 interface EstadoClienteAttributes {
     id_estado_cliente: number;
     nombre_estado: string;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface EstadoClienteCreationAttributes extends Optional<EstadoClienteAttributes, 'id_estado_cliente' | 'created_at' | 'updated_at'> { }
+interface EstadoClienteCreationAttributes extends Optional<EstadoClienteAttributes, 'id_estado_cliente'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface EstadoClienteCreationAttributes extends Optional<EstadoClienteAttribut
 class EstadoCliente extends Model<EstadoClienteAttributes, EstadoClienteCreationAttributes> implements EstadoClienteAttributes {
     public id_estado_cliente!: number;
     public nombre_estado!: string;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -187,9 +183,7 @@ EstadoCliente.init({
 }, {
     sequelize,
     tableName: 'estado_cliente',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

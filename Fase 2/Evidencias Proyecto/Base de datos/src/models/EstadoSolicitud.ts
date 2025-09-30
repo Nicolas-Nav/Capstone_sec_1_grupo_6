@@ -8,11 +8,9 @@ import sequelize from '@/config/database';
 interface EstadoSolicitudAttributes {
     id_estado_solicitud: number;
     nombre_estado_solicitud: string;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface EstadoSolicitudCreationAttributes extends Optional<EstadoSolicitudAttributes, 'id_estado_solicitud' | 'created_at' | 'updated_at'> { }
+interface EstadoSolicitudCreationAttributes extends Optional<EstadoSolicitudAttributes, 'id_estado_solicitud'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface EstadoSolicitudCreationAttributes extends Optional<EstadoSolicitudAttr
 class EstadoSolicitud extends Model<EstadoSolicitudAttributes, EstadoSolicitudCreationAttributes> implements EstadoSolicitudAttributes {
     public id_estado_solicitud!: number;
     public nombre_estado_solicitud!: string;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -158,9 +154,7 @@ EstadoSolicitud.init({
 }, {
     sequelize,
     tableName: 'estado',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

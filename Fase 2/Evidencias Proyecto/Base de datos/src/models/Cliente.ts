@@ -8,11 +8,9 @@ import sequelize from '@/config/database';
 interface ClienteAttributes {
   id_cliente: number;
   nombre_cliente: string;
-  created_at?: Date;
-  updated_at?: Date;
 }
 
-interface ClienteCreationAttributes extends Optional<ClienteAttributes, 'id_cliente' | 'created_at' | 'updated_at'> {}
+interface ClienteCreationAttributes extends Optional<ClienteAttributes, 'id_cliente'> {}
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -21,8 +19,6 @@ interface ClienteCreationAttributes extends Optional<ClienteAttributes, 'id_clie
 class Cliente extends Model<ClienteAttributes, ClienteCreationAttributes> implements ClienteAttributes {
   public id_cliente!: number;
   public nombre_cliente!: string;
-  public readonly created_at!: Date;
-  public readonly updated_at!: Date;
 
   // ===========================================
   // MÉTODOS PERSONALIZADOS
@@ -63,9 +59,7 @@ Cliente.init({
 }, {
   sequelize,
   tableName: 'cliente',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
+  timestamps: false,
   underscored: true,
   indexes: [
     {

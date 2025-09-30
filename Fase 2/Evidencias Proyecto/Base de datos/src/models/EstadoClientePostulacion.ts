@@ -9,11 +9,9 @@ interface EstadoClientePostulacionAttributes {
     fecha_cambio_estado_cliente: Date;
     id_estado_cliente: number;
     id_postulacion: number;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface EstadoClientePostulacionCreationAttributes extends Optional<EstadoClientePostulacionAttributes, 'created_at' | 'updated_at'> { }
+interface EstadoClientePostulacionCreationAttributes extends Optional<EstadoClientePostulacionAttributes, 'fecha_cambio_estado_cliente'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -23,8 +21,6 @@ class EstadoClientePostulacion extends Model<EstadoClientePostulacionAttributes,
     public fecha_cambio_estado_cliente!: Date;
     public id_estado_cliente!: number;
     public id_postulacion!: number;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 }
 
 // ===========================================
@@ -74,9 +70,7 @@ EstadoClientePostulacion.init({
 }, {
     sequelize,
     tableName: 'estado_cliente_postulacion',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

@@ -2,6 +2,8 @@ import app, { initializeApp } from './app';
 import { config } from '@/config';
 import { testConnection, syncDatabase } from '@/config/database';
 import { Logger } from '@/utils/logger';
+// Importar modelos para que Sequelize los reconozca
+import '@/models';
 
 /**
  * Función principal para iniciar el servidor

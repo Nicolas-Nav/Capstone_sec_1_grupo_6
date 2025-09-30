@@ -6,25 +6,21 @@ import sequelize from '@/config/database';
 // ===========================================
 
 interface CandidatoProfesionAttributes {
-  fecha_obtencion: Date;
-  id_profesion: number;
-  id_candidato: number;
-  created_at?: Date;
-  updated_at?: Date;
+    fecha_obtencion: Date;
+    id_profesion: number;
+    id_candidato: number;
 }
 
-interface CandidatoProfesionCreationAttributes extends Optional<CandidatoProfesionAttributes, 'created_at' | 'updated_at'> {}
+interface CandidatoProfesionCreationAttributes extends Optional<CandidatoProfesionAttributes, 'fecha_obtencion'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
 // ===========================================
 
 class CandidatoProfesion extends Model<CandidatoProfesionAttributes, CandidatoProfesionCreationAttributes> implements CandidatoProfesionAttributes {
-  public fecha_obtencion!: Date;
-  public id_profesion!: number;
-  public id_candidato!: number;
-  public readonly created_at!: Date;
-  public readonly updated_at!: Date;
+    public fecha_obtencion!: Date;
+    public id_profesion!: number;
+    public id_candidato!: number;
 }
 
 // ===========================================
@@ -32,62 +28,60 @@ class CandidatoProfesion extends Model<CandidatoProfesionAttributes, CandidatoPr
 // ===========================================
 
 CandidatoProfesion.init({
-  fecha_obtencion: {
-    type: DataTypes.DATEONLY,
-    allowNull: false,
-    validate: {
-      isDate: true,
-      notNull: {
-        msg: 'La fecha de obtención es requerida'
-      }
-    }
-  },
-  id_profesion: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    primaryKey: true,
-    references: {
-      model: 'profesion',
-      key: 'id_profesion'
+    fecha_obtencion: {
+        type: DataTypes.DATEONLY,
+        allowNull: false,
+        validate: {
+            isDate: true,
+            notNull: {
+                msg: 'La fecha de obtención es requerida'
+            }
+        }
     },
-    validate: {
-      notNull: {
-        msg: 'La profesión es requerida'
-      }
-    }
-  },
-  id_candidato: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    primaryKey: true,
-    references: {
-      model: 'candidato',
-      key: 'id_candidato'
+    id_profesion: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        primaryKey: true,
+        references: {
+            model: 'profesion',
+            key: 'id_profesion'
+        },
+        validate: {
+            notNull: {
+                msg: 'La profesión es requerida'
+            }
+        }
     },
-    validate: {
-      notNull: {
-        msg: 'El candidato es requerido'
-      }
+    id_candidato: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        primaryKey: true,
+        references: {
+            model: 'candidato',
+            key: 'id_candidato'
+        },
+        validate: {
+            notNull: {
+                msg: 'El candidato es requerido'
+            }
+        }
     }
-  }
 }, {
-  sequelize,
-  tableName: 'candidatoprofesion',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
-  underscored: true,
-  indexes: [
-    {
-      fields: ['id_profesion']
-    },
-    {
-      fields: ['id_candidato']
-    },
-    {
-      fields: ['fecha_obtencion']
-    }
-  ]
+    sequelize,
+    tableName: 'candidatoprofesion',
+    timestamps: false,
+    underscored: true,
+    indexes: [
+        {
+            fields: ['id_profesion']
+        },
+        {
+            fields: ['id_candidato']
+        },
+        {
+            fields: ['fecha_obtencion']
+        }
+    ]
 });
 
 export default CandidatoProfesion;

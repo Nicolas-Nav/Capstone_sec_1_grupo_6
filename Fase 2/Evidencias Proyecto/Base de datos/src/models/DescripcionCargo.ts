@@ -15,11 +15,9 @@ interface DescripcionCargoAttributes {
     datos_excel?: object; 
     id_cargo: number;
     id_ciudad: number;
-    created_at?: Date;
-    updated_at?: Date;
 }
 
-interface DescripcionCargoCreationAttributes extends Optional<DescripcionCargoAttributes, 'id_descripcioncargo' | 'datos_excel' | 'created_at' | 'updated_at'> { }
+interface DescripcionCargoCreationAttributes extends Optional<DescripcionCargoAttributes, 'id_descripcioncargo' | 'datos_excel'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -34,8 +32,6 @@ class DescripcionCargo extends Model<DescripcionCargoAttributes, DescripcionCarg
     public datos_excel?: object; 
     public id_cargo!: number;
     public id_ciudad!: number;
-    public readonly created_at!: Date;
-    public readonly updated_at!: Date;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -176,9 +172,7 @@ DescripcionCargo.init({
 }, {
     sequelize,
     tableName: 'descripcioncargo',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false,
     underscored: true,
     indexes: [
         {

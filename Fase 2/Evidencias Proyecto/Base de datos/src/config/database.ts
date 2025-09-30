@@ -34,7 +34,10 @@ const sequelize = new Sequelize({
     updatedAt: 'updated_at'
   },
   dialectOptions: {
-    // SSL no requerido para conexión local
+    ssl: {
+      require: true,
+      rejectUnauthorized: false // permite certificados autofirmados
+    }
   }
 });
 

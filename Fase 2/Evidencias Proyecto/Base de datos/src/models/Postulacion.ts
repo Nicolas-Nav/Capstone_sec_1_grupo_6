@@ -23,7 +23,7 @@ interface PostulacionAttributes {
     id_portal_postulacion: number;
 }
 
-interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_rech_obs_cliente' | 'comentario_modulo5_cliente' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion'> { }
+interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'id_postulacion' | 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_rech_obs_cliente' | 'comentario_modulo5_cliente' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion'> { }
 
 // ===========================================
 // MODELO SEQUELIZE

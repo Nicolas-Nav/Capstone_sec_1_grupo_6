@@ -11,12 +11,12 @@ import authRoutes from '@/routes/authRoutes';
 import userRoutes from '@/routes/userRoutes';
 import { authenticateToken, requireAdmin, requireConsultorOrAdmin } from '@/middleware/auth';
 
-// Importar rutas (se crearán después)
+// Importar rutas
 // import authRoutes from '@/routes/auth';
 // import userRoutes from '@/routes/users';
-// import clientRoutes from '@/routes/clients';
-// import processRoutes from '@/routes/processes';
-// import candidateRoutes from '@/routes/candidates';
+import clienteRoutes from '@/routes/clientes';
+import solicitudRoutes from '@/routes/solicitudes';
+import postulacionRoutes from '@/routes/postulaciones';
 
 const app = express();
 
@@ -95,15 +95,46 @@ app.get('/api', (req, res) => {
     message: 'API de LL Consulting',
     version: '1.0.0',
     endpoints: {
-      auth: '/api/auth',
-      users: '/api/users',
-      clients: '/api/clients',
-      processes: '/api/processes',
-      candidates: '/api/candidates'
+      clientes: '/api/clientes',
+      solicitudes: '/api/solicitudes',
+      postulaciones: '/api/postulaciones',
+      auth: '/api/auth (TODO)',
+      users: '/api/users (TODO)'
+    },
+    documentation: {
+      clientes: {
+        getAll: 'GET /api/clientes',
+        getById: 'GET /api/clientes/:id',
+        create: 'POST /api/clientes',
+        update: 'PUT /api/clientes/:id',
+        delete: 'DELETE /api/clientes/:id',
+        stats: 'GET /api/clientes/stats'
+      },
+      solicitudes: {
+        getAll: 'GET /api/solicitudes',
+        getById: 'GET /api/solicitudes/:id',
+        getByConsultor: 'GET /api/solicitudes/consultor/:rutUsuario',
+        create: 'POST /api/solicitudes',
+        updateEstado: 'PUT /api/solicitudes/:id/estado',
+        delete: 'DELETE /api/solicitudes/:id'
+      },
+      postulaciones: {
+        getBySolicitud: 'GET /api/postulaciones/solicitud/:idSolicitud',
+        create: 'POST /api/postulaciones',
+        updateEstado: 'PUT /api/postulaciones/:id/estado',
+        updateValoracion: 'PUT /api/postulaciones/:id/valoracion',
+        delete: 'DELETE /api/postulaciones/:id'
+      }
     }
   });
 });
 
+// Rutas de la API
+// app.use('/api/auth', authRoutes); // TODO: Implementar autenticación
+// app.use('/api/users', userRoutes); // TODO: Implementar gestión de usuarios
+app.use('/api/clientes', clienteRoutes);
+app.use('/api/solicitudes', solicitudRoutes);
+app.use('/api/postulaciones', postulacionRoutes);
 // Rutas de la API (se descomentarán cuando se creen)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

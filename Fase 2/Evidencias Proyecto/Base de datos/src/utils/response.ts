@@ -9,13 +9,13 @@ export const sendSuccess = <T>(
   data: T,
   message: string = 'Operación exitosa',
   statusCode: number = 200
-): void => {
+): Response => {
   const response: ApiResponse<T> = {
     success: true,
     message,
     data
   };
-  res.status(statusCode).json(response);
+  return res.status(statusCode).json(response);
 };
 
 /**
@@ -26,13 +26,13 @@ export const sendError = (
   message: string = 'Error interno del servidor',
   statusCode: number = 500,
   error?: string
-): void => {
+): Response => {
   const response: ApiResponse = {
     success: false,
     message,
     error
   };
-  res.status(statusCode).json(response);
+  return res.status(statusCode).json(response);
 };
 
 /**
@@ -116,3 +116,4 @@ export const sendForbidden = (
   };
   res.status(403).json(response);
 };
+

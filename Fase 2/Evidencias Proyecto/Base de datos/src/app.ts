@@ -125,7 +125,7 @@ app.use(errorHandler);
 // Función para inicializar la aplicación
 export const initializeApp = async (): Promise<void> => {
   try {
-    Logger.info('🚀 Inicializando aplicación LL Consulting...');
+    Logger.info('Inicializando aplicación LL Consulting...');
     
     // Aquí se pueden agregar inicializaciones adicionales
     // como conexión a base de datos, etc.

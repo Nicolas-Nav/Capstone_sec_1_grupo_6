@@ -1,0 +1,78 @@
+import { Model, DataTypes, Optional } from 'sequelize';
+import sequelize from '@/config/database';
+
+// ===========================================
+// INTERFACES TYPESCRIPT
+// ===========================================
+
+interface CargoAttributes {
+    id_cargo: number;
+    nombre_cargo: string;
+    created_at?: Date;
+    updated_at?: Date;
+}
+
+interface CargoCreationAttributes extends Optional<CargoAttributes, 'id_cargo' | 'created_at' | 'updated_at'> { }
+
+// ===========================================
+// MODELO SEQUELIZE
+// ===========================================
+
+class Cargo extends Model<CargoAttributes, CargoCreationAttributes> implements CargoAttributes {
+    public id_cargo!: number;
+    public nombre_cargo!: string;
+    public readonly created_at!: Date;
+    public readonly updated_at!: Date;
+
+    // ===========================================
+    // MÉTODOS PERSONALIZADOS
+    // ===========================================
+
+    /**
+     * Obtiene el nombre del cargo formateado
+     */
+    public getNombreFormateado(): string {
+        return this.nombre_cargo.trim();
+    }
+}
+
+// ===========================================
+// DEFINICIÓN DEL MODELO
+// ===========================================
+
+Cargo.init({
+    id_cargo: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false
+    },
+    nombre_cargo: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        validate: {
+            notEmpty: {
+                msg: 'El nombre del cargo es requerido'
+            },
+            len: {
+                args: [2, 100],
+                msg: 'El nombre debe tener entre 2 y 100 caracteres'
+            }
+        }
+    }
+}, {
+    sequelize,
+    tableName: 'cargo',
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    underscored: true,
+    indexes: [
+        {
+            unique: true,
+            fields: ['nombre_cargo']
+        }
+    ]
+});
+
+export default Cargo;

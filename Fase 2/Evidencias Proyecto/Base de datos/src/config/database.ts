@@ -32,6 +32,9 @@ const sequelize = new Sequelize({
     underscored: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at'
+  },
+  dialectOptions: {
+    // SSL no requerido para conexión local
   }
 });
 

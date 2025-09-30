@@ -7,6 +7,9 @@ import rateLimit from 'express-rate-limit';
 import { config } from '@/config';
 import { Logger } from '@/utils/logger';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
+import authRoutes from '@/routes/authRoutes';
+import userRoutes from '@/routes/userRoutes';
+import { authenticateToken, requireAdmin, requireConsultorOrAdmin } from '@/middleware/auth';
 
 // Importar rutas (se crearán después)
 // import authRoutes from '@/routes/auth';
@@ -102,11 +105,20 @@ app.get('/api', (req, res) => {
 });
 
 // Rutas de la API (se descomentarán cuando se creen)
-// app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 // app.use('/api/users', userRoutes);
 // app.use('/api/clients', clientRoutes);
 // app.use('/api/processes', processRoutes);
 // app.use('/api/candidates', candidateRoutes);
+
+
+// Solo admins pueden acceder
+//app.use('/api/users', authenticateToken, requireAdmin, userRoutes);
+
+// Consultor o admin pueden acceder
+//app.use('/api/clients', authenticateToken, requireConsultorOrAdmin, clientRoutes);
+
 
 // ===========================================
 // MIDDLEWARE DE ERRORES

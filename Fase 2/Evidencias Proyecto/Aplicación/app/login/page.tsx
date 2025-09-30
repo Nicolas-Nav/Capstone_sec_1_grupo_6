@@ -74,15 +74,6 @@ export default function LoginPage() {
               Iniciar Sesión
             </Button>
           </form>
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>Usuarios de prueba:</p>
-            <p>• admin@llconsulting.com (Admin)</p>
-            <p>• carlos@llconsulting.com (Consultor)</p>
-            <p>• maria@llconsulting.com (Consultor)</p>
-            <p>
-              Contraseña: <strong>password</strong>
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>

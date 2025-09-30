@@ -1,6 +1,7 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '@/config/database';
 import { validateRut } from '@/utils/validators';
+import bcrypt from 'bcryptjs';
 
 // ===========================================
 // INTERFACES TYPESCRIPT
@@ -199,13 +200,27 @@ Usuario.init({
     ],
 
     // Hooks (funciones que se ejecutan en ciertos momentos)
+    // hooks: {
+    //     beforeCreate: (usuario: Usuario) => {
+    //         // Aquí podrías encriptar la contraseña antes de guardar
+    //         console.log(`Creando usuario: ${usuario.nombre_usuario}`);
+    //     },
+    //     beforeUpdate: (usuario: Usuario) => {
+    //         console.log(`Actualizando usuario: ${usuario.nombre_usuario}`);
+    //     }
+    // }
     hooks: {
-        beforeCreate: (usuario: Usuario) => {
-            // Aquí podrías encriptar la contraseña antes de guardar
+        beforeCreate: async (usuario: Usuario) => {
+            if (usuario.contrasena_usuario) {
+            usuario.contrasena_usuario = await bcrypt.hash(usuario.contrasena_usuario, 10);
             console.log(`Creando usuario: ${usuario.nombre_usuario}`);
+            }
         },
-        beforeUpdate: (usuario: Usuario) => {
+        beforeUpdate: async (usuario: Usuario) => {
+            if (usuario.changed('contrasena_usuario')) {
+            usuario.contrasena_usuario = await bcrypt.hash(usuario.contrasena_usuario, 10);
             console.log(`Actualizando usuario: ${usuario.nombre_usuario}`);
+            }
         }
     }
 });

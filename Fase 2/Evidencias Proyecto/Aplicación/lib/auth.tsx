@@ -12,60 +12,65 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Mock users for development
-const mockUsers: User[] = [
-  {
-    id: "1",
-    name: "Ana García",
-    email: "admin@llconsulting.com",
-    role: "admin",
-  },
-  {
-    id: "2",
-    name: "Carlos Rodríguez",
-    email: "carlos@llconsulting.com",
-    role: "consultor",
-  },
-  {
-    id: "3",
-    name: "María López",
-    email: "maria@llconsulting.com",
-    role: "consultor",
-  },
-]
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Check for stored user session
     const storedUser = localStorage.getItem("llc_user")
-    if (storedUser) {
+    const storedToken = localStorage.getItem("llc_token")
+    if (storedUser && storedToken) {
       setUser(JSON.parse(storedUser))
     }
     setIsLoading(false)
   }, [])
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true)
+const login = async (email: string, password: string): Promise<boolean> => {
+  setIsLoading(true)
+  try {
+    const res = await fetch("http://localhost:3001/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email, password })
+    })
 
-    // Mock authentication
-    const foundUser = mockUsers.find((u) => u.email === email)
-    if (foundUser && password === "password") {
-      setUser(foundUser)
-      localStorage.setItem("llc_user", JSON.stringify(foundUser))
+    console.log("Response status:", res.status, res.statusText) // <- aquí
+    const data = await res.json()
+    console.log("Data recibida del backend:", data) // <- y aquí
+
+    if (!res.ok) {
       setIsLoading(false)
-      return true
+      return false
     }
 
+    // Guardar token y usuario en localStorage
+    localStorage.setItem("llc_token", data.data.token)
+
+    const loggedUser: User = {
+      id: data.data.usuario.rut_usuario,
+      name: data.data.usuario.nombre,
+      email,
+      role: data.data.usuario.rol,
+      status: "habilitado" // o deshabilitado según tu API
+    }
+
+    setUser(loggedUser)
+    localStorage.setItem("llc_user", JSON.stringify(loggedUser))
+    setIsLoading(false)
+    return true
+  } catch (error) {
+    console.error("Error en login:", error)
     setIsLoading(false)
     return false
   }
+}
 
   const logout = () => {
     setUser(null)
     localStorage.removeItem("llc_user")
+    localStorage.removeItem("llc_token")
   }
 
   return <AuthContext.Provider value={{ user, login, logout, isLoading }}>{children}</AuthContext.Provider>
@@ -73,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider")
   }
   return context

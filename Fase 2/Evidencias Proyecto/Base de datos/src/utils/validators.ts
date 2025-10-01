@@ -66,3 +66,4 @@ export const validateDateRange = (fecha: Date, daysBack: number = 14): boolean =
 export const validateRating = (valoracion: number): boolean => {
   return Number.isInteger(valoracion) && valoracion >= 1 && valoracion <= 5;
 };
+

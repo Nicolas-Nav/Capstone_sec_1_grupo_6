@@ -1,0 +1,195 @@
+import { Request, Response } from 'express';
+import { sendSuccess, sendError } from '@/utils/response';
+import { Logger } from '@/utils/logger';
+import { DescripcionCargoService } from '@/services/descripcionCargoService';
+
+/**
+ * Controlador para gestión de Descripciones de Cargo
+ * Delega la lógica de negocio al DescripcionCargoService
+ */
+
+export class DescripcionCargoController {
+    /**
+     * GET /api/descripciones-cargo
+     * Obtener todas las descripciones de cargo
+     */
+    static async getAll(req: Request, res: Response): Promise<Response> {
+        try {
+            const descripciones = await DescripcionCargoService.getAllDescripciones();
+            return sendSuccess(res, descripciones, 'Descripciones de cargo obtenidas exitosamente');
+        } catch (error) {
+            Logger.error('Error al obtener descripciones de cargo:', error);
+            return sendError(res, 'Error al obtener descripciones de cargo', 500);
+        }
+    }
+
+    /**
+     * GET /api/descripciones-cargo/:id
+     * Obtener una descripción de cargo específica
+     */
+    static async getById(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const descripcion = await DescripcionCargoService.getDescripcionById(parseInt(id));
+
+            if (!descripcion) {
+                return sendError(res, 'Descripción de cargo no encontrada', 404);
+            }
+
+            return sendSuccess(res, descripcion, 'Descripción de cargo obtenida exitosamente');
+        } catch (error) {
+            Logger.error('Error al obtener descripción de cargo:', error);
+            return sendError(res, 'Error al obtener descripción de cargo', 500);
+        }
+    }
+
+    /**
+     * POST /api/descripciones-cargo
+     * Crear nueva descripción de cargo
+     */
+    static async create(req: Request, res: Response): Promise<Response> {
+        try {
+            const {
+                descripcion,
+                requisitos,
+                vacantes,
+                fecha_ingreso,
+                id_cargo,
+                id_ciudad,
+                datos_excel
+            } = req.body;
+
+            const nuevaDescripcion = await DescripcionCargoService.createDescripcion({
+                descripcion,
+                requisitos,
+                vacantes: parseInt(vacantes),
+                fecha_ingreso: fecha_ingreso ? new Date(fecha_ingreso) : undefined,
+                id_cargo: parseInt(id_cargo),
+                id_ciudad: parseInt(id_ciudad),
+                datos_excel
+            });
+
+            Logger.info(`Descripción de cargo creada: ${nuevaDescripcion.id}`);
+            return sendSuccess(res, nuevaDescripcion, 'Descripción de cargo creada exitosamente', 201);
+        } catch (error: any) {
+            Logger.error('Error al crear descripción de cargo:', error);
+            return sendError(res, error.message || 'Error al crear descripción de cargo', 400);
+        }
+    }
+
+    /**
+     * PUT /api/descripciones-cargo/:id
+     * Actualizar descripción de cargo
+     */
+    static async update(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const { descripcion, requisitos, vacantes, datos_excel } = req.body;
+
+            const descripcionActualizada = await DescripcionCargoService.updateDescripcion(parseInt(id), {
+                descripcion,
+                requisitos,
+                vacantes: vacantes ? parseInt(vacantes) : undefined,
+                datos_excel
+            });
+
+            Logger.info(`Descripción de cargo actualizada: ${id}`);
+            return sendSuccess(res, descripcionActualizada, 'Descripción de cargo actualizada exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al actualizar descripción de cargo:', error);
+
+            if (error.message === 'Descripción de cargo no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+
+            return sendError(res, error.message || 'Error al actualizar descripción de cargo', 400);
+        }
+    }
+
+    /**
+     * POST /api/descripciones-cargo/:id/excel
+     * Agregar datos de Excel procesados a una descripción de cargo
+     * 
+     * Body esperado:
+     * {
+     *   "datos_excel": { ... } // JSON con los datos ya procesados del Excel
+     * }
+     */
+    static async agregarDatosExcel(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const { datos_excel } = req.body;
+
+            if (!datos_excel) {
+                return sendError(res, 'Los datos de Excel son requeridos', 400);
+            }
+
+            const resultado = await DescripcionCargoService.agregarDatosExcel(parseInt(id), datos_excel);
+
+            Logger.info(`Datos de Excel agregados a descripción ${id}`);
+            return sendSuccess(res, resultado, 'Datos de Excel agregados exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al agregar datos de Excel:', error);
+
+            if (error.message === 'Descripción de cargo no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+
+            return sendError(res, error.message || 'Error al agregar datos de Excel', 400);
+        }
+    }
+
+
+    /**
+     * GET /api/descripciones-cargo/:id/excel
+     * Obtener datos de Excel guardados
+     */
+    static async getDatosExcel(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const datos = await DescripcionCargoService.getDatosExcel(parseInt(id));
+
+            return sendSuccess(res, datos, 'Datos de Excel obtenidos exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener datos de Excel:', error);
+
+            if (error.message === 'Descripción de cargo no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+
+            if (error.message.includes('no tiene datos de Excel')) {
+                return sendError(res, error.message, 404);
+            }
+
+            return sendError(res, error.message || 'Error al obtener datos de Excel', 500);
+        }
+    }
+
+
+    /**
+     * DELETE /api/descripciones-cargo/:id
+     * Eliminar descripción de cargo
+     */
+    static async delete(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            await DescripcionCargoService.deleteDescripcion(parseInt(id));
+
+            Logger.info(`Descripción de cargo eliminada: ${id}`);
+            return sendSuccess(res, null, 'Descripción de cargo eliminada exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al eliminar descripción de cargo:', error);
+
+            if (error.message === 'Descripción de cargo no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+
+            if (error.message.includes('solicitudes asociadas')) {
+                return sendError(res, error.message, 400);
+            }
+
+            return sendError(res, 'Error al eliminar descripción de cargo', 500);
+        }
+    }
+}
+

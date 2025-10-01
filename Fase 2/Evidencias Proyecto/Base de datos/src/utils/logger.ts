@@ -98,3 +98,4 @@ export class Logger {
     this.info(message, data);
   }
 }
+

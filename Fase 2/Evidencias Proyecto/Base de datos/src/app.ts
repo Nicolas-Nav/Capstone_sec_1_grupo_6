@@ -8,12 +8,15 @@ import { config } from '@/config';
 import { Logger } from '@/utils/logger';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
 
-// Importar rutas (se crearán después)
+// Importar rutas
 // import authRoutes from '@/routes/auth';
 // import userRoutes from '@/routes/users';
-// import clientRoutes from '@/routes/clients';
-// import processRoutes from '@/routes/processes';
-// import candidateRoutes from '@/routes/candidates';
+import clienteRoutes from '@/routes/clientes';
+import solicitudRoutes from '@/routes/solicitudes';
+import postulacionRoutes from '@/routes/postulaciones';
+import tipoServicioRoutes from '@/routes/tiposServicio';
+import cargoRoutes from '@/routes/cargos';
+import descripcionCargoRoutes from '@/routes/descripcionesCargo';
 
 const app = express();
 
@@ -92,21 +95,76 @@ app.get('/api', (req, res) => {
     message: 'API de LL Consulting',
     version: '1.0.0',
     endpoints: {
-      auth: '/api/auth',
-      users: '/api/users',
-      clients: '/api/clients',
-      processes: '/api/processes',
-      candidates: '/api/candidates'
+      clientes: '/api/clientes',
+      solicitudes: '/api/solicitudes',
+      postulaciones: '/api/postulaciones',
+      tipos_servicio: '/api/tipos-servicio',
+      cargos: '/api/cargos',
+      descripciones_cargo: '/api/descripciones-cargo',
+      auth: '/api/auth (TODO)',
+      users: '/api/users (TODO)'
+    },
+    documentation: {
+      clientes: {
+        getAll: 'GET /api/clientes',
+        getById: 'GET /api/clientes/:id',
+        create: 'POST /api/clientes',
+        update: 'PUT /api/clientes/:id',
+        delete: 'DELETE /api/clientes/:id',
+        stats: 'GET /api/clientes/stats'
+      },
+      solicitudes: {
+        getAll: 'GET /api/solicitudes',
+        getById: 'GET /api/solicitudes/:id',
+        getByConsultor: 'GET /api/solicitudes/consultor/:rutUsuario',
+        create: 'POST /api/solicitudes',
+        updateEstado: 'PUT /api/solicitudes/:id/estado',
+        delete: 'DELETE /api/solicitudes/:id'
+      },
+      postulaciones: {
+        getBySolicitud: 'GET /api/postulaciones/solicitud/:idSolicitud',
+        create: 'POST /api/postulaciones',
+        updateEstado: 'PUT /api/postulaciones/:id/estado',
+        updateValoracion: 'PUT /api/postulaciones/:id/valoracion',
+        delete: 'DELETE /api/postulaciones/:id'
+      },
+      tipos_servicio: {
+        getAll: 'GET /api/tipos-servicio',
+        getByCodigo: 'GET /api/tipos-servicio/:codigo',
+        create: 'POST /api/tipos-servicio',
+        update: 'PUT /api/tipos-servicio/:codigo',
+        delete: 'DELETE /api/tipos-servicio/:codigo'
+      },
+      cargos: {
+        getAll: 'GET /api/cargos',
+        getById: 'GET /api/cargos/:id',
+        create: 'POST /api/cargos',
+        findOrCreate: 'POST /api/cargos/find-or-create',
+        update: 'PUT /api/cargos/:id',
+        delete: 'DELETE /api/cargos/:id'
+      },
+      descripciones_cargo: {
+        getAll: 'GET /api/descripciones-cargo',
+        getById: 'GET /api/descripciones-cargo/:id',
+        create: 'POST /api/descripciones-cargo',
+        update: 'PUT /api/descripciones-cargo/:id',
+        agregarDatosExcel: 'POST /api/descripciones-cargo/:id/excel (Excel procesado en frontend)',
+        getDatosExcel: 'GET /api/descripciones-cargo/:id/excel',
+        delete: 'DELETE /api/descripciones-cargo/:id'
+      }
     }
   });
 });
 
-// Rutas de la API (se descomentarán cuando se creen)
-// app.use('/api/auth', authRoutes);
-// app.use('/api/users', userRoutes);
-// app.use('/api/clients', clientRoutes);
-// app.use('/api/processes', processRoutes);
-// app.use('/api/candidates', candidateRoutes);
+// Rutas de la API
+// app.use('/api/auth', authRoutes); // TODO: Implementar autenticación
+// app.use('/api/users', userRoutes); // TODO: Implementar gestión de usuarios
+app.use('/api/clientes', clienteRoutes);
+app.use('/api/solicitudes', solicitudRoutes);
+app.use('/api/postulaciones', postulacionRoutes);
+app.use('/api/tipos-servicio', tipoServicioRoutes);
+app.use('/api/cargos', cargoRoutes);
+app.use('/api/descripciones-cargo', descripcionCargoRoutes);
 
 // ===========================================
 // MIDDLEWARE DE ERRORES

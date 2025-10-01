@@ -1,5 +1,5 @@
-// src/services/userService.ts
-import Usuario from '@/models/Usuario';
+import { Op } from "sequelize";
+import Usuario from "@/models/Usuario";
 
 interface CreateUserPayload {
   rut_usuario: string;
@@ -10,20 +10,130 @@ interface CreateUserPayload {
   rol_usuario: number; // 1 = admin, 2 = consultor
   activo_usuario?: boolean; // opcional, por defecto true
 }
+interface UserPayload {
+  rut_usuario: string; // obligatorio en update, opcional en create si la PK se genera de otra forma
+  nombre_usuario?: string;
+  apellido_usuario?: string;
+  email_usuario?: string;
+  contrasena_usuario?: string;
+  rol_usuario?: number; // 1 = admin, 2 = consultor
+  activo_usuario?: boolean;
+}
 
+// Crear usuario
 export const createUser = async (data: CreateUserPayload) => {
-  // Crear el usuario, asignando true si no viene activo_usuario
   const usuario = await Usuario.create({
     ...data,
-    activo_usuario: data.activo_usuario ?? true
+    activo_usuario: data.activo_usuario ?? true,
   });
 
-  // Devolver datos limpios (sin contraseña)
   return {
     rut_usuario: usuario.rut_usuario,
     nombre: usuario.getNombreCompleto(),
     email: usuario.email_usuario,
     rol: usuario.getRolString(),
-    activo: usuario.activo_usuario
+    activo: usuario.activo_usuario,
   };
 };
+
+// Actualizar usuario
+export const updateUser = async (data: UserPayload) => {
+  const { rut_usuario, ...updateFields } = data;
+
+  const usuario = await Usuario.findByPk(rut_usuario);
+  if (!usuario) throw new Error("Usuario no encontrado");
+
+  await usuario.update(updateFields);
+
+  return {
+    rut_usuario: usuario.rut_usuario,
+    nombre: usuario.getNombreCompleto(),
+    email: usuario.email_usuario,
+    rol: usuario.getRolString(),
+    activo: usuario.activo_usuario,
+  };
+};
+
+
+// Obtener usuarios paginados con filtros opcionales y orden
+export const getUsers = async (
+  page: number = 1,
+  limit: number = 10,
+  search: string = "",
+  role?: "admin" | "consultor",
+  status?: "habilitado" | "inhabilitado",
+  sortBy: "nombre" | "apellido" = "nombre",
+  sortOrder: "ASC" | "DESC" = "ASC"
+) => {
+  const offset = (page - 1) * limit;
+
+  const andConditions: any[] = [];
+
+  // Filtro de búsqueda por texto
+  if (search) {
+    andConditions.push({
+      [Op.or]: [
+        { nombre_usuario: { [Op.iLike]: `%${search}%` } },
+        { apellido_usuario: { [Op.iLike]: `%${search}%` } },
+        { email_usuario: { [Op.iLike]: `%${search}%` } },
+      ],
+    });
+  }
+
+  // Filtro por rol
+  let roleValue: number | undefined;
+  if (role === "admin") roleValue = 1;
+  else if (role === "consultor") roleValue = 2;
+
+  if (roleValue !== undefined) {
+    andConditions.push({ rol_usuario: roleValue });
+  }
+
+  // Filtro por estado
+  if (status === "habilitado") andConditions.push({ activo_usuario: true });
+  else if (status === "inhabilitado") andConditions.push({ activo_usuario: false });
+
+  // Construir la condición final
+  const where = andConditions.length > 0 ? { [Op.and]: andConditions } : {};
+
+  // Determinar columna para ordenar
+  const orderColumn = sortBy === "nombre" ? "nombre_usuario" : "apellido_usuario";
+
+  const { count, rows } = await Usuario.findAndCountAll({
+    where,
+    limit,
+    offset,
+    order: [[orderColumn, sortOrder]],
+    attributes: [
+      "rut_usuario",
+      "nombre_usuario",
+      "apellido_usuario",
+      "email_usuario",
+      "rol_usuario",
+      "activo_usuario",
+    ],
+  });
+
+  return {
+    users: rows,
+    pagination: {
+      page,
+      limit,
+      total: count,
+      totalPages: Math.ceil(count / limit),
+    },
+  };
+};
+
+// Parámetros disponibles en la URL:
+
+// page: número. Página que quieres obtener (por defecto 1)
+// limit: número. Cantidad de usuarios por página (por defecto 10)
+// search: string. Palabra clave para buscar en nombre, apellido o email
+// role: "admin" o "consultor". Filtra usuarios por rol
+// status: "habilitado" o "inhabilitado". Filtra usuarios por estado
+// sortBy: "nombre" o "apellido". Columna para ordenar los resultados (por defecto "nombre")
+// sortOrder: "ASC" o "DESC". Dirección del orden (por defecto "ASC")
+
+// Ejemplo de URL con todos los filtros:
+// http://localhost:3001/api/users?page=2&limit=5&search=nico&role=consultor&status=habilitado&sortBy=apellido&sortOrder=DESC

@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@/hooks/auth"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import {
@@ -110,10 +110,10 @@ export function AppSidebar() {
         <div className="p-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-              {user.name.charAt(0)}
+              {`${user.firstName}`.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user.name}</p>
+              <p className="text-sm font-medium truncate">{`${user.firstName} ${user.lastName}`}</p>
               <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
             </div>
           </div>

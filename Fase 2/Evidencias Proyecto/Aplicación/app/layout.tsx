@@ -2,7 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
-import { AuthProvider } from "@/lib/auth"
+import { AuthProvider } from "@/hooks/auth"
 import { ThemeProvider } from "@/components/theme-provider"
 
 const inter = Inter({

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@/hooks/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -124,10 +124,10 @@ export default function PerfilPage() {
           <CardContent className="pt-6">
             <div className="flex flex-col items-center text-center space-y-4">
               <div className="h-24 w-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold">
-                {user.name.charAt(0)}
+                {`${user.firstName} ${user.lastName}`.charAt(0)}
               </div>
               <div>
-                <h2 className="text-xl font-semibold">{user.name}</h2>
+                <h2 className="text-xl font-semibold">{`${user.firstName} ${user.lastName}`}</h2>
                 <p className="text-muted-foreground capitalize">{user.role}</p>
                 <Badge variant="outline" className="mt-2">
                   {profileData.department}

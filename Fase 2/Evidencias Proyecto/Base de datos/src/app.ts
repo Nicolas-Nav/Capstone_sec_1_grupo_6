@@ -157,38 +157,6 @@ app.get('/api', (req, res) => {
         agregarDatosExcel: 'POST /api/descripciones-cargo/:id/excel (Excel procesado en frontend)',
         getDatosExcel: 'GET /api/descripciones-cargo/:id/excel',
         delete: 'DELETE /api/descripciones-cargo/:id'
-      }
-      clientes: '/api/clientes',
-      solicitudes: '/api/solicitudes',
-      postulaciones: '/api/postulaciones',
-      regiones: '/api/regiones',
-      comunas: '/api/comunas',
-      auth: '/api/auth (TODO)',
-      users: '/api/users (TODO)'
-    },
-    documentation: {
-      clientes: {
-        getAll: 'GET /api/clientes',
-        getById: 'GET /api/clientes/:id',
-        create: 'POST /api/clientes',
-        update: 'PUT /api/clientes/:id',
-        delete: 'DELETE /api/clientes/:id',
-        stats: 'GET /api/clientes/stats'
-      },
-      solicitudes: {
-        getAll: 'GET /api/solicitudes',
-        getById: 'GET /api/solicitudes/:id',
-        getByConsultor: 'GET /api/solicitudes/consultor/:rutUsuario',
-        create: 'POST /api/solicitudes',
-        updateEstado: 'PUT /api/solicitudes/:id/estado',
-        delete: 'DELETE /api/solicitudes/:id'
-      },
-      postulaciones: {
-        getBySolicitud: 'GET /api/postulaciones/solicitud/:idSolicitud',
-        create: 'POST /api/postulaciones',
-        updateEstado: 'PUT /api/postulaciones/:id/estado',
-        updateValoracion: 'PUT /api/postulaciones/:id/valoracion',
-        delete: 'DELETE /api/postulaciones/:id'
       },
       regiones: {
         getAll: 'GET /api/regiones'
@@ -202,20 +170,12 @@ app.get('/api', (req, res) => {
 });
 
 // Rutas de la API
-// app.use('/api/auth', authRoutes); // TODO: Implementar autenticación
-// app.use('/api/users', userRoutes); // TODO: Implementar gestión de usuarios
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/solicitudes', solicitudRoutes);
 app.use('/api/postulaciones', postulacionRoutes);
 app.use('/api/tipos-servicio', tipoServicioRoutes);
 app.use('/api/cargos', cargoRoutes);
 app.use('/api/descripciones-cargo', descripcionCargoRoutes);
-// Rutas de la API
-// app.use('/api/auth', authRoutes); // TODO: Implementar autenticación
-// app.use('/api/users', userRoutes); // TODO: Implementar gestión de usuarios
-app.use('/api/clientes', clienteRoutes);
-app.use('/api/solicitudes', solicitudRoutes);
-app.use('/api/postulaciones', postulacionRoutes);
 app.use('/api/regiones', regionRoutes);
 app.use('/api/comunas', comunaRoutes);
 // Rutas de la API (se descomentarán cuando se creen)

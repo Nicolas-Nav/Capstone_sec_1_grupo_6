@@ -13,7 +13,9 @@ interface LoginResponse {
   usuario: {
     rut_usuario: string;
     nombre: string;
+    apellido: string,
     rol: string;
+    activo: boolean;
   };
 }
 
@@ -55,8 +57,10 @@ export const loginUser = async ({ email, password }: LoginPayload): Promise<Logi
     token,
     usuario: {
       rut_usuario: usuario.rut_usuario,
-      nombre: usuario.getNombreCompleto(),
-      rol: usuario.getRolString()
+      nombre: usuario.getNombre(),
+      apellido: usuario.getApellido(),
+      rol: usuario.getRolString(),
+      activo: usuario.isActive()
     }
   };
 };

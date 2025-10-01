@@ -1,7 +1,8 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import type { User } from "./types"
+import type { User, UserRole } from "../lib/types"
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 interface AuthContextType {
   user: User | null
@@ -28,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 const login = async (email: string, password: string): Promise<boolean> => {
   setIsLoading(true)
   try {
-    const res = await fetch("http://localhost:3001/api/auth/login", {
+    const res = await fetch(`${API_URL}/api/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -48,13 +49,15 @@ const login = async (email: string, password: string): Promise<boolean> => {
     // Guardar token y usuario en localStorage
     localStorage.setItem("llc_token", data.data.token)
 
+    console.log()
     const loggedUser: User = {
-      id: data.data.usuario.rut_usuario,
-      name: data.data.usuario.nombre,
-      email,
-      role: data.data.usuario.rol,
-      status: "habilitado" // o deshabilitado según tu API
-    }
+      id: data.data.usuario,
+      firstName: data.data.usuario.nombre,
+      lastName: data.data.usuario.apellido,
+      email: data.data.usuario.email_usuario,
+      isActive: data.data.usuario.activo,
+      role: data.data.usuario.rol as UserRole
+    };
 
     setUser(loggedUser)
     localStorage.setItem("llc_user", JSON.stringify(loggedUser))

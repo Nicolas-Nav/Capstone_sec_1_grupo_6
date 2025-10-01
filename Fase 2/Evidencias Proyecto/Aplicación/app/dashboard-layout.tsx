@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@/hooks/auth"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { AppSidebar } from "@/components/layout/app-sidebar"

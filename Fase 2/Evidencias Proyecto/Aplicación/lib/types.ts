@@ -1,5 +1,3 @@
-export type UserRole = "admin" | "consultor"
-
 export type ServiceType =
   | "proceso_completo"
   | "long_list"
@@ -13,16 +11,16 @@ export type CandidateStatus = "postulado" | "presentado" | "aprobado" | "rechaza
 
 export type HitoStatus = "pendiente" | "en_progreso" | "completado" | "vencido"
 
+export type UserRole = "admin" | "consultor";
+
 export interface User {
-  id: string
-  name: string
-  email: string
-  role: UserRole
-  status: "habilitado" | "inhabilitado"
-  avatar?: string
-  created_at?: string
-  last_login?: string
-  documents?: ConsultantDocument[]
+  id: string;               // mapea rut_usuario
+  firstName: string;        // mapea nombre_usuario
+  lastName: string;         // mapea apellido_usuario
+  email: string;            // mapea email_usuario
+  password?: string;        // opcional, mapea contrasena_usuario
+  isActive: boolean;        // mapea activo_usuario
+  role: UserRole;           // mapea rol_usuario: 1 => admin, 2 => consultor
 }
 
 export interface ConsultantDocument {

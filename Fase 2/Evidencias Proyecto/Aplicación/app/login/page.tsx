@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@/hooks/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,7 +27,7 @@ export default function LoginPage() {
     if (success) {
       router.push("/")
     } else {
-      setError("Credenciales inválidas. Intenta con password como contraseña.")
+      setError("Credenciales inválidas.")
     }
   }
 

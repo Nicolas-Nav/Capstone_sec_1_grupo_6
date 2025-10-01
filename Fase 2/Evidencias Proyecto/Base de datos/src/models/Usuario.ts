@@ -47,6 +47,14 @@ class Usuario extends Model<UsuarioAttributes, UsuarioCreationAttributes> implem
         return `${this.nombre_usuario} ${this.apellido_usuario}`;
     }
 
+    public getNombre(): string {
+        return `${this.nombre_usuario}`;
+    }
+
+    public getApellido(): string {
+        return `${this.apellido_usuario}`;
+    }
+
     /**
      * Verifica si el usuario está activo
      */

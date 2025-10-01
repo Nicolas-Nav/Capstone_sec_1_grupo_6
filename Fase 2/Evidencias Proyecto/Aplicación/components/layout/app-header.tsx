@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@/hooks/auth"
 import { getNotificationsByUser } from "@/lib/mock-data"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"

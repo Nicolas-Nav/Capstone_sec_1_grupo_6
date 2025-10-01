@@ -1,8 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { mockUsers } from "@/lib/mock-data"
-import type { User, ConsultantDocument } from "@/lib/types"
+import { useState, useEffect } from "react"
+import type { User, UserRole } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -17,114 +16,76 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Plus, Search, Edit, Trash2, UserCheck, UserX, FileText, Download, FolderOpen } from "lucide-react"
-import { formatDate } from "@/lib/utils"
+import { Plus, Search, Edit, Trash2, UserCheck, UserX, CheckCircle, XCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog"
+import { useUsuarios } from "@/hooks/useUsuarios"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function UsuariosPage() {
-  const [users, setUsers] = useState<User[]>(mockUsers)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<"all" | "habilitado" | "inhabilitado">("all")
-  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "consultor">("all")
+  const {
+    users,
+    filteredUsers,
+    searchTerm,
+    setSearchTerm,
+    statusFilter,
+    setStatusFilter,
+    roleFilter,
+    setRoleFilter,
+    newUser,
+    setNewUser,
+    editingUser,
+    editUser,
+    createUser,
+    updateUser,
+    toggleStatus,
+    deleteUser,
+    fetchUsers,
+    isLoading,
+    // Pagination
+    currentPage,
+    pageSize,
+    totalPages,
+    totalUsers,
+    goToPage,
+    nextPage,
+    prevPage,
+    handlePageSizeChange,
+  } = useUsuarios()
+
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [viewingUserDocuments, setViewingUserDocuments] = useState<User | null>(null)
-  const [newUser, setNewUser] = useState({
-    name: "",
-    email: "",
-    role: "consultor" as const,
-    status: "habilitado" as const,
-  })
 
-  // Filter users based on search and filters
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter
-    const matchesRole = roleFilter === "all" || user.role === roleFilter
-    return matchesSearch && matchesStatus && matchesRole
-  })
+  // Dialogo de resultado de creación
+  const [isResultOpen, setIsResultOpen] = useState(false)
+  const [resultSuccess, setResultSuccess] = useState<boolean>(false)
+  const [resultMessage, setResultMessage] = useState<string>("")
 
-  const handleCreateUser = () => {
-    const user: User = {
-      id: (users.length + 1).toString(),
-      ...newUser,
-      created_at: new Date().toISOString(),
-    }
-    setUsers([...users, user])
-    setNewUser({ name: "", email: "", role: "consultor", status: "habilitado" })
-    setIsCreateDialogOpen(false)
-  }
+  // Cargar usuarios iniciales
+  useEffect(() => {
+    fetchUsers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const handleEditUser = (user: User) => {
-    setEditingUser(user)
-    setNewUser({
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-    })
-  }
+  // filteredUsers ya viene del hook
 
-  const handleUpdateUser = () => {
-    if (!editingUser) return
-
-    setUsers(users.map((user) => (user.id === editingUser.id ? { ...user, ...newUser } : user)))
-    setEditingUser(null)
-    setNewUser({ name: "", email: "", role: "consultor", status: "habilitado" })
-  }
-
-  const handleToggleStatus = (userId: string) => {
-    setUsers(
-      users.map((user) =>
-        user.id === userId ? { ...user, status: user.status === "habilitado" ? "inhabilitado" : "habilitado" } : user,
-      ),
-    )
-  }
-
-  const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter((user) => user.id !== userId))
-  }
-
-  const handleDownloadDocument = (doc: ConsultantDocument, userName: string) => {
-    // In a real app, this would download from server
-    console.log(`Admin downloading document: ${doc.name} from ${userName}`)
-    // Simulate download
-    const link = document.createElement("a")
-    link.href = "#"
-    link.download = doc.name
-    link.click()
-  }
-
-  const handleDownloadAllDocuments = (user: User) => {
-    if (!user.documents || user.documents.length === 0) return
-
-    // In a real app, this would create a ZIP file with all documents
-    console.log(`Admin downloading all documents from ${user.name}`)
-    // Simulate bulk download
-    user.documents.forEach((doc) => {
-      setTimeout(() => handleDownloadDocument(doc, user.name), 100)
-    })
-  }
-
-  const getStatusBadge = (status: User["status"]) => {
-    return status === "habilitado" ? (
+  // -------------------
+  // Badges
+  // -------------------
+  const getStatusBadge = (isActive: boolean) =>
+    isActive ? (
       <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">
-        <UserCheck className="h-3 w-3 mr-1" />
-        Habilitado
+        <UserCheck className="h-3 w-3 mr-1" /> Habilitado
       </Badge>
     ) : (
       <Badge variant="secondary" className="bg-red-100 text-red-800 hover:bg-red-100">
-        <UserX className="h-3 w-3 mr-1" />
-        Inhabilitado
+        <UserX className="h-3 w-3 mr-1" /> Inhabilitado
       </Badge>
     )
-  }
 
-  const getRoleBadge = (role: User["role"]) => {
-    return role === "admin" ? (
+  const getRoleBadge = (role: UserRole) =>
+    role === "admin" ? (
       <Badge variant="outline" className="bg-cyan-50 text-cyan-700 border-cyan-200">
         Administrador
       </Badge>
@@ -133,21 +94,55 @@ export default function UsuariosPage() {
         Consultor
       </Badge>
     )
+
+  const handleCreateUser = async () => {
+    const res = await createUser()
+    if (res.success) {
+      setIsCreateDialogOpen(false)
+      setNewUser({ rut: "", nombre: "", apellido: "", email: "", role: "consultor", status: "habilitado" })
+      setResultSuccess(true)
+      setResultMessage(res.message || "Usuario creado correctamente")
+      setIsResultOpen(true)
+    } else {
+      setResultSuccess(false)
+      setResultMessage(res.message || "Error creando usuario")
+      setIsResultOpen(true)
+    }
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  const handleEditUser = (user: any) => {
+    editUser(user)
+    setIsCreateDialogOpen(true)
   }
 
-  const activeUsers = users.filter((u) => u.status === "habilitado").length
-  const totalConsultors = users.filter((u) => u.role === "consultor").length
+  const handleUpdateUser = async () => {
+    const res = await updateUser()
+    if (res.success) {
+      setIsCreateDialogOpen(false)
+      setResultSuccess(true)
+      setResultMessage(res.message || "Usuario actualizado correctamente")
+      setIsResultOpen(true)
+    } else {
+      setResultSuccess(false)
+      setResultMessage(res.message || "Error actualizando usuario")
+      setIsResultOpen(true)
+    }
+  }
 
+  const handleToggleStatus = (userId: string) => {
+    toggleStatus(userId)
+  }
+
+  const handleDeleteUser = (userId: string) => {
+    deleteUser(userId)
+  }
+
+  // -------------------
+  // JSX
+  // -------------------
   return (
     <div className="space-y-6">
+      {/* Header y botón crear */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
@@ -157,22 +152,41 @@ export default function UsuariosPage() {
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Nuevo Usuario
+              {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Crear Nuevo Usuario</DialogTitle>
-              <DialogDescription>Ingresa los datos del nuevo usuario del sistema</DialogDescription>
+              <DialogTitle>{editingUser ? "Editar Usuario" : "Crear Nuevo Usuario"}</DialogTitle>
+              <DialogDescription>Ingresa los datos del usuario</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Nombre Completo</Label>
+                <Label htmlFor="rut">RUT</Label>
                 <Input
-                  id="name"
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                  placeholder="Ej: Juan Pérez"
+                  id="rut"
+                  value={newUser.rut}
+                  onChange={(e) => setNewUser({ ...newUser, rut: e.target.value })}
+                  placeholder="20994291-7"
+                  disabled={!!editingUser} // no se edita rut al modificar
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="nombre">Nombre</Label>
+                <Input
+                  id="nombre"
+                  value={newUser.nombre}
+                  onChange={(e) => setNewUser({ ...newUser, nombre: e.target.value })}
+                  placeholder="Juan"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="apellido">Apellido</Label>
+                <Input
+                  id="apellido"
+                  value={newUser.apellido}
+                  onChange={(e) => setNewUser({ ...newUser, apellido: e.target.value })}
+                  placeholder="Pérez"
                 />
               </div>
               <div className="grid gap-2">
@@ -204,7 +218,9 @@ export default function UsuariosPage() {
                 <Label htmlFor="status">Estado</Label>
                 <Select
                   value={newUser.status}
-                  onValueChange={(value: "habilitado" | "inhabilitado") => setNewUser({ ...newUser, status: value })}
+                  onValueChange={(value: "habilitado" | "inhabilitado") =>
+                    setNewUser({ ...newUser, status: value })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -220,8 +236,11 @@ export default function UsuariosPage() {
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleCreateUser} disabled={!newUser.name || !newUser.email}>
-                Crear Usuario
+              <Button
+                onClick={editingUser ? handleUpdateUser : handleCreateUser}
+                disabled={!newUser.rut || !newUser.nombre || !newUser.apellido || !newUser.email}
+              >
+                {editingUser ? "Actualizar Usuario" : "Crear Usuario"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -237,7 +256,6 @@ export default function UsuariosPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{users.length}</div>
-            <p className="text-xs text-muted-foreground">{activeUsers} activos</p>
           </CardContent>
         </Card>
         <Card>
@@ -246,10 +264,7 @@ export default function UsuariosPage() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalConsultors}</div>
-            <p className="text-xs text-muted-foreground">
-              {users.filter((u) => u.role === "consultor" && u.status === "habilitado").length} habilitados
-            </p>
+            <div className="text-2xl font-bold">{users.filter((u) => u.role === "consultor").length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -259,28 +274,25 @@ export default function UsuariosPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{users.filter((u) => u.role === "admin").length}</div>
-            <p className="text-xs text-muted-foreground">Acceso completo</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
+      {/* Filtros */}
       <Card>
         <CardHeader>
           <CardTitle>Filtros</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nombre o correo..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
+            <div className="flex-1 relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nombre, apellido o correo..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
+              />
             </div>
             <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
               <SelectTrigger className="w-[180px]">
@@ -306,223 +318,164 @@ export default function UsuariosPage() {
         </CardContent>
       </Card>
 
-      {/* Users Table */}
+      {/* Tabla de usuarios */}
       <Card>
         <CardHeader>
-          <CardTitle>Usuarios ({filteredUsers.length})</CardTitle>
-          <CardDescription>Lista de todos los usuarios del sistema</CardDescription>
+          <CardTitle>Usuarios</CardTitle>
+          <CardDescription>Lista de todos los usuarios registrados</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Usuario</TableHead>
+                <TableHead>Nombre Completo</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Documentos</TableHead>
-                <TableHead>Fecha Creación</TableHead>
-                <TableHead>Último Acceso</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-                        {user.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-sm text-muted-foreground">{user.email}</div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{getRoleBadge(user.role)}</TableCell>
-                  <TableCell>{getStatusBadge(user.status)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">
-                        {user.documents?.length || 0} documento{(user.documents?.length || 0) !== 1 ? "s" : ""}
-                      </span>
-                      {user.documents && user.documents.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setViewingUserDocuments(user)}
-                          className="h-6 px-2"
-                        >
-                          <FolderOpen className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{user.created_at ? formatDate(user.created_at) : "N/A"}</TableCell>
-                  <TableCell>{user.last_login ? formatDate(user.last_login) : "Nunca"}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleToggleStatus(user.id)}
-                        className={
-                          user.status === "habilitado"
-                            ? "text-red-600 hover:text-red-700"
-                            : "text-green-600 hover:text-green-700"
-                        }
-                      >
-                        {user.status === "habilitado" ? (
-                          <UserX className="h-4 w-4" />
-                        ) : (
-                          <UserCheck className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteUser(user.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Cargando usuarios...</span>
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    No se encontraron usuarios
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredUsers.map((user: any) => (
+                  <TableRow key={user.id}>
+                    <TableCell>{(user.firstName || user.nombre) + " " + (user.lastName || user.apellido)}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{getRoleBadge(user.role)}</TableCell>
+                    <TableCell>{getStatusBadge(user.isActive ?? (user.status === "habilitado"))}</TableCell>
+                    <TableCell className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleToggleStatus(user.id)}>
+                        {(user.isActive ?? (user.status === "habilitado")) ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleEditUser(user)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDeleteUser(user.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      <Dialog open={!!viewingUserDocuments} onOpenChange={() => setViewingUserDocuments(null)}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Documentos de {viewingUserDocuments?.name}
-            </DialogTitle>
-            <DialogDescription>Gestiona y descarga los documentos del consultor</DialogDescription>
-          </DialogHeader>
-          <div className="max-h-96 overflow-y-auto">
-            {viewingUserDocuments?.documents && viewingUserDocuments.documents.length > 0 ? (
-              <div className="space-y-3">
-                <div className="flex justify-end mb-4">
-                  <Button variant="outline" onClick={() => handleDownloadAllDocuments(viewingUserDocuments)}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Descargar Todos
-                  </Button>
-                </div>
-                {viewingUserDocuments.documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-6 w-6 text-primary" />
-                      <div>
-                        <h4 className="font-medium text-sm">{doc.name}</h4>
-                        <p className="text-xs text-muted-foreground">{doc.description || "Sin descripción"}</p>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                          <span>{formatFileSize(doc.file_size)}</span>
-                          <span>Subido el {new Date(doc.uploaded_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
+      {/* Controles de paginación */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="pageSize">Filas por página:</Label>
+                <Select value={pageSize.toString()} onValueChange={(value) => handlePageSizeChange(parseInt(value))}>
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((currentPage - 1) * pageSize) + 1} a {Math.min(currentPage * pageSize, totalUsers)} de {totalUsers} usuarios
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={prevPage}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
                     <Button
-                      variant="outline"
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
                       size="sm"
-                      onClick={() => handleDownloadDocument(doc, viewingUserDocuments.name)}
+                      onClick={() => goToPage(pageNum)}
+                      className="w-8 h-8 p-0"
                     >
-                      <Download className="h-4 w-4" />
+                      {pageNum}
                     </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            ) : (
-              <div className="text-center py-8">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Sin documentos</h3>
-                <p className="text-muted-foreground">Este usuario no ha subido ningún documento aún.</p>
-              </div>
-            )}
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={nextPage}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewingUserDocuments(null)}>
-              Cerrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </CardContent>
+      </Card>
 
-      {/* Edit User Dialog */}
-      <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Usuario</DialogTitle>
-            <DialogDescription>Modifica los datos del usuario</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-name">Nombre Completo</Label>
-              <Input
-                id="edit-name"
-                value={newUser.name}
-                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-email">Correo Electrónico</Label>
-              <Input
-                id="edit-email"
-                type="email"
-                value={newUser.email}
-                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                placeholder="juan.perez@llconsulting.com"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-role">Rol</Label>
-              <Select
-                value={newUser.role}
-                onValueChange={(value: "admin" | "consultor") => setNewUser({ ...newUser, role: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="consultor">Consultor</SelectItem>
-                  <SelectItem value="admin">Administrador</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-status">Estado</Label>
-              <Select
-                value={newUser.status}
-                onValueChange={(value: "habilitado" | "inhabilitado") => setNewUser({ ...newUser, status: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="habilitado">Habilitado</SelectItem>
-                  <SelectItem value="inhabilitado">Inhabilitado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingUser(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleUpdateUser} disabled={!newUser.name || !newUser.email}>
-              Guardar Cambios
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Resultado de creación */}
+      <AlertDialog open={isResultOpen} onOpenChange={setIsResultOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {resultSuccess ? (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-600" />
+              )}
+              {resultSuccess ? "Usuario creado correctamente" : "No se pudo crear el usuario"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {resultMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsResultOpen(false)}>
+              Aceptar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

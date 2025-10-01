@@ -140,17 +140,29 @@ export class ClienteService {
 
             await transaction.commit();
 
+            // Obtener los contactos creados con sus comunas (sin transacción)
+            const contactosConComunas = await Contacto.findAll({
+                where: { id_cliente: nuevoCliente.id_cliente },
+                include: [
+                    {
+                        model: Comuna,
+                        as: 'ciudad',
+                        attributes: ['id_ciudad', 'nombre_comuna']
+                    }
+                ]
+            });
+
             // Respuesta en formato frontend
             return {
                 id: nuevoCliente.id_cliente.toString(),
                 name: nuevoCliente.nombre_cliente,
-                contacts: contactosCreados.map(contacto => ({
+                contacts: contactosConComunas.map(contacto => ({
                     id: contacto.id_contacto.toString(),
                     name: contacto.nombre_contacto,
                     email: contacto.email_contacto,
                     phone: contacto.telefono_contacto,
                     position: contacto.cargo_contacto,
-                    city: '',
+                    city: (contacto as any).ciudad?.nombre_comuna || '',
                     is_primary: false
                 }))
             };
@@ -251,16 +263,28 @@ export class ClienteService {
 
             await transaction.commit();
 
+            // Obtener los contactos actualizados con sus comunas (sin transacción)
+            const contactosConComunas = await Contacto.findAll({
+                where: { id_cliente: id },
+                include: [
+                    {
+                        model: Comuna,
+                        as: 'ciudad',
+                        attributes: ['id_ciudad', 'nombre_comuna']
+                    }
+                ]
+            });
+
             return {
                 id: cliente.id_cliente.toString(),
                 name: cliente.nombre_cliente,
-                contacts: contactosActualizados.map(contacto => ({
+                contacts: contactosConComunas.map(contacto => ({
                     id: contacto.id_contacto.toString(),
                     name: contacto.nombre_contacto,
                     email: contacto.email_contacto,
                     phone: contacto.telefono_contacto,
                     position: contacto.cargo_contacto,
-                    city: '',
+                    city: (contacto as any).ciudad?.nombre_comuna || '',
                     is_primary: false
                 }))
             };

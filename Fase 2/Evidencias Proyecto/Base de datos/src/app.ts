@@ -17,6 +17,8 @@ import { authenticateToken, requireAdmin, requireConsultorOrAdmin } from '@/midd
 import clienteRoutes from '@/routes/clientes';
 import solicitudRoutes from '@/routes/solicitudes';
 import postulacionRoutes from '@/routes/postulaciones';
+import regionRoutes from '@/routes/regiones';
+import comunaRoutes from '@/routes/comunas';
 
 const app = express();
 
@@ -98,6 +100,8 @@ app.get('/api', (req, res) => {
       clientes: '/api/clientes',
       solicitudes: '/api/solicitudes',
       postulaciones: '/api/postulaciones',
+      regiones: '/api/regiones',
+      comunas: '/api/comunas',
       auth: '/api/auth (TODO)',
       users: '/api/users (TODO)'
     },
@@ -124,6 +128,13 @@ app.get('/api', (req, res) => {
         updateEstado: 'PUT /api/postulaciones/:id/estado',
         updateValoracion: 'PUT /api/postulaciones/:id/valoracion',
         delete: 'DELETE /api/postulaciones/:id'
+      },
+      regiones: {
+        getAll: 'GET /api/regiones'
+      },
+      comunas: {
+        getAll: 'GET /api/comunas',
+        getByRegion: 'GET /api/comunas/region/:regionId'
       }
     }
   });
@@ -135,6 +146,8 @@ app.get('/api', (req, res) => {
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/solicitudes', solicitudRoutes);
 app.use('/api/postulaciones', postulacionRoutes);
+app.use('/api/regiones', regionRoutes);
+app.use('/api/comunas', comunaRoutes);
 // Rutas de la API (se descomentarán cuando se creen)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

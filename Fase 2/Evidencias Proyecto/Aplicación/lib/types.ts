@@ -189,3 +189,14 @@ export interface Notification {
   created_at: string
   read: boolean
 }
+
+export interface Region {
+  id_region: number
+  nombre_region: string
+}
+
+export interface Comuna {
+  id_ciudad: number
+  nombre_comuna: string
+  id_region: number
+}

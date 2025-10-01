@@ -11,7 +11,6 @@ import { Logger } from '@/utils/logger';
  * - Client.name → Cliente.nombre_cliente
  * - Client.contacts[] → Contacto[]
  */
-
 export class ClienteController {
     /**
      * GET /api/clientes
@@ -46,7 +45,8 @@ export class ClienteController {
                     email: contacto.email_contacto,
                     phone: contacto.telefono_contacto,
                     position: contacto.cargo_contacto,
-                    city: contacto.ciudad?.nombre_comuna || '',
+                    city_id: contacto.ciudad?.id_ciudad || null,
+                    city_name: contacto.ciudad?.nombre_comuna || '',
                     is_primary: false // TODO: Agregar campo contacto_principal al modelo
                 })) || []
             }));
@@ -89,7 +89,6 @@ export class ClienteController {
                 return res;
             }
 
-            // Transformar al formato del frontend
             const clienteTransformado = {
                 id: cliente.id_cliente.toString(),
                 name: cliente.nombre_cliente,
@@ -99,7 +98,8 @@ export class ClienteController {
                     email: contacto.email_contacto,
                     phone: contacto.telefono_contacto,
                     position: contacto.cargo_contacto,
-                    city: contacto.ciudad?.nombre_comuna || '',
+                    city_id: contacto.ciudad?.id_ciudad || null,
+                    city_name: contacto.ciudad?.nombre_comuna || '',
                     is_primary: false
                 })) || []
             };
@@ -123,7 +123,6 @@ export class ClienteController {
         try {
             const { name, contacts } = req.body;
 
-            // Validaciones
             if (!name || !name.trim()) {
                 await transaction.rollback();
                 sendError(res, 'El nombre del cliente es requerido', 400);
@@ -136,30 +135,24 @@ export class ClienteController {
                 return res;
             }
 
-            // Crear el cliente
             const nuevoCliente = await Cliente.create({
                 nombre_cliente: name.trim()
             }, { transaction });
 
-            // Buscar comunas por nombre para los contactos
             const contactosCreados = await Promise.all(
                 contacts.map(async (contact: any) => {
                     let idCiudad: number | undefined = undefined;
 
-                    // Buscar la comuna si se proporcionó
-                    if (contact.city && contact.city.trim()) {
-                        const comuna = await Comuna.findOne({
-                            where: { nombre_comuna: contact.city.trim() }
-                        });
+                    if (contact.city_id) {
+                        const comuna = await Comuna.findByPk(contact.city_id);
                         idCiudad = comuna?.id_ciudad;
                     }
 
-                    // Si no se encuentra la comuna, usar una por defecto (ej: Santiago)
                     if (!idCiudad) {
                         const comunaDefecto = await Comuna.findOne({
                             where: { nombre_comuna: 'Santiago' }
                         });
-                        idCiudad = comunaDefecto?.id_ciudad || 1; // 1 como fallback
+                        idCiudad = comunaDefecto?.id_ciudad || 1;
                     }
 
                     return await Contacto.create({
@@ -175,7 +168,6 @@ export class ClienteController {
 
             await transaction.commit();
 
-            // Respuesta en formato frontend
             const respuesta = {
                 id: nuevoCliente.id_cliente.toString(),
                 name: nuevoCliente.nombre_cliente,
@@ -185,7 +177,8 @@ export class ClienteController {
                     email: contacto.email_contacto,
                     phone: contacto.telefono_contacto,
                     position: contacto.cargo_contacto,
-                    city: '',
+                    city_id: contacto.id_ciudad,
+                    city_name: '', // opcional cargar luego
                     is_primary: false
                 }))
             };
@@ -225,7 +218,6 @@ export class ClienteController {
                 return res;
             }
 
-            // Validaciones
             if (!name || !name.trim()) {
                 await transaction.rollback();
                 sendError(res, 'El nombre del cliente es requerido', 400);
@@ -238,39 +230,31 @@ export class ClienteController {
                 return res;
             }
 
-            // Actualizar nombre del cliente
             await cliente.update({ nombre_cliente: name.trim() }, { transaction });
 
-            // Gestionar contactos
-            // 1. Obtener contactos actuales
             const contactosActuales = await Contacto.findAll({
                 where: { id_cliente: id },
                 transaction
             });
 
-            // 2. Identificar contactos a eliminar
             const idsContactosNuevos = contacts
-                .filter(c => c.id && c.id !== '')
+                .filter(c => c.id && c.id !== '' && !isNaN(parseInt(c.id)))
                 .map(c => parseInt(c.id));
             
             const contactosAEliminar = contactosActuales.filter(
                 c => !idsContactosNuevos.includes(c.id_contacto)
             );
 
-            // 3. Eliminar contactos que ya no están
             for (const contacto of contactosAEliminar) {
                 await contacto.destroy({ transaction });
             }
 
-            // 4. Actualizar o crear contactos
             const contactosActualizados = await Promise.all(
                 contacts.map(async (contact: any) => {
                     let idCiudad: number | undefined = undefined;
 
-                    if (contact.city && contact.city.trim()) {
-                        const comuna = await Comuna.findOne({
-                            where: { nombre_comuna: contact.city.trim() }
-                        });
+                    if (contact.city_id) {
+                        const comuna = await Comuna.findByPk(contact.city_id);
                         idCiudad = comuna?.id_ciudad;
                     }
 
@@ -281,9 +265,8 @@ export class ClienteController {
                         idCiudad = comunaDefecto?.id_ciudad || 1;
                     }
 
-                    if (contact.id && contact.id !== '') {
-                        // Actualizar contacto existente
-                        const contactoExistente = await Contacto.findByPk(contact.id);
+                    if (contact.id && contact.id !== '' && !isNaN(parseInt(contact.id))) {
+                        const contactoExistente = await Contacto.findByPk(parseInt(contact.id));
                         if (contactoExistente) {
                             await contactoExistente.update({
                                 nombre_contacto: contact.name.trim(),
@@ -296,7 +279,6 @@ export class ClienteController {
                         }
                     }
                     
-                    // Crear nuevo contacto
                     return await Contacto.create({
                         nombre_contacto: contact.name.trim(),
                         email_contacto: contact.email.trim(),
@@ -310,7 +292,6 @@ export class ClienteController {
 
             await transaction.commit();
 
-            // Respuesta en formato frontend
             const respuesta = {
                 id: cliente.id_cliente.toString(),
                 name: cliente.nombre_cliente,
@@ -320,7 +301,8 @@ export class ClienteController {
                     email: contacto.email_contacto,
                     phone: contacto.telefono_contacto,
                     position: contacto.cargo_contacto,
-                    city: '',
+                    city_id: contacto.id_ciudad,
+                    city_name: '', // opcional cargar luego
                     is_primary: false
                 }))
             };
@@ -344,7 +326,6 @@ export class ClienteController {
 
     /**
      * DELETE /api/clientes/:id
-     * Eliminar cliente (solo si no tiene solicitudes activas)
      */
     static async delete(req: Request, res: Response): Promise<Response> {
         const transaction: Transaction = await sequelize.transaction();
@@ -353,12 +334,7 @@ export class ClienteController {
             const { id } = req.params;
 
             const cliente = await Cliente.findByPk(id, {
-                include: [
-                    {
-                        model: Contacto,
-                        as: 'contactos'
-                    }
-                ],
+                include: [{ model: Contacto, as: 'contactos' }],
                 transaction
             });
 
@@ -368,15 +344,12 @@ export class ClienteController {
                 return res;
             }
 
-            // Verificar si tiene solicitudes asociadas
             const { Solicitud } = require('@/models');
             const contactos = cliente.get('contactos') as any[];
             const idsContactos = contactos.map(c => c.id_contacto);
             
             const solicitudesActivas = await Solicitud.count({
-                where: {
-                    id_contacto: idsContactos
-                },
+                where: { id_contacto: idsContactos },
                 transaction
             });
 
@@ -386,12 +359,10 @@ export class ClienteController {
                 return res;
             }
 
-            // Eliminar contactos
             for (const contacto of contactos) {
                 await contacto.destroy({ transaction });
             }
 
-            // Eliminar cliente
             await cliente.destroy({ transaction });
 
             await transaction.commit();
@@ -409,24 +380,16 @@ export class ClienteController {
 
     /**
      * GET /api/clientes/stats
-     * Obtener estadísticas de clientes
      */
     static async getStats(req: Request, res: Response): Promise<Response> {
         try {
             const totalClientes = await Cliente.count();
             const totalContactos = await Contacto.count();
 
-            // Clientes con solicitudes activas
             const { Solicitud } = require('@/models');
             const clientesConSolicitudes = await Solicitud.findAll({
                 attributes: [[sequelize.fn('DISTINCT', sequelize.col('Contacto.id_cliente')), 'id_cliente']],
-                include: [
-                    {
-                        model: Contacto,
-                        as: 'contacto',
-                        attributes: []
-                    }
-                ],
+                include: [{ model: Contacto, as: 'contacto', attributes: [] }],
                 raw: true
             });
 
@@ -441,6 +404,31 @@ export class ClienteController {
         } catch (error) {
             Logger.error('Error al obtener estadísticas:', error);
             sendError(res, 'Error al obtener estadísticas', 500);
+            return res;
+        }
+    }
+
+    /**
+     * GET /api/clientes/dropdown
+     * Obtener clientes para dropdown
+     */
+    static async getDropdown(req: Request, res: Response): Promise<Response> {
+        try {
+            const clientes = await Cliente.findAll({
+                attributes: ['id_cliente', 'nombre_cliente'],
+                order: [['nombre_cliente', 'ASC']]
+            });
+
+            const lista = clientes.map(c => ({
+                id: c.id_cliente.toString(),
+                name: c.nombre_cliente
+            }));
+
+            sendSuccess(res, lista, 'Clientes para dropdown obtenidos');
+            return res;
+        } catch (error) {
+            Logger.error('Error al obtener clientes dropdown:', error);
+            sendError(res, 'Error al obtener clientes dropdown', 500);
             return res;
         }
     }

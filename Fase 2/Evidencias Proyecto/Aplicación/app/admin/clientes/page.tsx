@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,16 +17,22 @@ import {
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X } from "lucide-react"
-import { mockClients, mockProcesses } from "@/lib/mock-data"
-import type { Client, ClientContact } from "@/lib/types"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2 } from "lucide-react"
+import { mockProcesses } from "@/lib/mock-data"
+import { clientService, comunaService, apiUtils } from "@/lib/api"
+import type { Client, ClientContact, Comuna } from "@/lib/types"
+import { toast } from "sonner"
 
 export default function ClientesPage() {
-  const [clients, setClients] = useState<Client[]>(mockClients)
+  const [clients, setClients] = useState<Client[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [comunas, setComunas] = useState<Comuna[]>([])
   const [formData, setFormData] = useState({
     name: "",
     contacts: [
@@ -55,6 +61,41 @@ export default function ClientesPage() {
       )
     )
   })
+
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    loadClients()
+    loadAllComunas()
+  }, [])
+
+
+  const loadClients = async () => {
+    try {
+      setIsLoading(true)
+      const response = await clientService.getAll()
+      if (response.success && response.data) {
+        setClients(response.data)
+      } else {
+        toast.error('Error al cargar los clientes')
+      }
+    } catch (error) {
+      console.error('Error loading clients:', error)
+      toast.error(apiUtils.handleError(error))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadAllComunas = async () => {
+    try {
+      const response = await comunaService.getAll()
+      if (response.success && response.data) {
+        setComunas(response.data)
+      }
+    } catch (error) {
+      console.error('Error loading comunas:', error)
+    }
+  }
 
   const getClientProcessCount = (clientId: string) => {
     return mockProcesses.filter((process) => process.client_id === clientId).length
@@ -102,16 +143,66 @@ export default function ClientesPage() {
     setFormData({ ...formData, contacts: newContacts })
   }
 
-  const handleCreateClient = () => {
-    const newClient: Client = {
-      id: `client-${Date.now()}`,
-      name: formData.name,
-      contacts: formData.contacts.map((contact, index) => ({
-        ...contact,
-        id: contact.id || `contact-${Date.now()}-${index}`,
-      })),
+
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      toast.error('El nombre de la empresa es requerido')
+      return false
     }
-    setClients([...clients, newClient])
+
+    for (let i = 0; i < formData.contacts.length; i++) {
+      const contact = formData.contacts[i]
+      if (!contact.name.trim()) {
+        toast.error(`El nombre del contacto ${i + 1} es requerido`)
+        return false
+      }
+      if (!contact.email.trim()) {
+        toast.error(`El email del contacto ${i + 1} es requerido`)
+        return false
+      }
+      if (!contact.phone.trim()) {
+        toast.error(`El teléfono del contacto ${i + 1} es requerido`)
+        return false
+      }
+    }
+
+    return true
+  }
+
+  const handleCreateClient = async () => {
+    if (!validateForm()) return
+
+    try {
+      setIsSubmitting(true)
+      const response = await clientService.create({
+      name: formData.name,
+        contacts: formData.contacts.map(contact => ({
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          position: contact.position,
+          city: contact.city,
+          is_primary: contact.is_primary || false
+        }))
+      })
+      
+      if (response.success && response.data) {
+        toast.success('Cliente creado exitosamente')
+        setClients([...clients, response.data])
+        resetForm()
+        setIsCreateDialogOpen(false)
+      } else {
+        toast.error(response.message || 'Error al crear el cliente')
+      }
+    } catch (error) {
+      console.error('Error creating client:', error)
+      toast.error(apiUtils.handleError(error))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const resetForm = () => {
     setFormData({
       name: "",
       contacts: [
@@ -126,54 +217,77 @@ export default function ClientesPage() {
         },
       ],
     })
-    setIsCreateDialogOpen(false)
   }
 
-  const handleEditClient = () => {
-    if (!selectedClient) return
+  const handleEditClient = async () => {
+    if (!selectedClient || !validateForm()) return
 
+    try {
+      setIsSubmitting(true)
+      const response = await clientService.update(selectedClient.id, {
+        name: formData.name,
+        contacts: formData.contacts.map(contact => ({
+          id: contact.id,
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          position: contact.position,
+          city: contact.city,
+          is_primary: contact.is_primary || false
+        }))
+      })
+      
+      if (response.success && response.data) {
+        toast.success('Cliente actualizado exitosamente')
     const updatedClients = clients.map((client) =>
-      client.id === selectedClient.id
-        ? {
-            ...client,
-            name: formData.name,
-            contacts: formData.contacts,
-          }
-        : client,
+          client.id === selectedClient.id ? response.data : client
     )
     setClients(updatedClients)
-    setFormData({
-      name: "",
-      contacts: [
-        {
-          id: "",
-          name: "",
-          email: "",
-          phone: "",
-          position: "",
-          city: "",
-          is_primary: true,
-        },
-      ],
-    })
+        resetForm()
     setSelectedClient(null)
     setIsEditDialogOpen(false)
+      } else {
+        toast.error(response.message || 'Error al actualizar el cliente')
+      }
+    } catch (error) {
+      console.error('Error updating client:', error)
+      toast.error(apiUtils.handleError(error))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleDeleteClient = (clientId: string) => {
+  const handleDeleteClient = async (clientId: string) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este cliente?')) return
+
+    try {
+      const response = await clientService.delete(clientId)
+      
+      if (response.success) {
+        toast.success('Cliente eliminado exitosamente')
     setClients(clients.filter((client) => client.id !== clientId))
+      } else {
+        toast.error(response.message || 'Error al eliminar el cliente')
+      }
+    } catch (error) {
+      console.error('Error deleting client:', error)
+      toast.error(apiUtils.handleError(error))
+    }
   }
 
   const openEditDialog = (client: Client) => {
     setSelectedClient(client)
     setFormData({
       name: client.name,
-      contacts: [...client.contacts],
+      contacts: [...(client.contacts || [])],
     })
     setIsEditDialogOpen(true)
   }
 
   const getPrimaryContact = (client: Client) => {
+    if (!client.contacts || client.contacts.length === 0) {
+      return null
+    }
     return client.contacts.find((contact) => contact.is_primary) || client.contacts[0]
   }
 
@@ -280,13 +394,22 @@ export default function ClientesPage() {
                         />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor={`contact-city-${index}`}>Ciudad/Comuna</Label>
-                        <Input
-                          id={`contact-city-${index}`}
-                          value={contact.city}
-                          onChange={(e) => updateContact(index, "city", e.target.value)}
-                          placeholder="Ej: Santiago, Las Condes"
-                        />
+                        <Label htmlFor={`contact-city-${index}`}>Comuna</Label>
+                        <Select
+                          value={contact.city || ""}
+                          onValueChange={(value) => updateContact(index, "city", value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona una comuna" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {comunas.map((comuna) => (
+                              <SelectItem key={comuna.id_ciudad} value={comuna.nombre_comuna}>
+                                {comuna.nombre_comuna}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="flex items-center space-x-2 pt-6">
                         <input
@@ -306,10 +429,19 @@ export default function ClientesPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isSubmitting}>
                 Cancelar
               </Button>
-              <Button onClick={handleCreateClient}>Crear Cliente</Button>
+              <Button onClick={handleCreateClient} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creando...
+                  </>
+                ) : (
+                  'Crear Cliente'
+                )}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -379,6 +511,12 @@ export default function ClientesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="ml-2">Cargando clientes...</span>
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -390,12 +528,20 @@ export default function ClientesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredClients.map((client) => {
+                {filteredClients.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      No se encontraron clientes
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredClients.map((client) => {
                 const primaryContact = getPrimaryContact(client)
                 return (
                   <TableRow key={client.id}>
                     <TableCell className="font-medium">{client.name}</TableCell>
                     <TableCell>
+                          {primaryContact ? (
                       <div className="space-y-1">
                         <div className="font-medium">{primaryContact.name}</div>
                         <div className="text-sm text-muted-foreground">{primaryContact.position}</div>
@@ -412,10 +558,15 @@ export default function ClientesPage() {
                           {primaryContact.city}
                         </div>
                       </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground italic">
+                              Sin contactos
+                            </div>
+                          )}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">
-                        {client.contacts.length} contacto{client.contacts.length !== 1 ? "s" : ""}
+                            {client.contacts?.length || 0} contacto{(client.contacts?.length || 0) !== 1 ? "s" : ""}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -424,29 +575,33 @@ export default function ClientesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => openEditDialog(client)}
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              Editar
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditDialog(client)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDeleteClient(client.id)} className="text-destructive">
-                            <Trash2 className="h-4 w-4 mr-2" />
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDeleteClient(client.id)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
                             Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            </Button>
+                          </div>
                     </TableCell>
                   </TableRow>
                 )
-              })}
+                  })
+                )}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -454,7 +609,10 @@ export default function ClientesPage() {
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Cliente</DialogTitle>
-            <DialogDescription>Modifica la información del cliente y sus contactos</DialogDescription>
+            <DialogDescription>
+              Modifica la información del cliente y sus contactos
+              {selectedClient && ` - Cliente: ${selectedClient.name}`}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-6 py-4">
             <div className="grid gap-2">
@@ -535,12 +693,22 @@ export default function ClientesPage() {
                       />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor={`edit-contact-city-${index}`}>Ciudad/Comuna</Label>
-                      <Input
-                        id={`edit-contact-city-${index}`}
-                        value={contact.city}
-                        onChange={(e) => updateContact(index, "city", e.target.value)}
-                      />
+                      <Label htmlFor={`edit-contact-city-${index}`}>Comuna</Label>
+                      <Select
+                        value={contact.city || ""}
+                        onValueChange={(value) => updateContact(index, "city", value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona una comuna" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {comunas.map((comuna) => (
+                            <SelectItem key={comuna.id_ciudad} value={comuna.nombre_comuna}>
+                              {comuna.nombre_comuna}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="flex items-center space-x-2 pt-6">
                       <input
@@ -560,10 +728,19 @@ export default function ClientesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
               Cancelar
             </Button>
-            <Button onClick={handleEditClient}>Guardar Cambios</Button>
+            <Button onClick={handleEditClient} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar Cambios'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

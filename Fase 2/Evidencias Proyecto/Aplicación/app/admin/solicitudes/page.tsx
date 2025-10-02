@@ -21,7 +21,9 @@ interface Solicitud {
   tipo_servicio: string
   tipo_servicio_nombre: string
   consultor: string
-  estado: string
+  estado_solicitud: string
+  etapa: string
+  status: string
   fecha_creacion: string
   id_descripcion_cargo: number
 }
@@ -90,7 +92,7 @@ export default function SolicitudesPage() {
       solicitud.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
       solicitud.consultor.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesStatus = statusFilter === "all" || solicitud.estado === statusFilter
+    const matchesStatus = statusFilter === "all" || solicitud.status === statusFilter
     const matchesService = serviceFilter === "all" || solicitud.tipo_servicio === serviceFilter
 
     return matchesSearch && matchesStatus && matchesService
@@ -99,9 +101,9 @@ export default function SolicitudesPage() {
   // Calcular estadísticas
   const stats = {
     total: solicitudes.length,
-    en_progreso: solicitudes.filter(s => s.estado === 'En Progreso').length,
-    completadas: solicitudes.filter(s => s.estado === 'Completado').length,
-    pendientes: solicitudes.filter(s => s.estado === 'Creada').length,
+    en_progreso: solicitudes.filter(s => s.status === 'en_progreso').length,
+    completadas: solicitudes.filter(s => s.status === 'cerrado').length,
+    pendientes: solicitudes.filter(s => s.status === 'creado').length,
   }
 
   // Obtener tipos de servicio únicos
@@ -180,10 +182,10 @@ export default function SolicitudesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="Creada">Creada</SelectItem>
-                <SelectItem value="En Progreso">En Progreso</SelectItem>
-                <SelectItem value="Completado">Completado</SelectItem>
-                <SelectItem value="Cancelado">Cancelado</SelectItem>
+                <SelectItem value="creado">Creado</SelectItem>
+                <SelectItem value="en_progreso">En Progreso</SelectItem>
+                <SelectItem value="cerrado">Cerrado</SelectItem>
+                <SelectItem value="congelado">Congelado</SelectItem>
               </SelectContent>
             </Select>
             <Select value={serviceFilter} onValueChange={setServiceFilter}>
@@ -247,9 +249,12 @@ export default function SolicitudesPage() {
                     </TableCell>
                     <TableCell>{solicitud.consultor}</TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(solicitud.estado)}>
-                        {solicitud.estado}
-                      </Badge>
+                      <div className="space-y-1">
+                        <Badge className={getStatusColor(solicitud.status)}>
+                          {solicitud.estado_solicitud}
+                        </Badge>
+                        <div className="text-xs text-muted-foreground">{solicitud.etapa}</div>
+                      </div>
                     </TableCell>
                     <TableCell>{formatDate(solicitud.fecha_creacion)}</TableCell>
                     <TableCell>

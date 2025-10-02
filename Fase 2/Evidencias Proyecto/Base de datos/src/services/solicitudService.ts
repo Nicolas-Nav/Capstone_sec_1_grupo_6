@@ -80,6 +80,16 @@ export class SolicitudService {
                 {
                     model: EtapaSolicitud,
                     as: 'etapaSolicitud'
+                },
+                {
+                    model: EstadoSolicitudHist,
+                    as: 'historialEstados',
+                    include: [{
+                        model: EstadoSolicitud,
+                        as: 'estado'
+                    }],
+                    limit: 1,
+                    order: [['fecha_cambio_estado_solicitud', 'DESC']]
                 }
             ],
             order: [['fecha_ingreso_solicitud', 'DESC']]
@@ -117,7 +127,17 @@ export class SolicitudService {
                     as: 'usuario',
                     attributes: ['rut_usuario', 'nombre_usuario', 'email_usuario']
                 },
-                { model: EtapaSolicitud, as: 'etapaSolicitud' }
+                { model: EtapaSolicitud, as: 'etapaSolicitud' },
+                {
+                    model: EstadoSolicitudHist,
+                    as: 'historialEstados',
+                    include: [{
+                        model: EstadoSolicitud,
+                        as: 'estado'
+                    }],
+                    limit: 1,
+                    order: [['fecha_cambio_estado_solicitud', 'DESC']]
+                }
             ]
         });
 
@@ -206,7 +226,7 @@ export class SolicitudService {
             const plazoMaximo = new Date();
             plazoMaximo.setDate(plazoMaximo.getDate() + deadline_days);
 
-            // 1️⃣ Primero crear la solicitud
+            // Primero crear la solicitud
             const nuevaSolicitud = await Solicitud.create({
                 plazo_maximo_solicitud: plazoMaximo,
                 fecha_ingreso_solicitud: fechaIngreso,
@@ -216,7 +236,7 @@ export class SolicitudService {
                 id_etapa_solicitud: idEtapaInicial
             }, { transaction });
 
-            // 2️⃣ Luego crear la descripción de cargo vinculada a la solicitud
+            // Luego crear la descripción de cargo vinculada a la solicitud
             const descripcionCargoData: any = {
                 descripcion_cargo: description?.trim() || position_title.trim(),
                 num_vacante: vacancies || 1,
@@ -235,10 +255,10 @@ export class SolicitudService {
 
             const nuevaDescripcionCargo = await DescripcionCargo.create(descripcionCargoData, { transaction });
 
-            // Crear historial de estado (usar el mismo ID de etapa)
+            // Crear historial de estado inicial (estado = "Creado" = ID 1)
             await EstadoSolicitudHist.create({
                 fecha_cambio_estado_solicitud: new Date(),
-                id_estado_solicitud: idEtapaInicial,
+                id_estado_solicitud: 1, // "Creado"
                 id_solicitud: nuevaSolicitud.id_solicitud
             }, { transaction });
 
@@ -255,7 +275,7 @@ export class SolicitudService {
     }
 
     /**
-     * Actualizar estado de solicitud
+     * Actualizar estado de solicitud (Creado, En Progreso, Cerrado, Congelado)
      */
     static async updateEstado(id: number, data: { status: string; reason?: string }) {
         const transaction: Transaction = await sequelize.transaction();
@@ -268,42 +288,49 @@ export class SolicitudService {
                 throw new Error('Solicitud no encontrada');
             }
 
-            // Mapear estado del frontend al backend
-            const nombreEtapa = this.mapEstadoToBackend(status);
+            // Mapear estado del frontend al backend (ID de base de datos)
+            const mapeoEstadoId: Record<string, number> = {
+                'creado': 1,        // Creado
+                'en_progreso': 2,   // En Progreso
+                'cerrado': 3,       // Cerrado
+                'congelado': 4      // Congelado
+            };
 
-            const nuevaEtapa = await EtapaSolicitud.findOne({
-                where: { nombre_etapa: nombreEtapa }
-            });
+            const idEstado = mapeoEstadoId[status?.toLowerCase()] || 1; // Default: Creado
 
-            if (!nuevaEtapa) {
-                throw new Error('Etapa no válida');
-            }
-
-            // Actualizar etapa
-            await solicitud.update({
-                id_etapa_solicitud: nuevaEtapa.id_etapa_solicitud
+            // Crear registro en historial de estado
+            await EstadoSolicitudHist.create({
+                fecha_cambio_estado_solicitud: new Date(),
+                id_estado_solicitud: idEstado,
+                id_solicitud: solicitud.id_solicitud
             }, { transaction });
-
-            // Crear registro en historial
-            const estado = await EstadoSolicitud.findOne({
-                where: { nombre_estado_solicitud: nombreEtapa }
-            });
-
-            if (estado) {
-                await EstadoSolicitudHist.create({
-                    fecha_cambio_estado_solicitud: new Date(),
-                    id_estado_solicitud: estado.id_estado_solicitud,
-                    id_solicitud: solicitud.id_solicitud
-                }, { transaction });
-            }
 
             await transaction.commit();
 
-            return { id, status };
+            return { id, status, id_estado: idEstado };
         } catch (error) {
             await transaction.rollback();
             throw error;
         }
+    }
+
+    /**
+     * Cambiar etapa de solicitud (Módulo 1, 2, 3, 4, 5)
+     */
+    static async cambiarEtapa(id: number, id_etapa: number) {
+        const solicitud = await Solicitud.findByPk(id);
+        if (!solicitud) {
+            throw new Error('Solicitud no encontrada');
+        }
+
+        const etapa = await EtapaSolicitud.findByPk(id_etapa);
+        if (!etapa) {
+            throw new Error('Etapa no encontrada');
+        }
+
+        await solicitud.update({ id_etapa_solicitud: id_etapa });
+
+        return { id, etapa: etapa.nombre_etapa };
     }
 
     /**
@@ -347,6 +374,8 @@ export class SolicitudService {
         const tipoServicio = solicitud.get('tipoServicio') as any;
         const usuario = solicitud.get('usuario') as any;
         const etapa = solicitud.get('etapaSolicitud') as any;
+        const historial = solicitud.get('historialEstados') as any[];
+        const estadoActual = historial?.[0]?.estado;
 
         return {
             // Formato completo para APIs que necesitan toda la información
@@ -360,7 +389,8 @@ export class SolicitudService {
             tipo_servicio: solicitud.codigo_servicio,
             tipo_servicio_nombre: tipoServicio?.nombre_servicio || solicitud.codigo_servicio,
             consultor: usuario?.nombre_usuario || 'Sin asignar',
-            estado: etapa?.nombre_etapa || 'Creada',
+            estado_solicitud: estadoActual?.nombre_estado_solicitud || 'Abierto',
+            etapa: etapa?.nombre_etapa || 'Sin etapa',
             fecha_creacion: solicitud.fecha_ingreso_solicitud,
             
             // Información detallada (para compatibilidad con otros componentes)
@@ -391,7 +421,7 @@ export class SolicitudService {
                 email: usuario?.email_usuario || '',
                 role: 'consultor' as const
             },
-            status: this.mapEstadoToFrontend(etapa?.nombre_etapa),
+            status: this.mapEstadoToFrontend(estadoActual?.nombre_estado_solicitud),
             created_at: solicitud.fecha_ingreso_solicitud.toISOString(),
             started_at: null,
             completed_at: null,
@@ -400,35 +430,18 @@ export class SolicitudService {
     }
 
     /**
-     * Mapear estado del frontend al backend
-     */
-    private static mapEstadoToBackend(status: string): string {
-        const mapeo: { [key: string]: string } = {
-            'creado': 'Creada',
-            'iniciado': 'Iniciada',
-            'en_progreso': 'En Progreso',
-            'completado': 'Completada',
-            'cancelado': 'Cancelada',
-            'congelado': 'Congelada'
-        };
-        return mapeo[status] || 'Creada';
-    }
-
-    /**
      * Mapear estado del backend al frontend
      */
-    private static mapEstadoToFrontend(nombreEtapa?: string): string {
-        if (!nombreEtapa) return 'creado';
+    private static mapEstadoToFrontend(nombreEstado?: string): string {
+        if (!nombreEstado) return 'creado';
 
         const mapeo: { [key: string]: string } = {
-            'Creada': 'creado',
-            'Iniciada': 'iniciado',
+            'Creado': 'creado',
             'En Progreso': 'en_progreso',
-            'Completada': 'completado',
-            'Cancelada': 'cancelado',
-            'Congelada': 'congelado'
+            'Cerrado': 'cerrado',
+            'Congelado': 'congelado'
         };
-        return mapeo[nombreEtapa] || 'creado';
+        return mapeo[nombreEstado] || 'creado';
     }
 }
 

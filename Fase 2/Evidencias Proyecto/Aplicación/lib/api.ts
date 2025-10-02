@@ -216,8 +216,16 @@ export const descripcionCargoService = {
 
 export const solicitudService = {
   // Obtener todas las solicitudes
-  async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/solicitudes');
+  async getAll(params?: { status?: string; service_type?: string; consultor_id?: string }): Promise<ApiResponse<any[]>> {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.service_type) queryParams.append('service_type', params.service_type);
+    if (params?.consultor_id) queryParams.append('consultor_id', params.consultor_id);
+    
+    const queryString = queryParams.toString();
+    const url = queryString ? `/api/solicitudes?${queryString}` : '/api/solicitudes';
+    
+    return apiRequest(url);
   },
 
   // Obtener solicitud por ID
@@ -249,10 +257,10 @@ export const solicitudService = {
   },
 
   // Actualizar estado de solicitud
-  async updateEstado(id: number, estado: string): Promise<ApiResponse<any>> {
+  async updateEstado(id: number, status: string): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/estado`, {
       method: 'PUT',
-      body: JSON.stringify({ estado }),
+      body: JSON.stringify({ status }),
     });
   },
 

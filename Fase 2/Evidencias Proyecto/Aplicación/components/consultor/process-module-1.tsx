@@ -15,9 +15,10 @@ import { useState } from "react"
 
 interface ProcessModule1Props {
   process: Process
+  descripcionCargo?: any
 }
 
-export function ProcessModule1({ process }: ProcessModule1Props) {
+export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Props) {
   const [personalData, setPersonalData] = useState({
     name: "",
     rut: "",

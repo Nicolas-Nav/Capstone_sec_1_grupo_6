@@ -46,6 +46,9 @@ export class DescripcionCargoController {
     /**
      * POST /api/descripciones-cargo
      * Crear nueva descripción de cargo
+     * 
+     * NOTA: Este endpoint requiere id_solicitud. Normalmente, la descripción de cargo
+     * se crea automáticamente al crear una solicitud desde /api/solicitudes
      */
     static async create(req: Request, res: Response): Promise<Response> {
         try {
@@ -56,8 +59,13 @@ export class DescripcionCargoController {
                 fecha_ingreso,
                 cargo,
                 comuna,
+                id_solicitud,
                 datos_excel
             } = req.body;
+
+            if (!id_solicitud) {
+                return sendError(res, 'id_solicitud es requerido. La descripción de cargo debe estar asociada a una solicitud.', 400);
+            }
 
             const nuevaDescripcion = await DescripcionCargoService.createDescripcion({
                 descripcion,
@@ -66,6 +74,7 @@ export class DescripcionCargoController {
                 fecha_ingreso,
                 cargo,
                 comuna,
+                id_solicitud: parseInt(id_solicitud),
                 datos_excel
             });
 

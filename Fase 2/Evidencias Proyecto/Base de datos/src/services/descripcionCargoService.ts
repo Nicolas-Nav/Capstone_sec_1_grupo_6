@@ -87,7 +87,8 @@ export class DescripcionCargoService {
     }
 
     /**
-     * Crear nueva descripción de cargo
+     * Crear nueva descripción de cargo (requiere id_solicitud)
+     * NOTA: Este método ya NO se usa directamente, la descripción se crea dentro de solicitudService
      */
     static async createDescripcion(data: {
         descripcion: string;
@@ -96,6 +97,7 @@ export class DescripcionCargoService {
         fecha_ingreso?: string;
         cargo: string;
         comuna: string;
+        id_solicitud: number;
         datos_excel?: object;
     }) {
         const transaction: Transaction = await sequelize.transaction();
@@ -108,6 +110,7 @@ export class DescripcionCargoService {
                 fecha_ingreso,
                 cargo,
                 comuna,
+                id_solicitud,
                 datos_excel
             } = data;
 
@@ -122,6 +125,10 @@ export class DescripcionCargoService {
 
             if (!cargo || !comuna) {
                 throw new Error('El cargo y la comuna son requeridos');
+            }
+
+            if (!id_solicitud) {
+                throw new Error('id_solicitud es requerido');
             }
 
             // Buscar o crear el cargo
@@ -155,6 +162,7 @@ export class DescripcionCargoService {
                 fecha_ingreso: fechaIngreso,
                 id_cargo: cargoRecord.id_cargo,
                 id_comuna: comunaRecord.id_comuna,
+                id_solicitud: id_solicitud,
                 datos_excel: datos_excel || undefined
             }, { transaction });
 
@@ -338,14 +346,9 @@ export class DescripcionCargoService {
             throw new Error('Descripción de cargo no encontrada');
         }
 
-        // Verificar si tiene solicitudes asociadas
-        const { Solicitud } = require('@/models');
-        const solicitudesActivas = await Solicitud.count({
-            where: { id_descripcioncargo: id }
-        });
-
-        if (solicitudesActivas > 0) {
-            throw new Error('No se puede eliminar la descripción porque tiene solicitudes asociadas');
+        // Verificar si está asociada a una solicitud (relación inversa: DescripcionCargo.id_solicitud)
+        if (descripcion.id_solicitud) {
+            throw new Error('No se puede eliminar la descripción porque está asociada a una solicitud');
         }
 
         await descripcion.destroy();

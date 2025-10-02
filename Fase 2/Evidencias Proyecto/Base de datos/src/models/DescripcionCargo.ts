@@ -12,9 +12,10 @@ interface DescripcionCargoAttributes {
     requisitos_y_condiciones: string;
     num_vacante: number;
     fecha_ingreso: Date;
-    datos_excel?: object; 
+    datos_excel?: object;
     id_cargo: number;
     id_comuna: number;
+    id_solicitud: number; // <-- Nueva FK hacia Solicitud
 }
 
 interface DescripcionCargoCreationAttributes extends Optional<DescripcionCargoAttributes, 'id_descripcioncargo' | 'datos_excel'> { }
@@ -29,57 +30,37 @@ class DescripcionCargo extends Model<DescripcionCargoAttributes, DescripcionCarg
     public requisitos_y_condiciones!: string;
     public num_vacante!: number;
     public fecha_ingreso!: Date;
-    public datos_excel?: object; 
+    public datos_excel?: object;
     public id_cargo!: number;
     public id_comuna!: number;
+    public id_solicitud!: number;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
     // ===========================================
 
-    /**
-     * Verifica si hay vacantes disponibles
-     */
     public tieneVacantes(): boolean {
         return this.num_vacante > 0;
     }
 
-    /**
-     * Obtiene la descripción formateada
-     */
     public getDescripcionFormateada(): string {
         return this.descripcion_cargo.trim();
     }
 
-    /**
-     * Verifica si la fecha de ingreso es futura
-     */
     public esFechaFutura(): boolean {
         return this.fecha_ingreso > new Date();
     }
 
-    /**
-     * Verifica si tiene datos de Excel cargados
-     */
     public tieneDatosExcel(): boolean {
         return this.datos_excel !== null && this.datos_excel !== undefined;
     }
 
-    /**
-     * Obtiene los datos de Excel como JSON
-     */
     public getDatosExcel(): object | null {
         return this.datos_excel || null;
     }
 
-    /**
-     * Obtiene una hoja específica de los datos Excel
-     */
     public getHojaExcel(nombreHoja: string): any[] | null {
-        if (!this.datos_excel || typeof this.datos_excel !== 'object') {
-            return null;
-        }
-
+        if (!this.datos_excel || typeof this.datos_excel !== 'object') return null;
         const datos = this.datos_excel as any;
         return datos[nombreHoja] || null;
     }
@@ -106,10 +87,10 @@ DescripcionCargo.init({
     },
     requisitos_y_condiciones: {
         type: DataTypes.STRING(100),
-        allowNull: true,
-        defaultValue: 'Por definir',
+        allowNull: false,
         validate: {
-            len: [0, 100]
+            notEmpty: true,
+            len: [10, 100]
         }
     },
     num_vacante: {
@@ -133,7 +114,7 @@ DescripcionCargo.init({
         }
     },
     datos_excel: {
-        type: DataTypes.JSON, 
+        type: DataTypes.JSON,
         allowNull: true,
         validate: {
             isValidJson(value: any) {
@@ -168,6 +149,19 @@ DescripcionCargo.init({
                 msg: 'La comuna es requerida'
             }
         }
+    },
+    id_solicitud: { // <-- Nueva FK
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: 'solicitud',
+            key: 'id_solicitud'
+        },
+        validate: {
+            notNull: {
+                msg: 'La solicitud es requerida'
+            }
+        }
     }
 }, {
     sequelize,
@@ -175,15 +169,10 @@ DescripcionCargo.init({
     timestamps: false,
     underscored: true,
     indexes: [
-        {
-            fields: ['id_cargo']
-        },
-        {
-            fields: ['id_comuna']
-        },
-        {
-            fields: ['fecha_ingreso']
-        }
+        { fields: ['id_cargo'] },
+        { fields: ['id_comuna'] },
+        { fields: ['fecha_ingreso'] },
+        { fields: ['id_solicitud'] } // <-- índice para la nueva FK
     ]
 });
 

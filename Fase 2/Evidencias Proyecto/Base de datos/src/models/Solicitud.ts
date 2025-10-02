@@ -12,7 +12,6 @@ interface SolicitudAttributes {
     fecha_ingreso_solicitud: Date;
     id_contacto: number;
     codigo_servicio: string;
-    id_descripcioncargo: number;
     rut_usuario: string;
     id_etapa_solicitud: number;
 }
@@ -29,7 +28,6 @@ class Solicitud extends Model<SolicitudAttributes, SolicitudCreationAttributes> 
     public fecha_ingreso_solicitud!: Date;
     public id_contacto!: number;
     public codigo_servicio!: string;
-    public id_descripcioncargo!: number;
     public rut_usuario!: string;
     public id_etapa_solicitud!: number;
 
@@ -110,19 +108,6 @@ Solicitud.init({
             }
         }
     },
-    id_descripcioncargo: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'descripcioncargo',
-            key: 'id_descripcioncargo'
-        },
-        validate: {
-            notNull: {
-                msg: 'La descripción del cargo es requerida'
-            }
-        }
-    },
     rut_usuario: {
         type: DataTypes.STRING(12),
         allowNull: false,
@@ -155,24 +140,11 @@ Solicitud.init({
     timestamps: false,
     underscored: true,
     indexes: [
-        {
-            fields: ['id_contacto']
-        },
-        {
-            fields: ['codigo_servicio']
-        },
-        {
-            fields: ['id_descripcioncargo']
-        },
-        {
-            fields: ['rut_usuario']
-        },
-        {
-            fields: ['id_etapa_solicitud']
-        },
-        {
-            fields: ['plazo_maximo_solicitud']
-        }
+        { fields: ['id_contacto'] },
+        { fields: ['codigo_servicio'] },
+        { fields: ['rut_usuario'] },
+        { fields: ['id_etapa_solicitud'] },
+        { fields: ['plazo_maximo_solicitud'] }
     ]
 });
 

@@ -124,99 +124,40 @@ Nacionalidad.hasMany(Candidato, {
 // ===========================================
 
 // Cargo -> DescripcionCargo (1:N)
-Cargo.hasMany(DescripcionCargo, {
-    foreignKey: 'id_cargo',
-    as: 'descripciones'
-});
-DescripcionCargo.belongsTo(Cargo, {
-    foreignKey: 'id_cargo',
-    as: 'cargo'
-});
+Cargo.hasMany(DescripcionCargo, { foreignKey: 'id_cargo', as: 'descripciones' });
+DescripcionCargo.belongsTo(Cargo, { foreignKey: 'id_cargo', as: 'cargo' });
 
 // EstadoSolicitud -> EstadoSolicitudHist (1:N)
-EstadoSolicitud.hasMany(EstadoSolicitudHist, {
-    foreignKey: 'id_estado_solicitud',
-    as: 'historial'
-});
-EstadoSolicitudHist.belongsTo(EstadoSolicitud, {
-    foreignKey: 'id_estado_solicitud',
-    as: 'estado'
-});
+EstadoSolicitud.hasMany(EstadoSolicitudHist, { foreignKey: 'id_estado_solicitud', as: 'historial' });
+EstadoSolicitudHist.belongsTo(EstadoSolicitud, { foreignKey: 'id_estado_solicitud', as: 'estado' });
 
 // Comuna -> DescripcionCargo (1:N)
-Comuna.hasMany(DescripcionCargo, {
-    foreignKey: 'id_comuna',
-    as: 'descripcionesCargo'
-});
-DescripcionCargo.belongsTo(Comuna, {
-    foreignKey: 'id_comuna',
-    as: 'comuna'
-});
+Comuna.hasMany(DescripcionCargo, { foreignKey: 'id_comuna', as: 'descripcionesCargo' });
+DescripcionCargo.belongsTo(Comuna, { foreignKey: 'id_comuna', as: 'comuna' });
+
+// ✅ Solicitud -> DescripcionCargo (1:1)
+Solicitud.hasOne(DescripcionCargo, { foreignKey: 'id_solicitud', as: 'descripcionCargo' });
+DescripcionCargo.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'solicitud' });
 
 // Solicitud -> Relaciones múltiples
-Solicitud.belongsTo(Contacto, {
-    foreignKey: 'id_contacto',
-    as: 'contacto'
-});
-Solicitud.belongsTo(TipoServicio, {
-    foreignKey: 'codigo_servicio',
-    as: 'tipoServicio'
-});
-Solicitud.belongsTo(DescripcionCargo, {
-    foreignKey: 'id_descripcioncargo',
-    as: 'descripcionCargo'
-});
-Solicitud.belongsTo(Usuario, {
-    foreignKey: 'rut_usuario',
-    as: 'usuario'
-});
-Solicitud.belongsTo(EtapaSolicitud, {
-    foreignKey: 'id_etapa_solicitud',
-    as: 'etapaSolicitud'
-});
+Solicitud.belongsTo(Contacto, { foreignKey: 'id_contacto', as: 'contacto' });
+Solicitud.belongsTo(TipoServicio, { foreignKey: 'codigo_servicio', as: 'tipoServicio' });
+Solicitud.belongsTo(Usuario, { foreignKey: 'rut_usuario', as: 'usuario' });
+Solicitud.belongsTo(EtapaSolicitud, { foreignKey: 'id_etapa_solicitud', as: 'etapaSolicitud' });
 
 // Solicitud -> EstadoSolicitudHist (1:N)
-Solicitud.hasMany(EstadoSolicitudHist, {
-    foreignKey: 'id_solicitud',
-    as: 'historialEstados'
-});
-EstadoSolicitudHist.belongsTo(Solicitud, {
-    foreignKey: 'id_solicitud',
-    as: 'solicitud'
-});
+Solicitud.hasMany(EstadoSolicitudHist, { foreignKey: 'id_solicitud', as: 'historialEstados' });
+EstadoSolicitudHist.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'solicitud' });
 
 // Solicitud -> Publicacion (1:N)
-Solicitud.hasMany(Publicacion, {
-    foreignKey: 'id_solicitud',
-    as: 'publicaciones'
-});
-Publicacion.belongsTo(Solicitud, {
-    foreignKey: 'id_solicitud',
-    as: 'solicitud'
-});
+Solicitud.hasMany(Publicacion, { foreignKey: 'id_solicitud', as: 'publicaciones' });
+Publicacion.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'solicitud' });
 
 // Relaciones inversas
-Contacto.hasMany(Solicitud, {
-    foreignKey: 'id_contacto',
-    as: 'solicitudes'
-});
-TipoServicio.hasMany(Solicitud, {
-    foreignKey: 'codigo_servicio',
-    as: 'solicitudes'
-});
-DescripcionCargo.hasMany(Solicitud, {
-    foreignKey: 'id_descripcioncargo',
-    as: 'solicitudes'
-});
-Usuario.hasMany(Solicitud, {
-    foreignKey: 'rut_usuario',
-    as: 'solicitudes'
-});
-EtapaSolicitud.hasMany(Solicitud, {
-    foreignKey: 'id_etapa_solicitud',
-    as: 'solicitudes'
-});
-
+Contacto.hasMany(Solicitud, { foreignKey: 'id_contacto', as: 'solicitudes' });
+TipoServicio.hasMany(Solicitud, { foreignKey: 'codigo_servicio', as: 'solicitudes' });
+Usuario.hasMany(Solicitud, { foreignKey: 'rut_usuario', as: 'solicitudes' });
+EtapaSolicitud.hasMany(Solicitud, { foreignKey: 'id_etapa_solicitud', as: 'solicitudes' });
 // ===========================================
 // RELACIONES DE CANDIDATOS
 // ===========================================

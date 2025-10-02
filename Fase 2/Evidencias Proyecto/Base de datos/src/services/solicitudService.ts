@@ -196,45 +196,44 @@ export class SolicitudService {
                 }
             }
 
-            // Crear descripción de cargo
-            const descripcionCargoData: any = {
-                descripcion_cargo: description?.trim() || position_title.trim(),
-                num_vacante: vacancies || 1,
-                fecha_ingreso: new Date(),
-                id_cargo: cargo.id_cargo,
-                id_comuna: idComuna
-            };
-
-            // Solo agregar requisitos si no está vacío
-            if (requirements && requirements.trim()) {
-                descripcionCargoData.requisitos_y_condiciones = requirements.trim();
-            }
-
-            const descripcionCargo = await DescripcionCargo.create(descripcionCargoData, { transaction });
-
             // Determinar la etapa inicial según el tipo de servicio
-            // TS y ES empiezan en Módulo 4 (id = 4)
-            // PC, LL, HH empiezan en Módulo 1 (id = 1)
-            const idEtapaInicial = (service_type === 'TS' || service_type === 'ES') ? 4 : 1;
-            const nombreEtapaInicial = (service_type === 'TS' || service_type === 'ES') 
-                ? 'Modulo 4: Evaluación Psicolaboral'
-                : 'Modulo 1: Registro y Gestión de Solicitudes';
+            // TS y ES empiezan en Módulo 4 (id = 9)
+            // PC, LL, HH empiezan en Módulo 1 (id = 6)
+            const idEtapaInicial = (service_type === 'TS' || service_type === 'ES') ? 9 : 6;
 
             // Calcular plazo máximo
             const fechaIngreso = new Date();
             const plazoMaximo = new Date();
             plazoMaximo.setDate(plazoMaximo.getDate() + deadline_days);
 
-            // Crear solicitud
+            // 1️⃣ Primero crear la solicitud
             const nuevaSolicitud = await Solicitud.create({
                 plazo_maximo_solicitud: plazoMaximo,
                 fecha_ingreso_solicitud: fechaIngreso,
                 id_contacto: contact_id,
                 codigo_servicio: service_type,
-                id_descripcioncargo: descripcionCargo.id_descripcioncargo,
                 rut_usuario: consultant_id,
                 id_etapa_solicitud: idEtapaInicial
             }, { transaction });
+
+            // 2️⃣ Luego crear la descripción de cargo vinculada a la solicitud
+            const descripcionCargoData: any = {
+                descripcion_cargo: description?.trim() || position_title.trim(),
+                num_vacante: vacancies || 1,
+                fecha_ingreso: fechaIngreso,
+                id_cargo: cargo.id_cargo,
+                id_comuna: idComuna,
+                id_solicitud: nuevaSolicitud.id_solicitud
+            };
+
+            // Solo agregar requisitos si no está vacío
+            if (requirements && requirements.trim()) {
+                descripcionCargoData.requisitos_y_condiciones = requirements.trim();
+            } else {
+                descripcionCargoData.requisitos_y_condiciones = 'Por definir';
+            }
+
+            const nuevaDescripcionCargo = await DescripcionCargo.create(descripcionCargoData, { transaction });
 
             // Crear historial de estado (usar el mismo ID de etapa)
             await EstadoSolicitudHist.create({
@@ -245,7 +244,10 @@ export class SolicitudService {
 
             await transaction.commit();
 
-            return { id: nuevaSolicitud.id_solicitud };
+            return { 
+                id: nuevaSolicitud.id_solicitud,
+                id_descripcion_cargo: nuevaDescripcionCargo.id_descripcioncargo
+            };
         } catch (error) {
             await transaction.rollback();
             throw error;

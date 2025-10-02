@@ -52,11 +52,11 @@ const login = async (email: string, password: string): Promise<boolean> => {
     console.log()
     const loggedUser: User = {
       id: data.data.usuario.rut_usuario,
-      firstName: data.data.usuario.nombre_usuario,
-      lastName: data.data.usuario.apellido_usuario || '',
-      email: data.data.usuario.email_usuario,
-      isActive: data.data.usuario.activo_usuario,
-      role: data.data.usuario.rol_usuario === 1 ? 'admin' : 'consultor'
+      firstName: data.data.usuario.nombre,
+      lastName: data.data.usuario.apellido,
+      email: email, // Usar el email del login
+      isActive: data.data.usuario.activo,
+      role: data.data.usuario.rol === "admin" ? "admin" : "consultor"
     };
 
     setUser(loggedUser)

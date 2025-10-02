@@ -105,7 +105,7 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
         try {
           const data = e.target?.result
           const workbook = XLSX.read(data, { type: 'array' })
-          const sheetName = workbook.SheetNames[0]
+          const sheetName = workbook.SheetNames[1]
           const sheet = workbook.Sheets[sheetName]
 
           // Funciones auxiliares

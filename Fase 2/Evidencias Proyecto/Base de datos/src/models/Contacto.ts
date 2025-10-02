@@ -12,7 +12,7 @@ interface ContactoAttributes {
   telefono_contacto: string;
   cargo_contacto: string;
   id_cliente: number;
-  id_ciudad: number;
+  id_comuna: number;
 }
 
 interface ContactoCreationAttributes extends Optional<ContactoAttributes, 'id_contacto'> {}
@@ -28,7 +28,7 @@ class Contacto extends Model<ContactoAttributes, ContactoCreationAttributes> imp
   public telefono_contacto!: string;
   public cargo_contacto!: string;
   public id_cliente!: number;
-  public id_ciudad!: number;
+  public id_comuna!: number;
 
   // ===========================================
   // MÉTODOS PERSONALIZADOS
@@ -125,16 +125,16 @@ Contacto.init({
       }
     }
   },
-  id_ciudad: {
+  id_comuna: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
       model: 'comuna',
-      key: 'id_ciudad'
+      key: 'id_comuna'
     },
     validate: {
       notNull: {
-        msg: 'La ciudad es requerida'
+        msg: 'La comuna es requerida'
       }
     }
   }
@@ -148,7 +148,7 @@ Contacto.init({
       fields: ['id_cliente']
     },
     {
-      fields: ['id_ciudad']
+      fields: ['id_comuna']
     },
     {
       unique: true,

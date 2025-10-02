@@ -14,7 +14,7 @@ interface DescripcionCargoAttributes {
     fecha_ingreso: Date;
     datos_excel?: object; 
     id_cargo: number;
-    id_ciudad: number;
+    id_comuna: number;
 }
 
 interface DescripcionCargoCreationAttributes extends Optional<DescripcionCargoAttributes, 'id_descripcioncargo' | 'datos_excel'> { }
@@ -31,7 +31,7 @@ class DescripcionCargo extends Model<DescripcionCargoAttributes, DescripcionCarg
     public fecha_ingreso!: Date;
     public datos_excel?: object; 
     public id_cargo!: number;
-    public id_ciudad!: number;
+    public id_comuna!: number;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -106,10 +106,10 @@ DescripcionCargo.init({
     },
     requisitos_y_condiciones: {
         type: DataTypes.STRING(100),
-        allowNull: false,
+        allowNull: true,
+        defaultValue: 'Por definir',
         validate: {
-            notEmpty: true,
-            len: [10, 100]
+            len: [0, 100]
         }
     },
     num_vacante: {
@@ -156,16 +156,16 @@ DescripcionCargo.init({
             }
         }
     },
-    id_ciudad: {
+    id_comuna: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
             model: 'comuna',
-            key: 'id_ciudad'
+            key: 'id_comuna'
         },
         validate: {
             notNull: {
-                msg: 'La ciudad es requerida'
+                msg: 'La comuna es requerida'
             }
         }
     }
@@ -179,7 +179,7 @@ DescripcionCargo.init({
             fields: ['id_cargo']
         },
         {
-            fields: ['id_ciudad']
+            fields: ['id_comuna']
         },
         {
             fields: ['fecha_ingreso']

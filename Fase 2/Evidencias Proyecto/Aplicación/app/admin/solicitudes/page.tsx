@@ -1,56 +1,111 @@
 "use client"
 
-import { useState } from "react"
-import { useAuth } from "@/hooks/auth"
-import { mockProcesses, serviceTypeLabels, processStatusLabels } from "@/lib/mock-data"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Eye, Edit, Trash2 } from "lucide-react"
+import { Plus, Search, Eye, Trash2, Loader2, Upload } from "lucide-react"
 import { formatDate, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
-import { ProcessDetailsDialog } from "@/components/admin/process-details-dialog"
-import type { Process } from "@/lib/types"
+import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
+import { solicitudService } from "@/lib/api"
+import { toast } from "sonner"
+
+interface Solicitud {
+  id: number
+  cargo: string
+  cliente: string
+  tipo_servicio: string
+  tipo_servicio_nombre: string
+  consultor: string
+  estado: string
+  fecha_creacion: string
+  id_descripcion_cargo: number
+}
 
 export default function SolicitudesPage() {
-  const { user } = useAuth()
+  const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
-  const [selectedProcess, setSelectedProcess] = useState<Process | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false)
+  const [showExcelDialog, setShowExcelDialog] = useState(false)
+  const [selectedDescripcionCargoId, setSelectedDescripcionCargoId] = useState<number | null>(null)
 
-  if (user?.role !== "admin") {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">Acceso Denegado</h2>
-          <p className="text-muted-foreground">No tienes permisos para acceder a esta página.</p>
-        </div>
-      </div>
-    )
+  // Cargar solicitudes al montar el componente
+  useEffect(() => {
+    loadSolicitudes()
+  }, [])
+
+  const loadSolicitudes = async () => {
+    try {
+      setIsLoading(true)
+      const response = await solicitudService.getAll()
+      
+      if (response.success && response.data) {
+        setSolicitudes(response.data)
+      } else {
+        toast.error('Error al cargar las solicitudes')
+      }
+    } catch (error) {
+      console.error('Error loading solicitudes:', error)
+      toast.error('Error al cargar las solicitudes')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const filteredProcesses = mockProcesses.filter((process) => {
-    const matchesSearch =
-      process.position_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.consultant.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const handleDelete = async (id: number) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta solicitud?')) {
+      return
+    }
 
-    const matchesStatus = statusFilter === "all" || process.status === statusFilter
-    const matchesService = serviceFilter === "all" || process.service_type === serviceFilter
+    try {
+      const response = await solicitudService.delete(id)
+      
+      if (response.success) {
+        toast.success('Solicitud eliminada exitosamente')
+        loadSolicitudes()
+      } else {
+        toast.error(response.message || 'Error al eliminar la solicitud')
+      }
+    } catch (error: any) {
+      console.error('Error deleting solicitud:', error)
+      toast.error(error.message || 'Error al eliminar la solicitud')
+    }
+  }
+
+  const handleUploadExcel = (descripcionCargoId: number) => {
+    setSelectedDescripcionCargoId(descripcionCargoId)
+    setShowExcelDialog(true)
+  }
+
+  const filteredSolicitudes = solicitudes.filter((solicitud) => {
+    const matchesSearch =
+      solicitud.cargo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      solicitud.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      solicitud.consultor.toLowerCase().includes(searchTerm.toLowerCase())
+
+    const matchesStatus = statusFilter === "all" || solicitud.estado === statusFilter
+    const matchesService = serviceFilter === "all" || solicitud.tipo_servicio === serviceFilter
 
     return matchesSearch && matchesStatus && matchesService
   })
 
-  const handleViewProcess = (process: Process) => {
-    setSelectedProcess(process)
-    setShowDetailsDialog(true)
+  // Calcular estadísticas
+  const stats = {
+    total: solicitudes.length,
+    en_progreso: solicitudes.filter(s => s.estado === 'En Progreso').length,
+    completadas: solicitudes.filter(s => s.estado === 'Completado').length,
+    pendientes: solicitudes.filter(s => s.estado === 'Creada').length,
   }
+
+  // Obtener tipos de servicio únicos
+  const serviceTypes = Array.from(new Set(solicitudes.map(s => s.tipo_servicio)))
 
   return (
     <div className="space-y-6">
@@ -72,7 +127,7 @@ export default function SolicitudesPage() {
             <CardTitle className="text-sm font-medium">Total Solicitudes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockProcesses.length}</div>
+            <div className="text-2xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
         <Card>
@@ -80,7 +135,7 @@ export default function SolicitudesPage() {
             <CardTitle className="text-sm font-medium">En Progreso</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockProcesses.filter((p) => p.status === "en_progreso").length}</div>
+            <div className="text-2xl font-bold">{stats.en_progreso}</div>
           </CardContent>
         </Card>
         <Card>
@@ -88,7 +143,7 @@ export default function SolicitudesPage() {
             <CardTitle className="text-sm font-medium">Completadas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockProcesses.filter((p) => p.status === "completado").length}</div>
+            <div className="text-2xl font-bold">{stats.completadas}</div>
           </CardContent>
         </Card>
         <Card>
@@ -96,7 +151,7 @@ export default function SolicitudesPage() {
             <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockProcesses.filter((p) => p.status === "creado").length}</div>
+            <div className="text-2xl font-bold">{stats.pendientes}</div>
           </CardContent>
         </Card>
       </div>
@@ -125,11 +180,10 @@ export default function SolicitudesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="creado">Creado</SelectItem>
-                <SelectItem value="iniciado">Iniciado</SelectItem>
-                <SelectItem value="en_progreso">En Progreso</SelectItem>
-                <SelectItem value="completado">Completado</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
+                <SelectItem value="Creada">Creada</SelectItem>
+                <SelectItem value="En Progreso">En Progreso</SelectItem>
+                <SelectItem value="Completado">Completado</SelectItem>
+                <SelectItem value="Cancelado">Cancelado</SelectItem>
               </SelectContent>
             </Select>
             <Select value={serviceFilter} onValueChange={setServiceFilter}>
@@ -138,77 +192,107 @@ export default function SolicitudesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los servicios</SelectItem>
-                <SelectItem value="proceso_completo">Proceso Completo</SelectItem>
-                <SelectItem value="long_list">Long List</SelectItem>
-                <SelectItem value="targeted_recruitment">Targeted Recruitment</SelectItem>
-                <SelectItem value="evaluacion_psicolaboral">Evaluación Psicolaboral</SelectItem>
-                <SelectItem value="test_psicolaboral">Test Psicolaboral</SelectItem>
+                {serviceTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </CardContent>
       </Card>
 
-      {/* Processes Table */}
+      {/* Solicitudes Table */}
       <Card>
         <CardHeader>
           <CardTitle>Lista de Solicitudes</CardTitle>
           <CardDescription>
-            {filteredProcesses.length} de {mockProcesses.length} solicitudes
+            {filteredSolicitudes.length} de {solicitudes.length} solicitudes
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cargo</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Tipo de Servicio</TableHead>
-                <TableHead>Consultor</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Fecha Creación</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProcesses.map((process) => (
-                <TableRow key={process.id}>
-                  <TableCell className="font-medium">{process.position_title}</TableCell>
-                  <TableCell>{process.client.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{serviceTypeLabels[process.service_type]}</Badge>
-                  </TableCell>
-                  <TableCell>{process.consultant.name}</TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(process.status)}>{processStatusLabels[process.status]}</Badge>
-                  </TableCell>
-                  <TableCell>{formatDate(process.created_at)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleViewProcess(process)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : filteredSolicitudes.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {solicitudes.length === 0 
+                ? "No hay solicitudes creadas. Crea una nueva solicitud para comenzar."
+                : "No se encontraron solicitudes con los filtros aplicados."}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Cargo</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Tipo de Servicio</TableHead>
+                  <TableHead>Consultor</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Fecha Creación</TableHead>
+                  <TableHead>Acciones</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredSolicitudes.map((solicitud) => (
+                  <TableRow key={solicitud.id}>
+                    <TableCell className="font-mono text-sm">{solicitud.id}</TableCell>
+                    <TableCell className="font-medium">{solicitud.cargo}</TableCell>
+                    <TableCell>{solicitud.cliente}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{solicitud.tipo_servicio_nombre}</Badge>
+                    </TableCell>
+                    <TableCell>{solicitud.consultor}</TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(solicitud.estado)}>
+                        {solicitud.estado}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatDate(solicitud.fecha_creacion)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleUploadExcel(solicitud.id_descripcion_cargo)}
+                          title="Cargar datos de Excel"
+                        >
+                          <Upload className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleDelete(solicitud.id)}
+                          title="Eliminar solicitud"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
       {/* Create Process Dialog */}
-      <CreateProcessDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
+      <CreateProcessDialog 
+        open={showCreateDialog} 
+        onOpenChange={setShowCreateDialog}
+      />
 
-      {/* Process Details Dialog */}
-      {selectedProcess && (
-        <ProcessDetailsDialog process={selectedProcess} open={showDetailsDialog} onOpenChange={setShowDetailsDialog} />
+      {/* Upload Excel Dialog */}
+      {selectedDescripcionCargoId && (
+        <UploadExcelDialog
+          open={showExcelDialog}
+          onOpenChange={setShowExcelDialog}
+          descripcionCargoId={selectedDescripcionCargoId}
+        />
       )}
     </div>
   )

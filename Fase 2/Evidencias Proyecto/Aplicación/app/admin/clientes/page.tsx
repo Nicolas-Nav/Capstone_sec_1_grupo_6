@@ -404,7 +404,7 @@ export default function ClientesPage() {
                           </SelectTrigger>
                           <SelectContent>
                             {comunas.map((comuna) => (
-                              <SelectItem key={comuna.id_ciudad} value={comuna.nombre_comuna}>
+                              <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
                                 {comuna.nombre_comuna}
                               </SelectItem>
                             ))}
@@ -492,7 +492,7 @@ export default function ClientesPage() {
             <div className="relative flex-1">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por empresa, contacto, cargo, ciudad o email..."
+                placeholder="Buscar por empresa, contacto, cargo, comuna o email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8"
@@ -703,7 +703,7 @@ export default function ClientesPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {comunas.map((comuna) => (
-                            <SelectItem key={comuna.id_ciudad} value={comuna.nombre_comuna}>
+                            <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
                               {comuna.nombre_comuna}
                             </SelectItem>
                           ))}

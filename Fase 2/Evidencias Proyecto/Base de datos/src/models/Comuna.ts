@@ -6,19 +6,19 @@ import sequelize from '@/config/database';
 // ===========================================
 
 interface ComunaAttributes {
-  id_ciudad: number;
+  id_comuna: number;
   nombre_comuna: string;
   id_region: number;
 }
 
-interface ComunaCreationAttributes extends Optional<ComunaAttributes, 'id_ciudad'> {}
+interface ComunaCreationAttributes extends Optional<ComunaAttributes, 'id_comuna'> {}
 
 // ===========================================
 // MODELO SEQUELIZE
 // ===========================================
 
 class Comuna extends Model<ComunaAttributes, ComunaCreationAttributes> implements ComunaAttributes {
-  public id_ciudad!: number;
+  public id_comuna!: number;
   public nombre_comuna!: string;
   public id_region!: number;
 }
@@ -28,7 +28,7 @@ class Comuna extends Model<ComunaAttributes, ComunaCreationAttributes> implement
 // ===========================================
 
 Comuna.init({
-  id_ciudad: {
+  id_comuna: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true,

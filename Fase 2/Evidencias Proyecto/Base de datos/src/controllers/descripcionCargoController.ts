@@ -54,8 +54,8 @@ export class DescripcionCargoController {
                 requisitos,
                 vacantes,
                 fecha_ingreso,
-                id_cargo,
-                id_ciudad,
+                cargo,
+                comuna,
                 datos_excel
             } = req.body;
 
@@ -63,9 +63,9 @@ export class DescripcionCargoController {
                 descripcion,
                 requisitos,
                 vacantes: parseInt(vacantes),
-                fecha_ingreso: fecha_ingreso ? new Date(fecha_ingreso) : undefined,
-                id_cargo: parseInt(id_cargo),
-                id_ciudad: parseInt(id_ciudad),
+                fecha_ingreso,
+                cargo,
+                comuna,
                 datos_excel
             });
 
@@ -84,12 +84,15 @@ export class DescripcionCargoController {
     static async update(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            const { descripcion, requisitos, vacantes, datos_excel } = req.body;
+            const { descripcion, requisitos, vacantes, fecha_ingreso, cargo, comuna, datos_excel } = req.body;
 
             const descripcionActualizada = await DescripcionCargoService.updateDescripcion(parseInt(id), {
                 descripcion,
                 requisitos,
                 vacantes: vacantes ? parseInt(vacantes) : undefined,
+                fecha_ingreso,
+                cargo,
+                comuna,
                 datos_excel
             });
 
@@ -189,6 +192,21 @@ export class DescripcionCargoController {
             }
 
             return sendError(res, 'Error al eliminar descripción de cargo', 500);
+        }
+    }
+
+    /**
+     * GET /api/descripciones-cargo/form-data
+     * Obtener todos los datos necesarios para el formulario de descripción de cargo
+     * (tipos de servicio, clientes, consultores, cargos, comunas)
+     */
+    static async getFormData(req: Request, res: Response): Promise<Response> {
+        try {
+            const datos = await DescripcionCargoService.getDatosFormulario();
+            return sendSuccess(res, datos, 'Datos del formulario obtenidos exitosamente');
+        } catch (error) {
+            Logger.error('Error al obtener datos del formulario:', error);
+            return sendError(res, 'Error al obtener datos del formulario', 500);
         }
     }
 }

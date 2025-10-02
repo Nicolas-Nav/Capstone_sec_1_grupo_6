@@ -50,7 +50,7 @@ export class SolicitudService {
                         },
                         {
                             model: Comuna,
-                            as: 'ciudad'
+                            as: 'comuna'
                         }
                     ]
                 },
@@ -68,7 +68,7 @@ export class SolicitudService {
                         },
                         {
                             model: Comuna,
-                            as: 'ciudad'
+                            as: 'comuna'
                         }
                     ]
                 },
@@ -100,7 +100,7 @@ export class SolicitudService {
                     as: 'contacto',
                     include: [
                         { model: Cliente, as: 'cliente' },
-                        { model: Comuna, as: 'ciudad' }
+                        { model: Comuna, as: 'comuna' }
                     ]
                 },
                 { model: TipoServicio, as: 'tipoServicio' },
@@ -109,7 +109,7 @@ export class SolicitudService {
                     as: 'descripcionCargo',
                     include: [
                         { model: Cargo, as: 'cargo' },
-                        { model: Comuna, as: 'ciudad' }
+                        { model: Comuna, as: 'comuna' }
                     ]
                 },
                 {
@@ -135,6 +135,7 @@ export class SolicitudService {
         contact_id: number;
         service_type: string;
         position_title: string;
+        ciudad?: string;
         description?: string;
         requirements?: string;
         vacancies?: number;
@@ -148,6 +149,7 @@ export class SolicitudService {
                 contact_id,
                 service_type,
                 position_title,
+                ciudad,
                 description,
                 requirements,
                 vacancies,
@@ -183,24 +185,40 @@ export class SolicitudService {
                 }, { transaction });
             }
 
+            // Buscar la comuna
+            let idComuna = 1; // Por defecto Santiago
+            if (ciudad) {
+                const comuna = await Comuna.findOne({
+                    where: { nombre_comuna: ciudad.trim() }
+                });
+                if (comuna) {
+                    idComuna = comuna.id_comuna;
+                }
+            }
+
             // Crear descripción de cargo
-            const descripcionCargo = await DescripcionCargo.create({
+            const descripcionCargoData: any = {
                 descripcion_cargo: description?.trim() || position_title.trim(),
-                requisitos_y_condiciones: requirements?.trim() || '',
                 num_vacante: vacancies || 1,
                 fecha_ingreso: new Date(),
                 id_cargo: cargo.id_cargo,
-                id_ciudad: 1
-            }, { transaction });
+                id_comuna: idComuna
+            };
 
-            // Obtener etapa inicial
-            const etapaInicial = await EtapaSolicitud.findOne({
-                where: { nombre_etapa: 'Creada' }
-            });
-
-            if (!etapaInicial) {
-                throw new Error('No se encontró la etapa inicial');
+            // Solo agregar requisitos si no está vacío
+            if (requirements && requirements.trim()) {
+                descripcionCargoData.requisitos_y_condiciones = requirements.trim();
             }
+
+            const descripcionCargo = await DescripcionCargo.create(descripcionCargoData, { transaction });
+
+            // Determinar la etapa inicial según el tipo de servicio
+            // TS y ES empiezan en Módulo 4 (id = 4)
+            // PC, LL, HH empiezan en Módulo 1 (id = 1)
+            const idEtapaInicial = (service_type === 'TS' || service_type === 'ES') ? 4 : 1;
+            const nombreEtapaInicial = (service_type === 'TS' || service_type === 'ES') 
+                ? 'Modulo 4: Evaluación Psicolaboral'
+                : 'Modulo 1: Registro y Gestión de Solicitudes';
 
             // Calcular plazo máximo
             const fechaIngreso = new Date();
@@ -215,21 +233,15 @@ export class SolicitudService {
                 codigo_servicio: service_type,
                 id_descripcioncargo: descripcionCargo.id_descripcioncargo,
                 rut_usuario: consultant_id,
-                id_etapa_solicitud: etapaInicial.id_etapa_solicitud
+                id_etapa_solicitud: idEtapaInicial
             }, { transaction });
 
-            // Crear historial de estado
-            const estadoInicial = await EstadoSolicitud.findOne({
-                where: { nombre_estado_solicitud: 'Creada' }
-            });
-
-            if (estadoInicial) {
-                await EstadoSolicitudHist.create({
-                    fecha_cambio_estado_solicitud: new Date(),
-                    id_estado_solicitud: estadoInicial.id_estado_solicitud,
-                    id_solicitud: nuevaSolicitud.id_solicitud
-                }, { transaction });
-            }
+            // Crear historial de estado (usar el mismo ID de etapa)
+            await EstadoSolicitudHist.create({
+                fecha_cambio_estado_solicitud: new Date(),
+                id_estado_solicitud: idEtapaInicial,
+                id_solicitud: nuevaSolicitud.id_solicitud
+            }, { transaction });
 
             await transaction.commit();
 
@@ -329,11 +341,27 @@ export class SolicitudService {
         const contacto = solicitud.get('contacto') as any;
         const cliente = contacto?.cliente;
         const descripcionCargo = solicitud.get('descripcionCargo') as any;
+        const cargo = descripcionCargo?.cargo;
+        const tipoServicio = solicitud.get('tipoServicio') as any;
         const usuario = solicitud.get('usuario') as any;
         const etapa = solicitud.get('etapaSolicitud') as any;
 
         return {
-            id: solicitud.id_solicitud.toString(),
+            // Formato completo para APIs que necesitan toda la información
+            id: solicitud.id_solicitud,
+            id_solicitud: solicitud.id_solicitud,
+            id_descripcion_cargo: descripcionCargo?.id_descripcion_cargo || 0,
+            
+            // Información básica para la tabla
+            cargo: cargo?.nombre_cargo || 'Sin cargo',
+            cliente: cliente?.nombre_cliente || 'Sin cliente',
+            tipo_servicio: solicitud.codigo_servicio,
+            tipo_servicio_nombre: tipoServicio?.nombre_servicio || solicitud.codigo_servicio,
+            consultor: usuario?.nombre_usuario || 'Sin asignar',
+            estado: etapa?.nombre_etapa || 'Creada',
+            fecha_creacion: solicitud.fecha_ingreso_solicitud,
+            
+            // Información detallada (para compatibilidad con otros componentes)
             client_id: cliente?.id_cliente.toString() || '',
             client: {
                 id: cliente?.id_cliente.toString() || '',
@@ -344,13 +372,13 @@ export class SolicitudService {
                     email: contacto?.email_contacto || '',
                     phone: contacto?.telefono_contacto || '',
                     position: contacto?.cargo_contacto || '',
-                    city: contacto?.ciudad?.nombre_comuna || '',
+                    city: contacto?.comuna?.nombre_comuna || '',
                     is_primary: false
                 }]
             },
             contact_id: contacto?.id_contacto.toString() || '',
             service_type: solicitud.codigo_servicio,
-            position_title: descripcionCargo?.descripcion_cargo || '',
+            position_title: cargo?.nombre_cargo || 'Sin cargo',
             description: descripcionCargo?.descripcion_cargo || '',
             requirements: descripcionCargo?.requisitos_y_condiciones || '',
             vacancies: descripcionCargo?.num_vacante || 0,

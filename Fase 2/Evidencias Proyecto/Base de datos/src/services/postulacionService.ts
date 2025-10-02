@@ -35,8 +35,8 @@ export class PostulacionService {
                     include: [
                         {
                             model: Comuna,
-                            as: 'ciudad',
-                            attributes: ['id_ciudad', 'nombre_comuna']
+                            as: 'comuna',
+                            attributes: ['id_comuna', 'nombre_comuna']
                         },
                         {
                             model: Experiencia,
@@ -152,19 +152,19 @@ export class PostulacionService {
             }
 
             // Buscar comuna por nombre
-            let idCiudad: number | undefined = undefined;
+            let idComuna: number | undefined = undefined;
             if (comuna && comuna.trim()) {
                 const comunaFound = await Comuna.findOne({
                     where: { nombre_comuna: comuna.trim() }
                 });
-                idCiudad = comunaFound?.id_ciudad;
+                idComuna = comunaFound?.id_comuna;
             }
 
-            if (!idCiudad) {
+            if (!idComuna) {
                 const comunaDefecto = await Comuna.findOne({
                     where: { nombre_comuna: 'Santiago' }
                 });
-                idCiudad = comunaDefecto?.id_ciudad;
+                idComuna = comunaDefecto?.id_comuna;
             }
 
             // Buscar o crear candidato
@@ -184,7 +184,7 @@ export class PostulacionService {
                     nivel_ingles: english_level,
                     software_herramientas: software_tools,
                     discapacidad: has_disability_credential || false,
-                    id_ciudad: idCiudad
+                    id_comuna: idComuna
                 }, { transaction });
 
                 // Agregar experiencias laborales
@@ -380,7 +380,7 @@ export class PostulacionService {
             created_at: new Date().toISOString(),
             birth_date: candidato.fecha_nacimiento_candidato?.toISOString().split('T')[0],
             age: candidato.edad_candidato,
-            comuna: candidato.ciudad?.nombre_comuna || '',
+            comuna: candidato.comuna?.nombre_comuna || '',
             profession: candidato.profesiones?.[0]?.nombre_profesion || '',
             consultant_comment: postulacion.comentario_no_presentado,
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),

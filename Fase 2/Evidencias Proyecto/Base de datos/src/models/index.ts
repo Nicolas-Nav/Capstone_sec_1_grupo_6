@@ -67,12 +67,12 @@ Contacto.belongsTo(Cliente, {
 
 // Comuna -> Contacto (1:N)
 Comuna.hasMany(Contacto, {
-    foreignKey: 'id_ciudad',
+    foreignKey: 'id_comuna',
     as: 'contactos'
 });
 Contacto.belongsTo(Comuna, {
-    foreignKey: 'id_ciudad',
-    as: 'ciudad'
+    foreignKey: 'id_comuna',
+    as: 'comuna'
 });
 
 // ===========================================
@@ -145,12 +145,12 @@ EstadoSolicitudHist.belongsTo(EstadoSolicitud, {
 
 // Comuna -> DescripcionCargo (1:N)
 Comuna.hasMany(DescripcionCargo, {
-    foreignKey: 'id_ciudad',
+    foreignKey: 'id_comuna',
     as: 'descripcionesCargo'
 });
 DescripcionCargo.belongsTo(Comuna, {
-    foreignKey: 'id_ciudad',
-    as: 'ciudad'
+    foreignKey: 'id_comuna',
+    as: 'comuna'
 });
 
 // Solicitud -> Relaciones múltiples
@@ -233,8 +233,8 @@ Candidato.belongsTo(Rubro, {
 
 // Candidato -> Relaciones opcionales
 Candidato.belongsTo(Comuna, {
-    foreignKey: 'id_ciudad',
-    as: 'ciudad'
+    foreignKey: 'id_comuna',
+    as: 'comuna'
 });
 
 // Postulacion -> Relaciones múltiples

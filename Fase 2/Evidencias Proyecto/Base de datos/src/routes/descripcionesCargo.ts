@@ -4,6 +4,13 @@ import { DescripcionCargoController } from '@/controllers/descripcionCargoContro
 const router = Router();
 
 /**
+ * @route   GET /api/descripciones-cargo/form-data
+ * @desc    Obtener datos para el formulario (clientes, contactos, tipos de servicio, cargos, comunas, consultores)
+ * @access  Private
+ */
+router.get('/form-data', DescripcionCargoController.getFormData);
+
+/**
  * @route   GET /api/descripciones-cargo
  * @desc    Obtener todas las descripciones de cargo
  * @access  Private

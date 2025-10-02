@@ -141,6 +141,133 @@ export const comunaService = {
   },
 };
 
+// ===========================================
+// SERVICIOS DE DESCRIPCIONES DE CARGO
+// ===========================================
+
+export const descripcionCargoService = {
+  // Obtener todas las descripciones
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/descripciones-cargo');
+  },
+
+  // Obtener descripción por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/descripciones-cargo/${id}`);
+  },
+
+  // Crear descripción de cargo
+  async create(data: {
+    cargo: string;
+    ciudad: string;
+    descripcion_cargo?: string;
+    requisitos_y_condiciones?: string;
+    num_vacante?: number;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/descripciones-cargo', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar descripción de cargo
+  async update(id: number, data: {
+    cargo?: string;
+    ciudad?: string;
+    descripcion_cargo?: string;
+    requisitos_y_condiciones?: string;
+    num_vacante?: number;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/descripciones-cargo/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Agregar datos de Excel
+  async addExcelData(id: number, excelData: any): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/descripciones-cargo/${id}/excel`, {
+      method: 'POST',
+      body: JSON.stringify({ datos_excel: excelData }),
+    });
+  },
+
+  // Obtener datos de Excel
+  async getExcelData(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/descripciones-cargo/${id}/excel`);
+  },
+
+  // Eliminar descripción de cargo
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/descripciones-cargo/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Obtener datos para el formulario
+  async getFormData(): Promise<ApiResponse<any>> {
+    return apiRequest('/api/descripciones-cargo/form-data');
+  },
+};
+
+// ===========================================
+// SERVICIOS DE SOLICITUDES
+// ===========================================
+
+export const solicitudService = {
+  // Obtener todas las solicitudes
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/solicitudes');
+  },
+
+  // Obtener solicitud por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}`);
+  },
+
+  // Obtener solicitudes por consultor
+  async getByConsultor(rutUsuario: string): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/solicitudes/consultor/${rutUsuario}`);
+  },
+
+  // Crear solicitud (crea automáticamente la descripción de cargo)
+  async create(data: {
+    contact_id: string;
+    service_type: string;
+    position_title: string;
+    ciudad: string;
+    description?: string;
+    requirements?: string;
+    vacancies?: number;
+    consultant_id: string;
+    deadline_days?: number;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/solicitudes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar estado de solicitud
+  async updateEstado(id: number, estado: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ estado }),
+    });
+  },
+
+  // Eliminar solicitud
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ===========================================
+// UTILIDADES
+// ===========================================
+
 export const apiUtils = {
   // Verificar si hay un token válido
   isAuthenticated(): boolean {

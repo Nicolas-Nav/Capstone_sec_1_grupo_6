@@ -19,12 +19,12 @@ interface CandidatoAttributes {
     software_herramientas?: string;
     nivel_ingles?: string;
     discapacidad: boolean;
-    id_ciudad?: number;
+    id_comuna?: number;
     id_nacionalidad?: number;
     id_rubro?: number;
 }
 
-interface CandidatoCreationAttributes extends Optional<CandidatoAttributes, 'id_candidato' | 'rut_candidato' | 'edad_candidato' | 'fecha_nacimiento_candidato' | 'software_herramientas' | 'nivel_ingles' | 'id_ciudad' | 'id_nacionalidad' | 'id_rubro'> { }
+interface CandidatoCreationAttributes extends Optional<CandidatoAttributes, 'id_candidato' | 'rut_candidato' | 'edad_candidato' | 'fecha_nacimiento_candidato' | 'software_herramientas' | 'nivel_ingles' | 'id_comuna' | 'id_nacionalidad' | 'id_rubro'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -43,7 +43,7 @@ class Candidato extends Model<CandidatoAttributes, CandidatoCreationAttributes> 
     public software_herramientas?: string;
     public nivel_ingles?: string;
     public discapacidad!: boolean;
-    public id_ciudad?: number;
+    public id_comuna?: number;
     public id_nacionalidad?: number;
     public id_rubro?: number;
 
@@ -201,12 +201,12 @@ Candidato.init({
             isBoolean: true
         }
     },
-    id_ciudad: {
+    id_comuna: {
         type: DataTypes.INTEGER,
         allowNull: true,
         references: {
             model: 'comuna',
-            key: 'id_ciudad'
+            key: 'id_comuna'
         }
     },
     id_nacionalidad: {
@@ -236,7 +236,7 @@ Candidato.init({
             fields: ['email_candidato']
         },
         {
-            fields: ['id_ciudad']
+            fields: ['id_comuna']
         },
         {
             fields: ['id_nacionalidad']

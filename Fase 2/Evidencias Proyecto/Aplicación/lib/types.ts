@@ -38,7 +38,7 @@ export interface ClientContact {
   email: string
   phone: string
   position: string // Cargo del contacto
-  city: string // Ciudad/Comuna del contacto
+  city: string // comuna/Comuna del contacto
   is_primary?: boolean
 }
 
@@ -194,7 +194,7 @@ export interface Region {
 }
 
 export interface Comuna {
-  id_ciudad: number
+  id_comuna: number
   nombre_comuna: string
   id_region: number
 }

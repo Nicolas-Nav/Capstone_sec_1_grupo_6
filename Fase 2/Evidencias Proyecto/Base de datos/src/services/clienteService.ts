@@ -20,8 +20,8 @@ export class ClienteService {
                     include: [
                         {
                             model: Comuna,
-                            as: 'ciudad',
-                            attributes: ['id_ciudad', 'nombre_comuna']
+                            as: 'comuna',
+                            attributes: ['id_comuna', 'nombre_comuna']
                         }
                     ]
                 }
@@ -39,7 +39,7 @@ export class ClienteService {
                 email: contacto.email_contacto,
                 phone: contacto.telefono_contacto,
                 position: contacto.cargo_contacto,
-                city: contacto.ciudad?.nombre_comuna || '',
+                city: contacto.comuna?.nombre_comuna || '',
                 is_primary: false
             })) || []
         }));
@@ -57,8 +57,8 @@ export class ClienteService {
                     include: [
                         {
                             model: Comuna,
-                            as: 'ciudad',
-                            attributes: ['id_ciudad', 'nombre_comuna']
+                            as: 'comuna',
+                            attributes: ['id_comuna', 'nombre_comuna']
                         }
                     ]
                 }
@@ -79,7 +79,7 @@ export class ClienteService {
                 email: contacto.email_contacto,
                 phone: contacto.telefono_contacto,
                 position: contacto.cargo_contacto,
-                city: contacto.ciudad?.nombre_comuna || '',
+                city: contacto.comuna?.nombre_comuna || '',
                 is_primary: false
             })) || []
         };
@@ -111,20 +111,20 @@ export class ClienteService {
             // Buscar comunas por nombre para los contactos
             const contactosCreados = await Promise.all(
                 contacts.map(async (contact: any) => {
-                    let idCiudad: number | undefined = undefined;
+                    let idcomuna: number | undefined = undefined;
 
                     if (contact.city && contact.city.trim()) {
                         const comuna = await Comuna.findOne({
                             where: { nombre_comuna: contact.city.trim() }
                         });
-                        idCiudad = comuna?.id_ciudad;
+                        idcomuna = comuna?.id_comuna;
                     }
 
-                    if (!idCiudad) {
+                    if (!idcomuna) {
                         const comunaDefecto = await Comuna.findOne({
                             where: { nombre_comuna: 'Santiago' }
                         });
-                        idCiudad = comunaDefecto?.id_ciudad || 1;
+                        idcomuna = comunaDefecto?.id_comuna || 1;
                     }
 
                     return await Contacto.create({
@@ -132,7 +132,7 @@ export class ClienteService {
                         email_contacto: contact.email.trim(),
                         telefono_contacto: contact.phone.trim(),
                         cargo_contacto: contact.position?.trim() || 'Sin cargo',
-                        id_ciudad: idCiudad,
+                        id_comuna: idcomuna,
                         id_cliente: nuevoCliente.id_cliente
                     }, { transaction });
                 })
@@ -146,8 +146,8 @@ export class ClienteService {
                 include: [
                     {
                         model: Comuna,
-                        as: 'ciudad',
-                        attributes: ['id_ciudad', 'nombre_comuna']
+                        as: 'comuna',
+                        attributes: ['id_comuna', 'nombre_comuna']
                     }
                 ]
             });
@@ -162,7 +162,7 @@ export class ClienteService {
                     email: contacto.email_contacto,
                     phone: contacto.telefono_contacto,
                     position: contacto.cargo_contacto,
-                    city: (contacto as any).ciudad?.nombre_comuna || '',
+                    city: (contacto as any).comuna?.nombre_comuna || '',
                     is_primary: false
                 }))
             };
@@ -220,31 +220,34 @@ export class ClienteService {
             // Actualizar o crear contactos
             const contactosActualizados = await Promise.all(
                 contacts.map(async (contact: any) => {
-                    let idCiudad: number | undefined = undefined;
+                    let idcomuna: number | undefined = undefined;
 
                     if (contact.city && contact.city.trim()) {
                         const comuna = await Comuna.findOne({
                             where: { nombre_comuna: contact.city.trim() }
                         });
-                        idCiudad = comuna?.id_ciudad;
+                        idcomuna = comuna?.id_comuna;
                     }
 
-                    if (!idCiudad) {
+                    if (!idcomuna) {
                         const comunaDefecto = await Comuna.findOne({
                             where: { nombre_comuna: 'Santiago' }
                         });
-                        idCiudad = comunaDefecto?.id_ciudad || 1;
+                        idcomuna = comunaDefecto?.id_comuna || 1;
                     }
 
-                    if (contact.id && contact.id !== '') {
-                        const contactoExistente = await Contacto.findByPk(contact.id);
+                    // Solo intentar actualizar si el ID es un número válido (no temporal)
+                    const isValidId = contact.id && !isNaN(parseInt(contact.id)) && !contact.id.toString().startsWith('contact-');
+                    
+                    if (isValidId) {
+                        const contactoExistente = await Contacto.findByPk(parseInt(contact.id));
                         if (contactoExistente) {
                             await contactoExistente.update({
                                 nombre_contacto: contact.name.trim(),
                                 email_contacto: contact.email.trim(),
                                 telefono_contacto: contact.phone.trim(),
                                 cargo_contacto: contact.position?.trim() || 'Sin cargo',
-                                id_ciudad: idCiudad
+                                id_comuna: idcomuna
                             }, { transaction });
                             return contactoExistente;
                         }
@@ -255,7 +258,7 @@ export class ClienteService {
                         email_contacto: contact.email.trim(),
                         telefono_contacto: contact.phone.trim(),
                         cargo_contacto: contact.position?.trim() || 'Sin cargo',
-                        id_ciudad: idCiudad,
+                        id_comuna: idcomuna,
                         id_cliente: cliente.id_cliente
                     }, { transaction });
                 })
@@ -269,8 +272,8 @@ export class ClienteService {
                 include: [
                     {
                         model: Comuna,
-                        as: 'ciudad',
-                        attributes: ['id_ciudad', 'nombre_comuna']
+                        as: 'comuna',
+                        attributes: ['id_comuna', 'nombre_comuna']
                     }
                 ]
             });
@@ -284,7 +287,7 @@ export class ClienteService {
                     email: contacto.email_contacto,
                     phone: contacto.telefono_contacto,
                     position: contacto.cargo_contacto,
-                    city: (contacto as any).ciudad?.nombre_comuna || '',
+                    city: (contacto as any).comuna?.nombre_comuna || '',
                     is_primary: false
                 }))
             };

@@ -862,7 +862,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="comuna">Ciudad/Comuna</Label>
+                          <Label htmlFor="comuna">comuna/Comuna</Label>
                           <Input
                             id="comuna"
                             value={newCandidate.comuna}

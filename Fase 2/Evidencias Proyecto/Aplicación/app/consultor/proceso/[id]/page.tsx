@@ -223,7 +223,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
 
             <div className="p-6">
               <TabsContent value="modulo-1" className="mt-0">
-                <ProcessModule1 process={process}/> 
+                <ProcessModule1 process={process} descripcionCargo={descripcionCargo} />
               </TabsContent>
 
               {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "HH") && (

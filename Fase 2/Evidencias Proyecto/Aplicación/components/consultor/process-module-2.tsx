@@ -28,8 +28,10 @@ interface ProcessModule2Props {
 }
 
 export function ProcessModule2({ process }: ProcessModule2Props) {
-  const [publications, setPublications] = useState(getPublicationsByProcess(process.id))
-  const [candidates, setCandidates] = useState(getCandidatesByProcess(process.id))
+  // Estados ahora inicializan vacíos y se llenan con useEffect
+  const [publications, setPublications] = useState<Publication[]>([])
+  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
   const [showAddPublication, setShowAddPublication] = useState(false)
   const [showAddCandidate, setShowAddCandidate] = useState(false)
@@ -40,6 +42,26 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [showCandidateDetails, setShowCandidateDetails] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [currentStep, setCurrentStep] = useState<"basic" | "education" | "experience" | "portal_responses">("basic")
+
+  // Cargar datos reales desde el backend
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        const [publicationsData, candidatesData] = await Promise.all([
+          getPublicationsByProcess(process.id),
+          getCandidatesByProcess(process.id),
+        ])
+        setPublications(publicationsData)
+        setCandidates(candidatesData)
+      } catch (error) {
+        console.error('Error al cargar datos:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadData()
+  }, [process.id])
 
   const [showPortalManager, setShowPortalManager] = useState(false)
   const [customPortals, setCustomPortals] = useState<string[]>([
@@ -154,18 +176,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                     : candidate
                 )
               } else {
-                const allCandidates = getCandidatesByProcess(process.id)
-                const candidateToAdd = allCandidates.find((c: Candidate) => c.id === syncData.candidateId)
-
-                if (candidateToAdd) {
-                  const updatedCandidate: Candidate = {
-                    ...candidateToAdd,
-                    status: "rechazado" as const,
-                    presentation_status: "rechazado" as const,
-                    rejection_reason: syncData.rejection_reason
-                  }
-                  return [...prevCandidates, updatedCandidate]
-                }
+                // NOTA: getCandidatesByProcess ahora es async, no se puede usar aquí
+                // Con la API real, se recargarán los datos automáticamente
                 return prevCandidates
               }
             })
@@ -489,6 +501,26 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       candidate.id === candidateId ? { ...candidate, rejection_reason: reason } : candidate,
     )
     setCandidates(updatedCandidates)
+  }
+
+  // Mostrar indicador de carga
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
+          <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
+        </div>
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Cargando datos...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

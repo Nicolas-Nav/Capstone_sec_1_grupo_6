@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { serviceTypeLabels, getCandidatesByProcess, processStatusLabels } from "@/lib/mock-data"
 import { formatDate, getStatusColor } from "@/lib/utils"
 import { Building2, User, Calendar, Target, FileText, Download, Settings } from "lucide-react"
-import type { Process, ProcessStatus } from "@/lib/types"
-import { useState } from "react"
+import type { Process, ProcessStatus, Candidate } from "@/lib/types"
+import { useState, useEffect } from "react"
 
 interface ProcessModule1Props {
   process: Process
@@ -28,8 +28,25 @@ export function ProcessModule1({ process }: ProcessModule1Props) {
 
   const [processStatus, setProcessStatus] = useState<ProcessStatus>(process.status)
   const [statusChangeReason, setStatusChangeReason] = useState("")
+  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const candidates = getCandidatesByProcess(process.id)
+  // Cargar datos reales desde el backend
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        const candidatesData = await getCandidatesByProcess(process.id)
+        setCandidates(candidatesData)
+      } catch (error) {
+        console.error('Error al cargar candidatos:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadData()
+  }, [process.id])
+
   const isEvaluationProcess =
     process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral"
 

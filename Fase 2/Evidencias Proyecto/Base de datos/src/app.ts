@@ -18,6 +18,7 @@ import { authenticateToken, requireAdmin, requireConsultorOrAdmin } from '@/midd
 import clienteRoutes from '@/routes/clientes';
 import solicitudRoutes from '@/routes/solicitudes';
 import postulacionRoutes from '@/routes/postulaciones';
+import candidatoRoutes from '@/routes/candidatos';
 import tipoServicioRoutes from '@/routes/tiposServicio';
 import cargoRoutes from '@/routes/cargos';
 import descripcionCargoRoutes from '@/routes/descripcionesCargo';
@@ -104,6 +105,7 @@ app.get('/api', (req, res) => {
       clientes: '/api/clientes',
       solicitudes: '/api/solicitudes',
       postulaciones: '/api/postulaciones',
+      candidatos: '/api/candidatos',
       tipos_servicio: '/api/tipos-servicio',
       cargos: '/api/cargos',
       descripciones_cargo: '/api/descripciones-cargo',
@@ -133,6 +135,20 @@ app.get('/api', (req, res) => {
         updateEstado: 'PUT /api/postulaciones/:id/estado',
         updateValoracion: 'PUT /api/postulaciones/:id/valoracion',
         delete: 'DELETE /api/postulaciones/:id'
+      },
+      candidatos: {
+        getAll: 'GET /api/candidatos',
+        getById: 'GET /api/candidatos/:id',
+        getByEmail: 'GET /api/candidatos/email/:email',
+        create: 'POST /api/candidatos',
+        update: 'PUT /api/candidatos/:id',
+        delete: 'DELETE /api/candidatos/:id',
+        getExperiencias: 'GET /api/candidatos/:id/experiencias',
+        addExperiencias: 'POST /api/candidatos/:id/experiencias',
+        updateExperiencia: 'PUT /api/candidatos/:id/experiencias/:idExp',
+        deleteExperiencia: 'DELETE /api/candidatos/:id/experiencias/:idExp',
+        addEducacion: 'POST /api/candidatos/:id/educacion',
+        addProfesion: 'POST /api/candidatos/:id/profesion'
       },
       tipos_servicio: {
         getAll: 'GET /api/tipos-servicio',
@@ -173,6 +189,7 @@ app.get('/api', (req, res) => {
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/solicitudes', solicitudRoutes);
 app.use('/api/postulaciones', postulacionRoutes);
+app.use('/api/candidatos', candidatoRoutes);
 app.use('/api/tipos-servicio', tipoServicioRoutes);
 app.use('/api/cargos', cargoRoutes);
 app.use('/api/descripciones-cargo', descripcionCargoRoutes);

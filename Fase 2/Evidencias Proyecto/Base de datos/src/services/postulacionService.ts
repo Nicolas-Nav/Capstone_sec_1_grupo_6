@@ -15,6 +15,7 @@ import {
     EstadoCliente,
     Comuna
 } from '@/models';
+import { CandidatoService } from './candidatoService';
 
 /**
  * Servicio para gestión de Postulaciones
@@ -105,7 +106,9 @@ export class PostulacionService {
         family_situation?: string;
         english_level?: string;
         software_tools?: string;
+        has_driving_license?: boolean;
         has_disability_credential?: boolean;
+        cv_file?: Buffer;
         work_experience?: any[];
         education?: any[];
     }) {
@@ -129,7 +132,9 @@ export class PostulacionService {
                 family_situation,
                 english_level,
                 software_tools,
+                has_driving_license,
                 has_disability_credential,
+                cv_file,
                 work_experience = [],
                 education = []
             } = data;
@@ -139,87 +144,37 @@ export class PostulacionService {
                 throw new Error('Faltan campos requeridos');
             }
 
-            // Separar nombre en partes
-            const nombrePartes = name.trim().split(' ');
-            const nombre = nombrePartes[0];
-            const primerApellido = nombrePartes[1] || '';
-            const segundoApellido = nombrePartes.slice(2).join(' ') || '';
-
             // Verificar que existe la solicitud
             const solicitud = await Solicitud.findByPk(process_id);
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
             }
 
-            // Buscar comuna por nombre
-            let idComuna: number | undefined = undefined;
-            if (comuna && comuna.trim()) {
-                const comunaFound = await Comuna.findOne({
-                    where: { nombre_comuna: comuna.trim() }
-                });
-                idComuna = comunaFound?.id_comuna;
-            }
-
-            if (!idComuna) {
-                const comunaDefecto = await Comuna.findOne({
-                    where: { nombre_comuna: 'Santiago' }
-                });
-                idComuna = comunaDefecto?.id_comuna;
-            }
-
-            // Buscar o crear candidato
-            let candidato = await Candidato.findOne({
-                where: { email_candidato: email.trim() }
-            });
+            // Buscar o crear candidato usando CandidatoService
+            let candidato = await CandidatoService.getCandidatoByEmail(email);
 
             if (!candidato) {
-                candidato = await Candidato.create({
-                    nombre_candidato: nombre,
-                    primer_apellido_candidato: primerApellido,
-                    segundo_apellido_candidato: segundoApellido,
-                    telefono_candidato: phone.trim(),
-                    email_candidato: email.trim(),
-                    fecha_nacimiento_candidato: birth_date ? new Date(birth_date) : undefined,
-                    edad_candidato: birth_date ? this.calculateAge(new Date(birth_date)) : undefined,
-                    nivel_ingles: english_level,
-                    software_herramientas: software_tools,
-                    discapacidad: has_disability_credential || false,
-                    id_comuna: idComuna
-                }, { transaction });
+                // Crear candidato usando el servicio
+                const nuevoCandidatoResult = await CandidatoService.createCandidato({
+                    name,
+                    email,
+                    phone,
+                    birth_date,
+                    comuna,
+                    profession,
+                    english_level,
+                    software_tools,
+                    has_driving_license,
+                    has_disability_credential,
+                    work_experience,
+                    education
+                }, transaction);
 
-                // Agregar experiencias laborales
-                for (const exp of work_experience) {
-                    await Experiencia.create({
-                        empresa: exp.company,
-                        cargo: exp.position,
-                        fecha_inicio_experiencia: exp.start_date ? new Date(exp.start_date) : new Date(),
-                        fecha_fin_experiencia: exp.end_date ? new Date(exp.end_date) : undefined,
-                        descripcion_funciones_experiencia: exp.description || '',
-                        id_candidato: candidato.id_candidato
-                    }, { transaction });
-                }
-
-                // Agregar formación académica
-                for (const edu of education) {
-                    let institucion = await Institucion.findOne({
-                        where: { nombre_institucion: edu.institution }
-                    });
-
-                    if (!institucion) {
-                        institucion = await Institucion.create({
-                            nombre_institucion: edu.institution
-                        }, { transaction });
-                    }
-
-                    const formacion = await PostgradoCapacitacion.create({
-                        nombre_postgradocapacitacion: edu.title,
-                        id_institucion: institucion.id_institucion
-                    }, { transaction });
-
-                    await CandidatoPostgradoCapacitacion.create({
-                        id_candidato: candidato.id_candidato,
-                        id_postgradocapacitacion: formacion.id_postgradocapacitacion
-                    }, { transaction });
+                // Obtener el candidato recién creado (modelo Sequelize)
+                candidato = await Candidato.findByPk(parseInt(nuevoCandidatoResult.id));
+                
+                if (!candidato) {
+                    throw new Error('Error al crear candidato');
                 }
             }
 
@@ -251,6 +206,7 @@ export class PostulacionService {
                 situacion_familiar: family_situation,
                 valoracion: consultant_rating || 3,
                 comentario_no_presentado: consultant_comment,
+                cv_postulacion: cv_file,
                 id_candidato: candidato.id_candidato,
                 id_estado_candidato: estadoInicial.id_estado_candidato,
                 id_solicitud: process_id,
@@ -353,6 +309,76 @@ export class PostulacionService {
             await transaction.rollback();
             throw error;
         }
+    }
+
+    /**
+     * Subir o actualizar CV de postulación
+     */
+    static async uploadCV(id: number, cvBuffer: Buffer) {
+        try {
+            const postulacion = await Postulacion.findByPk(id);
+            if (!postulacion) {
+                throw new Error('Postulación no encontrada');
+            }
+
+            await postulacion.update({
+                cv_postulacion: cvBuffer
+            });
+
+            return { id, message: 'CV actualizado exitosamente' };
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    /**
+     * Obtener CV de postulación con información del candidato
+     */
+    static async getCV(id: number) {
+        try {
+            const postulacion = await Postulacion.findByPk(id, {
+                include: [
+                    {
+                        model: Candidato,
+                        as: 'candidato',
+                        attributes: ['nombre_candidato', 'primer_apellido_candidato', 'segundo_apellido_candidato']
+                    }
+                ]
+            });
+
+            if (!postulacion) {
+                throw new Error('Postulación no encontrada');
+            }
+
+            if (!postulacion.cv_postulacion) {
+                throw new Error('La postulación no tiene CV');
+            }
+
+            const candidato = postulacion.get('candidato') as any;
+
+            return {
+                cv: postulacion.cv_postulacion,
+                filename: this.generateCVFilename(candidato)
+            };
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    /**
+     * Generar nombre de archivo para CV
+     */
+    private static generateCVFilename(candidato: any): string {
+        const nombre = candidato.nombre_candidato || '';
+        const primerApellido = candidato.primer_apellido_candidato || '';
+        const segundoApellido = candidato.segundo_apellido_candidato || '';
+        
+        // Remover caracteres especiales y espacios
+        const nombreLimpio = nombre.trim().replace(/[^a-zA-Z0-9]/g, '_');
+        const apellido1Limpio = primerApellido.trim().replace(/[^a-zA-Z0-9]/g, '_');
+        const apellido2Limpio = segundoApellido.trim().replace(/[^a-zA-Z0-9]/g, '_');
+        
+        return `${nombreLimpio}_${apellido1Limpio}_${apellido2Limpio}_CV.pdf`;
     }
 
     /**

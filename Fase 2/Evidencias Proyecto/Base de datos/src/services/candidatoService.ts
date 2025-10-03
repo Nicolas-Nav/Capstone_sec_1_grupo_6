@@ -205,7 +205,6 @@ export class CandidatoService {
         profession?: string;
         english_level?: string;
         software_tools?: string;
-        has_driving_license?: boolean;
         has_disability_credential?: boolean;
         work_experience?: any[];
         education?: any[];
@@ -225,7 +224,6 @@ export class CandidatoService {
                 profession,
                 english_level,
                 software_tools,
-                has_driving_license,
                 has_disability_credential,
                 work_experience = [],
                 education = []
@@ -294,7 +292,6 @@ export class CandidatoService {
                 edad_candidato: birth_date ? this.calculateAge(new Date(birth_date)) : undefined,
                 nivel_ingles: english_level,
                 software_herramientas: software_tools,
-                licencia_conducir: has_driving_license || false,
                 discapacidad: has_disability_credential || false,
                 id_comuna: idComuna,
                 id_nacionalidad: idNacionalidad,
@@ -394,7 +391,6 @@ export class CandidatoService {
         rubro?: string;
         english_level?: string;
         software_tools?: string;
-        has_driving_license?: boolean;
         has_disability_credential?: boolean;
     }) {
         const transaction: Transaction = await sequelize.transaction();
@@ -419,7 +415,6 @@ export class CandidatoService {
             if (data.rut) updateData.rut_candidato = data.rut;
             if (data.english_level !== undefined) updateData.nivel_ingles = data.english_level;
             if (data.software_tools !== undefined) updateData.software_herramientas = data.software_tools;
-            if (data.has_driving_license !== undefined) updateData.licencia_conducir = data.has_driving_license;
             if (data.has_disability_credential !== undefined) updateData.discapacidad = data.has_disability_credential;
 
             if (data.birth_date) {
@@ -749,7 +744,8 @@ export class CandidatoService {
                 // Crear relación candidato-profesión
                 await CandidatoProfesion.create({
                     id_candidato: idCandidato,
-                    id_profesion: profesion.id_profesion
+                    id_profesion: profesion.id_profesion,
+                    fecha_obtencion: new Date() // Usar fecha actual por defecto
                 }, { transaction: useTransaction });
             }
 
@@ -788,7 +784,6 @@ export class CandidatoService {
             profession: candidato.profesiones?.[0]?.nombre_profesion || '',
             english_level: candidato.nivel_ingles,
             software_tools: candidato.software_herramientas,
-            has_driving_license: candidato.licencia_conducir,
             has_disability_credential: candidato.discapacidad,
             work_experience: candidato.experiencias?.map((exp: any) => ({
                 id: exp.id_experiencia.toString(),

@@ -88,7 +88,6 @@ export class CandidatoController {
                 profession,
                 english_level,
                 software_tools,
-                has_driving_license,
                 has_disability_credential,
                 work_experience,
                 education
@@ -106,7 +105,6 @@ export class CandidatoController {
                 profession,
                 english_level,
                 software_tools,
-                has_driving_license,
                 has_disability_credential,
                 work_experience,
                 education
@@ -143,7 +141,6 @@ export class CandidatoController {
                 rubro,
                 english_level,
                 software_tools,
-                has_driving_license,
                 has_disability_credential
             } = req.body;
 
@@ -158,7 +155,6 @@ export class CandidatoController {
                 rubro,
                 english_level,
                 software_tools,
-                has_driving_license,
                 has_disability_credential
             });
 

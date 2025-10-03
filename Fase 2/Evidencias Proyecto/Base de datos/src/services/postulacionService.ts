@@ -164,7 +164,6 @@ export class PostulacionService {
                     profession,
                     english_level,
                     software_tools,
-                    has_driving_license,
                     has_disability_credential,
                     work_experience,
                     education

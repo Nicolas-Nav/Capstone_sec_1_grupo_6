@@ -18,7 +18,6 @@ interface CandidatoAttributes {
     fecha_nacimiento_candidato?: Date;
     software_herramientas?: string;
     nivel_ingles?: string;
-    licencia_conducir: boolean;
     discapacidad: boolean;
     id_comuna?: number;
     id_nacionalidad?: number;
@@ -43,7 +42,6 @@ class Candidato extends Model<CandidatoAttributes, CandidatoCreationAttributes> 
     public fecha_nacimiento_candidato?: Date;
     public software_herramientas?: string;
     public nivel_ingles?: string;
-    public licencia_conducir!: boolean;
     public discapacidad!: boolean;
     public id_comuna?: number;
     public id_nacionalidad?: number;
@@ -194,14 +192,6 @@ Candidato.init({
     nivel_ingles: {
         type: DataTypes.STRING(100),
         allowNull: true
-    },
-    licencia_conducir: {
-        type: DataTypes.BOOLEAN,
-        allowNull: false,
-        defaultValue: false,
-        validate: {
-            isBoolean: true
-        }
     },
     discapacidad: {
         type: DataTypes.BOOLEAN,

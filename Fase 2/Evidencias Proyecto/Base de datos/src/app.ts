@@ -24,6 +24,10 @@ import cargoRoutes from '@/routes/cargos';
 import descripcionCargoRoutes from '@/routes/descripcionesCargo';
 import regionRoutes from '@/routes/regiones';
 import comunaRoutes from '@/routes/comunas';
+import profesionRoutes from '@/routes/profesiones';
+import institucionRoutes from '@/routes/instituciones';
+import rubroRoutes from '@/routes/rubros';
+import nacionalidadRoutes from '@/routes/nacionalidades';
 
 const app = express();
 
@@ -180,6 +184,18 @@ app.get('/api', (req, res) => {
       comunas: {
         getAll: 'GET /api/comunas',
         getByRegion: 'GET /api/comunas/region/:regionId'
+      },
+      profesiones: {
+        getAll: 'GET /api/profesiones'
+      },
+      instituciones: {
+        getAll: 'GET /api/instituciones'
+      },
+      rubros: {
+        getAll: 'GET /api/rubros'
+      },
+      nacionalidades: {
+        getAll: 'GET /api/nacionalidades'
       }
     }
   });
@@ -195,6 +211,10 @@ app.use('/api/cargos', cargoRoutes);
 app.use('/api/descripciones-cargo', descripcionCargoRoutes);
 app.use('/api/regiones', regionRoutes);
 app.use('/api/comunas', comunaRoutes);
+app.use('/api/profesiones', profesionRoutes);
+app.use('/api/instituciones', institucionRoutes);
+app.use('/api/rubros', rubroRoutes);
+app.use('/api/nacionalidades', nacionalidadRoutes);
 // Rutas de la API (se descomentarán cuando se creen)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

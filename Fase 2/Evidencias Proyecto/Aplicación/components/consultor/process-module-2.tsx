@@ -22,16 +22,29 @@ import { formatDate } from "@/lib/utils"
 import { Plus, Edit, Trash2, Star, Globe, Settings } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
+import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 
 interface ProcessModule2Props {
   process: Process
 }
 
 export function ProcessModule2({ process }: ProcessModule2Props) {
+  const { toast } = useToast()
+  
   // Estados ahora inicializan vacíos y se llenan con useEffect
   const [publications, setPublications] = useState<Publication[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  // Estados para listas desplegables
+  const [regiones, setRegiones] = useState<any[]>([])
+  const [todasLasComunas, setTodasLasComunas] = useState<any[]>([])
+  const [comunasFiltradas, setComunasFiltradas] = useState<any[]>([])
+  const [profesiones, setProfesiones] = useState<any[]>([])
+  const [rubros, setRubros] = useState<any[]>([])
+  const [nacionalidades, setNacionalidades] = useState<any[]>([])
+  const [loadingLists, setLoadingLists] = useState(true)
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
   const [showAddPublication, setShowAddPublication] = useState(false)
   const [showAddCandidate, setShowAddCandidate] = useState(false)
@@ -44,6 +57,32 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [currentStep, setCurrentStep] = useState<"basic" | "education" | "experience" | "portal_responses">("basic")
 
   // Cargar datos reales desde el backend
+  // Cargar listas desplegables
+  useEffect(() => {
+    const loadLists = async () => {
+      try {
+        setLoadingLists(true)
+        const [regionesRes, comunasRes, profesionesRes, rubrosRes, nacionalidadesRes] = await Promise.all([
+          regionService.getAll(),
+          comunaService.getAll(),
+          profesionService.getAll(),
+          rubroService.getAll(),
+          nacionalidadService.getAll(),
+        ])
+        setRegiones(regionesRes.data || [])
+        setTodasLasComunas(comunasRes.data || [])
+        setProfesiones(profesionesRes.data || [])
+        setRubros(rubrosRes.data || [])
+        setNacionalidades(nacionalidadesRes.data || [])
+      } catch (error) {
+        console.error('Error al cargar listas:', error)
+      } finally {
+        setLoadingLists(false)
+      }
+    }
+    loadLists()
+  }, [])
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -93,7 +132,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     consultant_rating: 3,
     birth_date: "",
     age: 0,
+    region: "",
     comuna: "",
+    nacionalidad: "",
+    rubro: "",
     profession: "",
     consultant_comment: "",
     has_disability_credential: false,
@@ -110,6 +152,21 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       software_tools: "",
     } as PortalResponses,
   })
+
+  // Filtrar comunas cuando cambia la región en newCandidate
+  useEffect(() => {
+    if (newCandidate.region) {
+      const regionSeleccionada = regiones.find(r => r.nombre_region === newCandidate.region)
+      if (regionSeleccionada) {
+        const filtradas = todasLasComunas.filter(
+          c => c.id_region === regionSeleccionada.id_region
+        )
+        setComunasFiltradas(filtradas)
+      }
+    } else {
+      setComunasFiltradas([])
+    }
+  }, [newCandidate.region, regiones, todasLasComunas])
 
   const [candidateDetails, setCandidateDetails] = useState({
     birth_date: "",
@@ -223,64 +280,130 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     setShowAddPublication(false)
   }
 
-  const handleAddCandidate = () => {
-    const candidate: Candidate = {
-      id: Date.now().toString(),
-      process_id: process.id,
-      name: newCandidate.name,
-      email: newCandidate.email,
-      phone: newCandidate.phone,
-      cv_file: newCandidate.cv_file?.name,
-      motivation: newCandidate.motivation,
-      salary_expectation: newCandidate.salary_expectation
-        ? Number.parseInt(newCandidate.salary_expectation)
-        : undefined,
-      availability: newCandidate.availability,
-      source_portal: newCandidate.source_portal,
-      consultant_rating: newCandidate.consultant_rating,
-      status: "postulado",
-      created_at: new Date().toISOString(),
-      birth_date: newCandidate.birth_date,
-      age: newCandidate.age,
-      comuna: newCandidate.comuna,
-      profession: newCandidate.profession,
-      consultant_comment: newCandidate.consultant_comment,
-      has_disability_credential: newCandidate.has_disability_credential,
-      work_experience: newCandidate.work_experience,
-      education: newCandidate.education,
-      portal_responses: newCandidate.portal_responses,
+  const handleAddCandidate = async () => {
+    console.log('=== INICIANDO handleAddCandidate ===')
+    console.log('Datos del formulario:', newCandidate)
+    
+    try {
+      // Validar campos requeridos
+      if (!newCandidate.name || !newCandidate.email || !newCandidate.phone) {
+        console.log('Validación falló - campos vacíos')
+        toast({
+          title: "Error",
+          description: "Por favor completa los campos obligatorios (Nombre, Email, Teléfono)",
+          variant: "destructive",
+        })
+        return
+      }
+
+      console.log('Validación OK - preparando datos...')
+
+      // Preparar datos para enviar al backend
+      const candidateData = {
+        name: newCandidate.name,
+        email: newCandidate.email,
+        phone: newCandidate.phone,
+        birth_date: newCandidate.birth_date || undefined,
+        comuna: newCandidate.comuna || undefined,
+        nacionalidad: newCandidate.nacionalidad || undefined,
+        rubro: newCandidate.rubro || undefined,
+        profession: newCandidate.profession || undefined,
+        english_level: newCandidate.portal_responses?.english_level || undefined,
+        software_tools: newCandidate.portal_responses?.software_tools || undefined,
+        has_disability_credential: newCandidate.has_disability_credential,
+        work_experience: newCandidate.work_experience.length > 0 
+          ? newCandidate.work_experience.map(exp => ({
+              company: exp.company,
+              position: exp.position,
+              start_date: exp.start_date,
+              end_date: exp.end_date,
+              description: exp.description,
+            }))
+          : undefined,
+        education: newCandidate.education.length > 0
+          ? newCandidate.education.map(edu => ({
+              id_postgrado_capacitacion: Number(edu.title),
+              id_institucion: edu.institution ? Number(edu.institution) : undefined,
+              completion_date: edu.completion_date,
+            }))
+          : undefined,
+      }
+
+      console.log('Datos preparados para enviar:', candidateData)
+      console.log('Llamando al API...')
+
+      // Llamar al API
+      const response = await candidatoService.create(candidateData)
+      
+      console.log('Respuesta del API:', response)
+
+      if (response.success) {
+        console.log('¡Candidato creado exitosamente!')
+        toast({
+          title: "¡Éxito!",
+          description: "Candidato agregado correctamente",
+        })
+
+        // Recargar la lista de candidatos
+        console.log('Recargando lista de candidatos...')
+        const candidatesData = await getCandidatesByProcess(process.id)
+        setCandidates(candidatesData)
+
+        // Limpiar formulario
+        setNewCandidate({
+          name: "",
+          email: "",
+          phone: "",
+          cv_file: null,
+          motivation: "",
+          salary_expectation: "",
+          availability: "",
+          source_portal: "",
+          consultant_rating: 3,
+          birth_date: "",
+          age: 0,
+          region: "",
+          comuna: "",
+          nacionalidad: "",
+          rubro: "",
+          profession: "",
+          consultant_comment: "",
+          has_disability_credential: false,
+          work_experience: [],
+          education: [],
+          portal_responses: {
+            motivation: "",
+            salary_expectation: "",
+            availability: "",
+            family_situation: "",
+            rating: 3,
+            english_level: "",
+            has_driving_license: false,
+            software_tools: "",
+          },
+        })
+        setShowAddCandidate(false)
+        console.log('Proceso completado')
+      } else {
+        console.error('La respuesta no fue exitosa:', response)
+        toast({
+          title: "Error",
+          description: response.message || "Error al guardar candidato",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      console.error('=== ERROR EN handleAddCandidate ===')
+      console.error('Tipo de error:', error)
+      console.error('Mensaje:', error.message)
+      console.error('Stack:', error.stack)
+      
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo agregar el candidato. Intenta nuevamente.",
+        variant: "destructive",
+      })
     }
-    setCandidates([...candidates, candidate])
-    setNewCandidate({
-      name: "",
-      email: "",
-      phone: "",
-      cv_file: null,
-      motivation: "",
-      salary_expectation: "",
-      availability: "",
-      source_portal: "",
-      consultant_rating: 3,
-      birth_date: "",
-      age: 0,
-      comuna: "",
-      profession: "",
-      consultant_comment: "",
-      has_disability_credential: false,
-      work_experience: [],
-      education: [],
-      portal_responses: {
-        motivation: "",
-        salary_expectation: "",
-        availability: "",
-        family_situation: "",
-        rating: 3,
-        english_level: "",
-        has_driving_license: false,
-        software_tools: "",
-      },
-    })
-    setShowAddCandidate(false)
   }
 
   const handleEditCandidate = (candidate: Candidate) => {
@@ -892,24 +1015,106 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="region">Región</Label>
+                          <Select
+                            value={newCandidate.region}
+                            onValueChange={(value) => {
+                              setNewCandidate({ ...newCandidate, region: value, comuna: "" })
+                            }}
+                            disabled={loadingLists}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccione región" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {regiones.map((region) => (
+                                <SelectItem key={region.id_region} value={region.nombre_region}>
+                                  {region.nombre_region}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="comuna">Comuna</Label>
+                          <Select
+                            value={newCandidate.comuna}
+                            onValueChange={(value) => setNewCandidate({ ...newCandidate, comuna: value })}
+                            disabled={loadingLists || !newCandidate.region}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={newCandidate.region ? "Seleccione comuna" : "Primero seleccione región"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {comunasFiltradas.map((comuna) => (
+                                <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
+                                  {comuna.nombre_comuna}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="nacionalidad">Nacionalidad</Label>
+                          <Select
+                            value={newCandidate.nacionalidad}
+                            onValueChange={(value) => setNewCandidate({ ...newCandidate, nacionalidad: value })}
+                            disabled={loadingLists}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccione nacionalidad" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {nacionalidades.map((nac) => (
+                                <SelectItem key={nac.id_nacionalidad} value={nac.nombre_nacionalidad}>
+                                  {nac.nombre_nacionalidad}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="comuna">comuna/Comuna</Label>
-                          <Input
-                            id="comuna"
-                            value={newCandidate.comuna}
-                            onChange={(e) => setNewCandidate({ ...newCandidate, comuna: e.target.value })}
-                            placeholder="Comuna de residencia"
-                          />
+                          <Label htmlFor="rubro">Rubro</Label>
+                          <Select
+                            value={newCandidate.rubro}
+                            onValueChange={(value) => setNewCandidate({ ...newCandidate, rubro: value })}
+                            disabled={loadingLists}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccione rubro" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {rubros.map((rubro) => (
+                                <SelectItem key={rubro.id_rubro} value={rubro.nombre_rubro}>
+                                  {rubro.nombre_rubro}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="profession">Profesión</Label>
-                          <Input
-                            id="profession"
+                          <Select
                             value={newCandidate.profession}
-                            onChange={(e) => setNewCandidate({ ...newCandidate, profession: e.target.value })}
-                            placeholder="Profesión o área de especialización"
-                          />
+                            onValueChange={(value) => setNewCandidate({ ...newCandidate, profession: value })}
+                            disabled={loadingLists}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccione profesión" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {profesiones.map((prof) => (
+                                <SelectItem key={prof.id_profesion} value={prof.nombre_profesion}>
+                                  {prof.nombre_profesion}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 

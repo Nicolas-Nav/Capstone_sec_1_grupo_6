@@ -294,19 +294,19 @@ export const candidatoService = {
 
   // Crear candidato
   async create(data: {
-    first_name: string;
-    last_name: string;
+    name: string;
     email: string;
     phone: string;
     rut?: string;
-    date_of_birth?: string;
-    address?: string;
-    city?: string;
-    id_comuna?: number;
-    id_nacionalidad?: number;
-    id_rubro?: number;
-    has_driving_license?: boolean;
-    experiences?: Array<{
+    birth_date?: string;
+    comuna?: string;
+    nacionalidad?: string;
+    rubro?: string;
+    profession?: string;
+    english_level?: string;
+    software_tools?: string;
+    has_disability_credential?: boolean;
+    work_experience?: Array<{
       company: string;
       position: string;
       start_date: string;
@@ -318,7 +318,6 @@ export const candidatoService = {
       id_institucion?: number;
       completion_date?: string;
     }>;
-    professions?: string[];
   }): Promise<ApiResponse<any>> {
     return apiRequest('/api/candidatos', {
       method: 'POST',
@@ -328,18 +327,17 @@ export const candidatoService = {
 
   // Actualizar candidato
   async update(id: number, data: {
-    first_name?: string;
-    last_name?: string;
+    name?: string;
     email?: string;
     phone?: string;
     rut?: string;
-    date_of_birth?: string;
-    address?: string;
-    city?: string;
-    id_comuna?: number;
-    id_nacionalidad?: number;
-    id_rubro?: number;
-    has_driving_license?: boolean;
+    birth_date?: string;
+    comuna?: string;
+    nacionalidad?: string;
+    rubro?: string;
+    english_level?: string;
+    software_tools?: string;
+    has_disability_credential?: boolean;
   }): Promise<ApiResponse<any>> {
     return apiRequest(`/api/candidatos/${id}`, {
       method: 'PUT',
@@ -607,6 +605,28 @@ export const rubroService = {
   // Obtener todos los rubros
   async getAll(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/rubros');
+  },
+};
+
+// ===========================================
+// SERVICIOS DE PROFESIONES
+// ===========================================
+
+export const profesionService = {
+  // Obtener todas las profesiones
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/profesiones');
+  },
+};
+
+// ===========================================
+// SERVICIOS DE INSTITUCIONES
+// ===========================================
+
+export const institucionService = {
+  // Obtener todas las instituciones
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/instituciones');
   },
 };
 

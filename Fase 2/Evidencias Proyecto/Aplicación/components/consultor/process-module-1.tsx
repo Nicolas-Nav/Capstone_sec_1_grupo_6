@@ -32,9 +32,12 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Cargar datos reales desde el backend
+  const isEvaluationProcess =
+    process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral"
+
+  // Load candidates
   useEffect(() => {
-    const loadData = async () => {
+    const loadCandidates = async () => {
       try {
         setIsLoading(true)
         const candidatesData = await getCandidatesByProcess(process.id)
@@ -45,11 +48,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         setIsLoading(false)
       }
     }
-    loadData()
+    loadCandidates()
   }, [process.id])
-
-  const isEvaluationProcess =
-    process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral"
 
   // For evaluation processes, find the candidate with CV
   const candidateWithCV = candidates.find((c) => c.cv_file && c.rut)

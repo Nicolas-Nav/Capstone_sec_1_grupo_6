@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createUser, getUsers, updateUser } from '@/services/userService';
+import { createUser, getUsers, updateUser, changePassword } from '@/services/userService';
 import { sendError, sendSuccess } from '@/utils/response';
 
 // Crear usuario
@@ -39,5 +39,21 @@ export const updateUserController = async (req: Request, res: Response) => {
     return sendSuccess(res, updatedUser, "Usuario actualizado correctamente");
   } catch (error: any) {
     return sendError(res, error.message || "Error al actualizar usuario");
+  }
+};
+
+// Cambiar contraseña de usuario
+export const changePasswordController = async (req: Request, res: Response) => {
+  try {
+    const { rut_usuario, currentPassword, newPassword } = req.body;
+    
+    if (!rut_usuario || !currentPassword || !newPassword) {
+      return sendError(res, "Faltan campos requeridos", 400);
+    }
+    
+    const result = await changePassword(rut_usuario, currentPassword, newPassword);
+    return sendSuccess(res, result, result.message);
+  } catch (error: any) {
+    return sendError(res, error.message || "Error al cambiar contraseña");
   }
 };

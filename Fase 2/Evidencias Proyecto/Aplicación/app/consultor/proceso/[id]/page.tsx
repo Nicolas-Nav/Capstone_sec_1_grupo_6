@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
-import { mockProcesses, serviceTypeLabels, processStatusLabels, getHitosByProcess } from "@/lib/mock-data"
+import { solicitudService, descripcionCargoService } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate, getStatusColor } from "@/lib/utils"
-import { Building2, User, Calendar, Target, FileText, Users, CheckCircle, Clock, AlertTriangle } from "lucide-react"
+import { Building2, User, Calendar, Target, FileText, Users, CheckCircle, Clock, AlertTriangle, Loader2 } from "lucide-react"
 import { ProcessTimeline } from "@/components/consultor/process-timeline"
 import { ProcessModule1 } from "@/components/consultor/process-module-1"
 import { ProcessModule2 } from "@/components/consultor/process-module-2"
@@ -15,6 +15,22 @@ import { ProcessModule3 } from "@/components/consultor/process-module-3"
 import { ProcessModule4 } from "@/components/consultor/process-module-4"
 import { ProcessModule5 } from "@/components/consultor/process-module-5"
 import { notFound } from "next/navigation"
+import { toast } from "sonner"
+
+const serviceTypeLabels: Record<string, string> = {
+  PC: "Proceso Completo",
+  LL: "Long List",
+  HH: "Head Hunting",
+  TS: "Test Psicolaboral",
+  ES: "Evaluación y Seguimiento"
+}
+
+const processStatusLabels: Record<string, string> = {
+  creado: "Creado",
+  en_progreso: "En Progreso",
+  cerrado: "Cerrado",
+  congelado: "Congelado"
+}
 
 interface ProcessPageProps {
   params: {
@@ -25,6 +41,42 @@ interface ProcessPageProps {
 export default function ProcessPage({ params }: ProcessPageProps) {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("modulo-1")
+  const [process, setProcess] = useState<any>(null)
+  const [descripcionCargo, setDescripcionCargo] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    if (user?.id) {
+      loadProcessData()
+    }
+  }, [params.id, user])
+
+  const loadProcessData = async () => {
+    try {
+      setIsLoading(true)
+      const response = await solicitudService.getById(parseInt(params.id))
+      
+      if (response.success && response.data) {
+        setProcess(response.data)
+        
+        // Cargar descripción de cargo si existe
+        if (response.data.id_descripcion_cargo) {
+          const dcResponse = await descripcionCargoService.getById(response.data.id_descripcion_cargo)
+          if (dcResponse.success) {
+            setDescripcionCargo(dcResponse.data)
+          }
+        }
+      } else {
+        toast.error("No se pudo cargar la solicitud")
+        notFound()
+      }
+    } catch (error) {
+      console.error("Error loading process:", error)
+      toast.error("Error al cargar los datos")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   if (user?.role !== "consultor") {
     return (
@@ -37,33 +89,36 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     )
   }
 
-  const process = mockProcesses.find((p) => p.id === params.id && p.consultant_id === user.id)
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Cargando proceso...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!process) {
     notFound()
   }
 
-
-  const hitos = getHitosByProcess(process.id)
-
   // Determine which modules are available based on service type
   const getAvailableModules = () => {
     const modules = [{ id: "modulo-1", label: "Solicitud y Cargo", icon: FileText }]
+    const serviceType = process.tipo_servicio || process.service_type
 
-    if (process.service_type === "proceso_completo" || process.service_type === "long_list") {
+    if (serviceType === "PC" || serviceType === "LL" || serviceType === "HH") {
       modules.push({ id: "modulo-2", label: "Publicación y Candidatos", icon: Users })
       modules.push({ id: "modulo-3", label: "Presentación", icon: Target })
     }
 
-    if (
-      process.service_type === "proceso_completo" ||
-      process.service_type === "evaluacion_psicolaboral" ||
-      process.service_type === "test_psicolaboral"
-    ) {
+    if (serviceType === "PC" || serviceType === "TS" || serviceType === "ES") {
       modules.push({ id: "modulo-4", label: "Evaluación Psicolaboral", icon: CheckCircle })
     }
 
-    if (process.service_type === "proceso_completo") {
+    if (serviceType === "PC") {
       modules.push({ id: "modulo-5", label: "Seguimiento y Control", icon: Clock })
     }
 
@@ -79,25 +134,25 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       {/* Process Header */}
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">{process.position_title}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{process.cargo || process.position_title}</h1>
           <div className="flex items-center gap-4 text-muted-foreground">
             <div className="flex items-center gap-1">
               <Building2 className="h-4 w-4" />
-              <span>{process.client.name}</span>
+              <span>{process.cliente}</span>
             </div>
             <div className="flex items-center gap-1">
               <User className="h-4 w-4" />
-              <span>{process.client.contact_person}</span>
+              <span>{process.contact?.name || 'Sin contacto'}</span>
             </div>
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              <span>Creado {formatDate(process.created_at)}</span>
+              <span>Creado {formatDate(process.fecha_creacion || process.created_at)}</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline">{serviceTypeLabels[process.service_type]}</Badge>
-          <Badge className={getStatusColor(process.status)}>{processStatusLabels[process.status]}</Badge>
+          <Badge variant="outline">{serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}</Badge>
+          <Badge className={getStatusColor(process.status)}>{process.estado_solicitud || processStatusLabels[process.status]}</Badge>
         </div>
       </div>
 
@@ -109,39 +164,40 @@ export default function ProcessPage({ params }: ProcessPageProps) {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{process.vacancies}</div>
+            <div className="text-2xl font-bold">{process.vacancies || process.vacantes || 0}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hitos Completados</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Etapa Actual</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {hitos.filter((h) => h.status === "completado").length}
+            <div className="text-sm font-medium text-primary">
+              {process.etapa || 'Sin etapa'}
             </div>
-            <p className="text-xs text-muted-foreground">de {hitos.length} total</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En Progreso</CardTitle>
+            <CardTitle className="text-sm font-medium">Estado</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {hitos.filter((h) => h.status === "en_progreso").length}
+            <div className="text-sm font-medium">
+              {process.estado_solicitud || 'Abierto'}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vencidos</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Tipo de Servicio</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{hitos.filter((h) => h.status === "vencido").length}</div>
+            <div className="text-sm font-medium">
+              {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -167,37 +223,35 @@ export default function ProcessPage({ params }: ProcessPageProps) {
 
             <div className="p-6">
               <TabsContent value="modulo-1" className="mt-0">
-                <ProcessModule1 process={process} />
+                <ProcessModule1 process={process}/> 
               </TabsContent>
 
-              {(process.service_type === "proceso_completo" || process.service_type === "long_list") && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "HH") && (
                 <TabsContent value="modulo-2" className="mt-0">
                   <ProcessModule2 process={process} />
                 </TabsContent>
               )}
 
-              {(process.service_type === "proceso_completo" || process.service_type === "long_list") && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "HH") && (
                 <TabsContent value="modulo-3" className="mt-0">
                   <ProcessModule3 process={process} />
                 </TabsContent>
               )}
 
-              {(process.service_type === "proceso_completo" ||
-                process.service_type === "evaluacion_psicolaboral" ||
-                process.service_type === "test_psicolaboral") && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "TS" || process.tipo_servicio === "ES") && (
                 <TabsContent value="modulo-4" className="mt-0">
                   <ProcessModule4 process={process} />
                 </TabsContent>
               )}
 
-              {process.service_type === "proceso_completo" && (
+              {process.tipo_servicio === "PC" && (
                 <TabsContent value="modulo-5" className="mt-0">
                   <ProcessModule5 process={process} />
                 </TabsContent>
               )}
 
               <TabsContent value="timeline" className="mt-0">
-                <ProcessTimeline process={process} hitos={hitos} />
+                <ProcessTimeline process={process} hitos={[]} />
               </TabsContent>
             </div>
           </Tabs>

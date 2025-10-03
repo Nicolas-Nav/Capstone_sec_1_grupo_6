@@ -109,7 +109,7 @@ export class SolicitudController {
 
     /**
      * PUT /api/solicitudes/:id/estado
-     * Cambiar estado/etapa de la solicitud
+     * Cambiar estado de la solicitud (Abierto, En Progreso, Cerrado, Congelado)
      */
     static async updateEstado(req: Request, res: Response): Promise<Response> {
         try {
@@ -127,11 +127,35 @@ export class SolicitudController {
                 return sendError(res, error.message, 404);
             }
             
-            if (error.message === 'Etapa no válida') {
+            if (error.message === 'Estado no válido') {
                 return sendError(res, error.message, 400);
             }
             
             return sendError(res, 'Error al actualizar estado', 500);
+        }
+    }
+
+    /**
+     * PUT /api/solicitudes/:id/etapa
+     * Cambiar etapa de la solicitud (Módulo 1, 2, 3, 4, 5)
+     */
+    static async cambiarEtapa(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const { id_etapa } = req.body;
+
+            const resultado = await SolicitudService.cambiarEtapa(parseInt(id), parseInt(id_etapa));
+
+            Logger.info(`Etapa actualizada para solicitud ${id}: ${resultado.etapa}`);
+            return sendSuccess(res, resultado, 'Etapa actualizada exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al cambiar etapa:', error);
+            
+            if (error.message === 'Solicitud no encontrada' || error.message === 'Etapa no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+            
+            return sendError(res, 'Error al cambiar etapa', 500);
         }
     }
 

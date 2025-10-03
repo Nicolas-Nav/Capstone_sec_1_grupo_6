@@ -24,6 +24,9 @@ router.post('/', SolicitudController.create);
 // Actualizar estado de solicitud
 router.put('/:id/estado', SolicitudController.updateEstado);
 
+// Cambiar etapa de solicitud
+router.put('/:id/etapa', SolicitudController.cambiarEtapa);
+
 // Eliminar solicitud
 router.delete('/:id', SolicitudController.delete);
 

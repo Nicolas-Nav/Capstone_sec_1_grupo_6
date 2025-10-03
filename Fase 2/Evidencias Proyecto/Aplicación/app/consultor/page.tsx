@@ -1,14 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
-import {
-  getProcessesByConsultant,
-  serviceTypeLabels,
-  processStatusLabels,
-  mockProcesses,
-  getHitosByProcess,
-} from "@/lib/mock-data"
+import { solicitudService } from "@/lib/api"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,45 +11,32 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle } from "lucide-react"
-import { formatDate, getStatusColor } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-function getCurrentProcessStage(processId: string): string {
-  const hitos = getHitosByProcess(processId)
-
-  if (hitos.length === 0) return "Sin hitos definidos"
-
-  // Find the last completed hito
-  const completedHitos = hitos
-    .filter((h) => h.status === "completado")
-    .sort(
-      (a, b) => new Date(b.completed_date || b.due_date).getTime() - new Date(a.completed_date || a.due_date).getTime(),
-    )
-
-  // Find current in-progress hito
-  const inProgressHito = hitos.find((h) => h.status === "en_progreso")
-
-  if (inProgressHito) {
-    return `En: ${inProgressHito.name}`
+const getStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    creado: "bg-blue-100 text-blue-800",
+    en_progreso: "bg-purple-100 text-purple-800",
+    cerrado: "bg-green-100 text-green-800",
+    congelado: "bg-gray-100 text-gray-800"
   }
+  return colors[status] || "bg-gray-100 text-gray-800"
+}
 
-  if (completedHitos.length > 0) {
-    const lastCompleted = completedHitos[0]
-    const nextHito = hitos.find((h) => h.status === "pendiente")
-    if (nextHito) {
-      return `Siguiente: ${nextHito.name}`
-    }
-    return `Completado: ${lastCompleted.name}`
-  }
+const serviceTypeLabels: Record<string, string> = {
+  PC: "Proceso Completo",
+  LL: "Long List",
+  HH: "Head Hunting",
+  TS: "Test Psicolaboral",
+  ES: "Evaluación y Seguimiento"
+}
 
-  // If no completed hitos, show first pending
-  const firstPending = hitos.find((h) => h.status === "pendiente")
-  if (firstPending) {
-    return `Pendiente: ${firstPending.name}`
-  }
-
-  return "Etapa no definida"
+const processStatusLabels: Record<string, string> = {
+  creado: "Creado",
+  en_progreso: "En Progreso",
+  cerrado: "Cerrado",
+  congelado: "Congelado"
 }
 
 export default function ConsultorPage() {
@@ -63,6 +45,34 @@ export default function ConsultorPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [startingProcess, setStartingProcess] = useState<string | null>(null)
+  const [myProcesses, setMyProcesses] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Cargar solicitudes del consultor
+  useEffect(() => {
+    if (user?.id && user?.role === "consultor") {
+      loadMyProcesses()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  const loadMyProcesses = async () => {
+    try {
+      setIsLoading(true)
+      const response = await solicitudService.getAll({ consultor_id: user?.id || '' })
+      
+      if (response.success && response.data) {
+        setMyProcesses(response.data)
+      } else {
+        toast.error("Error al cargar procesos")
+      }
+    } catch (error) {
+      console.error("Error al cargar procesos:", error)
+      toast.error("Error al cargar procesos")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   if (user?.role !== "consultor") {
     return (
@@ -75,12 +85,22 @@ export default function ConsultorPage() {
     )
   }
 
-  const myProcesses = getProcessesByConsultant(user.id)
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando procesos...</p>
+        </div>
+      </div>
+    )
+  }
 
   const filteredProcesses = myProcesses.filter((process) => {
     const matchesSearch =
-      process.position_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.client.name.toLowerCase().includes(searchTerm.toLowerCase())
+      process.position_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      process.cargo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      process.cliente?.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesStatus = statusFilter === "all" || process.status === statusFilter
 
@@ -88,26 +108,28 @@ export default function ConsultorPage() {
   })
 
   const pendingProcesses = filteredProcesses.filter((p) => p.status === "creado")
-  const activeProcesses = filteredProcesses.filter((p) => p.status === "iniciado" || p.status === "en_progreso")
-  const completedProcesses = filteredProcesses.filter((p) => p.status === "completado")
+  const activeProcesses = filteredProcesses.filter((p) => p.status === "en_progreso")
+  const completedProcesses = filteredProcesses.filter((p) => p.status === "cerrado")
 
   const handleStartProcess = async (processId: string) => {
-    setStartingProcess(processId)
-
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // Update process status in mock data
-    const processIndex = mockProcesses.findIndex((p) => p.id === processId)
-    if (processIndex !== -1) {
-      mockProcesses[processIndex].status = "iniciado"
-      mockProcesses[processIndex].started_at = new Date().toISOString()
+    try {
+      setStartingProcess(processId)
+      
+      const response = await solicitudService.updateEstado(parseInt(processId), "en_progreso")
+      
+      if (response.success) {
+        toast.success("Proceso iniciado exitosamente")
+        await loadMyProcesses() // Recargar procesos
+        router.push(`/consultor/proceso/${processId}`)
+      } else {
+        toast.error("Error al iniciar proceso")
+      }
+    } catch (error) {
+      console.error("Error al iniciar proceso:", error)
+      toast.error("Error al iniciar proceso")
+    } finally {
+      setStartingProcess(null)
     }
-
-    setStartingProcess(null)
-
-    // Navigate to process detail page
-    router.push(`/consultor/proceso/${processId}`)
   }
 
   return (
@@ -184,9 +206,9 @@ export default function ConsultorPage() {
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
                 <SelectItem value="creado">Creado</SelectItem>
-                <SelectItem value="iniciado">Iniciado</SelectItem>
                 <SelectItem value="en_progreso">En Progreso</SelectItem>
-                <SelectItem value="completado">Completado</SelectItem>
+                <SelectItem value="cerrado">Cerrado</SelectItem>
+                <SelectItem value="congelado">Congelado</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -217,20 +239,20 @@ export default function ConsultorPage() {
               <TableBody>
                 {pendingProcesses.map((process) => (
                   <TableRow key={process.id}>
-                    <TableCell className="font-medium">{process.position_title}</TableCell>
+                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Building2 className="h-3 w-3" />
-                        {process.client.name}
+                        {process.cliente}
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {serviceTypeLabels[process.service_type]}
+                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
                       </Badge>
                     </TableCell>
-                    <TableCell>{process.vacancies}</TableCell>
-                    <TableCell>{formatDate(process.created_at)}</TableCell>
+                    <TableCell>{process.vacancies || process.vacantes || 0}</TableCell>
+                    <TableCell>{new Date(process.created_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Button
                         size="sm"
@@ -283,25 +305,25 @@ export default function ConsultorPage() {
               <TableBody>
                 {activeProcesses.map((process) => (
                   <TableRow key={process.id}>
-                    <TableCell className="font-medium">{process.position_title}</TableCell>
+                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Building2 className="h-3 w-3" />
-                        {process.client.name}
+                        {process.cliente}
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {serviceTypeLabels[process.service_type]}
+                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(process.status)}>{processStatusLabels[process.status]}</Badge>
+                      <Badge className={getStatusColor(process.status)}>{process.estado_solicitud || processStatusLabels[process.status]}</Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm text-muted-foreground">{getCurrentProcessStage(process.id)}</div>
+                      <div className="text-sm text-muted-foreground">{process.etapa || 'Sin etapa'}</div>
                     </TableCell>
-                    <TableCell>{process.started_at ? formatDate(process.started_at) : "-"}</TableCell>
+                    <TableCell>{new Date(process.started_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Button asChild size="sm">
                         <Link href={`/consultor/proceso/${process.id}`}>
@@ -342,20 +364,20 @@ export default function ConsultorPage() {
               <TableBody>
                 {completedProcesses.map((process) => (
                   <TableRow key={process.id}>
-                    <TableCell className="font-medium">{process.position_title}</TableCell>
+                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Building2 className="h-3 w-3" />
-                        {process.client.name}
+                        {process.cliente}
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {serviceTypeLabels[process.service_type]}
+                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
                       </Badge>
                     </TableCell>
-                    <TableCell>{process.started_at ? formatDate(process.started_at) : "-"}</TableCell>
-                    <TableCell>{process.completed_at ? formatDate(process.completed_at) : "-"}</TableCell>
+                    <TableCell>{new Date(process.started_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
+                    <TableCell>{process.completed_at ? new Date(process.completed_at).toLocaleDateString() : "-"}</TableCell>
                     <TableCell>
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/consultor/proceso/${process.id}`}>

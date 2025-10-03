@@ -9,6 +9,7 @@ interface NewUserInput {
   nombre: string
   apellido: string
   email: string
+  password: string
   role: "admin" | "consultor"
   status: "habilitado" | "inhabilitado"
 }
@@ -39,6 +40,7 @@ export function useUsuarios() {
     nombre: "",
     apellido: "",
     email: "",
+    password: "",
     role: "consultor",
     status: "habilitado",
   })
@@ -115,7 +117,7 @@ export function useUsuarios() {
           email_usuario: newUser.email,
           rol_usuario: newUser.role === "admin" ? 1 : 2,
           activo_usuario: newUser.status === "habilitado",
-          contrasena_usuario: "Temporal123",
+          contrasena_usuario: newUser.password,
         }),
       })
       const data = await res.json()
@@ -138,7 +140,7 @@ export function useUsuarios() {
           },
         ])
         setIsCreateDialogOpen(false)
-        setNewUser({ rut: "", nombre: "", apellido: "", email: "", role: "consultor", status: "habilitado" })
+        setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
         return { success: true, message: data?.message }
       } else {
         return { success: false, message: data?.message || "Error creando usuario" }
@@ -156,6 +158,7 @@ export function useUsuarios() {
       nombre: user.nombre || user.firstName,
       apellido: user.apellido || user.lastName,
       email: user.email,
+      password: "", // No mostrar contraseña al editar por seguridad
       role: user.role,
       status: user.status ?? (user.isActive ? "habilitado" : "inhabilitado"),
     })
@@ -165,20 +168,28 @@ export function useUsuarios() {
     if (!editingUser) return { success: false, message: "No hay usuario seleccionado para editar" }
     
     try {
+      // Preparar datos de actualización
+      const updateData: any = {
+        rut_usuario: newUser.rut,
+        nombre_usuario: newUser.nombre,
+        apellido_usuario: newUser.apellido,
+        email_usuario: newUser.email,
+        rol_usuario: newUser.role === "admin" ? 1 : 2,
+        activo_usuario: newUser.status === "habilitado",
+      }
+      
+      // Solo incluir contraseña si se proporcionó una nueva
+      if (newUser.password && newUser.password.trim() !== "") {
+        updateData.contrasena_usuario = newUser.password
+      }
+      
       const res = await fetch(`${API_URL}/api/users/users`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
         },
-        body: JSON.stringify({
-          rut_usuario: newUser.rut,
-          nombre_usuario: newUser.nombre,
-          apellido_usuario: newUser.apellido,
-          email_usuario: newUser.email,
-          rol_usuario: newUser.role === "admin" ? 1 : 2,
-          activo_usuario: newUser.status === "habilitado",
-        }),
+        body: JSON.stringify(updateData),
       })
       const data = await res.json()
       if (res.ok && data?.success) {
@@ -200,7 +211,7 @@ export function useUsuarios() {
             : user
         ))
         setEditingUser(null)
-        setNewUser({ rut: "", nombre: "", apellido: "", email: "", role: "consultor", status: "habilitado" })
+        setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
         return { success: true, message: data?.message }
       } else {
         return { success: false, message: data?.message || "Error actualizando usuario" }

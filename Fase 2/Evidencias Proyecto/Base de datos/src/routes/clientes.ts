@@ -12,8 +12,11 @@ const router = Router();
 // Obtener estadísticas de clientes
 router.get('/stats', ClienteController.getStats);
 
-// Obtener todos los clientes
+// Obtener clientes paginados con filtros
 router.get('/', ClienteController.getAll);
+
+// Obtener todos los clientes (sin paginación)
+router.get('/all', ClienteController.getAllClientes);
 
 // Obtener un cliente específico
 router.get('/:id', ClienteController.getById);

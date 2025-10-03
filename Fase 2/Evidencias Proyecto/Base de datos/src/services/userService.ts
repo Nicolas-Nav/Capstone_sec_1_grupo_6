@@ -1,5 +1,6 @@
 import { Op } from "sequelize";
 import Usuario from "@/models/Usuario";
+import bcrypt from "bcryptjs";
 
 interface CreateUserPayload {
   rut_usuario: string;
@@ -125,7 +126,6 @@ export const getUsers = async (
   };
 };
 
-// Parámetros disponibles en la URL:
 
 // page: número. Página que quieres obtener (por defecto 1)
 // limit: número. Cantidad de usuarios por página (por defecto 10)
@@ -137,3 +137,23 @@ export const getUsers = async (
 
 // Ejemplo de URL con todos los filtros:
 // http://localhost:3001/api/users?page=2&limit=5&search=nico&role=consultor&status=habilitado&sortBy=apellido&sortOrder=DESC
+
+
+
+// Cambiar contraseña de usuario
+export const changePassword = async (rut_usuario: string, currentPassword: string, newPassword: string) => {
+  const usuario = await Usuario.findByPk(rut_usuario);
+  if (!usuario) throw new Error("Usuario no encontrado");
+
+  // Verificar contraseña actual
+  const isCurrentPasswordValid = await bcrypt.compare(currentPassword, usuario.contrasena_usuario);
+  if (!isCurrentPasswordValid) throw new Error("Contraseña actual incorrecta");
+
+  // Actualizar con nueva contraseña (se hasheará automáticamente por el hook)
+  await usuario.update({ contrasena_usuario: newPassword });
+
+  return {
+    rut_usuario: usuario.rut_usuario,
+    message: "Contraseña actualizada correctamente"
+  };
+};

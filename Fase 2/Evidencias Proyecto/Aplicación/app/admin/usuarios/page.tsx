@@ -99,7 +99,7 @@ export default function UsuariosPage() {
     const res = await createUser()
     if (res.success) {
       setIsCreateDialogOpen(false)
-      setNewUser({ rut: "", nombre: "", apellido: "", email: "", role: "consultor", status: "habilitado" })
+      setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
       setResultSuccess(true)
       setResultMessage(res.message || "Usuario creado correctamente")
       setIsResultOpen(true)
@@ -200,6 +200,16 @@ export default function UsuariosPage() {
                 />
               </div>
               <div className="grid gap-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  placeholder={editingUser ? "Dejar vacío para mantener la contraseña actual" : "Ingresa una contraseña segura"}
+                />
+              </div>
+              <div className="grid gap-2">
                 <Label htmlFor="role">Rol</Label>
                 <Select
                   value={newUser.role}
@@ -238,7 +248,7 @@ export default function UsuariosPage() {
               </Button>
               <Button
                 onClick={editingUser ? handleUpdateUser : handleCreateUser}
-                disabled={!newUser.rut || !newUser.nombre || !newUser.apellido || !newUser.email}
+                disabled={!newUser.rut || !newUser.nombre || !newUser.apellido || !newUser.email || (!editingUser && !newUser.password)}
               >
                 {editingUser ? "Actualizar Usuario" : "Crear Usuario"}
               </Button>

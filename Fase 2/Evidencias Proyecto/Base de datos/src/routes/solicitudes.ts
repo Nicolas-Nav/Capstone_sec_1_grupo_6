@@ -12,8 +12,11 @@ const router = Router();
 // Obtener solicitudes por consultor
 router.get('/consultor/:rutUsuario', SolicitudController.getByConsultor);
 
-// Obtener todas las solicitudes
+// Obtener solicitudes paginadas con filtros
 router.get('/', SolicitudController.getAll);
+
+// Obtener todas las solicitudes (sin paginación)
+router.get('/all', SolicitudController.getAllSolicitudes);
 
 // Obtener una solicitud específica
 router.get('/:id', SolicitudController.getById);

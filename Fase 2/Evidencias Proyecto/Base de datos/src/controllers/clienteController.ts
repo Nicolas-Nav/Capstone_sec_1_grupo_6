@@ -11,9 +11,29 @@ import { ClienteService } from '@/services/clienteService';
 export class ClienteController {
     /**
      * GET /api/clientes
-     * Obtener todos los clientes con sus contactos
+     * Obtener clientes paginados con filtros opcionales
      */
     static async getAll(req: Request, res: Response): Promise<Response> {
+        try {
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 10;
+            const search = (req.query.search as string) || "";
+            const sortBy = (req.query.sortBy as "nombre" | "contactos") || "nombre";
+            const sortOrder = (req.query.sortOrder as "ASC" | "DESC") || "ASC";
+
+            const result = await ClienteService.getClients(page, limit, search, sortBy, sortOrder);
+            return sendSuccess(res, result, "Clientes obtenidos correctamente");
+        } catch (error: any) {
+            Logger.error('Error al obtener clientes:', error);
+            return sendError(res, error.message || "Error al obtener clientes", 500);
+        }
+    }
+
+    /**
+     * GET /api/clientes/all
+     * Obtener todos los clientes con sus contactos (sin paginación)
+     */
+    static async getAllClientes(req: Request, res: Response): Promise<Response> {
         try {
             const clientes = await ClienteService.getAllClientes();
             return sendSuccess(res, clientes, 'Clientes obtenidos exitosamente');

@@ -1,4 +1,4 @@
-import { Transaction } from 'sequelize';
+import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
 import { Cliente, Contacto, Comuna } from '@/models';
 
@@ -8,6 +8,133 @@ import { Cliente, Contacto, Comuna } from '@/models';
  */
 
 export class ClienteService {
+    /**
+     * Obtener clientes paginados con filtros opcionales y orden
+     */
+    static async getClients(
+        page: number = 1,
+        limit: number = 10,
+        search: string = "",
+        sortBy: "nombre" | "contactos" = "nombre",
+        sortOrder: "ASC" | "DESC" = "ASC"
+    ) {
+        const offset = (page - 1) * limit;
+
+        const andConditions: any[] = [];
+
+        // Filtro de búsqueda por texto
+        if (search) {
+            // Primero buscar clientes que coincidan directamente
+            andConditions.push({
+                [Op.or]: [
+                    { nombre_cliente: { [Op.iLike]: `%${search}%` } }
+                ]
+            });
+        }
+
+        // Construir la condición final
+        const where = andConditions.length > 0 ? { [Op.and]: andConditions } : {};
+
+        // Determinar columna para ordenar
+        const orderColumn = sortBy === "nombre" ? "nombre_cliente" : "nombre_cliente";
+
+        let whereClause = where;
+        let includeClause: any[] = [
+            {
+                model: Contacto,
+                as: 'contactos',
+                include: [
+                    {
+                        model: Comuna,
+                        as: 'comuna',
+                        attributes: ['id_comuna', 'nombre_comuna']
+                    }
+                ]
+            }
+        ];
+
+        // Si hay búsqueda, también buscar en contactos
+        if (search) {
+            // Buscar IDs de clientes que tengan contactos que coincidan
+            const contactosConBusqueda = await Contacto.findAll({
+                where: {
+                    [Op.or]: [
+                        { nombre_contacto: { [Op.iLike]: `%${search}%` } },
+                        { email_contacto: { [Op.iLike]: `%${search}%` } },
+                        { cargo_contacto: { [Op.iLike]: `%${search}%` } }
+                    ]
+                },
+                attributes: ['id_cliente'],
+                raw: true
+            });
+
+            const idsClientesConContactos = [...new Set(contactosConBusqueda.map(c => c.id_cliente))];
+
+            // Buscar IDs de clientes que tengan comunas que coincidan
+            const contactosConComunas = await Contacto.findAll({
+                include: [
+                    {
+                        model: Comuna,
+                        as: 'comuna',
+                        where: {
+                            nombre_comuna: { [Op.iLike]: `%${search}%` }
+                        },
+                        attributes: []
+                    }
+                ],
+                attributes: ['id_cliente'],
+                raw: true
+            });
+
+            const idsClientesConComunas = [...new Set(contactosConComunas.map(c => c.id_cliente))];
+
+            // Combinar todos los IDs
+            const todosLosIds = [...new Set([...idsClientesConContactos, ...idsClientesConComunas])];
+
+            // Actualizar la condición where para incluir búsqueda en nombre del cliente O en contactos
+            whereClause = {
+                [Op.or]: [
+                    where,
+                    { id_cliente: { [Op.in]: todosLosIds } }
+                ]
+            } as any;
+        }
+
+        const { count, rows } = await Cliente.findAndCountAll({
+            where: whereClause,
+            limit,
+            offset,
+            order: [[orderColumn, sortOrder]],
+            include: includeClause,
+            distinct: true, // Importante para contar correctamente con includes
+        });
+
+        // Transformar al formato del frontend
+        const transformedClients = rows.map(cliente => ({
+            id: cliente.id_cliente.toString(),
+            name: cliente.nombre_cliente,
+            contacts: (cliente.get('contactos') as any[])?.map((contacto: any) => ({
+                id: contacto.id_contacto.toString(),
+                name: contacto.nombre_contacto,
+                email: contacto.email_contacto,
+                phone: contacto.telefono_contacto,
+                position: contacto.cargo_contacto,
+                city: contacto.comuna?.nombre_comuna || '',
+                is_primary: false
+            })) || []
+        }));
+
+        return {
+            clients: transformedClients,
+            pagination: {
+                page,
+                limit,
+                total: count,
+                totalPages: Math.ceil(count / limit),
+            },
+        };
+    }
+
     /**
      * Obtener todos los clientes con sus contactos
      */

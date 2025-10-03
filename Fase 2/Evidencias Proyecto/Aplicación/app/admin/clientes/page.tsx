@@ -15,76 +15,66 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+} from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2 } from "lucide-react"
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle } from "lucide-react"
 import { mockProcesses } from "@/lib/mock-data"
 import { clientService, comunaService, apiUtils } from "@/lib/api"
 import type { Client, ClientContact, Comuna } from "@/lib/types"
 import { toast } from "sonner"
+import { useClientes } from "@/hooks/useClientes"
 
 export default function ClientesPage() {
-  const [clients, setClients] = useState<Client[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
+  const {
+    clients,
+    isLoading,
+    searchTerm,
+    sortBy,
+    sortOrder,
+    currentPage,
+    pageSize,
+    totalPages,
+    totalClients,
+    newClient,
+    editingClient,
+    setSearchTerm,
+    setSortBy,
+    setSortOrder,
+    setNewClient,
+    setEditingClient,
+    createClient,
+    updateClient,
+    deleteClient,
+    goToPage,
+    nextPage,
+    prevPage,
+    handlePageSizeChange,
+  } = useClientes()
+
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isResultOpen, setIsResultOpen] = useState(false)
+  const [resultSuccess, setResultSuccess] = useState<boolean>(false)
+  const [resultMessage, setResultMessage] = useState<string>("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comunas, setComunas] = useState<Comuna[]>([])
-  const [formData, setFormData] = useState({
-    name: "",
-    contacts: [
-      {
-        id: "",
-        name: "",
-        email: "",
-        phone: "",
-        position: "",
-        city: "",
-        is_primary: true,
-      },
-    ] as ClientContact[],
-  })
 
-  const filteredClients = clients.filter((client) => {
-    const searchLower = searchTerm.toLowerCase()
-    return (
-      client.name.toLowerCase().includes(searchLower) ||
-      client.contacts.some(
-        (contact) =>
-          contact.name.toLowerCase().includes(searchLower) ||
-          contact.email.toLowerCase().includes(searchLower) ||
-          contact.position.toLowerCase().includes(searchLower) ||
-          contact.city.toLowerCase().includes(searchLower),
-      )
-    )
-  })
+  // Los clientes ya vienen filtrados del servidor, no necesitamos filtrar en el cliente
 
-  // Cargar datos al montar el componente
+  // Cargar comunas al montar el componente
   useEffect(() => {
-    loadClients()
     loadAllComunas()
   }, [])
-
-
-  const loadClients = async () => {
-    try {
-      setIsLoading(true)
-      const response = await clientService.getAll()
-      if (response.success && response.data) {
-        setClients(response.data)
-      } else {
-        toast.error('Error al cargar los clientes')
-      }
-    } catch (error) {
-      console.error('Error loading clients:', error)
-      toast.error(apiUtils.handleError(error))
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const loadAllComunas = async () => {
     try {
@@ -102,10 +92,10 @@ export default function ClientesPage() {
   }
 
   const addContact = () => {
-    setFormData({
-      ...formData,
+    setNewClient({
+      ...newClient,
       contacts: [
-        ...formData.contacts,
+        ...newClient.contacts,
         {
           id: `contact-${Date.now()}`,
           name: "",
@@ -120,18 +110,18 @@ export default function ClientesPage() {
   }
 
   const removeContact = (index: number) => {
-    if (formData.contacts.length > 1) {
-      const newContacts = formData.contacts.filter((_, i) => i !== index)
+    if (newClient.contacts.length > 1) {
+      const newContacts = newClient.contacts.filter((_, i) => i !== index)
       // If we removed the primary contact, make the first one primary
-      if (formData.contacts[index].is_primary && newContacts.length > 0) {
+      if (newClient.contacts[index].is_primary && newContacts.length > 0) {
         newContacts[0].is_primary = true
       }
-      setFormData({ ...formData, contacts: newContacts })
+      setNewClient({ ...newClient, contacts: newContacts })
     }
   }
 
   const updateContact = (index: number, field: keyof ClientContact, value: string | boolean) => {
-    const newContacts = [...formData.contacts]
+    const newContacts = [...newClient.contacts]
     if (field === "is_primary" && value === true) {
       // Only one contact can be primary
       newContacts.forEach((contact, i) => {
@@ -140,18 +130,18 @@ export default function ClientesPage() {
     } else {
       ;(newContacts[index] as any)[field] = value
     }
-    setFormData({ ...formData, contacts: newContacts })
+    setNewClient({ ...newClient, contacts: newContacts })
   }
 
 
   const validateForm = () => {
-    if (!formData.name.trim()) {
+    if (!newClient.name.trim()) {
       toast.error('El nombre de la empresa es requerido')
       return false
     }
 
-    for (let i = 0; i < formData.contacts.length; i++) {
-      const contact = formData.contacts[i]
+    for (let i = 0; i < newClient.contacts.length; i++) {
+      const contact = newClient.contacts[i]
       if (!contact.name.trim()) {
         toast.error(`El nombre del contacto ${i + 1} es requerido`)
         return false
@@ -174,36 +164,29 @@ export default function ClientesPage() {
 
     try {
       setIsSubmitting(true)
-      const response = await clientService.create({
-      name: formData.name,
-        contacts: formData.contacts.map(contact => ({
-          name: contact.name,
-          email: contact.email,
-          phone: contact.phone,
-          position: contact.position,
-          city: contact.city,
-          is_primary: contact.is_primary || false
-        }))
-      })
+      const result = await createClient()
       
-      if (response.success && response.data) {
-        toast.success('Cliente creado exitosamente')
-        setClients([...clients, response.data])
-        resetForm()
+      if (result.success) {
+        setResultSuccess(true)
+        setResultMessage(result.message || 'Cliente creado exitosamente')
         setIsCreateDialogOpen(false)
       } else {
-        toast.error(response.message || 'Error al crear el cliente')
+        setResultSuccess(false)
+        setResultMessage(result.message || 'Error al crear el cliente')
       }
+      setIsResultOpen(true)
     } catch (error) {
       console.error('Error creating client:', error)
-      toast.error(apiUtils.handleError(error))
+      setResultSuccess(false)
+      setResultMessage('Error al crear el cliente')
+      setIsResultOpen(true)
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const resetForm = () => {
-    setFormData({
+    setNewClient({
       name: "",
       contacts: [
         {
@@ -220,38 +203,26 @@ export default function ClientesPage() {
   }
 
   const handleEditClient = async () => {
-    if (!selectedClient || !validateForm()) return
+    if (!editingClient || !validateForm()) return
 
     try {
       setIsSubmitting(true)
-      const response = await clientService.update(selectedClient.id, {
-        name: formData.name,
-        contacts: formData.contacts.map(contact => ({
-          id: contact.id,
-          name: contact.name,
-          email: contact.email,
-          phone: contact.phone,
-          position: contact.position,
-          city: contact.city,
-          is_primary: contact.is_primary || false
-        }))
-      })
+      const result = await updateClient()
       
-      if (response.success && response.data) {
-        toast.success('Cliente actualizado exitosamente')
-    const updatedClients = clients.map((client) =>
-          client.id === selectedClient.id ? response.data : client
-    )
-    setClients(updatedClients)
-        resetForm()
-    setSelectedClient(null)
-    setIsEditDialogOpen(false)
+      if (result.success) {
+        setResultSuccess(true)
+        setResultMessage(result.message || 'Cliente actualizado exitosamente')
+        setIsEditDialogOpen(false)
       } else {
-        toast.error(response.message || 'Error al actualizar el cliente')
+        setResultSuccess(false)
+        setResultMessage(result.message || 'Error al actualizar el cliente')
       }
+      setIsResultOpen(true)
     } catch (error) {
       console.error('Error updating client:', error)
-      toast.error(apiUtils.handleError(error))
+      setResultSuccess(false)
+      setResultMessage('Error al actualizar el cliente')
+      setIsResultOpen(true)
     } finally {
       setIsSubmitting(false)
     }
@@ -261,23 +232,27 @@ export default function ClientesPage() {
     if (!confirm('¿Estás seguro de que quieres eliminar este cliente?')) return
 
     try {
-      const response = await clientService.delete(clientId)
+      const result = await deleteClient(clientId)
       
-      if (response.success) {
-        toast.success('Cliente eliminado exitosamente')
-    setClients(clients.filter((client) => client.id !== clientId))
+      if (result.success) {
+        setResultSuccess(true)
+        setResultMessage(result.message || 'Cliente eliminado exitosamente')
       } else {
-        toast.error(response.message || 'Error al eliminar el cliente')
+        setResultSuccess(false)
+        setResultMessage(result.message || 'Error al eliminar el cliente')
       }
+      setIsResultOpen(true)
     } catch (error) {
       console.error('Error deleting client:', error)
-      toast.error(apiUtils.handleError(error))
+      setResultSuccess(false)
+      setResultMessage('Error al eliminar el cliente')
+      setIsResultOpen(true)
     }
   }
 
   const openEditDialog = (client: Client) => {
-    setSelectedClient(client)
-    setFormData({
+    setEditingClient(client as any)
+    setNewClient({
       name: client.name,
       contacts: [...(client.contacts || [])],
     })
@@ -315,8 +290,8 @@ export default function ClientesPage() {
                 <Label htmlFor="name">Nombre de la Empresa</Label>
                 <Input
                   id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  value={newClient.name}
+                  onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
                   placeholder="Ej: Empresa ABC S.A."
                 />
               </div>
@@ -330,7 +305,7 @@ export default function ClientesPage() {
                   </Button>
                 </div>
 
-                {formData.contacts.map((contact, index) => (
+                {newClient.contacts.map((contact, index) => (
                   <Card key={index} className="p-4">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
@@ -342,7 +317,7 @@ export default function ClientesPage() {
                           </Badge>
                         )}
                       </div>
-                      {formData.contacts.length > 1 && (
+                      {newClient.contacts.length > 1 && (
                         <Button
                           type="button"
                           variant="ghost"
@@ -506,8 +481,8 @@ export default function ClientesPage() {
         <CardHeader>
           <CardTitle>Lista de Clientes</CardTitle>
           <CardDescription>
-            {filteredClients.length} cliente{filteredClients.length !== 1 ? "s" : ""} encontrado
-            {filteredClients.length !== 1 ? "s" : ""}
+            {totalClients} cliente{totalClients !== 1 ? "s" : ""} encontrado
+            {totalClients !== 1 ? "s" : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -528,14 +503,14 @@ export default function ClientesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-                {filteredClients.length === 0 ? (
+                {clients.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       No se encontraron clientes
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredClients.map((client) => {
+                  clients.map((client) => {
                 const primaryContact = getPrimaryContact(client)
                 return (
                   <TableRow key={client.id}>
@@ -605,13 +580,89 @@ export default function ClientesPage() {
         </CardContent>
       </Card>
 
+      {/* Controles de Paginación */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="pageSize">Filas por página:</Label>
+                <Select value={pageSize.toString()} onValueChange={(value) => handlePageSizeChange(parseInt(value))}>
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((currentPage - 1) * pageSize) + 1} a {Math.min(currentPage * pageSize, totalClients)} de {totalClients} clientes
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={prevPage}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => goToPage(pageNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={nextPage}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Cliente</DialogTitle>
             <DialogDescription>
               Modifica la información del cliente y sus contactos
-              {selectedClient && ` - Cliente: ${selectedClient.name}`}
+              {editingClient && ` - Cliente: ${editingClient.name}`}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-6 py-4">
@@ -619,8 +670,8 @@ export default function ClientesPage() {
               <Label htmlFor="edit-name">Nombre de la Empresa</Label>
               <Input
                 id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                value={newClient.name}
+                onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
               />
             </div>
 
@@ -633,7 +684,7 @@ export default function ClientesPage() {
                 </Button>
               </div>
 
-              {formData.contacts.map((contact, index) => (
+              {newClient.contacts.map((contact, index) => (
                 <Card key={index} className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
@@ -645,7 +696,7 @@ export default function ClientesPage() {
                         </Badge>
                       )}
                     </div>
-                    {formData.contacts.length > 1 && (
+                    {newClient.contacts.length > 1 && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -744,6 +795,30 @@ export default function ClientesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Resultado de operaciones */}
+      <AlertDialog open={isResultOpen} onOpenChange={setIsResultOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {resultSuccess ? (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-600" />
+              )}
+              {resultSuccess ? "Operación exitosa" : "Error en la operación"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {resultMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsResultOpen(false)}>
+              Aceptar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -58,7 +58,7 @@ export const syncDatabase = async (): Promise<void> => {
       // await sequelize.sync(); // Comentado temporalmente por conflicto de índices
       
       // OPCIÓN 2: Modificar tablas existentes sin eliminar datos
-      // await sequelize.sync({ alter: true });
+      //await sequelize.sync({ alter: true });
       
       // OPCIÓN 3: Eliminar y recrear todas las tablas (ELIMINA DATOS)
       // await sequelize.sync({ force: true });

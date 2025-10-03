@@ -335,9 +335,12 @@ export const candidatoService = {
     comuna?: string;
     nacionalidad?: string;
     rubro?: string;
+    profession?: string;
     english_level?: string;
     software_tools?: string;
     has_disability_credential?: boolean;
+    work_experience?: any[];
+    education?: any[];
   }): Promise<ApiResponse<any>> {
     return apiRequest(`/api/candidatos/${id}`, {
       method: 'PUT',
@@ -498,6 +501,20 @@ export const postulacionService = {
     return apiRequest(`/api/postulaciones/${id}/estado`, {
       method: 'PUT',
       body: JSON.stringify({ id_estado_candidato: idEstado }),
+    });
+  },
+
+  // Actualizar valoración y otros campos de postulación
+  async updateValoracion(id: number, data: {
+    motivacion?: string;
+    expectativa_renta?: number;
+    disponibilidad_postulacion?: string;
+    valoracion?: number;
+    comentario_no_presentado?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/postulaciones/${id}/valoracion`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   },
 

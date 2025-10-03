@@ -158,19 +158,35 @@ export class PostulacionController {
 
     /**
      * PUT /api/postulaciones/:id/valoracion
-     * Actualizar valoración del consultor
+     * Actualizar valoración y otros campos de postulación
      */
     static async updateValoracion(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            const { rating } = req.body;
+            const { 
+                rating, 
+                valoracion, 
+                motivacion, 
+                expectativa_renta, 
+                disponibilidad_postulacion, 
+                comentario_no_presentado 
+            } = req.body;
 
-            await PostulacionService.updateValoracion(parseInt(id), parseInt(rating));
+            // Compatibilidad: rating o valoracion
+            const finalRating = valoracion || rating;
 
-            Logger.info(`Valoración actualizada para postulación ${id}: ${rating}`);
-            return sendSuccess(res, null, 'Valoración actualizada exitosamente');
+            await PostulacionService.updateValoracion(parseInt(id), {
+                valoracion: finalRating ? parseInt(finalRating) : undefined,
+                motivacion,
+                expectativa_renta: expectativa_renta ? parseFloat(expectativa_renta) : undefined,
+                disponibilidad_postulacion,
+                comentario_no_presentado
+            });
+
+            Logger.info(`Postulación actualizada ${id}`);
+            return sendSuccess(res, null, 'Postulación actualizada exitosamente');
         } catch (error: any) {
-            Logger.error('Error al actualizar valoración:', error);
+            Logger.error('Error al actualizar postulación:', error);
 
             if (error.message === 'Postulación no encontrada') {
                 return sendError(res, error.message, 404);
@@ -180,7 +196,7 @@ export class PostulacionController {
                 return sendError(res, error.message, 400);
             }
 
-            return sendError(res, 'Error al actualizar valoración', 500);
+            return sendError(res, 'Error al actualizar postulación', 500);
         }
     }
 

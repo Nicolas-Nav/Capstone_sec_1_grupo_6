@@ -340,8 +340,15 @@ export class PostulacionService {
     /**
      * Actualizar valoración
      */
-    static async updateValoracion(id: number, rating: number) {
-        if (rating < 1 || rating > 5) {
+    static async updateValoracion(id: number, data: {
+        valoracion?: number;
+        motivacion?: string;
+        expectativa_renta?: number;
+        disponibilidad_postulacion?: string;
+        comentario_no_presentado?: string;
+    }) {
+        // Validar valoración si se proporciona
+        if (data.valoracion !== undefined && (data.valoracion < 1 || data.valoracion > 5)) {
             throw new Error('La valoración debe estar entre 1 y 5');
         }
 
@@ -350,9 +357,17 @@ export class PostulacionService {
             throw new Error('Postulación no encontrada');
         }
 
-        await postulacion.update({ valoracion: rating });
+        // Actualizar solo los campos proporcionados
+        const updateData: any = {};
+        if (data.valoracion !== undefined) updateData.valoracion = data.valoracion;
+        if (data.motivacion !== undefined) updateData.motivacion = data.motivacion;
+        if (data.expectativa_renta !== undefined) updateData.expectativa_renta = data.expectativa_renta;
+        if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
+        if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
 
-        return { id, rating };
+        await postulacion.update(updateData);
+
+        return { id, ...updateData };
     }
 
     /**
@@ -457,6 +472,8 @@ export class PostulacionService {
 
         return {
             id: candidato.id_candidato.toString(),
+            id_candidato: candidato.id_candidato, // ✅ ID del candidato (número)
+            id_postulacion: postulacion.id_postulacion, // ✅ ID de la postulación (número)
             process_id: postulacion.id_solicitud.toString(),
             name: candidato.getNombreCompleto(),
             email: candidato.email_candidato,

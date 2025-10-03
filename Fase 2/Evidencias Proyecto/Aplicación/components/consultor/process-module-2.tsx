@@ -475,15 +475,87 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     setShowEditCandidate(true)
   }
 
-  const handleSaveEditedCandidate = () => {
+  const handleSaveEditedCandidate = async () => {
     if (!editingCandidate) return
 
-    const updatedCandidates = candidates.map((candidate) =>
-      candidate.id === editingCandidate.id ? editingCandidate : candidate,
-    )
-    setCandidates(updatedCandidates)
-    setEditingCandidate(null)
-    setShowEditCandidate(false)
+    try {
+      console.log('Guardando cambios del candidato y postulación:', editingCandidate)
+
+      // 1. Actualizar datos del CANDIDATO
+      const candidateData = {
+        name: editingCandidate.name,
+        email: editingCandidate.email,
+        phone: editingCandidate.phone,
+        birth_date: editingCandidate.birth_date,
+        comuna: editingCandidate.comuna,
+        profession: editingCandidate.profession,
+        english_level: editingCandidate.portal_responses?.english_level,
+        software_tools: editingCandidate.portal_responses?.software_tools,
+        has_disability_credential: editingCandidate.has_disability_credential,
+        work_experience: editingCandidate.work_experience?.map(exp => ({
+          company: exp.company,
+          position: exp.position,
+          start_date: exp.start_date,
+          end_date: exp.end_date,
+          description: exp.description,
+        })),
+        education: editingCandidate.education?.map(edu => ({
+          id_postgrado_capacitacion: Number(edu.title),
+          id_institucion: edu.institution ? Number(edu.institution) : undefined,
+          completion_date: edu.completion_date,
+        })),
+      }
+
+      const candidateResponse = await candidatoService.update(parseInt(editingCandidate.id), candidateData)
+
+      if (!candidateResponse.success) {
+        sonnerToast.error(candidateResponse.message || 'Error al actualizar candidato')
+        return
+      }
+
+      // 2. Actualizar datos de la POSTULACIÓN (motivacion, expectativa_renta, etc.)
+      // Necesitamos buscar el id de la postulación
+      const postulaciones = await postulacionService.getBySolicitud(parseInt(process.id))
+      
+      // Buscar postulación por id_candidato (el "id" del objeto es el id_candidato)
+      const postulacion = postulaciones.data?.find((p: any) => 
+        p.id_candidato?.toString() === editingCandidate.id?.toString() || 
+        p.id?.toString() === editingCandidate.id?.toString()
+      )
+
+      if (postulacion && postulacion.id_postulacion) {
+        const postulacionData = {
+          motivacion: editingCandidate.portal_responses?.motivation || editingCandidate.motivation,
+          expectativa_renta: editingCandidate.portal_responses?.salary_expectation 
+            ? parseFloat(editingCandidate.portal_responses.salary_expectation) 
+            : (editingCandidate.salary_expectation ? parseFloat(editingCandidate.salary_expectation.toString()) : undefined),
+          disponibilidad_postulacion: editingCandidate.portal_responses?.availability || editingCandidate.availability,
+          valoracion: editingCandidate.portal_responses?.rating || editingCandidate.consultant_rating,
+          comentario_no_presentado: editingCandidate.consultant_comment
+        }
+
+        console.log('📤 Datos de postulación a enviar:', postulacionData)
+
+        const postulacionResponse = await postulacionService.updateValoracion(postulacion.id_postulacion, postulacionData)
+        
+        if (!postulacionResponse.success) {
+          console.warn('❌ Error al actualizar postulación:', postulacionResponse.message)
+        } else {
+          console.log('✅ Postulación actualizada correctamente')
+        }
+      }
+
+      sonnerToast.success('Candidato y postulación actualizados exitosamente')
+      
+      // Recargar los candidatos desde el backend
+      await loadData()
+
+      setEditingCandidate(null)
+      setShowEditCandidate(false)
+    } catch (error: any) {
+      console.error('Error al actualizar:', error)
+      sonnerToast.error(error.message || 'Error al actualizar')
+    }
   }
 
   const handleViewCV = (candidate: Candidate) => {

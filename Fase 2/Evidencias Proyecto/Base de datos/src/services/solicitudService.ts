@@ -195,12 +195,17 @@ export class SolicitudService {
     }) {
         const whereClause: any = {};
 
+        console.log('🔍 [SolicitudService] Filtros recibidos:', filters);
+
         if (filters?.service_type) {
             whereClause.codigo_servicio = filters.service_type;
         }
         if (filters?.consultor_id) {
             whereClause.rut_usuario = filters.consultor_id;
+            console.log('👤 [SolicitudService] Filtrando por consultor:', filters.consultor_id);
         }
+
+        console.log('🔎 [SolicitudService] Where clause:', whereClause);
 
         const solicitudes = await Solicitud.findAll({
             where: whereClause,
@@ -261,7 +266,10 @@ export class SolicitudService {
         });
 
         // Transformar al formato del frontend
-        return solicitudes.map(solicitud => this.transformSolicitud(solicitud));
+        console.log('📦 [SolicitudService] Solicitudes encontradas:', solicitudes.length);
+        const transformed = solicitudes.map(solicitud => this.transformSolicitud(solicitud));
+        console.log('✅ [SolicitudService] Solicitudes transformadas:', transformed.length);
+        return transformed;
     }
 
     /**

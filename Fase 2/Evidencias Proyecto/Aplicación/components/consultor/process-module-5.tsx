@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,11 +49,27 @@ interface ContractedCandidate {
 
 export function ProcessModule5({ process }: ProcessModule5Props) {
   // Incluir candidatos que pasaron el módulo 4 (aprobados por el consultor) o que fueron aprobados por el cliente
-  const [candidates, setCandidates] = useState(
-    getCandidatesByProcess(process.id).filter((c) => 
-      c.status === "aprobado" || c.client_response === "aprobado" // Candidatos que pasaron módulo 4 o fueron aprobados por cliente
-    ),
-  )
+  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Cargar datos reales desde el backend
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        const allCandidates = await getCandidatesByProcess(process.id)
+        const filteredCandidates = allCandidates.filter((c: Candidate) => 
+          c.status === "aprobado" || c.client_response === "aprobado"
+        )
+        setCandidates(filteredCandidates)
+      } catch (error) {
+        console.error('Error al cargar candidatos:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadData()
+  }, [process.id])
 
   const [contractedCandidates, setContractedCandidates] = useState<ContractedCandidate[]>([])
   const [showContractDialog, setShowContractDialog] = useState(false)
@@ -257,6 +273,26 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         {config.icon}
         {config.label}
       </Badge>
+    )
+  }
+
+  // Mostrar indicador de carga
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Módulo 5 - Seguimiento y Control</h2>
+          <p className="text-muted-foreground">Gestiona la contratación final y seguimiento de candidatos</p>
+        </div>
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Cargando datos...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 

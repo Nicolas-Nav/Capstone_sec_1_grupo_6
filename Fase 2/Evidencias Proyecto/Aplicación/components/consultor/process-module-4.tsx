@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -64,12 +64,29 @@ interface ProcessModule4Props {
 }
 
 export function ProcessModule4({ process }: ProcessModule4Props) {
-  const [candidates, setCandidates] = useState(() => {
-    if (process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral") {
-      return getCandidatesByProcess(process.id)
+  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Cargar datos reales desde el backend
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        const allCandidates = await getCandidatesByProcess(process.id)
+        if (process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral") {
+          setCandidates(allCandidates)
+        } else {
+          const filteredCandidates = allCandidates.filter((c: Candidate) => c.client_response === "aprobado")
+          setCandidates(filteredCandidates)
+        }
+      } catch (error) {
+        console.error('Error al cargar candidatos:', error)
+      } finally {
+        setIsLoading(false)
+      }
     }
-    return getCandidatesByProcess(process.id).filter((c) => c.client_response === "aprobado")
-  })
+    loadData()
+  }, [process.id, process.service_type])
 
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [showEvaluationDialog, setShowEvaluationDialog] = useState(false)
@@ -223,6 +240,30 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
   const isEvaluationProcess =
     process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral"
+
+  // Mostrar indicador de carga
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Módulo 4 - Evaluación Psicolaboral</h2>
+          <p className="text-muted-foreground">
+            {isEvaluationProcess
+              ? "Gestiona las evaluaciones psicológicas de los candidatos"
+              : "Realiza evaluaciones psicolaborales a candidatos aprobados por el cliente"}
+          </p>
+        </div>
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Cargando datos...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

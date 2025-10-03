@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { serviceTypeLabels, getCandidatesByProcess, processStatusLabels } from "@/lib/mock-data"
 import { formatDate, getStatusColor } from "@/lib/utils"
 import { Building2, User, Calendar, Target, FileText, Download, Settings } from "lucide-react"
-import type { Process, ProcessStatus, Candidate } from "@/lib/types"
-import { useState, useEffect } from "react"
+import type { Process, ProcessStatus } from "@/lib/types"
+import { useState } from "react"
 
 interface ProcessModule1Props {
   process: Process
@@ -29,27 +29,10 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
   const [processStatus, setProcessStatus] = useState<ProcessStatus>(process.status)
   const [statusChangeReason, setStatusChangeReason] = useState("")
-  const [candidates, setCandidates] = useState<Candidate[]>([])
-  const [isLoading, setIsLoading] = useState(true)
 
+  const candidates = getCandidatesByProcess(process.id)
   const isEvaluationProcess =
     process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral"
-
-  // Load candidates
-  useEffect(() => {
-    const loadCandidates = async () => {
-      try {
-        setIsLoading(true)
-        const candidatesData = await getCandidatesByProcess(process.id)
-        setCandidates(candidatesData)
-      } catch (error) {
-        console.error('Error al cargar candidatos:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    loadCandidates()
-  }, [process.id])
 
   // For evaluation processes, find the candidate with CV
   const candidateWithCV = candidates.find((c) => c.cv_file && c.rut)

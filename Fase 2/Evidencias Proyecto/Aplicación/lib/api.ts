@@ -451,6 +451,10 @@ export const postulacionService = {
     disponibilidad_postulacion?: string;
     valoracion?: number;
     comentario_no_presentado?: string;
+    // Campos adicionales de postulación
+    comentario_rech_obs_cliente?: string;
+    comentario_modulo5_cliente?: string;
+    situacion_familiar?: string;
   }): Promise<ApiResponse<any>> {
     // Si hay archivo CV, usar FormData
     if (data.cv_file) {
@@ -466,6 +470,9 @@ export const postulacionService = {
       if (data.disponibilidad_postulacion) formData.append('disponibilidad_postulacion', data.disponibilidad_postulacion);
       if (data.valoracion) formData.append('valoracion', data.valoracion.toString());
       if (data.comentario_no_presentado) formData.append('comentario_no_presentado', data.comentario_no_presentado);
+      if (data.comentario_rech_obs_cliente) formData.append('comentario_rech_obs_cliente', data.comentario_rech_obs_cliente);
+      if (data.comentario_modulo5_cliente) formData.append('comentario_modulo5_cliente', data.comentario_modulo5_cliente);
+      if (data.situacion_familiar) formData.append('situacion_familiar', data.situacion_familiar);
 
       const token = localStorage.getItem('llc_token');
       const response = await fetch(`${API_BASE_URL}/api/postulaciones`, {
@@ -492,6 +499,9 @@ export const postulacionService = {
         disponibilidad_postulacion: data.disponibilidad_postulacion,
         valoracion: data.valoracion,
         comentario_no_presentado: data.comentario_no_presentado,
+        comentario_rech_obs_cliente: data.comentario_rech_obs_cliente,
+        comentario_modulo5_cliente: data.comentario_modulo5_cliente,
+        situacion_familiar: data.situacion_familiar,
       }),
     });
   },

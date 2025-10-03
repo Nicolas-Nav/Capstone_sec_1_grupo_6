@@ -88,7 +88,10 @@ export interface Candidate {
   client_feedback_date?: string
   birth_date?: string
   age?: number
+  region?: string
   comuna?: string
+  nacionalidad?: string
+  rubro?: string
   profession?: string
   address?: string
   work_experience?: WorkExperience[]
@@ -113,6 +116,8 @@ export interface PortalResponses {
   english_level?: string
   has_driving_license?: boolean
   software_tools?: string
+  rejection_reason?: string
+  module5_comment?: string
 }
 
 export interface WorkExperience {

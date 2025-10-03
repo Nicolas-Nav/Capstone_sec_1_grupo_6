@@ -371,11 +371,18 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
             id_solicitud: parseInt(process.id),
             id_portal_postulacion: newCandidate.source_portal ? parseInt(newCandidate.source_portal) : 1, // Por defecto: 1 = LinkedIn
             id_estado_candidato: 1, // 1 = "Presentado" (estado inicial)
-            motivacion: newCandidate.motivation,
-            expectativa_renta: newCandidate.salary_expectation ? parseFloat(newCandidate.salary_expectation) : undefined,
-            disponibilidad_postulacion: newCandidate.availability,
-            valoracion: newCandidate.consultant_rating,
-            comentario_no_presentado: newCandidate.consultant_comment
+            motivacion: newCandidate.portal_responses?.motivation || newCandidate.motivation,
+            expectativa_renta: newCandidate.portal_responses?.salary_expectation 
+              ? parseFloat(newCandidate.portal_responses.salary_expectation) 
+              : (newCandidate.salary_expectation ? parseFloat(newCandidate.salary_expectation.toString()) : undefined),
+            disponibilidad_postulacion: newCandidate.portal_responses?.availability || newCandidate.availability,
+            valoracion: newCandidate.portal_responses?.rating || newCandidate.consultant_rating,
+            comentario_no_presentado: newCandidate.consultant_comment,
+            // Campos adicionales de postulación
+            comentario_rech_obs_cliente: newCandidate.portal_responses?.rejection_reason || undefined,
+            comentario_modulo5_cliente: newCandidate.portal_responses?.module5_comment || undefined,
+            situacion_familiar: newCandidate.portal_responses?.family_situation || undefined,
+            cv_file: newCandidate.cv_file || undefined // El archivo CV se maneja por separado
           }
           
           const postulacionResponse = await postulacionService.create(postulacionData)
@@ -486,24 +493,30 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         name: editingCandidate.name,
         email: editingCandidate.email,
         phone: editingCandidate.phone,
-        birth_date: editingCandidate.birth_date,
-        comuna: editingCandidate.comuna,
-        profession: editingCandidate.profession,
-        english_level: editingCandidate.portal_responses?.english_level,
-        software_tools: editingCandidate.portal_responses?.software_tools,
+        birth_date: editingCandidate.birth_date || undefined,
+        comuna: editingCandidate.comuna || undefined,
+        nacionalidad: editingCandidate.nacionalidad || undefined,
+        rubro: editingCandidate.rubro || undefined,
+        profession: editingCandidate.profession || undefined,
+        english_level: editingCandidate.portal_responses?.english_level || undefined,
+        software_tools: editingCandidate.portal_responses?.software_tools || undefined,
         has_disability_credential: editingCandidate.has_disability_credential,
-        work_experience: editingCandidate.work_experience?.map(exp => ({
-          company: exp.company,
-          position: exp.position,
-          start_date: exp.start_date,
-          end_date: exp.end_date,
-          description: exp.description,
-        })),
-        education: editingCandidate.education?.map(edu => ({
-          id_postgrado_capacitacion: Number(edu.title),
-          id_institucion: edu.institution ? Number(edu.institution) : undefined,
-          completion_date: edu.completion_date,
-        })),
+        work_experience: editingCandidate.work_experience && editingCandidate.work_experience.length > 0
+          ? editingCandidate.work_experience.map(exp => ({
+              company: exp.company,
+              position: exp.position,
+              start_date: exp.start_date,
+              end_date: exp.end_date,
+              description: exp.description,
+            }))
+          : undefined,
+        education: editingCandidate.education && editingCandidate.education.length > 0
+          ? editingCandidate.education.map(edu => ({
+              id_postgrado_capacitacion: Number(edu.title),
+              id_institucion: edu.institution ? Number(edu.institution) : undefined,
+              completion_date: edu.completion_date,
+            }))
+          : undefined,
       }
 
       const candidateResponse = await candidatoService.update(parseInt(editingCandidate.id), candidateData)
@@ -1845,9 +1858,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           </DialogHeader>
           {editingCandidate && (
             <div className="space-y-6">
-              {/* Información Básica */}
+              {/* Información Básica - IGUAL QUE CREAR CANDIDATO */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Información Básica</h3>
+                <h3 className="text-lg font-semibold border-b pb-2">Información Básica</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit_candidate_name">Nombre Completo</Label>
@@ -1855,6 +1868,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                       id="edit_candidate_name"
                       value={editingCandidate.name}
                       onChange={(e) => setEditingCandidate({ ...editingCandidate, name: e.target.value })}
+                      placeholder="Nombre del candidato"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1864,57 +1878,125 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                       type="email"
                       value={editingCandidate.email}
                       onChange={(e) => setEditingCandidate({ ...editingCandidate, email: e.target.value })}
+                      placeholder="correo@ejemplo.com"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit_candidate_phone">Teléfono</Label>
                     <Input
                       id="edit_candidate_phone"
                       value={editingCandidate.phone}
                       onChange={(e) => setEditingCandidate({ ...editingCandidate, phone: e.target.value })}
+                      placeholder="+56 9 1234 5678"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_candidate_birth_date">Fecha de Nacimiento</Label>
+                    <Label htmlFor="edit_birth_date">Fecha de Nacimiento</Label>
                     <Input
-                      id="edit_candidate_birth_date"
+                      id="edit_birth_date"
                       type="date"
                       value={editingCandidate.birth_date}
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, birth_date: e.target.value })}
+                      onChange={(e) => {
+                        const age = calculateAge(e.target.value)
+                        setEditingCandidate({
+                          ...editingCandidate,
+                          birth_date: e.target.value,
+                          age: age,
+                        })
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_age">Edad</Label>
+                    <Input id="edit_age" type="number" value={editingCandidate.age} readOnly className="bg-muted" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_region">Región</Label>
+                    <Input
+                      id="edit_region"
+                      value={editingCandidate.region || ""}
+                      onChange={(e) => setEditingCandidate({ ...editingCandidate, region: e.target.value })}
+                      placeholder="Región"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_candidate_comuna">Comuna</Label>
+                    <Input
+                      id="edit_candidate_comuna"
+                      value={editingCandidate.comuna || ""}
+                      onChange={(e) => setEditingCandidate({ ...editingCandidate, comuna: e.target.value })}
+                      placeholder="Comuna"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_nacionalidad">Nacionalidad</Label>
+                    <Input
+                      id="edit_nacionalidad"
+                      value={editingCandidate.nacionalidad || ""}
+                      onChange={(e) => setEditingCandidate({ ...editingCandidate, nacionalidad: e.target.value })}
+                      placeholder="Nacionalidad"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit_source_portal">Portal de Origen</Label>
+                    <Label htmlFor="edit_rubro">Rubro</Label>
+                    <Input
+                      id="edit_rubro"
+                      value={editingCandidate.rubro || ""}
+                      onChange={(e) => setEditingCandidate({ ...editingCandidate, rubro: e.target.value })}
+                      placeholder="Rubro"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_profession">Profesión</Label>
+                    <Input
+                      id="edit_profession"
+                      value={editingCandidate.profession || ""}
+                      onChange={(e) => setEditingCandidate({ ...editingCandidate, profession: e.target.value })}
+                      placeholder="Profesión"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_source_portal">
+                      Portal de Origen <span className="text-red-500">*</span>
+                    </Label>
                     <Select
                       value={editingCandidate.source_portal || ""}
                       onValueChange={(value) => setEditingCandidate({ ...editingCandidate, source_portal: value })}
+                      disabled={loadingLists}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar portal" />
+                        <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {customPortals.map((portal) => (
-                          <SelectItem key={portal} value={portal}>
-                            {portal}
+                        {portalesDB.map((portal) => (
+                          <SelectItem key={portal.id} value={portal.id.toString()}>
+                            {portal.nombre}
                           </SelectItem>
                         ))}
-                        <SelectItem value="Referido">Referido</SelectItem>
-                        <SelectItem value="Directo">Contacto Directo</SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">Portal desde donde proviene el candidato</p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_candidate_address">Dirección</Label>
+                    <Label htmlFor="edit_cv_file">CV (Archivo)</Label>
                     <Input
-                      id="edit_candidate_address"
-                      value={editingCandidate.address || ""}
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, address: e.target.value })}
+                      id="edit_cv_file"
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={(e) => setEditingCandidate({ ...editingCandidate, cv_file: e.target.files?.[0]?.name || editingCandidate.cv_file })}
+                      className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                     />
                   </div>
                 </div>

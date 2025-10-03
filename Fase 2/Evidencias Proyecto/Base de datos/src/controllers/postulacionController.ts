@@ -44,7 +44,10 @@ export class PostulacionController {
                     expectativa_renta,
                     disponibilidad_postulacion,
                     valoracion,
-                    comentario_no_presentado
+                    comentario_no_presentado,
+                    comentario_rech_obs_cliente,
+                    comentario_modulo5_cliente,
+                    situacion_familiar
                 } = req.body;
 
                 const nuevaPostulacion = await PostulacionService.createPostulacionDirecta({
@@ -57,6 +60,9 @@ export class PostulacionController {
                     disponibilidad_postulacion,
                     valoracion: valoracion ? parseInt(valoracion) : undefined,
                     comentario_no_presentado,
+                    comentario_rech_obs_cliente,
+                    comentario_modulo5_cliente,
+                    situacion_familiar,
                     cv_file: cvFile
                 });
 

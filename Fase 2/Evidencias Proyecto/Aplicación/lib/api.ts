@@ -441,7 +441,13 @@ export const postulacionService = {
     id_candidato: number;
     id_solicitud: number;
     id_portal_postulacion: number;
+    id_estado_candidato?: number; // Estado inicial del candidato (1=Presentado, 2=No presentado, 3=Rechazado)
     cv_file?: File;
+    motivacion?: string;
+    expectativa_renta?: number;
+    disponibilidad_postulacion?: string;
+    valoracion?: number;
+    comentario_no_presentado?: string;
   }): Promise<ApiResponse<any>> {
     // Si hay archivo CV, usar FormData
     if (data.cv_file) {
@@ -449,7 +455,14 @@ export const postulacionService = {
       formData.append('id_candidato', data.id_candidato.toString());
       formData.append('id_solicitud', data.id_solicitud.toString());
       formData.append('id_portal_postulacion', data.id_portal_postulacion.toString());
+      formData.append('id_estado_candidato', (data.id_estado_candidato || 1).toString()); // Por defecto: 1 = Presentado
       formData.append('cv', data.cv_file);
+      
+      if (data.motivacion) formData.append('motivacion', data.motivacion);
+      if (data.expectativa_renta) formData.append('expectativa_renta', data.expectativa_renta.toString());
+      if (data.disponibilidad_postulacion) formData.append('disponibilidad_postulacion', data.disponibilidad_postulacion);
+      if (data.valoracion) formData.append('valoracion', data.valoracion.toString());
+      if (data.comentario_no_presentado) formData.append('comentario_no_presentado', data.comentario_no_presentado);
 
       const token = localStorage.getItem('llc_token');
       const response = await fetch(`${API_BASE_URL}/api/postulaciones`, {
@@ -470,6 +483,12 @@ export const postulacionService = {
         id_candidato: data.id_candidato,
         id_solicitud: data.id_solicitud,
         id_portal_postulacion: data.id_portal_postulacion,
+        id_estado_candidato: data.id_estado_candidato || 1, // Por defecto: 1 = Presentado
+        motivacion: data.motivacion,
+        expectativa_renta: data.expectativa_renta,
+        disponibilidad_postulacion: data.disponibilidad_postulacion,
+        valoracion: data.valoracion,
+        comentario_no_presentado: data.comentario_no_presentado,
       }),
     });
   },
@@ -533,58 +552,7 @@ export const postulacionService = {
 // SERVICIOS DE PUBLICACIONES
 // ===========================================
 
-export const publicacionService = {
-  // Obtener todas las publicaciones
-  async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/publicaciones');
-  },
-
-  // Obtener publicaciones por solicitud
-  async getBySolicitud(idSolicitud: number): Promise<ApiResponse<any[]>> {
-    return apiRequest(`/api/publicaciones/solicitud/${idSolicitud}`);
-  },
-
-  // Crear publicación
-  async create(data: {
-    id_solicitud: number;
-    id_portal: number;
-    fecha_publicacion?: string;
-  }): Promise<ApiResponse<any>> {
-    return apiRequest('/api/publicaciones', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  // Actualizar publicación
-  async update(id: number, data: {
-    id_portal?: number;
-    fecha_publicacion?: string;
-  }): Promise<ApiResponse<any>> {
-    return apiRequest(`/api/publicaciones/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  },
-
-  // Eliminar publicación
-  async delete(id: number): Promise<ApiResponse<any>> {
-    return apiRequest(`/api/publicaciones/${id}`, {
-      method: 'DELETE',
-    });
-  },
-};
-
-// ===========================================
-// SERVICIOS DE PORTALES
-// ===========================================
-
-export const portalService = {
-  // Obtener todos los portales
-  async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/portales');
-  },
-};
+// (Servicio de publicaciones movido más abajo después de instituciones)
 
 // ===========================================
 // SERVICIOS DE NACIONALIDAD
@@ -627,6 +595,66 @@ export const institucionService = {
   // Obtener todas las instituciones
   async getAll(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/instituciones');
+  },
+};
+
+// ===========================================
+// SERVICIOS DE PUBLICACIONES
+// ===========================================
+
+export const publicacionService = {
+  // Obtener todas las publicaciones
+  async getAll(filters?: { solicitud_id?: number; portal_id?: number; estado?: string }): Promise<ApiResponse<any[]>> {
+    const params = new URLSearchParams();
+    if (filters?.solicitud_id) params.append('solicitud_id', filters.solicitud_id.toString());
+    if (filters?.portal_id) params.append('portal_id', filters.portal_id.toString());
+    if (filters?.estado) params.append('estado', filters.estado);
+    
+    const queryString = params.toString();
+    return apiRequest(`/api/publicaciones${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Obtener una publicación por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/publicaciones/${id}`);
+  },
+
+  // Obtener todos los portales de postulación
+  async getPortales(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/publicaciones/portales');
+  },
+
+  // Crear una nueva publicación
+  async create(data: {
+    id_solicitud: number;
+    id_portal_postulacion: number;
+    url_publicacion: string;
+    estado_publicacion?: string;
+    fecha_publicacion?: Date;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/publicaciones', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar una publicación
+  async update(id: number, data: {
+    url_publicacion?: string;
+    estado_publicacion?: string;
+    fecha_publicacion?: Date;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/publicaciones/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Eliminar una publicación
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/publicaciones/${id}`, {
+      method: 'DELETE',
+    });
   },
 };
 

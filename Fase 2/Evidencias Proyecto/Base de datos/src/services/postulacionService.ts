@@ -87,7 +87,74 @@ export class PostulacionService {
     }
 
     /**
-     * Crear nueva postulación
+     * Crear postulación para un candidato existente
+     */
+    static async createPostulacionDirecta(data: {
+        id_candidato: number;
+        id_solicitud: number;
+        id_portal_postulacion: number;
+        id_estado_candidato: number;
+        motivacion?: string;
+        expectativa_renta?: number;
+        disponibilidad_postulacion?: string;
+        valoracion?: number;
+        comentario_no_presentado?: string;
+        cv_file?: Buffer;
+    }) {
+        const transaction: Transaction = await sequelize.transaction();
+
+        try {
+            // Validar campos requeridos
+            if (!data.id_candidato || !data.id_solicitud || !data.id_portal_postulacion || !data.id_estado_candidato) {
+                throw new Error('Faltan campos requeridos: id_candidato, id_solicitud, id_portal_postulacion, id_estado_candidato');
+            }
+
+            // Verificar que existe el candidato
+            const candidato = await Candidato.findByPk(data.id_candidato);
+            if (!candidato) {
+                throw new Error('Candidato no encontrado');
+            }
+
+            // Verificar que existe la solicitud
+            const solicitud = await Solicitud.findByPk(data.id_solicitud);
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            // Verificar que existe el portal
+            const portal = await PortalPostulacion.findByPk(data.id_portal_postulacion);
+            if (!portal) {
+                throw new Error('Portal de postulación no encontrado');
+            }
+
+            // Crear la postulación
+            const nuevaPostulacion = await Postulacion.create({
+                id_candidato: data.id_candidato,
+                id_solicitud: data.id_solicitud,
+                id_portal_postulacion: data.id_portal_postulacion,
+                id_estado_candidato: data.id_estado_candidato,
+                motivacion: data.motivacion,
+                expectativa_renta: data.expectativa_renta,
+                disponibilidad_postulacion: data.disponibilidad_postulacion,
+                valoracion: data.valoracion,
+                comentario_no_presentado: data.comentario_no_presentado,
+                cv_postulacion: data.cv_file
+            }, { transaction });
+
+            await transaction.commit();
+
+            return {
+                id: nuevaPostulacion.id_postulacion,
+                message: 'Postulación creada exitosamente'
+            };
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+
+    /**
+     * Crear nueva postulación (con candidato)
      */
     static async createPostulacion(data: {
         process_id: number;

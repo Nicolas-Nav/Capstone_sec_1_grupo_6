@@ -32,6 +32,39 @@ export class PostulacionController {
      */
     static async create(req: Request, res: Response): Promise<Response> {
         try {
+            const { id_candidato, id_solicitud, id_portal_postulacion, id_estado_candidato } = req.body;
+            
+            // Obtener el archivo CV si se subió
+            const cvFile = req.file ? req.file.buffer : undefined;
+
+            // Caso 1: Crear postulación para candidato existente
+            if (id_candidato) {
+                const {
+                    motivacion,
+                    expectativa_renta,
+                    disponibilidad_postulacion,
+                    valoracion,
+                    comentario_no_presentado
+                } = req.body;
+
+                const nuevaPostulacion = await PostulacionService.createPostulacionDirecta({
+                    id_candidato: parseInt(id_candidato),
+                    id_solicitud: parseInt(id_solicitud),
+                    id_portal_postulacion: parseInt(id_portal_postulacion),
+                    id_estado_candidato: parseInt(id_estado_candidato),
+                    motivacion,
+                    expectativa_renta: expectativa_renta ? parseFloat(expectativa_renta) : undefined,
+                    disponibilidad_postulacion,
+                    valoracion: valoracion ? parseInt(valoracion) : undefined,
+                    comentario_no_presentado,
+                    cv_file: cvFile
+                });
+
+                Logger.info(`Postulación creada para candidato existente: ${nuevaPostulacion.id}`);
+                return sendSuccess(res, nuevaPostulacion, 'Postulación creada exitosamente', 201);
+            }
+
+            // Caso 2: Crear candidato + postulación
             const {
                 process_id,
                 name,
@@ -54,9 +87,6 @@ export class PostulacionController {
                 work_experience,
                 education
             } = req.body;
-
-            // Obtener el archivo CV si se subió
-            const cvFile = req.file ? req.file.buffer : undefined;
 
             const nuevaPostulacion = await PostulacionService.createPostulacion({
                 process_id: parseInt(process_id),
@@ -82,13 +112,8 @@ export class PostulacionController {
                 education
             });
 
-            Logger.info(`Postulación creada: ${nuevaPostulacion.id}`);
-            return sendSuccess(
-                res,
-                nuevaPostulacion,
-                'Postulación creada exitosamente',
-                201
-            );
+            Logger.info(`Postulación creada con nuevo candidato: ${nuevaPostulacion.id}`);
+            return sendSuccess(res, nuevaPostulacion, 'Postulación creada exitosamente', 201);
         } catch (error: any) {
             Logger.error('Error al crear postulación:', error);
 

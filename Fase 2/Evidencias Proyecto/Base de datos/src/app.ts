@@ -18,6 +18,7 @@ import { authenticateToken, requireAdmin, requireConsultorOrAdmin } from '@/midd
 import clienteRoutes from '@/routes/clientes';
 import solicitudRoutes from '@/routes/solicitudes';
 import postulacionRoutes from '@/routes/postulaciones';
+import publicacionRoutes from '@/routes/publicaciones';
 import candidatoRoutes from '@/routes/candidatos';
 import tipoServicioRoutes from '@/routes/tiposServicio';
 import cargoRoutes from '@/routes/cargos';
@@ -140,6 +141,14 @@ app.get('/api', (req, res) => {
         updateValoracion: 'PUT /api/postulaciones/:id/valoracion',
         delete: 'DELETE /api/postulaciones/:id'
       },
+      publicaciones: {
+        getAll: 'GET /api/publicaciones',
+        getById: 'GET /api/publicaciones/:id',
+        getPortales: 'GET /api/publicaciones/portales',
+        create: 'POST /api/publicaciones',
+        update: 'PUT /api/publicaciones/:id',
+        delete: 'DELETE /api/publicaciones/:id'
+      },
       candidatos: {
         getAll: 'GET /api/candidatos',
         getById: 'GET /api/candidatos/:id',
@@ -205,6 +214,7 @@ app.get('/api', (req, res) => {
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/solicitudes', solicitudRoutes);
 app.use('/api/postulaciones', postulacionRoutes);
+app.use('/api/publicaciones', publicacionRoutes);
 app.use('/api/candidatos', candidatoRoutes);
 app.use('/api/tipos-servicio', tipoServicioRoutes);
 app.use('/api/cargos', cargoRoutes);

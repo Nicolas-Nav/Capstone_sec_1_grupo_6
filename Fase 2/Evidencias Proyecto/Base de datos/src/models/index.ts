@@ -153,6 +153,10 @@ EstadoSolicitudHist.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'soli
 Solicitud.hasMany(Publicacion, { foreignKey: 'id_solicitud', as: 'publicaciones' });
 Publicacion.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'solicitud' });
 
+// PortalPostulacion -> Publicacion (1:N)
+PortalPostulacion.hasMany(Publicacion, { foreignKey: 'id_portal_postulacion', as: 'publicaciones' });
+Publicacion.belongsTo(PortalPostulacion, { foreignKey: 'id_portal_postulacion', as: 'portalPostulacion' });
+
 // Relaciones inversas
 Contacto.hasMany(Solicitud, { foreignKey: 'id_contacto', as: 'solicitudes' });
 TipoServicio.hasMany(Solicitud, { foreignKey: 'codigo_servicio', as: 'solicitudes' });
@@ -192,16 +196,6 @@ Postulacion.belongsTo(Solicitud, {
     as: 'solicitud'
 });
 Postulacion.belongsTo(PortalPostulacion, {
-    foreignKey: 'id_portal_postulacion',
-    as: 'portalPostulacion'
-});
-
-// Publicacion -> Relaciones múltiples
-Publicacion.belongsTo(Solicitud, {
-    foreignKey: 'id_solicitud',
-    as: 'solicitudPublicacion'
-});
-Publicacion.belongsTo(PortalPostulacion, {
     foreignKey: 'id_portal_postulacion',
     as: 'portalPostulacion'
 });
@@ -274,10 +268,6 @@ Solicitud.hasMany(Postulacion, {
 PortalPostulacion.hasMany(Postulacion, {
     foreignKey: 'id_portal_postulacion',
     as: 'postulaciones'
-});
-PortalPostulacion.hasMany(Publicacion, {
-    foreignKey: 'id_portal_postulacion',
-    as: 'publicaciones'
 });
 
 // ===========================================

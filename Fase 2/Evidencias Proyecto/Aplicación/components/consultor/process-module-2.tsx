@@ -22,8 +22,10 @@ import { formatDate } from "@/lib/utils"
 import { Plus, Edit, Trash2, Star, Globe, Settings } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
-import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService } from "@/lib/api"
+import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, publicacionService, postulacionService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { AddPublicationDialog } from "./add-publication-dialog"
+import { toast as sonnerToast } from "sonner"
 
 interface ProcessModule2Props {
   process: Process
@@ -62,18 +64,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     const loadLists = async () => {
       try {
         setLoadingLists(true)
-        const [regionesRes, comunasRes, profesionesRes, rubrosRes, nacionalidadesRes] = await Promise.all([
+        const [regionesRes, comunasRes, profesionesRes, rubrosRes, nacionalidadesRes, portalesRes] = await Promise.all([
           regionService.getAll(),
           comunaService.getAll(),
           profesionService.getAll(),
           rubroService.getAll(),
           nacionalidadService.getAll(),
+          publicacionService.getPortales(), // Cargar portales de BD
         ])
         setRegiones(regionesRes.data || [])
         setTodasLasComunas(comunasRes.data || [])
         setProfesiones(profesionesRes.data || [])
         setRubros(rubrosRes.data || [])
         setNacionalidades(nacionalidadesRes.data || [])
+        setPortalesDB(portalesRes.data || [])
       } catch (error) {
         console.error('Error al cargar listas:', error)
       } finally {
@@ -84,23 +88,30 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }, [])
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true)
-        const [publicationsData, candidatesData] = await Promise.all([
-          getPublicationsByProcess(process.id),
-          getCandidatesByProcess(process.id),
-        ])
-        setPublications(publicationsData)
-        setCandidates(candidatesData)
-      } catch (error) {
-        console.error('Error al cargar datos:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
     loadData()
   }, [process.id])
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true)
+      
+      // Cargar publicaciones desde el backend
+      const publicationsResponse = await publicacionService.getAll({ solicitud_id: parseInt(process.id) })
+      const publicationsData = publicationsResponse.success && publicationsResponse.data ? publicationsResponse.data : []
+      
+      // Cargar candidatos desde el backend (postulaciones)
+      const candidatesResponse = await postulacionService.getBySolicitud(parseInt(process.id))
+      const candidatesData = candidatesResponse.success && candidatesResponse.data ? candidatesResponse.data : []
+      
+      setPublications(publicationsData)
+      setCandidates(candidatesData)
+    } catch (error) {
+      console.error('Error al cargar datos:', error)
+      sonnerToast.error('Error al cargar datos del módulo')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const [showPortalManager, setShowPortalManager] = useState(false)
   const [customPortals, setCustomPortals] = useState<string[]>([
@@ -111,6 +122,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     "Laborum",
     "Behance",
   ])
+  const [portalesDB, setPortalesDB] = useState<any[]>([]) // Portales de la BD
   const [newPortalName, setNewPortalName] = useState("")
 
   const [newPublication, setNewPublication] = useState({
@@ -296,6 +308,17 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         return
       }
 
+      // Validar que se haya seleccionado un portal
+      if (!newCandidate.source_portal) {
+        console.log('Validación falló - sin portal')
+        toast({
+          title: "Error",
+          description: "Por favor selecciona el Portal de Origen",
+          variant: "destructive",
+        })
+        return
+      }
+
       console.log('Validación OK - preparando datos...')
 
       // Preparar datos para enviar al backend
@@ -337,17 +360,41 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       
       console.log('Respuesta del API:', response)
 
-      if (response.success) {
-        console.log('¡Candidato creado exitosamente!')
-        toast({
-          title: "¡Éxito!",
-          description: "Candidato agregado correctamente",
-        })
+      if (response.success && response.data) {
+        console.log('¡Candidato creado exitosamente!', response.data)
+        
+        // Crear la postulación asociada
+        try {
+          console.log('Creando postulación...')
+          const postulacionData = {
+            id_candidato: parseInt(response.data.id),
+            id_solicitud: parseInt(process.id),
+            id_portal_postulacion: newCandidate.source_portal ? parseInt(newCandidate.source_portal) : 1, // Por defecto: 1 = LinkedIn
+            id_estado_candidato: 1, // 1 = "Presentado" (estado inicial)
+            motivacion: newCandidate.motivation,
+            expectativa_renta: newCandidate.salary_expectation ? parseFloat(newCandidate.salary_expectation) : undefined,
+            disponibilidad_postulacion: newCandidate.availability,
+            valoracion: newCandidate.consultant_rating,
+            comentario_no_presentado: newCandidate.consultant_comment
+          }
+          
+          const postulacionResponse = await postulacionService.create(postulacionData)
+          
+          if (postulacionResponse.success) {
+            console.log('¡Postulación creada exitosamente!')
+            sonnerToast.success("Candidato y postulación creados correctamente")
+          } else {
+            console.error('Error al crear postulación:', postulacionResponse)
+            sonnerToast.warning("Candidato creado, pero hubo un error al crear la postulación")
+          }
+        } catch (postError) {
+          console.error('Error al crear postulación:', postError)
+          sonnerToast.warning("Candidato creado, pero hubo un error al crear la postulación")
+        }
 
-        // Recargar la lista de candidatos
+        // Recargar la lista de candidatos desde el backend
         console.log('Recargando lista de candidatos...')
-        const candidatesData = await getCandidatesByProcess(process.id)
-        setCandidates(candidatesData)
+        await loadData()
 
         // Limpiar formulario
         setNewCandidate({
@@ -771,16 +818,16 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
             </div>
             <div className="text-center p-4 border rounded-lg">
               <Badge className="h-8 w-8 text-green-500 mx-auto mb-2 flex items-center justify-center">
-                {publications.filter((p) => p.status === "activa").length}
+                {publications.filter((p: any) => p.estado_publicacion === "Activa").length}
               </Badge>
-              <p className="text-2xl font-bold">{publications.filter((p) => p.status === "activa").length}</p>
+              <p className="text-2xl font-bold">{publications.filter((p: any) => p.estado_publicacion === "Activa").length}</p>
               <p className="text-sm text-muted-foreground">Publicaciones Activas</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <Badge variant="secondary" className="h-8 w-8 mx-auto mb-2 flex items-center justify-center">
-                {publications.filter((p) => p.status === "cerrada").length}
+                {publications.filter((p: any) => p.estado_publicacion === "Cerrada").length}
               </Badge>
-              <p className="text-2xl font-bold">{publications.filter((p) => p.status === "cerrada").length}</p>
+              <p className="text-2xl font-bold">{publications.filter((p: any) => p.estado_publicacion === "Cerrada").length}</p>
               <p className="text-sm text-muted-foreground">Publicaciones Cerradas</p>
             </div>
           </div>
@@ -798,81 +845,18 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               </CardTitle>
               <CardDescription>Registra dónde se ha publicado la oferta de trabajo</CardDescription>
             </div>
-            <Dialog open={showAddPublication} onOpenChange={setShowAddPublication}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Agregar Publicación
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Nueva Publicación</DialogTitle>
-                  <DialogDescription>Registra una nueva publicación en portal de empleo</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="portal">Portal</Label>
-                    <Select
-                      value={newPublication.portal}
-                      onValueChange={(value) => setNewPublication({ ...newPublication, portal: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar portal" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customPortals.map((portal) => (
-                          <SelectItem key={portal} value={portal}>
-                            {portal}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="publication_url">URL de la Publicación</Label>
-                    <Input
-                      id="publication_url"
-                      value={newPublication.url}
-                      onChange={(e) => setNewPublication({ ...newPublication, url: e.target.value })}
-                      placeholder="https://ejemplo.com/oferta-trabajo"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="publication_date">Fecha de Publicación</Label>
-                    <Input
-                      id="publication_date"
-                      type="date"
-                      value={newPublication.publication_date}
-                      onChange={(e) => setNewPublication({ ...newPublication, publication_date: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Estado</Label>
-                    <Select
-                      value={newPublication.status}
-                      onValueChange={(value: "activa" | "cerrada") =>
-                        setNewPublication({ ...newPublication, status: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="activa">Activa</SelectItem>
-                        <SelectItem value="cerrada">Cerrada</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowAddPublication(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleAddPublication}>Agregar</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={() => setShowAddPublication(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Agregar Publicación
+            </Button>
+
+            {/* Diálogo de Nueva Publicación */}
+            <AddPublicationDialog
+              open={showAddPublication}
+              onOpenChange={setShowAddPublication}
+              solicitudId={Number(process.id)}
+              onSuccess={loadData}
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -888,13 +872,13 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {publications.map((publication) => (
+                {publications.map((publication: any) => (
                   <TableRow key={publication.id}>
-                    <TableCell className="font-medium">{publication.portal}</TableCell>
+                    <TableCell className="font-medium">{publication.portal?.nombre || 'Portal no especificado'}</TableCell>
                     <TableCell>
-                      {publication.url ? (
+                      {publication.url_publicacion ? (
                         <a
-                          href={publication.url}
+                          href={publication.url_publicacion}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline"
@@ -905,18 +889,29 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                         <span className="text-muted-foreground">No especificada</span>
                       )}
                     </TableCell>
-                    <TableCell>{formatDate(publication.publication_date)}</TableCell>
+                    <TableCell>{formatDate(publication.fecha_publicacion)}</TableCell>
                     <TableCell>
-                      <Badge variant={publication.status === "activa" ? "default" : "secondary"}>
-                        {publication.status === "activa" ? "Activa" : "Cerrada"}
+                      <Badge variant={publication.estado_publicacion === "Activa" ? "default" : "secondary"}>
+                        {publication.estado_publicacion || 'Sin estado'}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const response = await publicacionService.delete(publication.id)
+                              if (response.success) {
+                                sonnerToast.success('Publicación eliminada')
+                                loadData()
+                              }
+                            } catch (error) {
+                              sonnerToast.error('Error al eliminar publicación')
+                            }
+                          }}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -1120,24 +1115,28 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="source_portal">Portal de Origen</Label>
+                          <Label htmlFor="source_portal">
+                            Portal de Origen <span className="text-red-500">*</span>
+                          </Label>
                           <Select
                             value={newCandidate.source_portal}
                             onValueChange={(value) => setNewCandidate({ ...newCandidate, source_portal: value })}
+                            disabled={loadingLists}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar portal" />
+                              <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
                             </SelectTrigger>
                             <SelectContent>
-                              {customPortals.map((portal) => (
-                                <SelectItem key={portal} value={portal}>
-                                  {portal}
+                              {portalesDB.map((portal) => (
+                                <SelectItem key={portal.id} value={portal.id.toString()}>
+                                  {portal.nombre}
                                 </SelectItem>
                               ))}
-                              <SelectItem value="Referido">Referido</SelectItem>
-                              <SelectItem value="Directo">Contacto Directo</SelectItem>
                             </SelectContent>
                           </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Portal desde donde proviene el candidato
+                          </p>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="cv_file">CV (Archivo)</Label>

@@ -59,23 +59,18 @@ export default function ConsultorPage() {
   const loadMyProcesses = async () => {
     try {
       setIsLoading(true)
-      console.log('🔍 Cargando solicitudes para consultor:', user?.id)
       const response = await solicitudService.getAll({ consultor_id: user?.id || '' })
-      console.log('📦 Respuesta del servidor:', response)
       
       if (response.success && response.data) {
         // La respuesta tiene estructura: { solicitudes: [...], pagination: {...} }
         const solicitudes = response.data.solicitudes || response.data
-        console.log('✅ Datos recibidos:', solicitudes)
-        console.log('📊 Total de solicitudes:', Array.isArray(solicitudes) ? solicitudes.length : 0)
         setMyProcesses(Array.isArray(solicitudes) ? solicitudes : [])
       } else {
-        console.log('❌ Error en respuesta:', response)
         setMyProcesses([])
         toast.error("Error al cargar procesos")
       }
     } catch (error) {
-      console.error("❌ Error al cargar procesos:", error)
+      console.error("Error al cargar procesos:", error)
       setMyProcesses([])
       toast.error("Error al cargar procesos")
     } finally {

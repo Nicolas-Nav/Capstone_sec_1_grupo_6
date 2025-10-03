@@ -195,17 +195,12 @@ export class SolicitudService {
     }) {
         const whereClause: any = {};
 
-        console.log('🔍 [SolicitudService] Filtros recibidos:', filters);
-
         if (filters?.service_type) {
             whereClause.codigo_servicio = filters.service_type;
         }
         if (filters?.consultor_id) {
             whereClause.rut_usuario = filters.consultor_id;
-            console.log('👤 [SolicitudService] Filtrando por consultor:', filters.consultor_id);
         }
-
-        console.log('🔎 [SolicitudService] Where clause:', whereClause);
 
         const solicitudes = await Solicitud.findAll({
             where: whereClause,
@@ -266,10 +261,7 @@ export class SolicitudService {
         });
 
         // Transformar al formato del frontend
-        console.log('📦 [SolicitudService] Solicitudes encontradas:', solicitudes.length);
-        const transformed = solicitudes.map(solicitud => this.transformSolicitud(solicitud));
-        console.log('✅ [SolicitudService] Solicitudes transformadas:', transformed.length);
-        return transformed;
+        return solicitudes.map(solicitud => this.transformSolicitud(solicitud));
     }
 
     /**
@@ -554,7 +546,8 @@ export class SolicitudService {
             // Formato completo para APIs que necesitan toda la información
             id: solicitud.id_solicitud,
             id_solicitud: solicitud.id_solicitud,
-            id_descripcion_cargo: descripcionCargo?.id_descripcion_cargo || 0,
+            id_descripcion_cargo: descripcionCargo?.id_descripcioncargo || 0,
+            id_descripcioncargo: descripcionCargo?.id_descripcioncargo || 0,
             
             // Información básica para la tabla
             cargo: cargo?.nombre_cargo || 'Sin cargo',
@@ -565,6 +558,7 @@ export class SolicitudService {
             estado_solicitud: estadoActual?.nombre_estado_solicitud || 'Abierto',
             etapa: etapa?.nombre_etapa || 'Sin etapa',
             fecha_creacion: solicitud.fecha_ingreso_solicitud,
+            datos_excel: descripcionCargo?.datos_excel || null,
             
             // Información detallada (para compatibilidad con otros componentes)
             client_id: cliente?.id_cliente.toString() || '',

@@ -40,15 +40,12 @@ export class SolicitudController {
         try {
             const { status, service_type, consultor_id } = req.query;
             
-            console.log('📨 [Controller] Query params:', { status, service_type, consultor_id });
-            
             const solicitudes = await SolicitudService.getAllSolicitudes({
                 status: status as string,
                 service_type: service_type as string,
                 consultor_id: consultor_id as string
             });
 
-            console.log('✅ [Controller] Enviando respuesta con', solicitudes.length, 'solicitudes');
             return sendSuccess(res, solicitudes, 'Solicitudes obtenidas exitosamente');
         } catch (error) {
             Logger.error('Error al obtener solicitudes:', error);

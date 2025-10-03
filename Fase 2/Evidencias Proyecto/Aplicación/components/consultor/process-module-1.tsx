@@ -7,11 +7,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { serviceTypeLabels, getCandidatesByProcess, processStatusLabels } from "@/lib/mock-data"
 import { formatDate, getStatusColor } from "@/lib/utils"
-import { Building2, User, Calendar, Target, FileText, Download, Settings } from "lucide-react"
+import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet } from "lucide-react"
 import type { Process, ProcessStatus, Candidate } from "@/lib/types"
 import { useState, useEffect } from "react"
+import { descripcionCargoService } from "@/lib/api"
+import { toast } from "sonner"
 
 interface ProcessModule1Props {
   process: Process
@@ -31,25 +34,70 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const [statusChangeReason, setStatusChangeReason] = useState("")
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [excelData, setExcelData] = useState<any>(null)
+  const [loadingExcel, setLoadingExcel] = useState(false)
 
   const isEvaluationProcess =
     process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral"
 
-  // Load candidates
+  // Load candidates (para proceso de evaluación)
   useEffect(() => {
-    const loadCandidates = async () => {
-      try {
-        setIsLoading(true)
-        const candidatesData = await getCandidatesByProcess(process.id)
-        setCandidates(candidatesData)
-      } catch (error) {
-        console.error('Error al cargar candidatos:', error)
-      } finally {
-        setIsLoading(false)
+    if (isEvaluationProcess) {
+      const loadCandidates = async () => {
+        try {
+          setIsLoading(true)
+          const candidatesData = await getCandidatesByProcess(process.id)
+          setCandidates(candidatesData)
+        } catch (error) {
+          console.error('Error al cargar candidatos:', error)
+        } finally {
+          setIsLoading(false)
+        }
+      }
+      loadCandidates()
+    }
+  }, [process.id, isEvaluationProcess])
+
+  // Load Excel data if available
+  useEffect(() => {
+    const loadExcelData = async () => {
+      // Verificar si existe datos_excel directamente en el proceso
+      if (process.datos_excel) {
+        console.log('📊 Usando datos_excel del proceso:', process.datos_excel)
+        setExcelData(process.datos_excel)
+        return
+      }
+
+      // Si no, intentar cargar desde la API
+      const descripcionCargoId = process.id_descripcion_cargo || process.id_descripcioncargo
+      console.log('🔍 Buscando Excel para descripcion_cargo:', descripcionCargoId)
+      
+      if (descripcionCargoId && descripcionCargoId > 0) {
+        try {
+          setLoadingExcel(true)
+          const response = await descripcionCargoService.getExcelData(descripcionCargoId)
+          console.log('📦 Respuesta getExcelData:', response)
+          
+          if (response.success && response.data) {
+            setExcelData(response.data)
+            console.log('✅ Datos del Excel cargados:', response.data)
+          } else {
+            console.log('⚠️ No hay datos del Excel disponibles')
+          }
+        } catch (error) {
+          console.error('❌ Error al cargar datos del Excel:', error)
+        } finally {
+          setLoadingExcel(false)
+        }
+      } else {
+        console.log('⚠️ No hay ID de descripción de cargo:', { 
+          id_descripcion_cargo: process.id_descripcion_cargo,
+          id_descripcioncargo: process.id_descripcioncargo 
+        })
       }
     }
-    loadCandidates()
-  }, [process.id])
+    loadExcelData()
+  }, [process.id_descripcion_cargo, process.id_descripcioncargo, process.datos_excel])
 
   // For evaluation processes, find the candidate with CV
   const candidateWithCV = candidates.find((c) => c.cv_file && c.rut)
@@ -167,6 +215,87 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                 <Download className="mr-2 h-4 w-4" />
                 Descargar {process.excel_file}
               </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Excel Data - Descripción de Cargo Detallada */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Descripción de Cargo Detallada (Datos del Excel)
+          </CardTitle>
+          <CardDescription>Información completa extraída del archivo Excel</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingExcel ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <span className="ml-3 text-muted-foreground">Cargando datos del Excel...</span>
+            </div>
+          ) : excelData && Object.keys(excelData).length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[300px]">Campo</TableHead>
+                  <TableHead>Información</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Object.entries(excelData).map(([key, value]) => {
+                  // Omitir campos vacíos o null
+                  if (!value || value === '' || value === 'null') return null
+                  
+                  // Formatear el nombre del campo
+                  const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                  
+                  // Formatear el valor
+                  let displayValue: any = value
+                  if (typeof value === 'object' && value !== null) {
+                    if (Array.isArray(value)) {
+                      // Si es un array de objetos (como Competencias Psicolaborales)
+                      if (value.length > 0 && typeof value[0] === 'object') {
+                        displayValue = (
+                          <div className="space-y-2">
+                            {value.map((item, idx) => (
+                              <div key={idx} className="border-l-2 border-primary pl-3 py-1">
+                                {Object.entries(item).map(([k, v]) => (
+                                  <div key={k}>
+                                    <span className="font-medium">{k}:</span> {String(v)}
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      } else {
+                        // Array simple
+                        displayValue = value.join(', ')
+                      }
+                    } else {
+                      // Objeto simple
+                      displayValue = JSON.stringify(value, null, 2)
+                    }
+                  }
+                  
+                  return (
+                    <TableRow key={key}>
+                      <TableCell className="font-medium align-top">{fieldName}</TableCell>
+                      <TableCell className="whitespace-pre-wrap">
+                        {typeof displayValue === 'string' ? displayValue : displayValue}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-20" />
+              <p className="font-medium">No hay datos del Excel disponibles</p>
+              <p className="text-sm mt-2">Los datos aparecerán aquí cuando se suba un archivo Excel</p>
             </div>
           )}
         </CardContent>

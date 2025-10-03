@@ -46,13 +46,13 @@ export function UploadExcelDialog({ open, onOpenChange, descripcionCargoId }: Up
   }
 
   // Función para leer un rango doble (dos columnas)
-  const leerRangoDoble = (sheet: XLSX.WorkSheet, col1: string, col2: string, inicio: number, fin: number): Array<{col1: string, col2: string}> => {
-    const valores: Array<{col1: string, col2: string}> = []
+  const leerRangoDoble = (sheet: XLSX.WorkSheet, col1: string, col2: string, inicio: number, fin: number): Array<{nombre: string, descripcion: string}> => {
+    const valores: Array<{nombre: string, descripcion: string}> = []
     for (let i = inicio; i <= fin; i++) {
       const valor1 = leerCelda(sheet, `${col1}${i}`)
       const valor2 = leerCelda(sheet, `${col2}${i}`)
       if (valor1 || valor2) {
-        valores.push({ col1: valor1, col2: valor2 })
+        valores.push({ nombre: valor1, descripcion: valor2 })
       }
     }
     return valores

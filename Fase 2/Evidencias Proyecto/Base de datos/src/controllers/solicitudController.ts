@@ -11,9 +11,32 @@ import { SolicitudService } from '@/services/solicitudService';
 export class SolicitudController {
     /**
      * GET /api/solicitudes
-     * Obtener todas las solicitudes con información completa
+     * Obtener solicitudes paginadas con filtros opcionales
      */
     static async getAll(req: Request, res: Response): Promise<Response> {
+        try {
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 10;
+            const search = (req.query.search as string) || "";
+            const status = (req.query.status as "creado" | "en_progreso" | "cerrado" | "congelado") || undefined;
+            const service_type = (req.query.service_type as string) || undefined;
+            const consultor_id = (req.query.consultor_id as string) || undefined;
+            const sortBy = (req.query.sortBy as "fecha" | "cargo" | "cliente") || "fecha";
+            const sortOrder = (req.query.sortOrder as "ASC" | "DESC") || "DESC";
+
+            const result = await SolicitudService.getSolicitudes(page, limit, search, status, service_type, consultor_id, sortBy, sortOrder);
+            return sendSuccess(res, result, "Solicitudes obtenidas correctamente");
+        } catch (error: any) {
+            Logger.error('Error al obtener solicitudes:', error);
+            return sendError(res, error.message || "Error al obtener solicitudes", 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/all
+     * Obtener todas las solicitudes con filtros opcionales (sin paginación)
+     */
+    static async getAllSolicitudes(req: Request, res: Response): Promise<Response> {
         try {
             const { status, service_type, consultor_id } = req.query;
             

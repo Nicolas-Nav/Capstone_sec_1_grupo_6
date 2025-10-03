@@ -1,4 +1,4 @@
-import { Transaction } from 'sequelize';
+import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
 import {
     Solicitud,
@@ -20,6 +20,171 @@ import {
  */
 
 export class SolicitudService {
+    /**
+     * Obtener solicitudes paginadas con filtros opcionales y orden
+     */
+    static async getSolicitudes(
+        page: number = 1,
+        limit: number = 10,
+        search: string = "",
+        status?: "creado" | "en_progreso" | "cerrado" | "congelado",
+        service_type?: string,
+        consultor_id?: string,
+        sortBy: "fecha" | "cargo" | "cliente" = "fecha",
+        sortOrder: "ASC" | "DESC" = "DESC"
+    ) {
+        const offset = (page - 1) * limit;
+
+        const andConditions: any[] = [];
+
+        // Filtro de búsqueda por texto
+        if (search) {
+            andConditions.push({
+                [Op.or]: [
+                    { '$descripcionCargo.cargo.nombre_cargo$': { [Op.iLike]: `%${search}%` } },
+                    { '$contacto.cliente.nombre_cliente$': { [Op.iLike]: `%${search}%` } },
+                    { '$usuario.nombre_usuario$': { [Op.iLike]: `%${search}%` } },
+                    { '$contacto.nombre_contacto$': { [Op.iLike]: `%${search}%` } }
+                ]
+            });
+        }
+
+        // Filtro por estado
+        if (status) {
+            // Buscar IDs de solicitudes con el estado específico
+            const solicitudesConEstado = await EstadoSolicitudHist.findAll({
+                include: [
+                    {
+                        model: EstadoSolicitud,
+                        as: 'estado',
+                        where: {
+                            nombre_estado_solicitud: {
+                                [Op.iLike]: `%${status === 'creado' ? 'Creado' : 
+                                           status === 'en_progreso' ? 'En Progreso' :
+                                           status === 'cerrado' ? 'Cerrado' : 'Congelado'}%`
+                            }
+                        },
+                        attributes: []
+                    }
+                ],
+                attributes: ['id_solicitud'],
+                raw: true,
+                order: [['fecha_cambio_estado_solicitud', 'DESC']]
+            });
+
+            // Agrupar por id_solicitud y tomar el más reciente
+            const estadoMap = new Map();
+            solicitudesConEstado.forEach(item => {
+                if (!estadoMap.has(item.id_solicitud)) {
+                    estadoMap.set(item.id_solicitud, item.id_solicitud);
+                }
+            });
+
+            const idsConEstado = Array.from(estadoMap.values());
+            if (idsConEstado.length > 0) {
+                andConditions.push({ id_solicitud: { [Op.in]: idsConEstado } });
+            } else {
+                // Si no hay solicitudes con ese estado, devolver array vacío
+                andConditions.push({ id_solicitud: { [Op.in]: [] } });
+            }
+        }
+
+        // Filtro por tipo de servicio
+        if (service_type) {
+            andConditions.push({ codigo_servicio: service_type });
+        }
+
+        // Filtro por consultor
+        if (consultor_id) {
+            andConditions.push({ rut_usuario: consultor_id });
+        }
+
+        // Construir la condición final
+        const where = andConditions.length > 0 ? { [Op.and]: andConditions } : {};
+
+        // Determinar columna para ordenar
+        let orderColumn = 'fecha_ingreso_solicitud';
+        if (sortBy === 'cargo') {
+            orderColumn = '$descripcionCargo.cargo.nombre_cargo$';
+        } else if (sortBy === 'cliente') {
+            orderColumn = '$contacto.cliente.nombre_cliente$';
+        }
+
+        const { count, rows } = await Solicitud.findAndCountAll({
+            where,
+            limit,
+            offset,
+            order: [[orderColumn, sortOrder]],
+            include: [
+                {
+                    model: Contacto,
+                    as: 'contacto',
+                    include: [
+                        {
+                            model: Cliente,
+                            as: 'cliente'
+                        },
+                        {
+                            model: Comuna,
+                            as: 'comuna'
+                        }
+                    ]
+                },
+                {
+                    model: TipoServicio,
+                    as: 'tipoServicio'
+                },
+                {
+                    model: DescripcionCargo,
+                    as: 'descripcionCargo',
+                    include: [
+                        {
+                            model: Cargo,
+                            as: 'cargo'
+                        },
+                        {
+                            model: Comuna,
+                            as: 'comuna'
+                        }
+                    ]
+                },
+                {
+                    model: Usuario,
+                    as: 'usuario',
+                    attributes: ['rut_usuario', 'nombre_usuario', 'email_usuario']
+                },
+                {
+                    model: EtapaSolicitud,
+                    as: 'etapaSolicitud'
+                },
+                {
+                    model: EstadoSolicitudHist,
+                    as: 'historialEstados',
+                    include: [{
+                        model: EstadoSolicitud,
+                        as: 'estado'
+                    }],
+                    limit: 1,
+                    order: [['fecha_cambio_estado_solicitud', 'DESC']]
+                }
+            ],
+            distinct: true, // Importante para contar correctamente con includes
+        });
+
+        // Transformar al formato del frontend
+        const transformedSolicitudes = rows.map(solicitud => this.transformSolicitud(solicitud));
+
+        return {
+            solicitudes: transformedSolicitudes,
+            pagination: {
+                page,
+                limit,
+                total: count,
+                totalPages: Math.ceil(count / limit),
+            },
+        };
+    }
+
     /**
      * Obtener todas las solicitudes con filtros opcionales
      */

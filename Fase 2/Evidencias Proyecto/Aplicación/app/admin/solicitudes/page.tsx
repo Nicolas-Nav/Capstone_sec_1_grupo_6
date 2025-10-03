@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Eye, Trash2, Loader2, Upload } from "lucide-react"
+import { Plus, Search, Eye, Trash2, Loader2, Upload, ChevronLeft, ChevronRight } from "lucide-react"
 import { formatDate, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
 import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
 import { solicitudService } from "@/lib/api"
 import { toast } from "sonner"
+import { useSolicitudes } from "@/hooks/useSolicitudes"
+import { Label } from "@/components/ui/label"
 
 interface Solicitud {
   id: number
@@ -29,51 +31,48 @@ interface Solicitud {
 }
 
 export default function SolicitudesPage() {
-  const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [serviceFilter, setServiceFilter] = useState<string>("all")
+  const {
+    solicitudes,
+    isLoading,
+    searchTerm,
+    statusFilter,
+    serviceFilter,
+    sortBy,
+    sortOrder,
+    currentPage,
+    pageSize,
+    totalPages,
+    totalSolicitudes,
+    stats,
+    serviceTypes,
+    setSearchTerm,
+    setStatusFilter,
+    setServiceFilter,
+    setSortBy,
+    setSortOrder,
+    deleteSolicitud,
+    goToPage,
+    nextPage,
+    prevPage,
+    handlePageSizeChange,
+  } = useSolicitudes()
+
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showExcelDialog, setShowExcelDialog] = useState(false)
   const [selectedDescripcionCargoId, setSelectedDescripcionCargoId] = useState<number | null>(null)
 
-  // Cargar solicitudes al montar el componente
-  useEffect(() => {
-    loadSolicitudes()
-  }, [])
-
-  const loadSolicitudes = async () => {
-    try {
-      setIsLoading(true)
-      const response = await solicitudService.getAll()
-      
-      if (response.success && response.data) {
-        setSolicitudes(response.data)
-      } else {
-        toast.error('Error al cargar las solicitudes')
-      }
-    } catch (error) {
-      console.error('Error loading solicitudes:', error)
-      toast.error('Error al cargar las solicitudes')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de que deseas eliminar esta solicitud?')) {
       return
     }
 
     try {
-      const response = await solicitudService.delete(id)
+      const result = await deleteSolicitud(id)
       
-      if (response.success) {
-        toast.success('Solicitud eliminada exitosamente')
-        loadSolicitudes()
+      if (result.success) {
+        toast.success(result.message || 'Solicitud eliminada exitosamente')
       } else {
-        toast.error(response.message || 'Error al eliminar la solicitud')
+        toast.error(result.message || 'Error al eliminar la solicitud')
       }
     } catch (error: any) {
       console.error('Error deleting solicitud:', error)
@@ -86,28 +85,7 @@ export default function SolicitudesPage() {
     setShowExcelDialog(true)
   }
 
-  const filteredSolicitudes = solicitudes.filter((solicitud) => {
-    const matchesSearch =
-      solicitud.cargo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      solicitud.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      solicitud.consultor.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesStatus = statusFilter === "all" || solicitud.status === statusFilter
-    const matchesService = serviceFilter === "all" || solicitud.tipo_servicio === serviceFilter
-
-    return matchesSearch && matchesStatus && matchesService
-  })
-
-  // Calcular estadísticas
-  const stats = {
-    total: solicitudes.length,
-    en_progreso: solicitudes.filter(s => s.status === 'en_progreso').length,
-    completadas: solicitudes.filter(s => s.status === 'cerrado').length,
-    pendientes: solicitudes.filter(s => s.status === 'creado').length,
-  }
-
-  // Obtener tipos de servicio únicos
-  const serviceTypes = Array.from(new Set(solicitudes.map(s => s.tipo_servicio)))
+  // Los solicitudes ya vienen filtrados del servidor, no necesitamos filtrar en el cliente
 
   return (
     <div className="space-y-6">
@@ -210,7 +188,7 @@ export default function SolicitudesPage() {
         <CardHeader>
           <CardTitle>Lista de Solicitudes</CardTitle>
           <CardDescription>
-            {filteredSolicitudes.length} de {solicitudes.length} solicitudes
+            {totalSolicitudes} solicitudes encontradas
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -218,9 +196,9 @@ export default function SolicitudesPage() {
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
-          ) : filteredSolicitudes.length === 0 ? (
+          ) : solicitudes.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {solicitudes.length === 0 
+              {totalSolicitudes === 0 
                 ? "No hay solicitudes creadas. Crea una nueva solicitud para comenzar."
                 : "No se encontraron solicitudes con los filtros aplicados."}
             </div>
@@ -239,7 +217,7 @@ export default function SolicitudesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSolicitudes.map((solicitud) => (
+                {solicitudes.map((solicitud) => (
                   <TableRow key={solicitud.id}>
                     <TableCell className="font-mono text-sm">{solicitud.id}</TableCell>
                     <TableCell className="font-medium">{solicitud.cargo}</TableCell>
@@ -282,6 +260,82 @@ export default function SolicitudesPage() {
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Controles de Paginación */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="pageSize">Filas por página:</Label>
+                <Select value={pageSize.toString()} onValueChange={(value) => handlePageSizeChange(parseInt(value))}>
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((currentPage - 1) * pageSize) + 1} a {Math.min(currentPage * pageSize, totalSolicitudes)} de {totalSolicitudes} solicitudes
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={prevPage}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => goToPage(pageNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={nextPage}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

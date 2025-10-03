@@ -15,7 +15,7 @@ import {
 } from '@/models';
 
 /**
- * Servicio para gestión de Solicitudes
+ * Servicio para gestión de las Solicitudes
  * Contiene toda la lógica de negocio relacionada con solicitudes de reclutamiento
  */
 

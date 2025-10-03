@@ -273,6 +273,364 @@ export const solicitudService = {
 };
 
 // ===========================================
+// SERVICIOS DE CANDIDATOS
+// ===========================================
+
+export const candidatoService = {
+  // Obtener todos los candidatos
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/candidatos');
+  },
+
+  // Obtener candidato por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${id}`);
+  },
+
+  // Obtener candidato por email
+  async getByEmail(email: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/email/${email}`);
+  },
+
+  // Crear candidato
+  async create(data: {
+    name: string;
+    email: string;
+    phone: string;
+    rut?: string;
+    birth_date?: string;
+    comuna?: string;
+    nacionalidad?: string;
+    rubro?: string;
+    profession?: string;
+    english_level?: string;
+    software_tools?: string;
+    has_disability_credential?: boolean;
+    work_experience?: Array<{
+      company: string;
+      position: string;
+      start_date: string;
+      end_date?: string;
+      description?: string;
+    }>;
+    education?: Array<{
+      id_postgrado_capacitacion: number;
+      id_institucion?: number;
+      completion_date?: string;
+    }>;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/candidatos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar candidato
+  async update(id: number, data: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    rut?: string;
+    birth_date?: string;
+    comuna?: string;
+    nacionalidad?: string;
+    rubro?: string;
+    english_level?: string;
+    software_tools?: string;
+    has_disability_credential?: boolean;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Eliminar candidato
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Obtener experiencias de un candidato
+  async getExperiences(id: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/candidatos/${id}/experiencias`);
+  },
+
+  // Agregar experiencia a un candidato
+  async addExperience(id: number, experience: {
+    company: string;
+    position: string;
+    start_date: string;
+    end_date?: string;
+    description?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${id}/experiencias`, {
+      method: 'POST',
+      body: JSON.stringify(experience),
+    });
+  },
+
+  // Actualizar experiencia
+  async updateExperience(idCandidato: number, idExp: number, experience: {
+    company?: string;
+    position?: string;
+    start_date?: string;
+    end_date?: string;
+    description?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${idCandidato}/experiencias/${idExp}`, {
+      method: 'PUT',
+      body: JSON.stringify(experience),
+    });
+  },
+
+  // Eliminar experiencia
+  async deleteExperience(idCandidato: number, idExp: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${idCandidato}/experiencias/${idExp}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Agregar educación a un candidato
+  async addEducation(id: number, education: {
+    id_postgrado_capacitacion: number;
+    id_institucion?: number;
+    completion_date?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${id}/educacion`, {
+      method: 'POST',
+      body: JSON.stringify(education),
+    });
+  },
+
+  // Agregar profesión a un candidato
+  async addProfession(id: number, data: {
+    nombre_profesion: string;
+    nombre_institucion?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${id}/profesion`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ===========================================
+// SERVICIOS DE POSTULACIONES
+// ===========================================
+
+export const postulacionService = {
+  // Obtener todas las postulaciones
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/postulaciones');
+  },
+
+  // Obtener postulación por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/postulaciones/${id}`);
+  },
+
+  // Obtener postulaciones por solicitud
+  async getBySolicitud(idSolicitud: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/postulaciones/solicitud/${idSolicitud}`);
+  },
+
+  // Crear postulación (con CV opcional)
+  async create(data: {
+    id_candidato: number;
+    id_solicitud: number;
+    id_portal_postulacion: number;
+    cv_file?: File;
+  }): Promise<ApiResponse<any>> {
+    // Si hay archivo CV, usar FormData
+    if (data.cv_file) {
+      const formData = new FormData();
+      formData.append('id_candidato', data.id_candidato.toString());
+      formData.append('id_solicitud', data.id_solicitud.toString());
+      formData.append('id_portal_postulacion', data.id_portal_postulacion.toString());
+      formData.append('cv', data.cv_file);
+
+      const token = localStorage.getItem('llc_token');
+      const response = await fetch(`${API_BASE_URL}/api/postulaciones`, {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: formData,
+      });
+
+      return await response.json();
+    }
+
+    // Sin archivo, usar JSON normal
+    return apiRequest('/api/postulaciones', {
+      method: 'POST',
+      body: JSON.stringify({
+        id_candidato: data.id_candidato,
+        id_solicitud: data.id_solicitud,
+        id_portal_postulacion: data.id_portal_postulacion,
+      }),
+    });
+  },
+
+  // Actualizar estado de postulación
+  async updateEstado(id: number, idEstado: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/postulaciones/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ id_estado_candidato: idEstado }),
+    });
+  },
+
+  // Subir/Actualizar CV
+  async uploadCV(id: number, file: File): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    formData.append('cv', file);
+
+    const token = localStorage.getItem('llc_token');
+    const response = await fetch(`${API_BASE_URL}/api/postulaciones/${id}/cv`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    return await response.json();
+  },
+
+  // Descargar CV
+  async downloadCV(id: number): Promise<{ blob: Blob; filename: string }> {
+    const token = localStorage.getItem('llc_token');
+    const response = await fetch(`${API_BASE_URL}/api/postulaciones/${id}/cv`, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Error al descargar CV');
+    }
+
+    const blob = await response.blob();
+    const contentDisposition = response.headers.get('Content-Disposition');
+    const filename = contentDisposition
+      ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+      : 'CV.pdf';
+
+    return { blob, filename };
+  },
+
+  // Eliminar postulación
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/postulaciones/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ===========================================
+// SERVICIOS DE PUBLICACIONES
+// ===========================================
+
+export const publicacionService = {
+  // Obtener todas las publicaciones
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/publicaciones');
+  },
+
+  // Obtener publicaciones por solicitud
+  async getBySolicitud(idSolicitud: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/publicaciones/solicitud/${idSolicitud}`);
+  },
+
+  // Crear publicación
+  async create(data: {
+    id_solicitud: number;
+    id_portal: number;
+    fecha_publicacion?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/publicaciones', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar publicación
+  async update(id: number, data: {
+    id_portal?: number;
+    fecha_publicacion?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/publicaciones/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Eliminar publicación
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/publicaciones/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ===========================================
+// SERVICIOS DE PORTALES
+// ===========================================
+
+export const portalService = {
+  // Obtener todos los portales
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/portales');
+  },
+};
+
+// ===========================================
+// SERVICIOS DE NACIONALIDAD
+// ===========================================
+
+export const nacionalidadService = {
+  // Obtener todas las nacionalidades
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/nacionalidades');
+  },
+};
+
+// ===========================================
+// SERVICIOS DE RUBROS
+// ===========================================
+
+export const rubroService = {
+  // Obtener todos los rubros
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/rubros');
+  },
+};
+
+// ===========================================
+// SERVICIOS DE PROFESIONES
+// ===========================================
+
+export const profesionService = {
+  // Obtener todas las profesiones
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/profesiones');
+  },
+};
+
+// ===========================================
+// SERVICIOS DE INSTITUCIONES
+// ===========================================
+
+export const institucionService = {
+  // Obtener todas las instituciones
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/instituciones');
+  },
+};
+
+// ===========================================
 // UTILIDADES
 // ===========================================
 

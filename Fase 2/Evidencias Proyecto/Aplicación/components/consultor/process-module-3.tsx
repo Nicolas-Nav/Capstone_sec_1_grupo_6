@@ -20,9 +20,26 @@ interface ProcessModule3Props {
 }
 
 export function ProcessModule3({ process }: ProcessModule3Props) {
-  const [candidates, setCandidates] = useState(
-    getCandidatesByProcess(process.id).filter((c) => c.presentation_status === "presentado"),
-  )
+  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Cargar datos reales desde el backend
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        const allCandidates = await getCandidatesByProcess(process.id)
+        const filteredCandidates = allCandidates.filter((c: Candidate) => c.presentation_status === "presentado")
+        setCandidates(filteredCandidates)
+      } catch (error) {
+        console.error('Error al cargar candidatos:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadData()
+  }, [process.id])
+
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
@@ -175,6 +192,28 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
   const canAdvanceToModule4 = process.service_type === "proceso_completo" && hasApproved
   const processEndsHere = process.service_type === "long_list"
+
+  // Mostrar indicador de carga
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Módulo 3 - Presentación de Candidatos</h2>
+          <p className="text-muted-foreground">
+            Registra la presentación de candidatos al cliente y gestiona sus respuestas
+          </p>
+        </div>
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Cargando datos...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

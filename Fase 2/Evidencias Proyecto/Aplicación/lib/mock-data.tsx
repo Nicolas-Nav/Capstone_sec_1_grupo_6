@@ -434,7 +434,12 @@ export const mockProcesses: Process[] = [
   },
 ]
 
+// ===========================================
+// DATOS MOCK COMENTADOS - AHORA SE USA API REAL
+// ===========================================
+
 // Mock Candidates
+/* COMENTADO - AHORA SE USA candidatoService.getAll() y postulacionService.getBySolicitud()
 export const mockCandidates: Candidate[] = [
   {
     id: "1",
@@ -662,8 +667,10 @@ export const mockCandidates: Candidate[] = [
     consultant_comment: "Candidato con potencial, necesita desarrollo en React",
   },
 ]
+*/
 
 // Mock Publications
+/* COMENTADO - AHORA SE USA publicacionService.getBySolicitud()
 export const mockPublications: Publication[] = [
   {
     id: "1",
@@ -694,6 +701,7 @@ export const mockPublications: Publication[] = [
     status: "activa",
   },
 ]
+*/
 
 // Mock Hitos (Milestones)
 export const mockHitos: Hito[] = [
@@ -896,12 +904,34 @@ export function getProcessesByConsultant(consultantId: string): Process[] {
   return mockProcesses.filter((process) => process.consultant_id === consultantId)
 }
 
+/* COMENTADO - AHORA SE USA LA API REAL
 export function getCandidatesByProcess(processId: string): Candidate[] {
   return mockCandidates.filter((candidate) => candidate.process_id === processId)
 }
 
 export function getPublicationsByProcess(processId: string): Publication[] {
   return mockPublications.filter((publication) => publication.process_id === processId)
+}
+*/
+
+// ===========================================
+// FUNCIONES QUE USAN API REAL
+// ===========================================
+
+// NOTA: Estas funciones ahora son async y debes usarlas con await
+// Ejemplo: const candidates = await getCandidatesByProcess(processId)
+
+export async function getCandidatesByProcess(processId: string) {
+  // Importar dinámicamente para evitar problemas de orden
+  const { postulacionService } = await import('./api')
+  const response = await postulacionService.getBySolicitud(Number(processId))
+  return response.data || []
+}
+
+export async function getPublicationsByProcess(processId: string) {
+  const { publicacionService } = await import('./api')
+  const response = await publicacionService.getBySolicitud(Number(processId))
+  return response.data || []
 }
 
 export function getHitosByProcess(processId: string): Hito[] {

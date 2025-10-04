@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import type { ServiceType } from "@/lib/types"
-import { descripcionCargoService, solicitudService } from "@/lib/api"
+import { descripcionCargoService, solicitudService, regionService, comunaService } from "@/lib/api"
 import * as XLSX from 'xlsx'
 
 interface CreateProcessDialogProps {
@@ -54,6 +54,7 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
     contact_id: "",
     service_type: "" as ServiceType,
     position_title: "",
+    region: "",
     ciudad: "",
     description: "",
     requirements: "",
@@ -70,13 +71,57 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [apiData, setApiData] = useState<FormDataApi | null>(null)
+  
+  // Estados para regiones y comunas
+  const [regiones, setRegiones] = useState<any[]>([])
+  const [todasLasComunas, setTodasLasComunas] = useState<any[]>([])
+  const [comunasFiltradas, setComunasFiltradas] = useState<any[]>([])
+  const [loadingRegionComuna, setLoadingRegionComuna] = useState(true)
 
   // Cargar datos del formulario cuando se abre el diálogo
   useEffect(() => {
     if (open) {
       loadFormData()
+      loadRegionesYComunas()
     }
   }, [open])
+
+  // Cargar regiones y comunas
+  const loadRegionesYComunas = async () => {
+    try {
+      setLoadingRegionComuna(true)
+      const [regionesRes, comunasRes] = await Promise.all([
+        regionService.getAll(),
+        comunaService.getAll(),
+      ])
+      setRegiones(regionesRes.data || [])
+      setTodasLasComunas(comunasRes.data || [])
+    } catch (error) {
+      console.error('Error al cargar regiones y comunas:', error)
+      toast.error('Error al cargar regiones y comunas')
+    } finally {
+      setLoadingRegionComuna(false)
+    }
+  }
+
+  // Filtrar comunas cuando cambia la región
+  useEffect(() => {
+    if (formData.region) {
+      const regionSeleccionada = regiones.find(r => r.nombre_region === formData.region)
+      if (regionSeleccionada) {
+        const filtradas = todasLasComunas.filter(
+          c => c.id_region === regionSeleccionada.id_region
+        )
+        setComunasFiltradas(filtradas)
+      }
+    } else {
+      setComunasFiltradas([])
+      // Limpiar la comuna si se deselecciona la región
+      if (formData.ciudad) {
+        setFormData({ ...formData, ciudad: "" })
+      }
+    }
+  }, [formData.region, regiones, todasLasComunas])
 
   const loadFormData = async () => {
     try {
@@ -195,7 +240,7 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
 
       // Validar campos requeridos
       if (!formData.client_id || !formData.contact_id || !formData.service_type || 
-          !formData.position_title || !formData.ciudad || !formData.consultant_id) {
+          !formData.position_title || !formData.region || !formData.ciudad || !formData.consultant_id) {
         toast.error('Por favor completa todos los campos requeridos')
         return
       }
@@ -246,6 +291,7 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
           contact_id: "",
       service_type: "" as ServiceType,
       position_title: "",
+          region: "",
           ciudad: "",
       description: "",
       requirements: "",
@@ -258,6 +304,7 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
     })
     setShowCustomPosition(false)
     setCustomPosition("")
+        setComunasFiltradas([])
         
         // Cerrar el diálogo
         onOpenChange(false)
@@ -432,21 +479,49 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
             )}
           </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="ciudad">Ciudad/Comuna</Label>
-                <Select value={formData.ciudad} onValueChange={(value) => setFormData({ ...formData, ciudad: value })} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar ciudad" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {apiData?.comunas.map((comuna) => (
-                      <SelectItem key={comuna} value={comuna}>
-                        {comuna}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="region">Región</Label>
+              <Select 
+                value={formData.region} 
+                onValueChange={(value) => setFormData({ ...formData, region: value, ciudad: "" })} 
+                required
+                disabled={loadingRegionComuna}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingRegionComuna ? "Cargando regiones..." : "Seleccionar región"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {regiones.map((region) => (
+                    <SelectItem key={region.id_region} value={region.nombre_region}>
+                      {region.nombre_region}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ciudad">Ciudad/Comuna</Label>
+              <Select 
+                value={formData.ciudad} 
+                onValueChange={(value) => setFormData({ ...formData, ciudad: value })} 
+                required
+                disabled={loadingRegionComuna || !formData.region}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={formData.region ? "Seleccionar comuna" : "Primero seleccione región"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {comunasFiltradas.map((comuna) => (
+                    <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
+                      {comuna.nombre_comuna}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
           {isEvaluationProcess && (
             <>

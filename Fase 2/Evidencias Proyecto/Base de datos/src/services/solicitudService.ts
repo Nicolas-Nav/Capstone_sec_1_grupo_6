@@ -438,6 +438,88 @@ export class SolicitudService {
             throw error;
         }
     }
+    /**
+     * Actualizar solicitud y su descripción de cargo
+     */
+    static async updateSolicitud(id: number, data: {
+        contact_id?: number;
+        service_type?: string;
+        position_title?: string;
+        ciudad?: string;
+        description?: string;
+        requirements?: string;
+        vacancies?: number;
+        consultant_id?: string;
+        deadline_days?: number;
+    }) {
+        const transaction: Transaction = await sequelize.transaction();
+
+        try {
+            const solicitud = await Solicitud.findByPk(id, {
+                include: [{ model: DescripcionCargo, as: 'descripcionCargo' }]
+            });
+
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            // Actualizar campos de la solicitud
+            if (data.contact_id) solicitud.id_contacto = data.contact_id;
+            if (data.service_type) solicitud.codigo_servicio = data.service_type;
+            if (data.consultant_id) solicitud.rut_usuario = data.consultant_id;
+
+            // Recalcular fecha límite si se envía
+            if (data.deadline_days) {
+                const nuevaFecha = new Date();
+                nuevaFecha.setDate(nuevaFecha.getDate() + data.deadline_days);
+                solicitud.plazo_maximo_solicitud = nuevaFecha;
+            }
+
+            await solicitud.save({ transaction });
+
+            // Actualizar descripción de cargo asociada
+            const descripcionCargo = (solicitud as any).descripcionCargo;
+            if (descripcionCargo) {
+                if (data.position_title) {
+                    let cargo = await Cargo.findOne({
+                        where: { nombre_cargo: data.position_title.trim() }
+                    });
+                    if (!cargo) {
+                        cargo = await Cargo.create({
+                            nombre_cargo: data.position_title.trim()
+                        }, { transaction });
+                    }
+                    descripcionCargo.id_cargo = cargo.id_cargo;
+                }
+
+                if (data.description) descripcionCargo.descripcion_cargo = data.description.trim();
+                if (data.requirements) descripcionCargo.requisitos_y_condiciones = data.requirements.trim();
+                if (data.vacancies) descripcionCargo.num_vacante = data.vacancies;
+
+                if (data.ciudad) {
+                    const comuna = await Comuna.findOne({
+                        where: { nombre_comuna: data.ciudad.trim() }
+                    });
+                    if (comuna) {
+                        descripcionCargo.id_comuna = comuna.id_comuna;
+                    }
+                }
+
+                await descripcionCargo.save({ transaction });
+            }
+
+            await transaction.commit();
+
+            return { 
+                id: solicitud.id_solicitud,
+                id_descripcion_cargo: descripcionCargo?.id_descripcioncargo || null,
+                message: 'Solicitud actualizada exitosamente'
+            };
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
 
     /**
      * Actualizar estado de solicitud (Creado, En Progreso, Cerrado, Congelado)

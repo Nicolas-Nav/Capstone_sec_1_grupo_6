@@ -33,4 +33,6 @@ router.put('/:id/etapa', SolicitudController.cambiarEtapa);
 // Eliminar solicitud
 router.delete('/:id', SolicitudController.delete);
 
+router.put('/:id', SolicitudController.update);
+
 export default router;

@@ -203,4 +203,49 @@ export class SolicitudController {
             return sendError(res, 'Error al eliminar solicitud', 500);
         }
     }
-}
+
+    /**
+     * PUT /api/solicitudes/:id
+     * Actualizar información de una solicitud y su descripción de cargo
+     */
+    static async update(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const {
+                contact_id,
+                service_type,
+                position_title,
+                ciudad,
+                description,
+                requirements,
+                vacancies,
+                consultant_id,
+                deadline_days
+            } = req.body;
+
+            const solicitudActualizada = await SolicitudService.updateSolicitud(parseInt(id), {
+                contact_id: contact_id ? parseInt(contact_id) : undefined,
+                service_type,
+                position_title,
+                ciudad,
+                description,
+                requirements,
+                vacancies: vacancies ? parseInt(vacancies) : undefined,
+                consultant_id,
+                deadline_days: deadline_days ? parseInt(deadline_days) : undefined
+            });
+
+            Logger.info(`Solicitud actualizada: ${id}`);
+            return sendSuccess(res, solicitudActualizada, 'Solicitud actualizada exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al actualizar solicitud:', error);
+
+            if (error.message === 'Solicitud no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+
+            return sendError(res, error.message || 'Error al actualizar solicitud', 400);
+        }
+    }
+
+    }

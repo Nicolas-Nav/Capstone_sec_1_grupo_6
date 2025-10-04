@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Mail, Briefcase, Save, Edit, Key, CheckCircle, XCircle } from "lucide-react"
+import { Mail, Briefcase, Save, Edit, Key } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog"
+import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 
 export default function PerfilPage() {
   const { user } = useAuth()
@@ -233,28 +233,14 @@ export default function PerfilPage() {
       </Card>
 
       {/* Resultado de cambio de contraseña */}
-      <AlertDialog open={isResultOpen} onOpenChange={setIsResultOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              {resultSuccess ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              ) : (
-                <XCircle className="h-5 w-5 text-red-600" />
-              )}
-              {resultSuccess ? "Contraseña actualizada" : "Error al cambiar contraseña"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {resultMessage}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setIsResultOpen(false)}>
-              Aceptar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CustomAlertDialog
+        open={isResultOpen}
+        onOpenChange={setIsResultOpen}
+        type={resultSuccess ? "success" : "error"}
+        title={resultSuccess ? "Contraseña actualizada" : "Error al cambiar contraseña"}
+        description={resultMessage}
+        confirmText="Aceptar"
+      />
     </div>
   )
 }

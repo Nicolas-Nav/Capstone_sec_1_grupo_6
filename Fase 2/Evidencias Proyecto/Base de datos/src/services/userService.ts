@@ -23,36 +23,78 @@ interface UserPayload {
 
 // Crear usuario
 export const createUser = async (data: CreateUserPayload) => {
-  const usuario = await Usuario.create({
-    ...data,
-    activo_usuario: data.activo_usuario ?? true,
-  });
+  try {
+    const usuario = await Usuario.create({
+      ...data,
+      activo_usuario: data.activo_usuario ?? true,
+    });
 
-  return {
-    rut_usuario: usuario.rut_usuario,
-    nombre: usuario.getNombreCompleto(),
-    email: usuario.email_usuario,
-    rol: usuario.getRolString(),
-    activo: usuario.activo_usuario,
-  };
+    return {
+      rut_usuario: usuario.rut_usuario,
+      nombre: usuario.getNombreCompleto(),
+      email: usuario.email_usuario,
+      rol: usuario.getRolString(),
+      activo: usuario.activo_usuario,
+    };
+  } catch (error: any) {
+    // Manejar errores de Sequelize de forma más específica
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      // Error de clave única (RUT o email duplicado)
+      const field = error.errors?.[0]?.path;
+      if (field === 'rut_usuario') {
+        throw new Error('El RUT ya está registrado en el sistema');
+      } else if (field === 'email_usuario') {
+        throw new Error('El correo electrónico ya está registrado en el sistema');
+      } else {
+        throw new Error('Ya existe un usuario con estos datos');
+      }
+    } else if (error.name === 'SequelizeValidationError') {
+      // Error de validación
+      const messages = error.errors?.map((e: any) => e.message).join(', ');
+      throw new Error(messages || 'Error de validación en los datos del usuario');
+    } else {
+      // Otros errores
+      throw error;
+    }
+  }
 };
 
 // Actualizar usuario
 export const updateUser = async (data: UserPayload) => {
-  const { rut_usuario, ...updateFields } = data;
+  try {
+    const { rut_usuario, ...updateFields } = data;
 
-  const usuario = await Usuario.findByPk(rut_usuario);
-  if (!usuario) throw new Error("Usuario no encontrado");
+    const usuario = await Usuario.findByPk(rut_usuario);
+    if (!usuario) throw new Error("Usuario no encontrado");
 
-  await usuario.update(updateFields);
+    await usuario.update(updateFields);
 
-  return {
-    rut_usuario: usuario.rut_usuario,
-    nombre: usuario.getNombreCompleto(),
-    email: usuario.email_usuario,
-    rol: usuario.getRolString(),
-    activo: usuario.activo_usuario,
-  };
+    return {
+      rut_usuario: usuario.rut_usuario,
+      nombre: usuario.getNombreCompleto(),
+      email: usuario.email_usuario,
+      rol: usuario.getRolString(),
+      activo: usuario.activo_usuario,
+    };
+  } catch (error: any) {
+    // Manejar errores de Sequelize de forma más específica
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      // Error de clave única (email duplicado en update)
+      const field = error.errors?.[0]?.path;
+      if (field === 'email_usuario') {
+        throw new Error('El correo electrónico ya está registrado en el sistema');
+      } else {
+        throw new Error('Ya existe un usuario con estos datos');
+      }
+    } else if (error.name === 'SequelizeValidationError') {
+      // Error de validación
+      const messages = error.errors?.map((e: any) => e.message).join(', ');
+      throw new Error(messages || 'Error de validación en los datos del usuario');
+    } else {
+      // Otros errores (incluido "Usuario no encontrado")
+      throw error;
+    }
+  }
 };
 
 

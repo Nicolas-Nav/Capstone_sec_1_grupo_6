@@ -18,8 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Plus, Search, Edit, Trash2, UserCheck, UserX, CheckCircle, XCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog"
+import { Plus, Search, Edit, Trash2, UserCheck, UserX, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
+import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import { useUsuarios } from "@/hooks/useUsuarios"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -56,17 +56,31 @@ export default function UsuariosPage() {
   } = useUsuarios()
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [confirmPassword, setConfirmPassword] = useState("")
 
-  // Dialogo de resultado de creación
+  // Estados para alertas
   const [isResultOpen, setIsResultOpen] = useState(false)
   const [resultSuccess, setResultSuccess] = useState<boolean>(false)
   const [resultMessage, setResultMessage] = useState<string>("")
+  
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<string | null>(null)
+  
+  const [isToggleStatusOpen, setIsToggleStatusOpen] = useState(false)
+  const [userToToggle, setUserToToggle] = useState<{ id: string; currentStatus: boolean } | null>(null)
 
   // Cargar usuarios iniciales
   useEffect(() => {
     fetchUsers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Limpiar confirmPassword cuando se cierra el diálogo
+  useEffect(() => {
+    if (!isCreateDialogOpen) {
+      setConfirmPassword("")
+    }
+  }, [isCreateDialogOpen])
 
   // filteredUsers ya viene del hook
 
@@ -96,10 +110,27 @@ export default function UsuariosPage() {
     )
 
   const handleCreateUser = async () => {
+    // Validar que las contraseñas coincidan
+    if (newUser.password !== confirmPassword) {
+      setResultSuccess(false)
+      setResultMessage("Las contraseñas no coinciden")
+      setIsResultOpen(true)
+      return
+    }
+
+    // Validar longitud mínima de contraseña
+    if (newUser.password.length < 6) {
+      setResultSuccess(false)
+      setResultMessage("La contraseña debe tener al menos 6 caracteres")
+      setIsResultOpen(true)
+      return
+    }
+
     const res = await createUser()
     if (res.success) {
       setIsCreateDialogOpen(false)
       setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
+      setConfirmPassword("")
       setResultSuccess(true)
       setResultMessage(res.message || "Usuario creado correctamente")
       setIsResultOpen(true)
@@ -112,13 +143,33 @@ export default function UsuariosPage() {
 
   const handleEditUser = (user: any) => {
     editUser(user)
+    setConfirmPassword("") // Limpiar confirmación al editar
     setIsCreateDialogOpen(true)
   }
 
   const handleUpdateUser = async () => {
+    // Si se ingresó una nueva contraseña, validar que coincidan
+    if (newUser.password && newUser.password.trim() !== "") {
+      if (newUser.password !== confirmPassword) {
+        setResultSuccess(false)
+        setResultMessage("Las contraseñas no coinciden")
+        setIsResultOpen(true)
+        return
+      }
+
+      // Validar longitud mínima de contraseña
+      if (newUser.password.length < 6) {
+        setResultSuccess(false)
+        setResultMessage("La contraseña debe tener al menos 6 caracteres")
+        setIsResultOpen(true)
+        return
+      }
+    }
+
     const res = await updateUser()
     if (res.success) {
       setIsCreateDialogOpen(false)
+      setConfirmPassword("")
       setResultSuccess(true)
       setResultMessage(res.message || "Usuario actualizado correctamente")
       setIsResultOpen(true)
@@ -129,12 +180,28 @@ export default function UsuariosPage() {
     }
   }
 
-  const handleToggleStatus = (userId: string) => {
-    toggleStatus(userId)
+  const handleToggleStatus = (userId: string, currentStatus: boolean) => {
+    setUserToToggle({ id: userId, currentStatus })
+    setIsToggleStatusOpen(true)
+  }
+
+  const confirmToggleStatus = () => {
+    if (userToToggle) {
+      toggleStatus(userToToggle.id)
+      setUserToToggle(null)
+    }
   }
 
   const handleDeleteUser = (userId: string) => {
-    deleteUser(userId)
+    setUserToDelete(userId)
+    setIsDeleteConfirmOpen(true)
+  }
+
+  const confirmDeleteUser = () => {
+    if (userToDelete) {
+      deleteUser(userToDelete)
+      setUserToDelete(null)
+    }
   }
 
   // -------------------
@@ -210,6 +277,19 @@ export default function UsuariosPage() {
                 />
               </div>
               <div className="grid gap-2">
+                <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder={editingUser ? "Confirma la nueva contraseña" : "Repite la contraseña"}
+                />
+                {newUser.password && confirmPassword && newUser.password !== confirmPassword && (
+                  <p className="text-xs text-red-600">Las contraseñas no coinciden</p>
+                )}
+              </div>
+              <div className="grid gap-2">
                 <Label htmlFor="role">Rol</Label>
                 <Select
                   value={newUser.role}
@@ -243,12 +323,25 @@ export default function UsuariosPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsCreateDialogOpen(false)
+                  setConfirmPassword("")
+                }}
+              >
                 Cancelar
               </Button>
               <Button
                 onClick={editingUser ? handleUpdateUser : handleCreateUser}
-                disabled={!newUser.rut || !newUser.nombre || !newUser.apellido || !newUser.email || (!editingUser && !newUser.password)}
+                disabled={
+                  !newUser.rut || 
+                  !newUser.nombre || 
+                  !newUser.apellido || 
+                  !newUser.email || 
+                  (!editingUser && (!newUser.password || !confirmPassword)) ||
+                  (editingUser && newUser.password && !confirmPassword)
+                }
               >
                 {editingUser ? "Actualizar Usuario" : "Crear Usuario"}
               </Button>
@@ -369,14 +462,13 @@ export default function UsuariosPage() {
                     <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell>{getStatusBadge(user.isActive ?? (user.status === "habilitado"))}</TableCell>
                     <TableCell className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handleToggleStatus(user.id)}>
-                        {(user.isActive ?? (user.status === "habilitado")) ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleEditUser(user)}>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => handleEditUser(user)}
+                        title="Editar usuario"
+                      >
                         <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleDeleteUser(user.id)}>
-                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -463,29 +555,47 @@ export default function UsuariosPage() {
         </CardContent>
       </Card>
 
-      {/* Resultado de creación */}
-      <AlertDialog open={isResultOpen} onOpenChange={setIsResultOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              {resultSuccess ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              ) : (
-                <XCircle className="h-5 w-5 text-red-600" />
-              )}
-              {resultSuccess ? "Usuario creado correctamente" : "No se pudo crear el usuario"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {resultMessage}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setIsResultOpen(false)}>
-              Aceptar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Alertas */}
+      
+      {/* Resultado de crear/editar usuario */}
+      <CustomAlertDialog
+        open={isResultOpen}
+        onOpenChange={setIsResultOpen}
+        type={resultSuccess ? "success" : "error"}
+        title={resultSuccess ? "Operación exitosa" : "Error en la operación"}
+        description={resultMessage}
+        confirmText="Aceptar"
+      />
+
+      {/* Confirmación de eliminación */}
+      <CustomAlertDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+        type="confirm"
+        title="¿Eliminar usuario?"
+        description="Esta acción no se puede deshacer. El usuario será eliminado permanentemente del sistema."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onConfirm={confirmDeleteUser}
+        onCancel={() => setUserToDelete(null)}
+      />
+
+      {/* Confirmación de cambio de estado */}
+      <CustomAlertDialog
+        open={isToggleStatusOpen}
+        onOpenChange={setIsToggleStatusOpen}
+        type="confirm"
+        title={userToToggle?.currentStatus ? "¿Inhabilitar usuario?" : "¿Habilitar usuario?"}
+        description={
+          userToToggle?.currentStatus
+            ? "El usuario no podrá acceder al sistema hasta que sea habilitado nuevamente."
+            : "El usuario podrá acceder al sistema con sus credenciales."
+        }
+        confirmText={userToToggle?.currentStatus ? "Inhabilitar" : "Habilitar"}
+        cancelText="Cancelar"
+        onConfirm={confirmToggleStatus}
+        onCancel={() => setUserToToggle(null)}
+      />
     </div>
   )
 }

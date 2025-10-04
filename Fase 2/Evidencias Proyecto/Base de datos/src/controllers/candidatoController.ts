@@ -373,5 +373,44 @@ export class CandidatoController {
             return sendError(res, 'Error al obtener CV', 500);
         }
     }
+
+    /**
+     * Actualizar estado del candidato
+     */
+    static async updateStatus(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const { status, comment } = req.body;
+
+            const candidatoId = parseInt(id);
+            if (isNaN(candidatoId)) {
+                return sendError(res, 'ID de candidato inválido', 400);
+            }
+
+            // Validar estado
+            const validStatuses = ['presentado', 'no_presentado', 'rechazado'];
+            if (!validStatuses.includes(status)) {
+                return sendError(res, 'Estado inválido. Debe ser: presentado, no_presentado o rechazado', 400);
+            }
+
+            // Validar que si es "no_presentado" debe tener comentario
+            if (status === 'no_presentado' && (!comment || comment.trim() === '')) {
+                return sendError(res, 'El comentario es requerido para el estado "No Presentado"', 400);
+            }
+
+            const result = await CandidatoService.updateStatus(candidatoId, status, comment);
+            
+            Logger.info(`Estado del candidato ${candidatoId} actualizado a: ${status}`);
+            return sendSuccess(res, result, 'Estado del candidato actualizado correctamente');
+        } catch (error: any) {
+            Logger.error('Error al actualizar estado del candidato:', error);
+            
+            if (error.message === 'Candidato no encontrado') {
+                return sendError(res, error.message, 404);
+            }
+            
+            return sendError(res, 'Error al actualizar estado del candidato', 500);
+        }
+    }
 }
 

@@ -56,5 +56,8 @@ router.post('/:id/profesion', CandidatoController.addProfesion);
 // Obtener CV de un candidato
 router.get('/:id/cv', CandidatoController.getCV);
 
+// Actualizar estado del candidato
+router.put('/:id/status', CandidatoController.updateStatus);
+
 export default router;
 

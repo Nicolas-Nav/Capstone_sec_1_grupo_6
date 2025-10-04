@@ -834,5 +834,66 @@ export class CandidatoService {
 
         return postulacion;
     }
+
+    /**
+     * Actualizar estado del candidato
+     */
+    static async updateStatus(idCandidato: number, status: string, comment?: string) {
+        const transaction = await sequelize.transaction();
+
+        try {
+            // Buscar el candidato
+            const candidato = await Candidato.findByPk(idCandidato);
+            if (!candidato) {
+                throw new Error('Candidato no encontrado');
+            }
+
+            // Buscar la postulación asociada
+            const { Postulacion } = await import('@/models');
+            const postulacion = await Postulacion.findOne({
+                where: { id_candidato: idCandidato }
+            });
+
+            if (!postulacion) {
+                throw new Error('Postulación no encontrada para este candidato');
+            }
+
+            // Mapear estados del frontend a IDs de la base de datos
+            const statusMapping: { [key: string]: number } = {
+                'presentado': 1,    // "Presentado"
+                'no_presentado': 2, // "No presentado" 
+                'rechazado': 3      // "Rechazado"
+            };
+
+            const idEstadoCandidato = statusMapping[status];
+            if (!idEstadoCandidato) {
+                throw new Error('Estado inválido');
+            }
+
+            // Actualizar la postulación con el nuevo estado
+            const updateData: any = {
+                id_estado_candidato: idEstadoCandidato
+            };
+
+            // Si es "no_presentado", agregar el comentario
+            if (status === 'no_presentado' && comment) {
+                updateData.comentario_no_presentado = comment;
+            }
+
+            await postulacion.update(updateData, { transaction });
+
+            await transaction.commit();
+
+            return {
+                id: candidato.id_candidato,
+                status: status,
+                comment: comment || null,
+                message: `Estado del candidato actualizado a: ${status}`
+            };
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
 }
 

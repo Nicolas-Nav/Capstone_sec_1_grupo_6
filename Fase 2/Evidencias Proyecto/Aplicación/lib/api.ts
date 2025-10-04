@@ -388,6 +388,14 @@ export const candidatoService = {
     });
   },
 
+  // Actualizar estado del candidato
+  async updateStatus(id: number, status: 'presentado' | 'no_presentado' | 'rechazado', comment?: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, comment }),
+    });
+  },
+
   // Obtener experiencias de un candidato
   async getExperiences(id: number): Promise<ApiResponse<any[]>> {
     return apiRequest(`/api/candidatos/${id}/experiencias`);

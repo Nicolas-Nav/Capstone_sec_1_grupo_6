@@ -26,6 +26,7 @@ import { regionService, comunaService, profesionService, rubroService, nacionali
 import { useToast } from "@/hooks/use-toast"
 import { AddPublicationDialog } from "./add-publication-dialog"
 import CVViewerDialog from "./cv-viewer-dialog"
+import { CandidateStatusDialog } from "./candidate-status-dialog"
 import { toast as sonnerToast } from "sonner"
 
 interface ProcessModule2Props {
@@ -48,6 +49,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [rubros, setRubros] = useState<any[]>([])
   const [nacionalidades, setNacionalidades] = useState<any[]>([])
   const [loadingLists, setLoadingLists] = useState(true)
+
+  // Estados para diálogos
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false)
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
   const [showAddPublication, setShowAddPublication] = useState(false)
   const [showAddCandidate, setShowAddCandidate] = useState(false)
@@ -758,6 +762,16 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     })
   }
 
+  const handleOpenStatusDialog = (candidate: Candidate) => {
+    setSelectedCandidate(candidate)
+    setStatusDialogOpen(true)
+  }
+
+  const handleStatusChangeSuccess = () => {
+    // Recargar los candidatos para obtener los datos actualizados
+    loadData()
+  }
+
   const handleTogglePresentationStatus = (candidateId: string, currentStatus?: string) => {
     const newStatus = currentStatus === "presentado" ? "no_presentado" : "presentado"
     const updatedCandidates = candidates.map((candidate) => {
@@ -783,11 +797,35 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     setCandidates(updatedCandidates)
   }
 
-  const handleRejectionReason = (candidateId: string, reason: string) => {
-    const updatedCandidates = candidates.map((candidate) =>
-      candidate.id === candidateId ? { ...candidate, rejection_reason: reason } : candidate,
-    )
-    setCandidates(updatedCandidates)
+  const handleRejectionReason = async (candidateId: string, reason: string) => {
+    try {
+      // Actualizar el estado local primero
+      const updatedCandidates = candidates.map((candidate) =>
+        candidate.id === candidateId ? { ...candidate, rejection_reason: reason } : candidate,
+      )
+      setCandidates(updatedCandidates)
+
+      // Actualizar también en la API
+      const candidate = candidates.find(c => c.id === candidateId);
+      if (candidate && candidate.presentation_status && (candidate.presentation_status === "no_presentado" || candidate.presentation_status === "rechazado")) {
+        const response = await candidatoService.updateStatus(
+          parseInt(candidateId), 
+          candidate.presentation_status, 
+          reason
+        );
+
+        if (!response.success) {
+          throw new Error(response.message || 'Error al actualizar comentario');
+        }
+      }
+    } catch (error) {
+      console.error('Error al actualizar comentario:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el comentario",
+        variant: "destructive",
+      });
+    }
   }
 
   // Mostrar indicador de carga
@@ -1796,53 +1834,56 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                     <TableCell>{candidate.source_portal || "No especificado"}</TableCell>
                     <TableCell>{renderStars(candidate.consultant_rating, candidate.id)}</TableCell>
                     <TableCell>
-                      {candidate.status === "rechazado" ? (
-                        <div className="flex flex-col gap-2 p-2 bg-red-50 border border-red-200 rounded-md">
-                          <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-2">
+                        {/* Mostrar estado actual */}
+                        <div className="flex items-center gap-2">
+                          {candidate.presentation_status === "presentado" && (
+                            <Badge variant="default" className="text-xs bg-green-600">
+                              <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                              Presentado
+                            </Badge>
+                          )}
+                          {candidate.presentation_status === "rechazado" && (
                             <Badge variant="destructive" className="text-xs">
                               <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
                               Rechazado
                             </Badge>
-                            <span className="text-xs text-red-600 font-medium">
-                              Módulo 3
-                            </span>
-                          </div>
-                          {candidate.rejection_reason && (
-                            <div className="text-xs text-red-700 bg-red-100 p-2 rounded border-l-2 border-red-300">
-                              <strong>Motivo:</strong> {candidate.rejection_reason}
-                            </div>
                           )}
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          <Select
-                            value={candidate.presentation_status || "no_presentado"}
-                            onValueChange={(value: "presentado" | "no_presentado") => {
-                              const updatedCandidates = candidates.map((c) =>
-                                c.id === candidate.id ? { ...c, presentation_status: value } : c,
-                              )
-                              setCandidates(updatedCandidates)
-                            }}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="presentado">Presentado</SelectItem>
-                              <SelectItem value="no_presentado">No Presentado</SelectItem>
-                            </SelectContent>
-                          </Select>
                           {candidate.presentation_status === "no_presentado" && (
-                            <Textarea
-                              placeholder="Razón de no presentación"
-                              value={candidate.rejection_reason || ""}
-                              onChange={(e) => handleRejectionReason(candidate.id, e.target.value)}
-                              className="text-xs"
-                              rows={2}
-                            />
+                            <Badge variant="secondary" className="text-xs">
+                              <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1"></span>
+                              No Presentado
+                            </Badge>
+                          )}
+                          {!candidate.presentation_status && (
+                            <Badge variant="outline" className="text-xs">
+                              <span className="w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
+                              Sin Estado
+                            </Badge>
                           )}
                         </div>
-                      )}
+
+                        {/* Botón para cambiar estado */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenStatusDialog(candidate)}
+                          className="text-xs h-7"
+                        >
+                          Cambiar Estado
+                        </Button>
+
+                        {/* Campo de comentario si es necesario */}
+                        {(candidate.presentation_status === "no_presentado" || candidate.presentation_status === "rechazado") && (
+                          <Textarea
+                            placeholder={candidate.presentation_status === "no_presentado" ? "Razón de no presentación" : "Motivo de rechazo"}
+                            value={candidate.rejection_reason || ""}
+                            onChange={(e) => handleRejectionReason(candidate.id, e.target.value)}
+                            className="text-xs"
+                            rows={2}
+                          />
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="max-w-32 truncate">{candidate.consultant_comment || "Sin comentarios"}</div>
@@ -2470,6 +2511,14 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         candidate={viewingCV}
         isOpen={showViewCV}
         onClose={() => setShowViewCV(false)}
+      />
+
+      {/* Diálogo para cambiar estado del candidato */}
+      <CandidateStatusDialog
+        open={statusDialogOpen}
+        onOpenChange={setStatusDialogOpen}
+        candidate={selectedCandidate}
+        onSuccess={handleStatusChangeSuccess}
       />
     </div>
   )

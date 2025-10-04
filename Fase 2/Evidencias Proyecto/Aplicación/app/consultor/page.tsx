@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle } from "lucide-react"
+import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -19,7 +19,8 @@ const getStatusColor = (status: string) => {
     creado: "bg-blue-100 text-blue-800",
     en_progreso: "bg-purple-100 text-purple-800",
     cerrado: "bg-green-100 text-green-800",
-    congelado: "bg-gray-100 text-gray-800"
+    congelado: "bg-gray-100 text-gray-800",
+    cancelado: "bg-red-100 text-red-800"
   }
   return colors[status] || "bg-gray-100 text-gray-800"
 }
@@ -36,7 +37,8 @@ const processStatusLabels: Record<string, string> = {
   creado: "Creado",
   en_progreso: "En Progreso",
   cerrado: "Cerrado",
-  congelado: "Congelado"
+  congelado: "Congelado",
+  cancelado: "Cancelado"
 }
 
 export default function ConsultorPage() {
@@ -45,6 +47,7 @@ export default function ConsultorPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [startingProcess, setStartingProcess] = useState<string | null>(null)
+  const [advancingProcess, setAdvancingProcess] = useState<string | null>(null)
   const [myProcesses, setMyProcesses] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -63,7 +66,7 @@ export default function ConsultorPage() {
       
       if (response.success && response.data) {
         // La respuesta tiene estructura: { solicitudes: [...], pagination: {...} }
-        const solicitudes = response.data.solicitudes || response.data
+        const solicitudes = (response.data as any).solicitudes || response.data
         setMyProcesses(Array.isArray(solicitudes) ? solicitudes : [])
       } else {
         setMyProcesses([])
@@ -114,6 +117,7 @@ export default function ConsultorPage() {
   const pendingProcesses = filteredProcesses.filter((p) => p.status === "creado")
   const activeProcesses = filteredProcesses.filter((p) => p.status === "en_progreso")
   const completedProcesses = filteredProcesses.filter((p) => p.status === "cerrado")
+  const cancelledProcesses = filteredProcesses.filter((p) => p.status === "cancelado")
 
   const handleStartProcess = async (processId: string) => {
     try {
@@ -133,6 +137,27 @@ export default function ConsultorPage() {
       toast.error("Error al iniciar proceso")
     } finally {
       setStartingProcess(null)
+    }
+  }
+
+  const handleAdvanceToModule2 = async (processId: string) => {
+    try {
+      setAdvancingProcess(processId)
+      
+      const response = await solicitudService.avanzarAModulo2(parseInt(processId))
+      
+      if (response.success) {
+        toast.success("Proceso avanzado al Módulo 2 exitosamente")
+        await loadMyProcesses() // Recargar procesos
+        router.push(`/consultor/proceso/${processId}`)
+      } else {
+        toast.error("Error al avanzar al Módulo 2")
+      }
+    } catch (error) {
+      console.error("Error al avanzar al Módulo 2:", error)
+      toast.error("Error al avanzar al Módulo 2")
+    } finally {
+      setAdvancingProcess(null)
     }
   }
 
@@ -183,6 +208,15 @@ export default function ConsultorPage() {
             <div className="text-2xl font-bold text-green-600">{completedProcesses.length}</div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cancelados</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{cancelledProcesses.length}</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -213,6 +247,7 @@ export default function ConsultorPage() {
                 <SelectItem value="en_progreso">En Progreso</SelectItem>
                 <SelectItem value="cerrado">Cerrado</SelectItem>
                 <SelectItem value="congelado">Congelado</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -329,12 +364,32 @@ export default function ConsultorPage() {
                     </TableCell>
                     <TableCell>{new Date(process.started_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      <Button asChild size="sm">
-                        <Link href={`/consultor/proceso/${process.id}`}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Gestionar
-                        </Link>
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button asChild size="sm">
+                          <Link href={`/consultor/proceso/${process.id}`}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Gestionar
+                          </Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAdvanceToModule2(process.id)}
+                          disabled={advancingProcess === process.id}
+                        >
+                          {advancingProcess === process.id ? (
+                            <>
+                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                              Avanzando...
+                            </>
+                          ) : (
+                            <>
+                              <ArrowRight className="mr-2 h-4 w-4" />
+                              Módulo 2
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -381,6 +436,66 @@ export default function ConsultorPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>{new Date(process.started_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
+                    <TableCell>{process.completed_at ? new Date(process.completed_at).toLocaleDateString() : "-"}</TableCell>
+                    <TableCell>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/consultor/proceso/${process.id}`}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver Detalle
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {cancelledProcesses.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              Procesos Cancelados
+            </CardTitle>
+            <CardDescription>Procesos que han sido cancelados</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cargo</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Tipo de Servicio</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Fecha Creación</TableHead>
+                  <TableHead>Fecha Cancelación</TableHead>
+                  <TableHead>Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {cancelledProcesses.map((process) => (
+                  <TableRow key={process.id}>
+                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Building2 className="h-3 w-3" />
+                        {process.cliente}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(process.status)}>
+                        {processStatusLabels[process.status] || process.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(process.fecha_creacion).toLocaleDateString()}</TableCell>
                     <TableCell>{process.completed_at ? new Date(process.completed_at).toLocaleDateString() : "-"}</TableCell>
                     <TableCell>
                       <Button asChild size="sm" variant="outline">

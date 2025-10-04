@@ -13,7 +13,7 @@ import { formatDate, getStatusColor } from "@/lib/utils"
 import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet } from "lucide-react"
 import type { Process, ProcessStatus, Candidate } from "@/lib/types"
 import { useState, useEffect } from "react"
-import { descripcionCargoService } from "@/lib/api"
+import { descripcionCargoService, solicitudService } from "@/lib/api"
 import { toast } from "sonner"
 
 interface ProcessModule1Props {
@@ -30,12 +30,16 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     address: "",
   })
 
-  const [processStatus, setProcessStatus] = useState<ProcessStatus>(process.status)
+  const [processStatus, setProcessStatus] = useState<ProcessStatus>((process.estado_solicitud || process.status) as ProcessStatus)
   const [statusChangeReason, setStatusChangeReason] = useState("")
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [excelData, setExcelData] = useState<any>(null)
   const [loadingExcel, setLoadingExcel] = useState(false)
+  const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
+  const [loadingEstados, setLoadingEstados] = useState(false)
+  const [showStatusChange, setShowStatusChange] = useState(false)
+  const [selectedEstado, setSelectedEstado] = useState<string>("")
 
   const isEvaluationProcess =
     process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral"
@@ -57,6 +61,25 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       loadCandidates()
     }
   }, [process.id, isEvaluationProcess])
+
+  // Load estados disponibles
+  useEffect(() => {
+    const loadEstados = async () => {
+      try {
+        setLoadingEstados(true)
+        const response = await solicitudService.getEstadosSolicitud()
+        if (response.success && response.data) {
+          setEstadosDisponibles(response.data)
+        }
+      } catch (error) {
+        console.error("Error loading estados:", error)
+        toast.error("Error al cargar estados disponibles")
+      } finally {
+        setLoadingEstados(false)
+      }
+    }
+    loadEstados()
+  }, [])
 
   // Load Excel data if available
   useEffect(() => {
@@ -107,13 +130,29 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     // Here you would save the personal data and proceed to module 4
   }
 
-  const handleStatusChange = (newStatus: ProcessStatus) => {
-    setProcessStatus(newStatus)
-    console.log(`Process status changed to: ${newStatus}`)
-    console.log(`Reason: ${statusChangeReason}`)
-    // Here you would save the status change to the backend
+  const handleStatusChange = async (estadoId: string) => {
+    try {
+      const response = await solicitudService.cambiarEstado(parseInt(process.id), parseInt(estadoId))
+      
+      if (response.success) {
+        toast.success("Estado actualizado exitosamente")
+        setShowStatusChange(false)
+        setSelectedEstado("")
+        setStatusChangeReason("")
+        // Recargar la página para reflejar el cambio
+        window.location.reload()
+      } else {
+        toast.error("Error al actualizar el estado")
+      }
+    } catch (error) {
+      console.error("Error updating status:", error)
+      toast.error("Error al actualizar el estado")
+    }
   }
 
+  // Verificar si el proceso está cerrado o cancelado
+  const isProcessClosed = processStatus === "Cerrado" || processStatus === "Cancelado"
+  
   const canChangeStatus = (currentStatus: ProcessStatus, newStatus: ProcessStatus) => {
     // No se puede cambiar a "completado" desde el módulo 1
     if (newStatus === "completado") return false
@@ -133,6 +172,106 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
         <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
       </div>
+
+      {/* Botón de cambio de estado al inicio */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Cambiar Estado de la Solicitud
+          </CardTitle>
+          <CardDescription>
+            Actualiza el estado actual del proceso de reclutamiento
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Label htmlFor="estado-select">Estado Actual: </Label>
+              <Badge className={getStatusColor(processStatus)}>
+                {processStatusLabels[processStatus] || processStatus}
+              </Badge>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowStatusChange(!showStatusChange)}
+              disabled={loadingEstados}
+            >
+              {loadingEstados ? "Cargando..." : "Cambiar Estado"}
+            </Button>
+          </div>
+
+          {showStatusChange && (
+            <div className="mt-4 space-y-4 p-4 border rounded-lg bg-muted/50">
+              <div>
+                <Label htmlFor="new-estado">Nuevo Estado</Label>
+                <Select
+                  value={selectedEstado}
+                  onValueChange={setSelectedEstado}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecciona un estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {estadosDisponibles.map((estado) => (
+                      <SelectItem key={estado.id} value={estado.id.toString()}>
+                        {estado.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="reason">Motivo del Cambio (Opcional)</Label>
+                <Textarea
+                  id="reason"
+                  placeholder="Explica el motivo del cambio de estado..."
+                  value={statusChangeReason}
+                  onChange={(e) => setStatusChangeReason(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleStatusChange(selectedEstado)}
+                  disabled={!selectedEstado}
+                >
+                  Actualizar Estado
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowStatusChange(false)
+                    setSelectedEstado("")
+                    setStatusChangeReason("")
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Mensaje si el proceso está cerrado o cancelado */}
+      {isProcessClosed && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-red-800">
+              <Settings className="h-5 w-5" />
+              <div>
+                <h3 className="font-semibold">Proceso {processStatus === "Cerrado" ? "Cerrado" : "Cancelado"}</h3>
+                <p className="text-sm">
+                  Este proceso ha sido {processStatus === "Cerrado" ? "cerrado" : "cancelado"} y no se puede modificar.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Process Information */}
       <Card>

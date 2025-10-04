@@ -30,6 +30,15 @@ router.put('/:id/estado', SolicitudController.updateEstado);
 // Cambiar etapa de solicitud
 router.put('/:id/etapa', SolicitudController.cambiarEtapa);
 
+// Avanzar al módulo 2
+router.put('/:id/avanzar-modulo2', SolicitudController.avanzarAModulo2);
+
+// Obtener etapas disponibles
+router.get('/etapas/disponibles', SolicitudController.getEtapas);
+
+// Obtener estados de solicitud disponibles
+router.get('/estados/disponibles', SolicitudController.getEstadosSolicitud);
+
 // Eliminar solicitud
 router.delete('/:id', SolicitudController.delete);
 

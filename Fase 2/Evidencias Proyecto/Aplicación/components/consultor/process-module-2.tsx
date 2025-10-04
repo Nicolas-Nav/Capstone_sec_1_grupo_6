@@ -113,14 +113,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       const candidatesResponse = await postulacionService.getBySolicitud(processId)
       const candidatesData = candidatesResponse.success && candidatesResponse.data ? candidatesResponse.data : []
       
-      console.log('🔍 loadData - Respuesta de candidatos:', candidatesResponse)
-      console.log('🔍 loadData - candidatesData:', candidatesData)
-      if (candidatesData.length > 0) {
-        console.log('🔍 loadData - Primer candidato:', candidatesData[0])
-        console.log('🔍 loadData - Primer candidato.id:', candidatesData[0].id)
-        console.log('🔍 loadData - Primer candidato.cv_file:', candidatesData[0].cv_file)
-      }
-      
       setPublications(publicationsData)
       setCandidates(candidatesData)
     } catch (error) {

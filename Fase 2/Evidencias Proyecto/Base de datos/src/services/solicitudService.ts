@@ -499,6 +499,142 @@ export class SolicitudService {
     }
 
     /**
+     * Avanzar al módulo 2 (Publicación y Candidatos)
+     */
+    static async avanzarAModulo2(id: number) {
+        const transaction: Transaction = await sequelize.transaction();
+
+        try {
+            const solicitud = await Solicitud.findByPk(id);
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            // Buscar la etapa "Módulo 2: Publicación y Candidatos"
+            const etapaModulo2 = await EtapaSolicitud.findOne({
+                where: { nombre_etapa: 'Módulo 2: Publicación y Candidatos' }
+            });
+
+            if (!etapaModulo2) {
+                throw new Error('Etapa Módulo 2 no encontrada');
+            }
+
+            // Actualizar la solicitud
+            await solicitud.update({ 
+                id_etapa_solicitud: etapaModulo2.id_etapa_solicitud 
+            }, { transaction });
+
+            // Crear entrada en el historial (usar estado por defecto: 2 = En Progreso)
+            await EstadoSolicitudHist.create({
+                id_solicitud: id,
+                id_estado_solicitud: 2, // En Progreso
+                fecha_cambio_estado_solicitud: new Date()
+            }, { transaction });
+
+            await transaction.commit();
+
+            return { 
+                success: true, 
+                message: 'Proceso avanzado al Módulo 2 exitosamente',
+                etapa: etapaModulo2.nombre_etapa
+            };
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+
+    /**
+     * Obtener todas las etapas disponibles
+     */
+    static async getEtapas() {
+        const etapas = await EtapaSolicitud.findAll({
+            order: [['id_etapa_solicitud', 'ASC']]
+        });
+
+        return etapas.map(etapa => ({
+            id: etapa.id_etapa_solicitud,
+            nombre: etapa.nombre_etapa
+        }));
+    }
+
+    /**
+     * Obtener todos los estados de solicitud disponibles
+     */
+    static async getEstadosSolicitud() {
+        const estados = await EstadoSolicitud.findAll({
+            order: [['id_estado_solicitud', 'ASC']]
+        });
+
+        return estados.map(estado => ({
+            id: estado.id_estado_solicitud,
+            nombre: estado.nombre_estado_solicitud
+        }));
+    }
+
+    /**
+     * Obtener estado actual de una solicitud basado en el historial
+     */
+    static async getEstadoActual(id: number) {
+        const historialReciente = await EstadoSolicitudHist.findOne({
+            where: { id_solicitud: id },
+            order: [['fecha_cambio_estado_solicitud', 'DESC']],
+            include: [{
+                model: EstadoSolicitud,
+                as: 'estado'
+            }]
+        });
+
+        if (!historialReciente) {
+            return null; // No hay historial, estado por defecto
+        }
+
+        const estado = historialReciente.get('estado') as any;
+        return {
+            id: historialReciente.id_estado_solicitud,
+            nombre: estado?.nombre_estado_solicitud || 'Sin estado',
+            fecha: historialReciente.fecha_cambio_estado_solicitud
+        };
+    }
+
+    /**
+     * Cambiar estado de solicitud por ID
+     */
+    static async cambiarEstado(id: number, id_estado: number) {
+        const transaction: Transaction = await sequelize.transaction();
+
+        try {
+            const solicitud = await Solicitud.findByPk(id);
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            const estado = await EstadoSolicitud.findByPk(id_estado);
+            if (!estado) {
+                throw new Error('Estado no encontrado');
+            }
+
+            // Solo crear entrada en el historial (no actualizar solicitud)
+            await EstadoSolicitudHist.create({
+                id_solicitud: id,
+                id_estado_solicitud: id_estado,
+                fecha_cambio_estado_solicitud: new Date()
+            }, { transaction });
+
+            await transaction.commit();
+
+            return { 
+                success: true, 
+                message: 'Estado cambiado exitosamente',
+                estado: estado.nombre_estado_solicitud
+            };
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+
+    /**
      * Eliminar solicitud
      */
     static async deleteSolicitud(id: number) {

@@ -39,43 +39,32 @@ export default function CVViewerDialog({ candidate, isOpen, onClose }: CVViewerD
   const loadCV = async () => {
     if (!candidate) return
 
-    console.log('🔍 CV Viewer - Candidato recibido:', candidate)
-    console.log('🔍 CV Viewer - candidate.id:', candidate.id)
-    console.log('🔍 CV Viewer - candidate.cv_file:', candidate.cv_file)
-
     setIsLoading(true)
     setError(null)
 
     try {
       // Si el candidato tiene un archivo CV subido como File object (desde formulario)
       if (candidate.cv_file && typeof candidate.cv_file === 'object' && 'name' in candidate.cv_file) {
-        console.log('📄 Usando archivo CV local (File object)')
         const url = URL.createObjectURL(candidate.cv_file)
         setCvUrl(url)
       } else {
         // Siempre intentar obtener el CV desde el backend usando el ID del candidato
-        console.log('🔍 Cargando CV desde backend para candidato ID:', candidate.id)
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/candidatos/${candidate.id}/cv`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('llc_token')}`
           }
         })
 
-        console.log('📡 Respuesta del backend:', response.status, response.statusText)
-
         if (response.ok) {
           const blob = await response.blob()
-          console.log('📄 Blob recibido, tamaño:', blob.size, 'tipo:', blob.type)
           
           // Convertir blob a base64 para visualización en iframe
           const reader = new FileReader()
           reader.onload = () => {
-            console.log('✅ PDF convertido a data URL, longitud:', (reader.result as string).length)
             setCvUrl(reader.result as string)
           }
           reader.readAsDataURL(blob)
         } else {
-          console.error('❌ Error al cargar CV:', response.status, response.statusText)
           setError('No se pudo cargar el CV')
         }
       }

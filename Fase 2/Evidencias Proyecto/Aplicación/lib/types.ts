@@ -5,7 +5,7 @@ export type ServiceType =
   | "evaluacion_psicolaboral"
   | "test_psicolaboral"
 
-export type ProcessStatus = "creado" | "iniciado" | "en_progreso" | "completado" | "cancelado" | "congelado"
+export type ProcessStatus = "creado" | "iniciado" | "en_progreso" | "completado" | "cancelado" | "congelado" | "Creado" | "En Progreso" | "Cerrado" | "Congelado" | "Cancelado"
 
 export type CandidateStatus = "postulado" | "presentado" | "aprobado" | "rechazado" | "contratado"
 
@@ -61,10 +61,14 @@ export interface Process {
   consultant_id: string
   consultant: User
   status: ProcessStatus
+  estado_solicitud?: string // Estado actual de la solicitud desde el historial
   created_at: string
   started_at?: string
   completed_at?: string
   excel_file?: string
+  datos_excel?: any // Datos del Excel procesado
+  id_descripcion_cargo?: number // ID de la descripción de cargo
+  id_descripcioncargo?: number // ID alternativo de la descripción de cargo
 }
 
 export interface Candidate {

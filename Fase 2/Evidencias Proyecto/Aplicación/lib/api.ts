@@ -264,10 +264,43 @@ export const solicitudService = {
     });
   },
 
+  // Cambiar estado de solicitud por ID
+  async cambiarEstado(id: number, id_estado: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ id_estado }),
+    });
+  },
+
   // Eliminar solicitud
   async delete(id: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}`, {
       method: 'DELETE',
+    });
+  },
+
+  // Avanzar al módulo 2
+  async avanzarAModulo2(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/avanzar-modulo2`, {
+      method: 'PUT',
+    });
+  },
+
+  // Obtener etapas disponibles
+  async getEtapas(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/solicitudes/etapas/disponibles');
+  },
+
+  // Obtener estados de solicitud disponibles
+  async getEstadosSolicitud(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/solicitudes/estados/disponibles');
+  },
+
+  // Cambiar etapa de solicitud
+  async cambiarEtapa(id: number, id_etapa: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/etapa`, {
+      method: 'PUT',
+      body: JSON.stringify({ id_etapa }),
     });
   },
 };

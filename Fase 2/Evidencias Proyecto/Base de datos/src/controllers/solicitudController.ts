@@ -144,11 +144,18 @@ export class SolicitudController {
     static async updateEstado(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            const { status, reason } = req.body;
+            const { status, reason, id_estado } = req.body;
 
-            await SolicitudService.updateEstado(parseInt(id), { status, reason });
+            // Si se envía id_estado, usar el método de cambio por ID
+            if (id_estado) {
+                await SolicitudService.cambiarEstado(parseInt(id), parseInt(id_estado));
+                Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado}`);
+            } else {
+                // Mantener compatibilidad con el método anterior
+                await SolicitudService.updateEstado(parseInt(id), { status, reason });
+                Logger.info(`Estado actualizado para solicitud ${id}: ${status}`);
+            }
 
-            Logger.info(`Estado actualizado para solicitud ${id}: ${status}`);
             return sendSuccess(res, null, 'Estado actualizado exitosamente');
         } catch (error: any) {
             Logger.error('Error al actualizar estado:', error);
@@ -210,4 +217,66 @@ export class SolicitudController {
             return sendError(res, 'Error al eliminar solicitud', 500);
         }
     }
+
+    /**
+     * Avanzar al módulo 2
+     */
+    static async avanzarAModulo2(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const solicitudId = parseInt(id);
+
+            if (isNaN(solicitudId)) {
+                return sendError(res, 'ID de solicitud inválido', 400);
+            }
+
+            const result = await SolicitudService.avanzarAModulo2(solicitudId);
+            
+            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 2`);
+            return sendSuccess(res, result, result.message);
+        } catch (error: any) {
+            Logger.error('Error al avanzar al módulo 2:', error);
+            
+            if (error.message === 'Solicitud no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+            
+            if (error.message === 'Etapa Módulo 2 no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+            
+            return sendError(res, 'Error al avanzar al módulo 2', 500);
+        }
+    }
+
+    /**
+     * Obtener etapas disponibles
+     */
+    static async getEtapas(req: Request, res: Response): Promise<Response> {
+        try {
+            const etapas = await SolicitudService.getEtapas();
+            
+            Logger.info(`Etapas obtenidas: ${etapas.length}`);
+            return sendSuccess(res, etapas, 'Etapas obtenidas exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener etapas:', error);
+            return sendError(res, 'Error al obtener etapas', 500);
+        }
+    }
+
+    /**
+     * Obtener estados de solicitud disponibles
+     */
+    static async getEstadosSolicitud(req: Request, res: Response): Promise<Response> {
+        try {
+            const estados = await SolicitudService.getEstadosSolicitud();
+            
+            Logger.info(`Estados de solicitud obtenidos: ${estados.length}`);
+            return sendSuccess(res, estados, 'Estados obtenidos exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener estados de solicitud:', error);
+            return sendError(res, 'Error al obtener estados de solicitud', 500);
+        }
+    }
+
 }

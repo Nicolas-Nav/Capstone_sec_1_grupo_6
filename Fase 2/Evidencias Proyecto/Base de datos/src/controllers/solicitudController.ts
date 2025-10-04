@@ -261,9 +261,6 @@ export class SolicitudController {
             return sendError(res, error.message || 'Error al actualizar solicitud', 400);
         }
     }
-
-    }
-
     /**
      * Avanzar al módulo 2
      */
@@ -326,3 +323,7 @@ export class SolicitudController {
     }
 
 }
+
+   
+
+    

@@ -53,5 +53,8 @@ router.post('/:id/educacion', CandidatoController.addEducacion);
 // Agregar profesión a un candidato
 router.post('/:id/profesion', CandidatoController.addProfesion);
 
+// Obtener CV de un candidato
+router.get('/:id/cv', CandidatoController.getCV);
+
 export default router;
 

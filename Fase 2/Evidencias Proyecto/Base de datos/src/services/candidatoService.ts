@@ -821,5 +821,18 @@ export class CandidatoService {
         }
         return age;
     }
+
+    /**
+     * Obtener postulación de un candidato por su ID
+     */
+    static async getPostulacionByCandidato(idCandidato: number) {
+        const { Postulacion } = await import('@/models');
+        
+        const postulacion = await Postulacion.findOne({
+            where: { id_candidato: idCandidato }
+        });
+
+        return postulacion;
+    }
 }
 

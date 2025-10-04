@@ -14,7 +14,7 @@ const router = Router();
 router.get('/solicitud/:idSolicitud', PostulacionController.getBySolicitud);
 
 // Crear nueva postulación (con CV opcional)
-router.post('/', uploadCV.single('cv'), PostulacionController.create);
+router.post('/', uploadCV.single('cv_file'), PostulacionController.create);
 
 // Actualizar estado de postulación
 router.put('/:id/estado', PostulacionController.updateEstado);
@@ -30,7 +30,7 @@ router.put('/:id/valoracion', PostulacionController.updateValoracion);
 router.get('/:id/cv', PostulacionController.downloadCV);
 
 // Subir o actualizar CV de postulación
-router.post('/:id/cv', uploadCV.single('cv'), PostulacionController.uploadCV);
+router.post('/:id/cv', uploadCV.single('cv_file'), PostulacionController.uploadCV);
 
 // Eliminar postulación
 router.delete('/:id', PostulacionController.delete);

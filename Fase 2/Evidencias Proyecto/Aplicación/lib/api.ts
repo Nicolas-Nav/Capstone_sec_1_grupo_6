@@ -463,7 +463,7 @@ export const postulacionService = {
       formData.append('id_solicitud', data.id_solicitud.toString());
       formData.append('id_portal_postulacion', data.id_portal_postulacion.toString());
       formData.append('id_estado_candidato', (data.id_estado_candidato || 1).toString()); // Por defecto: 1 = Presentado
-      formData.append('cv', data.cv_file);
+      formData.append('cv_file', data.cv_file);
       
       if (data.motivacion) formData.append('motivacion', data.motivacion);
       if (data.expectativa_renta) formData.append('expectativa_renta', data.expectativa_renta.toString());

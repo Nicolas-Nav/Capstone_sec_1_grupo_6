@@ -19,12 +19,13 @@ import {
 } from "@/components/ui/dialog"
 import { getPublicationsByProcess, getCandidatesByProcess } from "@/lib/mock-data"
 import { formatDate } from "@/lib/utils"
-import { Plus, Edit, Trash2, Star, Globe, Settings } from "lucide-react"
+import { Plus, Edit, Trash2, Star, Globe, Settings, FileText } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
 import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, publicacionService, postulacionService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { AddPublicationDialog } from "./add-publication-dialog"
+import CVViewerDialog from "./cv-viewer-dialog"
 import { toast as sonnerToast } from "sonner"
 
 interface ProcessModule2Props {
@@ -88,20 +89,37 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }, [])
 
   useEffect(() => {
-    loadData()
+    if (process?.id && !isNaN(parseInt(process.id))) {
+      loadData()
+    }
   }, [process.id])
 
   const loadData = async () => {
     try {
       setIsLoading(true)
       
+      // Validar que process.id sea válido
+      const processId = parseInt(process.id)
+      if (isNaN(processId)) {
+        console.error('ID de proceso inválido en ProcessModule2:', process.id)
+        return
+      }
+      
       // Cargar publicaciones desde el backend
-      const publicationsResponse = await publicacionService.getAll({ solicitud_id: parseInt(process.id) })
+      const publicationsResponse = await publicacionService.getAll({ solicitud_id: processId })
       const publicationsData = publicationsResponse.success && publicationsResponse.data ? publicationsResponse.data : []
       
       // Cargar candidatos desde el backend (postulaciones)
-      const candidatesResponse = await postulacionService.getBySolicitud(parseInt(process.id))
+      const candidatesResponse = await postulacionService.getBySolicitud(processId)
       const candidatesData = candidatesResponse.success && candidatesResponse.data ? candidatesResponse.data : []
+      
+      console.log('🔍 loadData - Respuesta de candidatos:', candidatesResponse)
+      console.log('🔍 loadData - candidatesData:', candidatesData)
+      if (candidatesData.length > 0) {
+        console.log('🔍 loadData - Primer candidato:', candidatesData[0])
+        console.log('🔍 loadData - Primer candidato.id:', candidatesData[0].id)
+        console.log('🔍 loadData - Primer candidato.cv_file:', candidatesData[0].cv_file)
+      }
       
       setPublications(publicationsData)
       setCandidates(candidatesData)
@@ -296,6 +314,18 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     console.log('=== INICIANDO handleAddCandidate ===')
     console.log('Datos del formulario:', newCandidate)
     
+    // Validar que process.id sea válido
+    const processId = parseInt(process.id)
+    if (isNaN(processId)) {
+      console.error('ID de proceso inválido en handleAddCandidate:', process.id)
+      toast({
+        title: "Error",
+        description: "ID de proceso inválido",
+        variant: "destructive",
+      })
+      return
+    }
+    
     try {
       // Validar campos requeridos
       if (!newCandidate.name || !newCandidate.email || !newCandidate.phone) {
@@ -366,9 +396,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         // Crear la postulación asociada
         try {
           console.log('Creando postulación...')
+          // Asegurar que processId esté disponible
+          const processIdForPostulation = parseInt(process.id)
           const postulacionData = {
             id_candidato: parseInt(response.data.id),
-            id_solicitud: parseInt(process.id),
+            id_solicitud: processIdForPostulation,
             id_portal_postulacion: newCandidate.source_portal ? parseInt(newCandidate.source_portal) : 1, // Por defecto: 1 = LinkedIn
             id_estado_candidato: 1, // 1 = "Presentado" (estado inicial)
             motivacion: newCandidate.portal_responses?.motivation || newCandidate.motivation,
@@ -528,7 +560,12 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       // 2. Actualizar datos de la POSTULACIÓN (motivacion, expectativa_renta, etc.)
       // Necesitamos buscar el id de la postulación
-      const postulaciones = await postulacionService.getBySolicitud(parseInt(process.id))
+      const processId = parseInt(process.id)
+      if (isNaN(processId)) {
+        console.error('ID de proceso inválido en handleSaveEditedCandidate:', process.id)
+        return
+      }
+      const postulaciones = await postulacionService.getBySolicitud(processId)
       
       // Buscar postulación por id_candidato (el "id" del objeto es el id_candidato)
       const postulacion = postulaciones.data?.find((p: any) => 
@@ -572,6 +609,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const handleViewCV = (candidate: Candidate) => {
+    console.log('🔍 handleViewCV - Candidato seleccionado:', candidate)
+    console.log('🔍 handleViewCV - candidate.id:', candidate.id)
+    console.log('🔍 handleViewCV - candidate.cv_file:', candidate.cv_file)
     setViewingCV(candidate)
     setShowViewCV(true)
   }
@@ -939,7 +979,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
             <AddPublicationDialog
               open={showAddPublication}
               onOpenChange={setShowAddPublication}
-              solicitudId={Number(process.id)}
+              solicitudId={parseInt(process.id) || 0}
               onSuccess={loadData}
             />
           </div>
@@ -1820,6 +1860,15 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => handleViewCV(candidate)}
+                          title="Ver CV"
+                          disabled={!candidate.cv_file}
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleEditCandidate(candidate)}
                           title="Editar candidato"
                         >
@@ -2423,6 +2472,13 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog para ver CV */}
+      <CVViewerDialog
+        candidate={viewingCV}
+        isOpen={showViewCV}
+        onClose={() => setShowViewCV(false)}
+      />
     </div>
   )
 }

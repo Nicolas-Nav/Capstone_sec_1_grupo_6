@@ -60,7 +60,14 @@ export class SolicitudController {
     static async getById(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            const solicitud = await SolicitudService.getSolicitudById(parseInt(id));
+            
+            // Validar que el ID sea un número válido
+            const solicitudId = parseInt(id);
+            if (isNaN(solicitudId)) {
+                return sendError(res, 'ID de solicitud inválido', 400);
+            }
+            
+            const solicitud = await SolicitudService.getSolicitudById(solicitudId);
 
             if (!solicitud) {
                 return sendError(res, 'Solicitud no encontrada', 404);

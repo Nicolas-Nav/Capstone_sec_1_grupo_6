@@ -54,7 +54,17 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   const loadProcessData = async () => {
     try {
       setIsLoading(true)
-      const response = await solicitudService.getById(parseInt(params.id))
+      
+      // Validar que el ID sea un número válido
+      const processId = parseInt(params.id)
+      if (isNaN(processId)) {
+        console.error('ID de proceso inválido:', params.id)
+        toast.error("ID de proceso inválido")
+        notFound()
+        return
+      }
+      
+      const response = await solicitudService.getById(processId)
       
       if (response.success && response.data) {
         setProcess(response.data)

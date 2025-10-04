@@ -319,5 +319,59 @@ export class CandidatoController {
             return sendError(res, error.message || 'Error al agregar profesión', 400);
         }
     }
+
+    /**
+     * GET /api/candidatos/:id/cv
+     * Obtener CV de un candidato
+     */
+    static async getCV(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const { download } = req.query;
+            
+            // Validar que el ID sea un número válido
+            const candidatoId = parseInt(id);
+            if (isNaN(candidatoId)) {
+                return sendError(res, 'ID de candidato inválido', 400);
+            }
+            
+            const candidato = await CandidatoService.getCandidatoById(candidatoId);
+            if (!candidato) {
+                return sendError(res, 'Candidato no encontrado', 404);
+            }
+
+            // Obtener la postulación del candidato para acceder al CV
+            const postulacion = await CandidatoService.getPostulacionByCandidato(candidatoId);
+            if (!postulacion) {
+                return sendError(res, 'Postulación no encontrada', 404);
+            }
+            
+            if (!postulacion.cv_postulacion) {
+                return sendError(res, 'CV no encontrado en la postulación', 404);
+            }
+
+            // Convertir Buffer a base64 para visualización
+            const pdfBuffer = postulacion.cv_postulacion;
+            
+            // Configurar headers según el tipo de solicitud
+            if (download === 'true') {
+                // Para descarga
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `attachment; filename="CV_${candidato.name.replace(/\s+/g, '_')}.pdf"`);
+                res.setHeader('Content-Length', pdfBuffer.length);
+                return res.send(pdfBuffer);
+            } else {
+                // Para visualización
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', 'inline');
+                res.setHeader('Content-Length', pdfBuffer.length);
+                res.setHeader('Cache-Control', 'public, max-age=3600');
+                return res.send(pdfBuffer);
+            }
+        } catch (error) {
+            Logger.error('Error al obtener CV:', error);
+            return sendError(res, 'Error al obtener CV', 500);
+        }
+    }
 }
 

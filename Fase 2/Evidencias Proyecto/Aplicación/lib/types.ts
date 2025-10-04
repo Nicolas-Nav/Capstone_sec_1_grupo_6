@@ -46,6 +46,7 @@ export interface Client {
   id: string
   name: string
   contacts: ClientContact[] // Array de contactos en lugar de un solo contacto
+  processCount?: number // Cantidad de procesos/solicitudes del cliente
 }
 
 export interface Process {

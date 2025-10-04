@@ -1,6 +1,6 @@
 import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
-import { Cliente, Contacto, Comuna } from '@/models';
+import { Cliente, Contacto, Comuna, Solicitud } from '@/models';
 
 /**
  * Servicio para gestión de Clientes
@@ -109,10 +109,41 @@ export class ClienteService {
             distinct: true, // Importante para contar correctamente con includes
         });
 
+        // Obtener conteos de solicitudes para cada cliente
+        const clientIds = rows.map(c => c.id_cliente);
+        
+        const solicitudesPorCliente = await Solicitud.findAll({
+            attributes: [
+                [sequelize.fn('COUNT', sequelize.col('Solicitud.id_solicitud')), 'count'],
+                [sequelize.col('contacto.id_cliente'), 'id_cliente']
+            ],
+            include: [
+                {
+                    model: Contacto,
+                    as: 'contacto',
+                    attributes: [],
+                    where: {
+                        id_cliente: {
+                            [Op.in]: clientIds
+                        }
+                    }
+                }
+            ],
+            group: ['contacto.id_cliente'],
+            raw: true
+        });
+
+        // Crear mapa de conteos
+        const conteoPorCliente: Record<number, number> = {};
+        solicitudesPorCliente.forEach((item: any) => {
+            conteoPorCliente[item.id_cliente] = parseInt(item.count);
+        });
+
         // Transformar al formato del frontend
         const transformedClients = rows.map(cliente => ({
             id: cliente.id_cliente.toString(),
             name: cliente.nombre_cliente,
+            processCount: conteoPorCliente[cliente.id_cliente] || 0,
             contacts: (cliente.get('contactos') as any[])?.map((contacto: any) => ({
                 id: contacto.id_contacto.toString(),
                 name: contacto.nombre_contacto,
@@ -156,10 +187,41 @@ export class ClienteService {
             order: [['nombre_cliente', 'ASC']]
         });
 
+        // Obtener conteos de solicitudes para cada cliente
+        const clientIds = clientes.map(c => c.id_cliente);
+        
+        const solicitudesPorCliente = await Solicitud.findAll({
+            attributes: [
+                [sequelize.fn('COUNT', sequelize.col('Solicitud.id_solicitud')), 'count'],
+                [sequelize.col('contacto.id_cliente'), 'id_cliente']
+            ],
+            include: [
+                {
+                    model: Contacto,
+                    as: 'contacto',
+                    attributes: [],
+                    where: {
+                        id_cliente: {
+                            [Op.in]: clientIds
+                        }
+                    }
+                }
+            ],
+            group: ['contacto.id_cliente'],
+            raw: true
+        });
+
+        // Crear mapa de conteos
+        const conteoPorCliente: Record<number, number> = {};
+        solicitudesPorCliente.forEach((item: any) => {
+            conteoPorCliente[item.id_cliente] = parseInt(item.count);
+        });
+
         // Transformar al formato del frontend
         return clientes.map(cliente => ({
             id: cliente.id_cliente.toString(),
             name: cliente.nombre_cliente,
+            processCount: conteoPorCliente[cliente.id_cliente] || 0,
             contacts: (cliente.get('contactos') as any[])?.map((contacto: any) => ({
                 id: contacto.id_contacto.toString(),
                 name: contacto.nombre_contacto,

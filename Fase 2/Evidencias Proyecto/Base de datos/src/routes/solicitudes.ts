@@ -42,4 +42,6 @@ router.get('/estados/disponibles', SolicitudController.getEstadosSolicitud);
 // Eliminar solicitud
 router.delete('/:id', SolicitudController.delete);
 
+router.put('/:id', SolicitudController.update);
+
 export default router;

@@ -88,6 +88,7 @@ export function useClientes() {
           id: client.id,
           name: client.name,
           contacts: client.contacts || [],
+          processCount: client.processCount || 0,
           // Campos de compatibilidad
           nombre: client.name,
           apellido: "",
@@ -149,6 +150,7 @@ export function useClientes() {
             id: created.id,
             name: created.name,
             contacts: created.contacts || [],
+            processCount: created.processCount || 0,
             // Campos de compatibilidad
             nombre: created.name,
             apellido: "",
@@ -207,6 +209,7 @@ export function useClientes() {
                 ...client,
                 name: newClient.name,
                 contacts: newClient.contacts,
+                processCount: client.processCount || 0, // Mantener el conteo existente
                 // Campos de compatibilidad
                 nombre: newClient.name,
               } as HookClient

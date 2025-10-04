@@ -20,7 +20,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
-import { mockProcesses } from "@/lib/mock-data"
 import { clientService, comunaService, apiUtils } from "@/lib/api"
 import type { Client, ClientContact, Comuna } from "@/lib/types"
 import { toast } from "sonner"
@@ -84,7 +83,8 @@ export default function ClientesPage() {
   }
 
   const getClientProcessCount = (clientId: string) => {
-    return mockProcesses.filter((process) => process.client_id === clientId).length
+    const client = clients.find((c) => c.id === clientId)
+    return client?.processCount || 0
   }
 
   const addContact = () => {

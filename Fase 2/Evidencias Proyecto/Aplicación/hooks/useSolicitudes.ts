@@ -37,6 +37,9 @@ export function useSolicitudes() {
   const [pageSize, setPageSize] = useState(10)
   const [totalPages, setTotalPages] = useState(0)
   const [totalSolicitudes, setTotalSolicitudes] = useState(0)
+  
+  // Estado para almacenar todos los tipos de servicio disponibles
+  const [allServiceTypes, setAllServiceTypes] = useState<string[]>([])
 
   // Función para obtener solicitudes con paginación y filtros
   const fetchSolicitudes = async () => {
@@ -116,6 +119,38 @@ export function useSolicitudes() {
     }
   }
 
+  // Efecto inicial para cargar todos los tipos de servicio disponibles
+  useEffect(() => {
+    const fetchAllServiceTypes = async () => {
+      try {
+        // Hacer una llamada sin filtros para obtener todos los tipos de servicio
+        const res = await fetch(`${API_URL}/api/solicitudes?page=1&limit=1000`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
+          },
+        })
+
+        const data = await res.json()
+        
+        if (res.ok && data?.success) {
+          const serviceTypes = Array.from(
+            new Set(
+              data.data.solicitudes
+                .map((s: any) => s.service_type || s.tipo_servicio)
+                .filter(Boolean)
+            )
+          ).sort() as string[]
+          
+          setAllServiceTypes(serviceTypes)
+        }
+      } catch (error) {
+        console.error("Error fetching service types:", error)
+      }
+    }
+
+    fetchAllServiceTypes()
+  }, []) // Solo ejecutar al montar el componente
+
   // Efecto para recargar solicitudes cuando cambien los filtros o paginación
   useEffect(() => {
     // Reset a la página 1 cuando cambie el término de búsqueda
@@ -186,9 +221,6 @@ export function useSolicitudes() {
     pendientes: 0, // Se calculará del servidor si es necesario
   }
 
-  // Obtener tipos de servicio únicos de las solicitudes actuales
-  const serviceTypes = Array.from(new Set(solicitudes.map(s => s.service_type).filter(Boolean)))
-
   return {
     // Estados
     solicitudes,
@@ -203,7 +235,7 @@ export function useSolicitudes() {
     totalPages,
     totalSolicitudes,
     stats,
-    serviceTypes,
+    serviceTypes: allServiceTypes, // Usar la lista completa de tipos de servicio
     
     // Setters
     setSearchTerm,

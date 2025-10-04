@@ -256,6 +256,24 @@ export const solicitudService = {
     });
   },
 
+  // Actualizar solicitud
+  async update(id: number, data: {
+    contact_id?: string;
+    service_type?: string;
+    position_title?: string;
+    ciudad?: string;
+    description?: string;
+    requirements?: string;
+    vacancies?: number;
+    consultant_id?: string;
+    deadline_days?: number;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
   // Actualizar estado de solicitud
   async updateEstado(id: number, status: string): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/estado`, {

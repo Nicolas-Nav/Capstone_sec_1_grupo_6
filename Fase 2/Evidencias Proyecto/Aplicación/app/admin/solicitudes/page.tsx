@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Eye, Trash2, Loader2, Upload, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, Search, Eye, Trash2, Loader2, Upload, ChevronLeft, ChevronRight, Edit } from "lucide-react"
 import { formatDate, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
 import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
@@ -60,6 +60,7 @@ export default function SolicitudesPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showExcelDialog, setShowExcelDialog] = useState(false)
   const [selectedDescripcionCargoId, setSelectedDescripcionCargoId] = useState<number | null>(null)
+  const [solicitudToEdit, setSolicitudToEdit] = useState<Solicitud | null>(null)
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de que deseas eliminar esta solicitud?')) {
@@ -83,6 +84,19 @@ export default function SolicitudesPage() {
   const handleUploadExcel = (descripcionCargoId: number) => {
     setSelectedDescripcionCargoId(descripcionCargoId)
     setShowExcelDialog(true)
+  }
+
+  const handleEdit = (solicitud: Solicitud) => {
+    setSolicitudToEdit(solicitud)
+    setShowCreateDialog(true)
+  }
+
+  const handleCloseDialog = (open: boolean) => {
+    setShowCreateDialog(open)
+    if (!open) {
+      // Limpiar la solicitud a editar cuando se cierra el diálogo
+      setSolicitudToEdit(null)
+    }
   }
 
   // Los solicitudes ya vienen filtrados del servidor, no necesitamos filtrar en el cliente
@@ -240,6 +254,14 @@ export default function SolicitudesPage() {
                         <Button 
                           variant="ghost" 
                           size="sm"
+                          onClick={() => handleEdit(solicitud)}
+                          title="Editar solicitud"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
                           onClick={() => handleUploadExcel(solicitud.id_descripcion_cargo)}
                           title="Cargar datos de Excel"
                         >
@@ -339,10 +361,11 @@ export default function SolicitudesPage() {
         </CardContent>
       </Card>
 
-      {/* Create Process Dialog */}
+      {/* Create/Edit Process Dialog */}
       <CreateProcessDialog 
         open={showCreateDialog} 
-        onOpenChange={setShowCreateDialog}
+        onOpenChange={handleCloseDialog}
+        solicitudToEdit={solicitudToEdit}
       />
 
       {/* Upload Excel Dialog */}

@@ -24,6 +24,7 @@ import * as XLSX from 'xlsx'
 interface CreateProcessDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  solicitudToEdit?: any // Solicitud a editar (opcional, si no se pasa es modo creación)
 }
 
 interface FormDataApi {
@@ -48,7 +49,8 @@ interface FormDataApi {
   comunas: string[];
 }
 
-export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogProps) {
+export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: CreateProcessDialogProps) {
+  const isEditMode = !!solicitudToEdit
   const [formData, setFormData] = useState({
     client_id: "",
     contact_id: "",
@@ -77,14 +79,54 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
   const [todasLasComunas, setTodasLasComunas] = useState<any[]>([])
   const [comunasFiltradas, setComunasFiltradas] = useState<any[]>([])
   const [loadingRegionComuna, setLoadingRegionComuna] = useState(true)
+  const [loadingSolicitudData, setLoadingSolicitudData] = useState(false)
 
   // Cargar datos del formulario cuando se abre el diálogo
   useEffect(() => {
     if (open) {
-      loadFormData()
-      loadRegionesYComunas()
+      // Si estamos en modo edición, establecer el estado de carga inmediatamente
+      if (isEditMode && solicitudToEdit) {
+        setLoadingSolicitudData(true)
+      }
+      
+      const loadData = async () => {
+        // Primero cargar los datos básicos (clientes, consultores, etc.)
+        await loadFormData()
+        // Luego cargar regiones y comunas
+        await loadRegionesYComunas()
+      }
+      loadData()
+    } else {
+      // Reset al cerrar
+      setFormData({
+        client_id: "",
+        contact_id: "",
+        service_type: "" as ServiceType,
+        position_title: "",
+        region: "",
+        ciudad: "",
+        description: "",
+        requirements: "",
+        vacancies: 1,
+        consultant_id: "",
+        candidate_name: "",
+        candidate_rut: "",
+        cv_file: null,
+        excel_file: null,
+      })
+      setShowCustomPosition(false)
+      setCustomPosition("")
+      setComunasFiltradas([])
+      setLoadingSolicitudData(false)
     }
-  }, [open])
+  }, [open, isEditMode, solicitudToEdit])
+
+  // Cargar datos de la solicitud DESPUÉS de que regiones y comunas estén disponibles
+  useEffect(() => {
+    if (open && isEditMode && solicitudToEdit && regiones.length > 0 && todasLasComunas.length > 0 && !isLoading) {
+      loadSolicitudData()
+    }
+  }, [open, isEditMode, solicitudToEdit, regiones, todasLasComunas, isLoading])
 
   // Cargar regiones y comunas
   const loadRegionesYComunas = async () => {
@@ -138,6 +180,60 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
       toast.error('Error al cargar los datos del formulario')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  // Cargar datos de la solicitud para editar
+  const loadSolicitudData = async () => {
+    try {
+      if (!solicitudToEdit?.id) {
+        return
+      }
+      
+      setLoadingSolicitudData(true)
+      const response = await solicitudService.getById(parseInt(solicitudToEdit.id))
+      
+      if (response.success && response.data) {
+        const solicitud = response.data
+        
+        // La API ya transforma los datos, usamos los campos directamente
+        const ciudadNombre = solicitud.ciudad || ""
+        let regionNombre = ""
+        
+        // Si tenemos el nombre de la ciudad, buscar su región
+        if (ciudadNombre) {
+          const comunaEncontrada = todasLasComunas.find(c => c.nombre_comuna === ciudadNombre)
+          if (comunaEncontrada) {
+            const regionEncontrada = regiones.find(r => r.id_region === comunaEncontrada.id_region)
+            if (regionEncontrada) {
+              regionNombre = regionEncontrada.nombre_region
+            }
+          }
+        }
+        
+        // Usar los datos transformados del backend
+        setFormData({
+          client_id: solicitud.client_id || "",
+          contact_id: solicitud.contact_id || "",
+          service_type: solicitud.service_type || "",
+          position_title: solicitud.position_title || "",
+          region: regionNombre,
+          ciudad: ciudadNombre,
+          description: solicitud.description || "",
+          requirements: solicitud.requirements || "",
+          vacancies: solicitud.vacancies || 1,
+          consultant_id: solicitud.consultant_id || "",
+          candidate_name: "",
+          candidate_rut: "",
+          cv_file: null,
+          excel_file: null,
+        })
+      }
+    } catch (error) {
+      console.error('Error loading solicitud data:', error)
+      toast.error('Error al cargar los datos de la solicitud')
+    } finally {
+      setLoadingSolicitudData(false)
     }
   }
 
@@ -245,8 +341,31 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
         return
       }
 
-      // Crear la solicitud (que automáticamente crea la descripción de cargo)
-      const response = await solicitudService.create({
+      // Validar que el cliente tenga contactos
+      const selectedClientData = apiData?.clientes.find((c) => c.id === formData.client_id)
+      if (!selectedClientData || !selectedClientData.contactos || selectedClientData.contactos.length === 0) {
+        toast.error('El cliente seleccionado no tiene contactos registrados. Por favor, agregue un contacto primero.')
+        return
+      }
+
+      let response
+
+      if (isEditMode && solicitudToEdit) {
+        // Modo edición: actualizar la solicitud existente
+        response = await solicitudService.update(parseInt(solicitudToEdit.id), {
+          contact_id: formData.contact_id,
+          service_type: formData.service_type,
+          position_title: formData.position_title,
+          ciudad: formData.ciudad,
+          description: formData.description || undefined,
+          requirements: formData.requirements || undefined,
+          vacancies: formData.vacancies,
+          consultant_id: formData.consultant_id,
+          deadline_days: 30
+        })
+      } else {
+        // Modo creación: crear nueva solicitud
+        response = await solicitudService.create({
         contact_id: formData.contact_id,
         service_type: formData.service_type,
         position_title: formData.position_title,
@@ -257,6 +376,7 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
         consultant_id: formData.consultant_id,
         deadline_days: 30 // Por defecto 30 días
       })
+      }
 
       if (response.success) {
         // Si hay archivo Excel, procesarlo y enviarlo
@@ -272,17 +392,17 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
               const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
               
               if (excelResponse.success) {
-                toast.success('Solicitud y datos de Excel guardados exitosamente')
+                toast.success(isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente')
               } else {
-                toast.warning('Solicitud creada, pero hubo un error al guardar los datos del Excel')
+                toast.warning(isEditMode ? 'Solicitud actualizada, pero hubo un error al guardar los datos del Excel' : 'Solicitud creada, pero hubo un error al guardar los datos del Excel')
               }
             }
           } catch (excelError: any) {
             console.error('Error processing Excel:', excelError)
-            toast.warning('Solicitud creada, pero hubo un error al procesar el Excel: ' + excelError.message)
+            toast.warning((isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + excelError.message)
           }
         } else {
-          toast.success('Solicitud creada exitosamente')
+          toast.success(isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente')
         }
         
     // Reset form
@@ -323,6 +443,15 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
   }
 
   const handleClientChange = (value: string) => {
+    const client = apiData?.clientes.find((c) => c.id === value)
+    
+    // Validar que el cliente tenga al menos un contacto
+    if (client && (!client.contactos || client.contactos.length === 0)) {
+      toast.error(`El cliente "${client.nombre}" no tiene contactos registrados. Por favor, agregue al menos un contacto antes de crear una solicitud.`)
+      setFormData({ ...formData, client_id: "", contact_id: "" })
+      return
+    }
+    
     setFormData({ ...formData, client_id: value, contact_id: "" })
   }
 
@@ -351,13 +480,18 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Crear Nueva Solicitud de Proceso</DialogTitle>
-          <DialogDescription>Complete la información para iniciar un nuevo proceso de selección.</DialogDescription>
+          <DialogTitle>{isEditMode ? 'Editar Solicitud de Proceso' : 'Crear Nueva Solicitud de Proceso'}</DialogTitle>
+          <DialogDescription>
+            {isEditMode ? 'Modifique los campos necesarios para actualizar la solicitud.' : 'Complete la información para iniciar un nuevo proceso de selección.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {isLoading ? (
+          {isLoading || (isEditMode && loadingSolicitudData) ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin" />
+              <p className="ml-3 text-sm text-muted-foreground">
+                {isEditMode ? 'Cargando datos de la solicitud...' : 'Cargando...'}
+              </p>
             </div>
           ) : (
             <>
@@ -397,6 +531,19 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {formData.client_id && clientContacts.length === 0 && (
+              <div className="col-span-2">
+                <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+                  <p className="text-sm text-destructive font-medium">
+                    ⚠️ El cliente seleccionado no tiene contactos registrados
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Por favor, vaya a la sección de Clientes y agregue al menos un contacto antes de crear una solicitud.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -480,7 +627,7 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+              <div className="space-y-2">
               <Label htmlFor="region">Región</Label>
               <Select 
                 value={formData.region} 
@@ -488,17 +635,17 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
                 required
                 disabled={loadingRegionComuna}
               >
-                <SelectTrigger>
+                  <SelectTrigger>
                   <SelectValue placeholder={loadingRegionComuna ? "Cargando regiones..." : "Seleccionar región"} />
-                </SelectTrigger>
-                <SelectContent>
+                  </SelectTrigger>
+                  <SelectContent>
                   {regiones.map((region) => (
                     <SelectItem key={region.id_region} value={region.nombre_region}>
                       {region.nombre_region}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
             </div>
 
             <div className="space-y-2">
@@ -521,7 +668,7 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
                 </SelectContent>
               </Select>
             </div>
-          </div>
+              </div>
 
           {isEvaluationProcess && (
             <>
@@ -644,14 +791,17 @@ export function CreateProcessDialog({ open, onOpenChange }: CreateProcessDialogP
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading || isSubmitting}>
+            <Button 
+              type="submit" 
+              disabled={isLoading || isSubmitting || (!!formData.client_id && clientContacts.length === 0)}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creando...
+                  {isEditMode ? 'Actualizando...' : 'Creando...'}
                 </>
               ) : (
-                "Crear Solicitud"
+                isEditMode ? "Actualizar Solicitud" : "Crear Solicitud"
               )}
             </Button>
           </DialogFooter>

@@ -660,6 +660,7 @@ export class SolicitudService {
             contact_id: contacto?.id_contacto.toString() || '',
             service_type: solicitud.codigo_servicio,
             position_title: cargo?.nombre_cargo || 'Sin cargo',
+            ciudad: descripcionCargo?.comuna?.nombre_comuna || '',
             description: descripcionCargo?.descripcion_cargo || '',
             requirements: descripcionCargo?.requisitos_y_condiciones || '',
             vacancies: descripcionCargo?.num_vacante || 0,
@@ -674,7 +675,47 @@ export class SolicitudService {
             created_at: solicitud.fecha_ingreso_solicitud.toISOString(),
             started_at: null,
             completed_at: null,
-            excel_file: descripcionCargo?.archivo_excel || undefined
+            excel_file: descripcionCargo?.archivo_excel || undefined,
+            
+            // Objetos completos para acceso detallado (útil para edición)
+            contacto: contacto ? {
+                id_contacto: contacto.id_contacto,
+                nombre_contacto: contacto.nombre_contacto,
+                email_contacto: contacto.email_contacto,
+                telefono_contacto: contacto.telefono_contacto,
+                cargo_contacto: contacto.cargo_contacto,
+                cliente: cliente ? {
+                    id_cliente: cliente.id_cliente,
+                    nombre_cliente: cliente.nombre_cliente
+                } : null,
+                comuna: contacto.comuna ? {
+                    id_comuna: contacto.comuna.id_comuna,
+                    nombre_comuna: contacto.comuna.nombre_comuna
+                } : null
+            } : null,
+            descripcion_cargo: descripcionCargo ? {
+                id_descripcioncargo: descripcionCargo.id_descripcioncargo,
+                descripcion_cargo: descripcionCargo.descripcion_cargo,
+                requisitos_y_condiciones: descripcionCargo.requisitos_y_condiciones,
+                num_vacante: descripcionCargo.num_vacante,
+                cargo: cargo ? {
+                    id_cargo: cargo.id_cargo,
+                    nombre_cargo: cargo.nombre_cargo
+                } : null,
+                comuna: descripcionCargo.comuna ? {
+                    id_comuna: descripcionCargo.comuna.id_comuna,
+                    nombre_comuna: descripcionCargo.comuna.nombre_comuna
+                } : null
+            } : null,
+            tipo_servicio_obj: tipoServicio ? {
+                codigo_servicio: tipoServicio.codigo_servicio,
+                nombre_servicio: tipoServicio.nombre_servicio
+            } : null,
+            usuario: usuario ? {
+                rut_usuario: usuario.rut_usuario,
+                nombre_usuario: usuario.nombre_usuario,
+                email_usuario: usuario.email_usuario
+            } : null
         };
     }
 

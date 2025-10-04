@@ -510,12 +510,18 @@ export class SolicitudService {
                 throw new Error('Solicitud no encontrada');
             }
 
-            // Buscar la etapa "Módulo 2: Publicación y Candidatos"
+            // Buscar la etapa "Módulo 2: Publicación y Registro de Candidatos"
+            console.log('🔍 Buscando etapa Módulo 2...');
             const etapaModulo2 = await EtapaSolicitud.findOne({
-                where: { nombre_etapa: 'Módulo 2: Publicación y Candidatos' }
+                where: { nombre_etapa: 'Módulo 2: Publicación y Registro de Candidatos' }
             });
 
+            console.log('📋 Etapa encontrada:', etapaModulo2);
+
             if (!etapaModulo2) {
+                // Intentar buscar todas las etapas para debug
+                const todasLasEtapas = await EtapaSolicitud.findAll();
+                console.log('📋 Todas las etapas disponibles:', todasLasEtapas.map(e => ({ id: e.id_etapa_solicitud, nombre: e.nombre_etapa })));
                 throw new Error('Etapa Módulo 2 no encontrada');
             }
 
@@ -677,6 +683,19 @@ export class SolicitudService {
         const etapa = solicitud.get('etapaSolicitud') as any;
         const historial = solicitud.get('historialEstados') as any[];
         const estadoActual = historial?.[0]?.estado;
+
+        // Debug log para verificar el estado
+        if (solicitud.id_solicitud) {
+            console.log(`🔍 Solicitud ${solicitud.id_solicitud}:`, {
+                historial: historial?.length || 0,
+                estadoActual: estadoActual?.nombre_estado_solicitud || 'Sin estado',
+                historialCompleto: historial?.map(h => ({ 
+                    id_estado: h.id_estado_solicitud, 
+                    nombre: h.estado?.nombre_estado_solicitud,
+                    fecha: h.fecha_cambio_estado_solicitud 
+                }))
+            });
+        }
 
         return {
             // Formato completo para APIs que necesitan toda la información

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle, ArrowRight } from "lucide-react"
+import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -47,7 +47,6 @@ export default function ConsultorPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [startingProcess, setStartingProcess] = useState<string | null>(null)
-  const [advancingProcess, setAdvancingProcess] = useState<string | null>(null)
   const [myProcesses, setMyProcesses] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -67,6 +66,8 @@ export default function ConsultorPage() {
       if (response.success && response.data) {
         // La respuesta tiene estructura: { solicitudes: [...], pagination: {...} }
         const solicitudes = (response.data as any).solicitudes || response.data
+        console.log("📊 Procesos cargados:", solicitudes)
+        console.log("🔍 Estados encontrados:", solicitudes.map((p: any) => ({ id: p.id, status: p.status, estado_solicitud: p.estado_solicitud })))
         setMyProcesses(Array.isArray(solicitudes) ? solicitudes : [])
       } else {
         setMyProcesses([])
@@ -109,15 +110,25 @@ export default function ConsultorPage() {
       process.cargo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       process.cliente?.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesStatus = statusFilter === "all" || process.status === statusFilter
+    const matchesStatus = statusFilter === "all" || 
+      process.status === statusFilter || 
+      process.estado_solicitud === statusFilter ||
+      (statusFilter === "creado" && process.estado_solicitud === "Creado") ||
+      (statusFilter === "en_progreso" && process.estado_solicitud === "En Progreso") ||
+      (statusFilter === "cerrado" && process.estado_solicitud === "Cerrado") ||
+      (statusFilter === "congelado" && process.estado_solicitud === "Congelado") ||
+      (statusFilter === "cancelado" && process.estado_solicitud === "Cancelado")
 
     return matchesSearch && matchesStatus
   })
 
-  const pendingProcesses = filteredProcesses.filter((p) => p.status === "creado")
-  const activeProcesses = filteredProcesses.filter((p) => p.status === "en_progreso")
-  const completedProcesses = filteredProcesses.filter((p) => p.status === "cerrado")
-  const cancelledProcesses = filteredProcesses.filter((p) => p.status === "cancelado")
+  const pendingProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Creado" || p.status === "creado")
+  const activeProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "En Progreso" || p.status === "en_progreso")
+  const completedProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cerrado" || p.status === "cerrado")
+  const cancelledProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cancelado" || p.status === "cancelado")
+  
+  console.log("🔍 Procesos cancelados encontrados:", cancelledProcesses.length)
+  console.log("📋 Detalles de procesos cancelados:", cancelledProcesses.map(p => ({ id: p.id, estado_solicitud: p.estado_solicitud, status: p.status })))
 
   const handleStartProcess = async (processId: string) => {
     try {
@@ -140,26 +151,6 @@ export default function ConsultorPage() {
     }
   }
 
-  const handleAdvanceToModule2 = async (processId: string) => {
-    try {
-      setAdvancingProcess(processId)
-      
-      const response = await solicitudService.avanzarAModulo2(parseInt(processId))
-      
-      if (response.success) {
-        toast.success("Proceso avanzado al Módulo 2 exitosamente")
-        await loadMyProcesses() // Recargar procesos
-        router.push(`/consultor/proceso/${processId}`)
-      } else {
-        toast.error("Error al avanzar al Módulo 2")
-      }
-    } catch (error) {
-      console.error("Error al avanzar al Módulo 2:", error)
-      toast.error("Error al avanzar al Módulo 2")
-    } finally {
-      setAdvancingProcess(null)
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -370,24 +361,6 @@ export default function ConsultorPage() {
                             <Eye className="mr-2 h-4 w-4" />
                             Gestionar
                           </Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleAdvanceToModule2(process.id)}
-                          disabled={advancingProcess === process.id}
-                        >
-                          {advancingProcess === process.id ? (
-                            <>
-                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                              Avanzando...
-                            </>
-                          ) : (
-                            <>
-                              <ArrowRight className="mr-2 h-4 w-4" />
-                              Módulo 2
-                            </>
-                          )}
                         </Button>
                       </div>
                     </TableCell>

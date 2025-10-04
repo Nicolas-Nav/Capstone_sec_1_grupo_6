@@ -94,9 +94,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     }
   }, [process.id])
 
-  const loadData = async () => {
-    try {
-      setIsLoading(true)
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
       
       // Validar que process.id sea válido
       const processId = parseInt(process.id)
@@ -113,15 +113,15 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       const candidatesResponse = await postulacionService.getBySolicitud(processId)
       const candidatesData = candidatesResponse.success && candidatesResponse.data ? candidatesResponse.data : []
       
-      setPublications(publicationsData)
-      setCandidates(candidatesData)
-    } catch (error) {
-      console.error('Error al cargar datos:', error)
+        setPublications(publicationsData)
+        setCandidates(candidatesData)
+      } catch (error) {
+        console.error('Error al cargar datos:', error)
       sonnerToast.error('Error al cargar datos del módulo')
-    } finally {
-      setIsLoading(false)
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }
 
   const [showPortalManager, setShowPortalManager] = useState(false)
   const [customPortals, setCustomPortals] = useState<string[]>([
@@ -592,8 +592,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       // Recargar los candidatos desde el backend
       await loadData()
 
-      setEditingCandidate(null)
-      setShowEditCandidate(false)
+    setEditingCandidate(null)
+    setShowEditCandidate(false)
     } catch (error: any) {
       console.error('Error al actualizar:', error)
       sonnerToast.error(error.message || 'Error al actualizar')
@@ -963,9 +963,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               <CardDescription>Registra dónde se ha publicado la oferta de trabajo</CardDescription>
             </div>
             <Button onClick={() => setShowAddPublication(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Agregar Publicación
-            </Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar Publicación
+                </Button>
 
             {/* Diálogo de Nueva Publicación */}
             <AddPublicationDialog

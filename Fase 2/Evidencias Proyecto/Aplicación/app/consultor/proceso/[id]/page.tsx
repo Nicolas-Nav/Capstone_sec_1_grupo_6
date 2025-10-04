@@ -114,30 +114,103 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     notFound()
   }
 
-  // Determine which modules are available based on service type
+  // Determine which modules are available based on service type and current stage
   const getAvailableModules = () => {
-    const modules = [{ id: "modulo-1", label: "Solicitud y Cargo", icon: FileText }]
+    const modules = []
     const serviceType = process.tipo_servicio || process.service_type
+    const currentStage = process.etapa || process.stage
 
+    // Módulo 1 - Siempre disponible
+    modules.push({ 
+      id: "modulo-1", 
+      label: "Solicitud y Cargo", 
+      icon: FileText, 
+      enabled: true,
+      isActive: activeTab === "modulo-1"
+    })
+
+    // Botón para avanzar a Módulo 2
+    const canAdvanceToModule2 = currentStage === "Módulo 1: Registro y Gestión de Solicitudes"
+    
+    modules.push({ 
+      id: "advance-modulo-2", 
+      label: "Pasar a Módulo 2", 
+      icon: Target, 
+      enabled: canAdvanceToModule2,
+      isButton: true
+    })
+
+    // Módulo 2 - Disponible solo si se ha avanzado
+    const module2Enabled = currentStage === "Módulo 2: Publicación y Registro de Candidatos"
+    
     if (serviceType === "PC" || serviceType === "LL" || serviceType === "HH") {
-      modules.push({ id: "modulo-2", label: "Publicación y Candidatos", icon: Users })
-      modules.push({ id: "modulo-3", label: "Presentación", icon: Target })
+      modules.push({ 
+        id: "modulo-2", 
+        label: "Publicación y Registro de Candidatos", 
+        icon: Users, 
+        enabled: module2Enabled,
+        isActive: activeTab === "modulo-2"
+      })
+      modules.push({ 
+        id: "modulo-3", 
+        label: "Presentación de Candidatos", 
+        icon: Target, 
+        enabled: currentStage === "Módulo 3: Presentación de Candidatos",
+        isActive: activeTab === "modulo-3"
+      })
     }
 
     if (serviceType === "PC" || serviceType === "TS" || serviceType === "ES") {
-      modules.push({ id: "modulo-4", label: "Evaluación Psicolaboral", icon: CheckCircle })
+      modules.push({ 
+        id: "modulo-4", 
+        label: "Evaluación Psicolaboral", 
+        icon: CheckCircle, 
+        enabled: currentStage === "Módulo 4: Evaluación Psicolaboral",
+        isActive: activeTab === "modulo-4"
+      })
     }
 
     if (serviceType === "PC") {
-      modules.push({ id: "modulo-5", label: "Seguimiento y Control", icon: Clock })
+      modules.push({ 
+        id: "modulo-5", 
+        label: "Seguimiento Posterior a la Evaluación Psicolaboral", 
+        icon: Clock, 
+        enabled: currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral",
+        isActive: activeTab === "modulo-5"
+      })
     }
 
-    modules.push({ id: "timeline", label: "Línea de Tiempo", icon: Calendar })
+    modules.push({ 
+      id: "timeline", 
+      label: "Línea de Tiempo", 
+      icon: Calendar, 
+      enabled: true,
+      isActive: activeTab === "timeline"
+    })
 
     return modules
   }
 
   const availableModules = getAvailableModules()
+
+  const handleAdvanceToModule2 = async () => {
+    try {
+      const response = await solicitudService.avanzarAModulo2(parseInt(params.id))
+      
+      if (response.success) {
+        toast.success("Proceso avanzado al Módulo 2 exitosamente")
+        // Recargar datos del proceso
+        await loadProcessData()
+        // Cambiar al módulo 2
+        setActiveTab("modulo-2")
+      } else {
+        toast.error("Error al avanzar al Módulo 2")
+      }
+    } catch (error) {
+      console.error("Error al avanzar al Módulo 2:", error)
+      toast.error("Error al avanzar al Módulo 2")
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -217,18 +290,45 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         <CardContent className="p-0">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="border-b">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 h-auto p-0 bg-transparent">
-                {availableModules.map((module) => (
-                  <TabsTrigger
-                    key={module.id}
-                    value={module.id}
-                    className="flex flex-col items-center gap-1 p-2 sm:p-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                  >
-                    <module.icon className="h-4 w-4" />
-                    <span className="text-xs sm:text-sm text-center leading-tight">{module.label}</span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+              <div className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 h-auto p-0 bg-transparent">
+                {availableModules.map((module) => {
+                  if (module.isButton) {
+                    return (
+                      <button
+                        key={module.id}
+                        onClick={handleAdvanceToModule2}
+                        disabled={!module.enabled}
+                        className={`flex flex-col items-center gap-1 p-2 sm:p-4 rounded-none border-b-2 transition-colors ${
+                          module.enabled 
+                            ? 'hover:bg-primary/10 text-primary border-primary' 
+                            : 'opacity-50 cursor-not-allowed text-muted-foreground border-transparent'
+                        }`}
+                      >
+                        <module.icon className="h-4 w-4" />
+                        <span className="text-xs sm:text-sm text-center leading-tight">{module.label}</span>
+                      </button>
+                    )
+                  }
+
+                  return (
+                    <button
+                      key={module.id}
+                      onClick={() => module.enabled && setActiveTab(module.id)}
+                      disabled={!module.enabled}
+                      className={`flex flex-col items-center gap-1 p-2 sm:p-4 rounded-none border-b-2 transition-colors ${
+                        module.isActive 
+                          ? 'bg-primary text-primary-foreground border-primary' 
+                          : module.enabled 
+                            ? 'hover:bg-primary/10 text-primary border-transparent' 
+                            : 'opacity-50 cursor-not-allowed text-muted-foreground border-transparent'
+                      }`}
+                    >
+                      <module.icon className="h-4 w-4" />
+                      <span className="text-xs sm:text-sm text-center leading-tight">{module.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="p-6">

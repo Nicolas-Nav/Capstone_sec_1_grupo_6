@@ -98,6 +98,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     }
   }, [process.id])
 
+  // Efecto para configurar comunas filtradas cuando se abre el formulario de editar
+  useEffect(() => {
+    console.log('🔍 useEffect edit candidate:', { showEditCandidate, editingCandidateRegion: editingCandidate?.region, regionesLength: regiones.length, todasLasComunasLength: todasLasComunas.length })
+    if (showEditCandidate && editingCandidate?.region) {
+      const regionId = regiones.find(r => r.nombre_region === editingCandidate.region)?.id_region
+      console.log('🔍 ID de región en useEffect:', regionId)
+      if (regionId) {
+        const comunasDeRegion = todasLasComunas.filter(comuna => comuna.id_region === regionId)
+        console.log('🔍 Comunas filtradas en useEffect:', comunasDeRegion)
+        setComunasFiltradas(comunasDeRegion)
+      }
+    }
+  }, [showEditCandidate, editingCandidate?.region, regiones, todasLasComunas])
+
     const loadData = async () => {
       try {
         setIsLoading(true)
@@ -489,6 +503,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const handleEditCandidate = (candidate: Candidate) => {
+    console.log('🔍 Candidato para editar:', candidate)
+    console.log('🔍 Región del candidato:', candidate.region)
+    console.log('🔍 Comuna del candidato:', candidate.comuna)
+    
     setEditingCandidate({
       ...candidate,
       // Asegurar que todos los campos opcionales estén definidos
@@ -507,6 +525,18 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         software_tools: candidate.portal_responses?.software_tools || "",
       }
     })
+
+    // Filtrar comunas basándose en la región del candidato
+    if (candidate.region) {
+      const regionId = regiones.find(r => r.nombre_region === candidate.region)?.id_region
+      console.log('🔍 ID de región encontrado:', regionId)
+      if (regionId) {
+        const comunasDeRegion = todasLasComunas.filter(comuna => comuna.id_region === regionId)
+        console.log('🔍 Comunas filtradas:', comunasDeRegion)
+        setComunasFiltradas(comunasDeRegion)
+      }
+    }
+
     setShowEditCandidate(true)
   }
 
@@ -2000,51 +2030,116 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit_region">Región</Label>
-                    <Input
-                      id="edit_region"
+                    <Select
                       value={editingCandidate.region || ""}
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, region: e.target.value })}
-                      placeholder="Región"
-                    />
+                      onValueChange={(value) => {
+                        console.log('🔍 Región seleccionada:', value)
+                        setEditingCandidate({ ...editingCandidate, region: value })
+                        // Filtrar comunas por región seleccionada
+                        const comunasDeRegion = todasLasComunas.filter(comuna => 
+                          comuna.id_region === regiones.find(r => r.nombre_region === value)?.id_region
+                        )
+                        setComunasFiltradas(comunasDeRegion)
+                      }}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione región">
+                          {editingCandidate.region || "Seleccione región"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {regiones.map((region) => (
+                          <SelectItem key={region.id_region} value={region.nombre_region}>
+                            {region.nombre_region}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit_candidate_comuna">Comuna</Label>
-                    <Input
-                      id="edit_candidate_comuna"
+                    <Select
                       value={editingCandidate.comuna || ""}
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, comuna: e.target.value })}
-                      placeholder="Comuna"
-                    />
+                      onValueChange={(value) => {
+                        console.log('🔍 Comuna seleccionada:', value)
+                        setEditingCandidate({ ...editingCandidate, comuna: value })
+                      }}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione comuna">
+                          {editingCandidate.comuna || "Seleccione comuna"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {comunasFiltradas.map((comuna) => (
+                          <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
+                            {comuna.nombre_comuna}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit_nacionalidad">Nacionalidad</Label>
-                    <Input
-                      id="edit_nacionalidad"
+                    <Select
                       value={editingCandidate.nacionalidad || ""}
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, nacionalidad: e.target.value })}
-                      placeholder="Nacionalidad"
-                    />
+                      onValueChange={(value) => setEditingCandidate({ ...editingCandidate, nacionalidad: value })}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione nacionalidad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {nacionalidades.map((nac) => (
+                          <SelectItem key={nac.id_nacionalidad} value={nac.nombre_nacionalidad}>
+                            {nac.nombre_nacionalidad}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit_rubro">Rubro</Label>
-                    <Input
-                      id="edit_rubro"
+                    <Select
                       value={editingCandidate.rubro || ""}
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, rubro: e.target.value })}
-                      placeholder="Rubro"
-                    />
+                      onValueChange={(value) => setEditingCandidate({ ...editingCandidate, rubro: value })}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione rubro" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {rubros.map((rubro) => (
+                          <SelectItem key={rubro.id_rubro} value={rubro.nombre_rubro}>
+                            {rubro.nombre_rubro}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit_profession">Profesión</Label>
-                    <Input
-                      id="edit_profession"
+                    <Select
                       value={editingCandidate.profession || ""}
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, profession: e.target.value })}
-                      placeholder="Profesión"
-                    />
+                      onValueChange={(value) => setEditingCandidate({ ...editingCandidate, profession: value })}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione profesión" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {profesiones.map((prof) => (
+                          <SelectItem key={prof.id_profesion} value={prof.nombre_profesion}>
+                            {prof.nombre_profesion}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

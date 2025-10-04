@@ -13,7 +13,10 @@ import {
     Institucion,
     EstadoClientePostulacion,
     EstadoCliente,
-    Comuna
+    Comuna,
+    Region,
+    Nacionalidad,
+    Rubro
 } from '@/models';
 import { CandidatoService } from './candidatoService';
 
@@ -37,7 +40,24 @@ export class PostulacionService {
                         {
                             model: Comuna,
                             as: 'comuna',
-                            attributes: ['id_comuna', 'nombre_comuna']
+                            attributes: ['id_comuna', 'nombre_comuna'],
+                            include: [
+                                {
+                                    model: Region,
+                                    as: 'region',
+                                    attributes: ['id_region', 'nombre_region']
+                                }
+                            ]
+                        },
+                        {
+                            model: Nacionalidad,
+                            as: 'nacionalidad',
+                            attributes: ['id_nacionalidad', 'nombre_nacionalidad']
+                        },
+                        {
+                            model: Rubro,
+                            as: 'rubro',
+                            attributes: ['id_rubro', 'nombre_rubro']
                         },
                         {
                             model: Experiencia,
@@ -496,6 +516,9 @@ export class PostulacionService {
             birth_date: candidato.fecha_nacimiento_candidato?.toISOString().split('T')[0],
             age: candidato.edad_candidato,
             comuna: candidato.comuna?.nombre_comuna || '',
+            region: candidato.comuna?.region?.nombre_region || '',
+            nacionalidad: candidato.nacionalidad?.nombre_nacionalidad || '',
+            rubro: candidato.rubro?.nombre_rubro || '',
             profession: candidato.profesiones?.[0]?.nombre_profesion || '',
             consultant_comment: postulacion.comentario_no_presentado,
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),

@@ -12,10 +12,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { descripcionCargoService } from "@/lib/api"
 import * as XLSX from 'xlsx'
+import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 
 interface UploadExcelDialogProps {
   open: boolean
@@ -26,6 +26,10 @@ interface UploadExcelDialogProps {
 export function UploadExcelDialog({ open, onOpenChange, descripcionCargoId }: UploadExcelDialogProps) {
   const [file, setFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [alertOpen, setAlertOpen] = useState(false)
+  const [alertType, setAlertType] = useState<"success" | "error">("success")
+  const [alertTitle, setAlertTitle] = useState("")
+  const [alertDescription, setAlertDescription] = useState("")
 
   // Función para leer una celda específica
   const leerCelda = (sheet: XLSX.WorkSheet, celda: string): string => {
@@ -66,7 +70,10 @@ export function UploadExcelDialog({ open, onOpenChange, descripcionCargoId }: Up
       const fileExtension = selectedFile.name.substring(selectedFile.name.lastIndexOf('.')).toLowerCase()
       
       if (!validExtensions.includes(fileExtension)) {
-        toast.error('Por favor selecciona un archivo Excel válido (.xlsx o .xls)')
+        setAlertType("error")
+        setAlertTitle("Archivo no válido")
+        setAlertDescription('Por favor selecciona un archivo Excel válido (.xlsx o .xls)')
+        setAlertOpen(true)
         return
       }
       
@@ -76,7 +83,10 @@ export function UploadExcelDialog({ open, onOpenChange, descripcionCargoId }: Up
 
   const handleUpload = async () => {
     if (!file) {
-      toast.error('Por favor selecciona un archivo')
+      setAlertType("error")
+      setAlertTitle("Archivo requerido")
+      setAlertDescription('Por favor selecciona un archivo')
+      setAlertOpen(true)
       return
     }
 
@@ -138,15 +148,23 @@ export function UploadExcelDialog({ open, onOpenChange, descripcionCargoId }: Up
       const response = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
 
       if (response.success) {
-        toast.success('Datos de Excel cargados exitosamente')
+        setAlertType("success")
+        setAlertTitle("Datos cargados")
+        setAlertDescription('Los datos de Excel se han cargado exitosamente')
         setFile(null)
         onOpenChange(false)
       } else {
-        toast.error(response.message || 'Error al cargar los datos')
+        setAlertType("error")
+        setAlertTitle("Error al cargar")
+        setAlertDescription(response.message || 'Error al cargar los datos')
       }
+      setAlertOpen(true)
     } catch (error: any) {
       console.error('Error uploading Excel:', error)
-      toast.error(error.message || 'Error al procesar el archivo Excel')
+      setAlertType("error")
+      setAlertTitle("Error al procesar")
+      setAlertDescription(error.message || 'Error al procesar el archivo Excel')
+      setAlertOpen(true)
     } finally {
       setIsUploading(false)
     }
@@ -199,6 +217,15 @@ export function UploadExcelDialog({ open, onOpenChange, descripcionCargoId }: Up
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Alert para resultados */}
+      <CustomAlertDialog
+        open={alertOpen}
+        onOpenChange={setAlertOpen}
+        type={alertType}
+        title={alertTitle}
+        description={alertDescription}
+      />
     </Dialog>
   )
 }

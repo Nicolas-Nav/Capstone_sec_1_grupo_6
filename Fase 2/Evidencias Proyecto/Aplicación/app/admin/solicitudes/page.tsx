@@ -12,9 +12,9 @@ import { formatDate, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
 import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
 import { solicitudService } from "@/lib/api"
-import { toast } from "sonner"
 import { useSolicitudes } from "@/hooks/useSolicitudes"
 import { Label } from "@/components/ui/label"
+import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 
 interface Solicitud {
   id: number
@@ -61,23 +61,47 @@ export default function SolicitudesPage() {
   const [showExcelDialog, setShowExcelDialog] = useState(false)
   const [selectedDescripcionCargoId, setSelectedDescripcionCargoId] = useState<number | null>(null)
   const [solicitudToEdit, setSolicitudToEdit] = useState<Solicitud | null>(null)
+  
+  // Estados para las alertas
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [solicitudToDelete, setSolicitudToDelete] = useState<string | null>(null)
+  const [alertOpen, setAlertOpen] = useState(false)
+  const [alertType, setAlertType] = useState<"success" | "error">("success")
+  const [alertTitle, setAlertTitle] = useState("")
+  const [alertDescription, setAlertDescription] = useState("")
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar esta solicitud?')) {
-      return
-    }
+  const handleDelete = (id: string) => {
+    setSolicitudToDelete(id)
+    setIsDeleteConfirmOpen(true)
+  }
+
+  const confirmDeleteSolicitud = async () => {
+    if (!solicitudToDelete) return
 
     try {
-      const result = await deleteSolicitud(id)
+      const result = await deleteSolicitud(solicitudToDelete)
+      
+      setIsDeleteConfirmOpen(false)
+      setSolicitudToDelete(null)
       
       if (result.success) {
-        toast.success(result.message || 'Solicitud eliminada exitosamente')
+        setAlertType("success")
+        setAlertTitle("Solicitud eliminada")
+        setAlertDescription(result.message || 'La solicitud ha sido eliminada exitosamente')
       } else {
-        toast.error(result.message || 'Error al eliminar la solicitud')
+        setAlertType("error")
+        setAlertTitle("Error al eliminar")
+        setAlertDescription(result.message || 'Hubo un error al eliminar la solicitud')
       }
+      setAlertOpen(true)
     } catch (error: any) {
       console.error('Error deleting solicitud:', error)
-      toast.error(error.message || 'Error al eliminar la solicitud')
+      setIsDeleteConfirmOpen(false)
+      setSolicitudToDelete(null)
+      setAlertType("error")
+      setAlertTitle("Error al eliminar")
+      setAlertDescription(error.message || 'Hubo un error al eliminar la solicitud')
+      setAlertOpen(true)
     }
   }
 
@@ -376,6 +400,31 @@ export default function SolicitudesPage() {
           descripcionCargoId={selectedDescripcionCargoId}
         />
       )}
+
+      {/* Alert para resultados de operaciones */}
+      <CustomAlertDialog
+        open={alertOpen}
+        onOpenChange={setAlertOpen}
+        type={alertType}
+        title={alertTitle}
+        description={alertDescription}
+      />
+
+      {/* Alert de confirmación para eliminar */}
+      <CustomAlertDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+        type="confirm"
+        title="¿Eliminar solicitud?"
+        description="Esta acción no se puede deshacer. La solicitud será eliminada permanentemente del sistema."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onConfirm={confirmDeleteSolicitud}
+        onCancel={() => {
+          setIsDeleteConfirmOpen(false)
+          setSolicitudToDelete(null)
+        }}
+      />
     </div>
   )
 }

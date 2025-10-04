@@ -15,19 +15,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-} from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle } from "lucide-react"
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
+import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import { mockProcesses } from "@/lib/mock-data"
 import { clientService, comunaService, apiUtils } from "@/lib/api"
 import type { Client, ClientContact, Comuna } from "@/lib/types"
@@ -68,6 +60,10 @@ export default function ClientesPage() {
   const [resultMessage, setResultMessage] = useState<string>("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comunas, setComunas] = useState<Comuna[]>([])
+  
+  // Estado para confirmación de eliminación
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [clientToDelete, setClientToDelete] = useState<string | null>(null)
 
   // Los clientes ya vienen filtrados del servidor, no necesitamos filtrar en el cliente
 
@@ -228,11 +224,16 @@ export default function ClientesPage() {
     }
   }
 
-  const handleDeleteClient = async (clientId: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este cliente?')) return
+  const handleDeleteClient = (clientId: string) => {
+    setClientToDelete(clientId)
+    setIsDeleteConfirmOpen(true)
+  }
+
+  const confirmDeleteClient = async () => {
+    if (!clientToDelete) return
 
     try {
-      const result = await deleteClient(clientId)
+      const result = await deleteClient(clientToDelete)
       
       if (result.success) {
         setResultSuccess(true)
@@ -247,6 +248,8 @@ export default function ClientesPage() {
       setResultSuccess(false)
       setResultMessage('Error al eliminar el cliente')
       setIsResultOpen(true)
+    } finally {
+      setClientToDelete(null)
     }
   }
 
@@ -796,29 +799,30 @@ export default function ClientesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Resultado de operaciones */}
-      <AlertDialog open={isResultOpen} onOpenChange={setIsResultOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              {resultSuccess ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              ) : (
-                <XCircle className="h-5 w-5 text-red-600" />
-              )}
-              {resultSuccess ? "Operación exitosa" : "Error en la operación"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {resultMessage}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setIsResultOpen(false)}>
-              Aceptar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Alertas */}
+      
+      {/* Resultado de operaciones (crear/editar/eliminar) */}
+      <CustomAlertDialog
+        open={isResultOpen}
+        onOpenChange={setIsResultOpen}
+        type={resultSuccess ? "success" : "error"}
+        title={resultSuccess ? "Operación exitosa" : "Error en la operación"}
+        description={resultMessage}
+        confirmText="Aceptar"
+      />
+
+      {/* Confirmación de eliminación */}
+      <CustomAlertDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+        type="confirm"
+        title="¿Eliminar cliente?"
+        description="Esta acción no se puede deshacer. Se eliminará el cliente y todos sus contactos asociados permanentemente del sistema."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onConfirm={confirmDeleteClient}
+        onCancel={() => setClientToDelete(null)}
+      />
     </div>
   )
 }

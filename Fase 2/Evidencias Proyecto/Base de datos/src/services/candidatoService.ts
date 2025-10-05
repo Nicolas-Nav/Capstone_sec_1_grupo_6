@@ -209,6 +209,9 @@ export class CandidatoService {
         work_experience?: any[];
         education?: any[];
     }, transaction?: Transaction) {
+        console.log('=== CREANDO CANDIDATO ===');
+        console.log('Datos recibidos:', JSON.stringify(data, null, 2));
+        
         const useTransaction = transaction || await sequelize.transaction();
 
         try {
@@ -230,13 +233,17 @@ export class CandidatoService {
             } = data;
 
             // Validaciones
+            console.log('Validando campos requeridos...');
             if (!name || !email || !phone) {
+                console.error('Faltan campos requeridos:', { name, email, phone });
                 throw new Error('Faltan campos requeridos');
             }
 
             // Verificar si el candidato ya existe
+            console.log('Verificando si el candidato ya existe...');
             const candidatoExistente = await this.getCandidatoByEmail(email);
             if (candidatoExistente) {
+                console.error('Candidato ya existe con email:', email);
                 throw new Error('Ya existe un candidato con este email');
             }
 
@@ -281,6 +288,7 @@ export class CandidatoService {
             }
 
             // Crear el candidato
+            console.log('Creando candidato en la base de datos...');
             const nuevoCandidato = await Candidato.create({
                 rut_candidato: rut,
                 nombre_candidato: nombre,
@@ -297,6 +305,7 @@ export class CandidatoService {
                 id_nacionalidad: idNacionalidad,
                 id_rubro: idRubro
             }, { transaction: useTransaction });
+            console.log('Candidato creado exitosamente:', nuevoCandidato.id_candidato);
 
             // Agregar experiencias laborales
             if (work_experience && work_experience.length > 0) {
@@ -368,9 +377,15 @@ export class CandidatoService {
 
             // Retornar en formato frontend
             return this.transformCandidato(candidatoCompleto);
-        } catch (error) {
+        } catch (error: any) {
+            console.error('=== ERROR AL CREAR CANDIDATO ===');
+            console.error('Error completo:', error);
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+            
             // Solo hacer rollback si la transacción es interna
             if (!transaction) {
+                console.log('Haciendo rollback de la transacción...');
                 await useTransaction.rollback();
             }
             throw error;

@@ -12,6 +12,12 @@ export const errorHandler = (
   next: NextFunction
 ): void => {
   // Log del error
+  console.error('=== ERROR HANDLER MIDDLEWARE ===');
+  console.error('Error completo:', err);
+  console.error('Request URL:', req.url);
+  console.error('Request method:', req.method);
+  console.error('Request body:', req.body);
+  
   Logger.error('Error no manejado:', {
     message: err.message,
     stack: err.stack,

@@ -502,7 +502,7 @@ export const postulacionService = {
   async create(data: {
     id_candidato: number;
     id_solicitud: number;
-    id_portal_postulacion: number;
+    id_portal_postulacion?: number; // Opcional para evaluación/test psicolaboral
     id_estado_candidato?: number; // Estado inicial del candidato (1=Presentado, 2=No presentado, 3=Rechazado)
     cv_file?: File;
     motivacion?: string;
@@ -520,7 +520,9 @@ export const postulacionService = {
       const formData = new FormData();
       formData.append('id_candidato', data.id_candidato.toString());
       formData.append('id_solicitud', data.id_solicitud.toString());
-      formData.append('id_portal_postulacion', data.id_portal_postulacion.toString());
+      if (data.id_portal_postulacion) {
+        formData.append('id_portal_postulacion', data.id_portal_postulacion.toString());
+      }
       formData.append('id_estado_candidato', (data.id_estado_candidato || 1).toString()); // Por defecto: 1 = Presentado
       formData.append('cv_file', data.cv_file);
       
@@ -546,22 +548,30 @@ export const postulacionService = {
     }
 
     // Sin archivo, usar JSON normal
+    const payload: any = {
+      id_candidato: data.id_candidato,
+      id_solicitud: data.id_solicitud,
+      id_estado_candidato: data.id_estado_candidato || 1, // Por defecto: 1 = Presentado
+    };
+    
+    // Solo agregar id_portal_postulacion si está presente
+    if (data.id_portal_postulacion) {
+      payload.id_portal_postulacion = data.id_portal_postulacion;
+    }
+    
+    // Agregar campos opcionales si existen
+    if (data.motivacion) payload.motivacion = data.motivacion;
+    if (data.expectativa_renta) payload.expectativa_renta = data.expectativa_renta;
+    if (data.disponibilidad_postulacion) payload.disponibilidad_postulacion = data.disponibilidad_postulacion;
+    if (data.valoracion) payload.valoracion = data.valoracion;
+    if (data.comentario_no_presentado) payload.comentario_no_presentado = data.comentario_no_presentado;
+    if (data.comentario_rech_obs_cliente) payload.comentario_rech_obs_cliente = data.comentario_rech_obs_cliente;
+    if (data.comentario_modulo5_cliente) payload.comentario_modulo5_cliente = data.comentario_modulo5_cliente;
+    if (data.situacion_familiar) payload.situacion_familiar = data.situacion_familiar;
+    
     return apiRequest('/api/postulaciones', {
       method: 'POST',
-      body: JSON.stringify({
-        id_candidato: data.id_candidato,
-        id_solicitud: data.id_solicitud,
-        id_portal_postulacion: data.id_portal_postulacion,
-        id_estado_candidato: data.id_estado_candidato || 1, // Por defecto: 1 = Presentado
-        motivacion: data.motivacion,
-        expectativa_renta: data.expectativa_renta,
-        disponibilidad_postulacion: data.disponibilidad_postulacion,
-        valoracion: data.valoracion,
-        comentario_no_presentado: data.comentario_no_presentado,
-        comentario_rech_obs_cliente: data.comentario_rech_obs_cliente,
-        comentario_modulo5_cliente: data.comentario_modulo5_cliente,
-        situacion_familiar: data.situacion_familiar,
-      }),
+      body: JSON.stringify(payload),
     });
   },
 

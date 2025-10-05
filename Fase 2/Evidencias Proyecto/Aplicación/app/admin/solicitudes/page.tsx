@@ -283,22 +283,6 @@ export default function SolicitudesPage() {
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleUploadExcel(solicitud.id_descripcion_cargo)}
-                          title="Cargar datos de Excel"
-                        >
-                          <Upload className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleDelete(solicitud.id)}
-                          title="Eliminar solicitud"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

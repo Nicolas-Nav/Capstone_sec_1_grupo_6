@@ -1,9 +1,9 @@
 export type ServiceType =
-  | "proceso_completo"
-  | "long_list"
-  | "targeted_recruitment"
-  | "evaluacion_psicolaboral"
-  | "test_psicolaboral"
+  | "PC" // proceso_completo
+  | "LL" // long_list
+  | "TR" // targeted_recruitment
+  | "ES" // evaluacion_psicolaboral
+  | "TS" // test_psicolaboral
 
 export type ProcessStatus = "creado" | "iniciado" | "en_progreso" | "completado" | "cancelado" | "congelado" | "Creado" | "En Progreso" | "Cerrado" | "Congelado" | "Cancelado"
 

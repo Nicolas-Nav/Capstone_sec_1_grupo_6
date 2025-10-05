@@ -6,7 +6,7 @@ dotenv.config();
 const {
   DB_HOST = 'localhost',
   DB_PORT = '5432',
-  DB_NAME = 'respaldo2',
+  DB_NAME = 'llconsulting_db_ORM',
   DB_USER = 'postgres',
   DB_PASSWORD = '',
   NODE_ENV = 'development'

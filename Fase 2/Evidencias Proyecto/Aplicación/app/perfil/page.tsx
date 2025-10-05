@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Mail, Briefcase, Save, Edit, Key } from "lucide-react"
+import { Mail, Briefcase, Save, Edit, Key, User, Phone, MapPin, Calendar, BarChart3, Users, FileText } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -26,12 +26,67 @@ export default function PerfilPage() {
   const [isResultOpen, setIsResultOpen] = useState(false)
   const [resultSuccess, setResultSuccess] = useState<boolean>(false)
   const [resultMessage, setResultMessage] = useState<string>("")
+  const [consultorStats, setConsultorStats] = useState({
+    totalProcesos: 0,
+    procesosActivos: 0,
+    procesosCompletados: 0,
+    totalCandidatos: 0,
+    ultimaActividad: null as string | null
+  })
+  const [isLoadingStats, setIsLoadingStats] = useState(true)
   
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   })
+
+  // Cargar estadísticas del consultor
+  useEffect(() => {
+    const loadConsultorStats = async () => {
+      if (!user) return
+      
+      try {
+        setIsLoadingStats(true)
+        const API_URL = process.env.NEXT_PUBLIC_API_URL
+        const token = localStorage.getItem("llc_token")
+        
+        // Cargar procesos del consultor
+        const procesosResponse = await fetch(`${API_URL}/api/solicitudes?consultor_id=${user.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        
+        if (procesosResponse.ok) {
+          const procesosData = await procesosResponse.json()
+          const procesos = procesosData.data?.solicitudes || procesosData.data || []
+          
+          const totalProcesos = procesos.length
+          const procesosActivos = procesos.filter((p: any) => 
+            p.estado_solicitud === "En Progreso" || p.status === "en_progreso"
+          ).length
+          const procesosCompletados = procesos.filter((p: any) => 
+            p.estado_solicitud === "Cerrado" || p.status === "cerrado"
+          ).length
+          
+          setConsultorStats({
+            totalProcesos,
+            procesosActivos,
+            procesosCompletados,
+            totalCandidatos: 0, // Se puede implementar después
+            ultimaActividad: procesos.length > 0 ? procesos[0].fecha_ingreso_solicitud : null
+          })
+        }
+      } catch (error) {
+        console.error('Error loading consultor stats:', error)
+      } finally {
+        setIsLoadingStats(false)
+      }
+    }
+    
+    loadConsultorStats()
+  }, [user])
 
   if (!user) {
     return (
@@ -113,15 +168,6 @@ export default function PerfilPage() {
               <div>
                 <h2 className="text-xl font-semibold">{`${user.firstName} ${user.lastName}`}</h2>
                 <p className="text-muted-foreground capitalize">{user.role}</p>
-                <Badge variant="outline" className="mt-2">
-                  {user.role === "admin" ? "Administración" : "Consultoría"}
-                </Badge>
-              </div>
-              <div className="w-full space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">{user.email}</span>
-                </div>
               </div>
             </div>
           </CardContent>
@@ -144,6 +190,14 @@ export default function PerfilPage() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="rut">RUT</Label>
+                <Input
+                  id="rut"
+                  value={user.id}
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="email">Correo Electrónico</Label>
                 <Input
                   id="email"
@@ -151,6 +205,85 @@ export default function PerfilPage() {
                   value={user.email}
                   disabled
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">Rol</Label>
+                <Input
+                  id="role"
+                  value={user.role === "admin" ? "Administrador" : "Consultor"}
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Estado</Label>
+                <Input
+                  id="status"
+                  value={user.isActive ? "Activo" : "Inactivo"}
+                  disabled
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Estadísticas del Consultor */}
+      <div className="grid gap-6 md:grid-cols-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Total Procesos</p>
+                <p className="text-2xl font-bold">
+                  {isLoadingStats ? "..." : consultorStats.totalProcesos}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Procesos Activos</p>
+                <p className="text-2xl font-bold">
+                  {isLoadingStats ? "..." : consultorStats.procesosActivos}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Procesos Completados</p>
+                <p className="text-2xl font-bold">
+                  {isLoadingStats ? "..." : consultorStats.procesosCompletados}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Última Actividad</p>
+                <p className="text-sm text-muted-foreground">
+                  {isLoadingStats ? "..." : 
+                    consultorStats.ultimaActividad ? 
+                    new Date(consultorStats.ultimaActividad).toLocaleDateString() : 
+                    "Sin actividad"
+                  }
+                </p>
               </div>
             </div>
           </CardContent>

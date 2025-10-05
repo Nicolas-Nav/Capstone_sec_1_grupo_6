@@ -1795,17 +1795,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                     {/* Evaluación del Consultor */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold border-b pb-2">Evaluación del Consultor</h3>
-
-                      <div className="space-y-2">
-                        <Label>Comentario del Consultor</Label>
-                        <Textarea
-                          value={newCandidate.consultant_comment}
-                          onChange={(e) => setNewCandidate({ ...newCandidate, consultant_comment: e.target.value })}
-                          placeholder="Observaciones y comentarios sobre el candidato"
-                          rows={4}
-                        />
-                      </div>
 
                       <div className="space-y-2">
                         <Label>Valoración del Consultor</Label>
@@ -1845,7 +1834,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                   <TableHead>Portal Origen</TableHead>
                   <TableHead>Valoración</TableHead>
                   <TableHead>Estado Módulo 2</TableHead>
-                  <TableHead>Comentario</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1914,9 +1902,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           />
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-32 truncate">{candidate.consultant_comment || "Sin comentarios"}</div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

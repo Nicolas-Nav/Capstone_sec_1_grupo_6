@@ -66,8 +66,6 @@ export default function ConsultorPage() {
       if (response.success && response.data) {
         // La respuesta tiene estructura: { solicitudes: [...], pagination: {...} }
         const solicitudes = (response.data as any).solicitudes || response.data
-        console.log("📊 Procesos cargados:", solicitudes)
-        console.log("🔍 Estados encontrados:", solicitudes.map((p: any) => ({ id: p.id, status: p.status, estado_solicitud: p.estado_solicitud })))
         setMyProcesses(Array.isArray(solicitudes) ? solicitudes : [])
       } else {
         setMyProcesses([])
@@ -127,8 +125,6 @@ export default function ConsultorPage() {
   const completedProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cerrado" || p.status === "cerrado")
   const cancelledProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cancelado" || p.status === "cancelado")
   
-  console.log("🔍 Procesos cancelados encontrados:", cancelledProcesses.length)
-  console.log("📋 Detalles de procesos cancelados:", cancelledProcesses.map(p => ({ id: p.id, estado_solicitud: p.estado_solicitud, status: p.status })))
 
   const handleStartProcess = async (processId: string) => {
     try {

@@ -91,10 +91,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     if (isEvaluationProcess) {
       const loadCandidates = async () => {
         try {
-          console.log('🔍 Cargando candidatos para proceso psicolaboral:', process.id)
           setIsLoading(true)
           const candidatesData = await getCandidatesByProcess(process.id)
-          console.log('📊 Candidatos cargados:', candidatesData)
           setCandidates(candidatesData)
         } catch (error) {
           console.error('❌ Error al cargar candidatos:', error)
@@ -130,26 +128,21 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     const loadExcelData = async () => {
       // Verificar si existe datos_excel directamente en el proceso
       if (process.datos_excel) {
-        console.log('📊 Usando datos_excel del proceso:', process.datos_excel)
         setExcelData(process.datos_excel)
         return
       }
 
       // Si no, intentar cargar desde la API
       const descripcionCargoId = process.id_descripcion_cargo || process.id_descripcioncargo
-      console.log('🔍 Buscando Excel para descripcion_cargo:', descripcionCargoId)
       
       if (descripcionCargoId && descripcionCargoId > 0) {
         try {
           setLoadingExcel(true)
           const response = await descripcionCargoService.getExcelData(descripcionCargoId)
-          console.log('📦 Respuesta getExcelData:', response)
           
           if (response.success && response.data) {
             setExcelData(response.data)
-            console.log('✅ Datos del Excel cargados:', response.data)
           } else {
-            console.log('⚠️ No hay datos del Excel disponibles')
           }
         } catch (error) {
           console.error('❌ Error al cargar datos del Excel:', error)
@@ -157,10 +150,6 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           setLoadingExcel(false)
         }
       } else {
-        console.log('⚠️ No hay ID de descripción de cargo:', { 
-          id_descripcion_cargo: process.id_descripcion_cargo,
-          id_descripcioncargo: process.id_descripcioncargo 
-        })
       }
     }
     loadExcelData()
@@ -169,11 +158,6 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   // For evaluation processes, find the candidate with CV
   const candidateWithCV = candidates.find((c) => c.cv_file)
   
-  // Debug logs
-  console.log('🎯 Candidatos disponibles:', candidates)
-  console.log('🎯 Candidato con CV encontrado:', candidateWithCV)
-  console.log('🎯 Es proceso de evaluación:', isEvaluationProcess)
-  console.log('🎯 Detalles del primer candidato:', candidates[0])
 
   // Pre-llenar datos del candidato cuando se carga el componente
   useEffect(() => {
@@ -196,12 +180,6 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       // Pre-llenar experiencia laboral y educación
       setWorkExperience(candidateWithCV.work_experience || [])
       setEducation(candidateWithCV.education || [])
-      console.log('✅ Datos del candidato pre-llenados:', {
-        name: candidateWithCV.name,
-        rut: candidateWithCV.rut,
-        email: candidateWithCV.email,
-        phone: candidateWithCV.phone
-      })
     }
   }, [isEvaluationProcess, candidateWithCV])
 
@@ -213,9 +191,6 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
     try {
       setSavingCandidate(true)
-      console.log("Saving personal data:", personalData)
-      console.log("Experiencia laboral:", workExperience)
-      console.log("Educación:", education)
       
       // Preparar datos para actualizar el candidato
       const candidateData = {
@@ -252,7 +227,6 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           : undefined,
       }
 
-      console.log('Datos preparados para enviar:', candidateData)
 
       // Actualizar el candidato
       const response = await candidatoService.update(parseInt(candidateWithCV.id), candidateData)

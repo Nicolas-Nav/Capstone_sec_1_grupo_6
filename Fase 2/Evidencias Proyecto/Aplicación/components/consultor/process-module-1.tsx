@@ -150,6 +150,25 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     }
   }
 
+  const handleAdvanceToModule2 = async () => {
+    try {
+      const response = await solicitudService.avanzarAModulo2(parseInt(process.id))
+      
+      if (response.success) {
+        toast.success("Proceso avanzado al Módulo 2 exitosamente")
+        // Navegar al módulo 2 usando URL con parámetro
+        const currentUrl = new URL(window.location.href)
+        currentUrl.searchParams.set('tab', 'modulo-2')
+        window.location.href = currentUrl.toString()
+      } else {
+        toast.error("Error al avanzar al Módulo 2")
+      }
+    } catch (error) {
+      console.error("Error al avanzar al Módulo 2:", error)
+      toast.error("Error al avanzar al Módulo 2")
+    }
+  }
+
   // Verificar si el proceso está cerrado o cancelado
   const isProcessClosed = processStatus === "Cerrado" || processStatus === "Cancelado"
   
@@ -168,9 +187,17 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
-        <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
+          <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
+        </div>
+        <Button
+          onClick={handleAdvanceToModule2}
+          className="bg-primary hover:bg-primary/90"
+        >
+          Pasar a Módulo 2
+        </Button>
       </div>
 
       {/* Botón de cambio de estado al inicio */}

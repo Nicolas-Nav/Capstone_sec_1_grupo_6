@@ -45,6 +45,15 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   const [descripcionCargo, setDescripcionCargo] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Leer parámetro tab de la URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const tab = urlParams.get('tab')
+    if (tab && ['modulo-1', 'modulo-2', 'modulo-3', 'modulo-4', 'modulo-5'].includes(tab)) {
+      setActiveTab(tab)
+    }
+  }, [])
+
   useEffect(() => {
     if (user?.id) {
       loadProcessData()
@@ -129,16 +138,6 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       isActive: activeTab === "modulo-1"
     })
 
-    // Botón para avanzar a Módulo 2
-    const canAdvanceToModule2 = currentStage === "Módulo 1: Registro y Gestión de Solicitudes"
-    
-    modules.push({ 
-      id: "advance-modulo-2", 
-      label: "Pasar a Módulo 2", 
-      icon: Target, 
-      enabled: canAdvanceToModule2,
-      isButton: true
-    })
 
     // Módulo 2 - Disponible solo si se ha avanzado
     const module2Enabled = currentStage === "Módulo 2: Publicación y Registro de Candidatos"
@@ -292,24 +291,6 @@ export default function ProcessPage({ params }: ProcessPageProps) {
             <div className="border-b">
               <div className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 h-auto p-0 bg-transparent">
                 {availableModules.map((module) => {
-                  if (module.isButton) {
-                    return (
-                      <button
-                        key={module.id}
-                        onClick={handleAdvanceToModule2}
-                        disabled={!module.enabled}
-                        className={`flex flex-col items-center gap-1 p-2 sm:p-4 rounded-none border-b-2 transition-colors ${
-                          module.enabled 
-                            ? 'hover:bg-primary/10 text-primary border-primary' 
-                            : 'opacity-50 cursor-not-allowed text-muted-foreground border-transparent'
-                        }`}
-                      >
-                        <module.icon className="h-4 w-4" />
-                        <span className="text-xs sm:text-sm text-center leading-tight">{module.label}</span>
-                      </button>
-                    )
-                  }
-
                   return (
                     <button
                       key={module.id}

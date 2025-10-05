@@ -34,7 +34,7 @@ export const config = {
   // Configuración de rate limiting
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutos
-    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100')
+    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '1000000') 
   }
 };
 

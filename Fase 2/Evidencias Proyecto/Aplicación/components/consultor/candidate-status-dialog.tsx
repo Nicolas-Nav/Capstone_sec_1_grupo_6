@@ -40,9 +40,9 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
     
     if (!candidate) return
 
-    // Validar que si es "no_presentado" o "rechazado" debe tener comentario
-    if ((formData.status === "no_presentado" || formData.status === "rechazado") && !formData.comment.trim()) {
-      toast.error(`Debe agregar un comentario para el estado "${formData.status === "no_presentado" ? "No Presentado" : "Rechazado"}"`)
+    // Validar que si es "no_presentado" debe tener comentario
+    if (formData.status === "no_presentado" && !formData.comment.trim()) {
+      toast.error("Debe agregar un comentario para el estado 'No Presentado'")
       return
     }
 
@@ -51,7 +51,7 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
       
       const response = await candidatoService.updateStatus(
         parseInt(candidate.id),
-        formData.status as "presentado" | "no_presentado" | "rechazado",
+        formData.status as "presentado" | "no_presentado",
         formData.comment || undefined
       )
 
@@ -85,8 +85,6 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
         return <UserCheck className="h-4 w-4 text-green-600" />
       case "no_presentado":
         return <AlertCircle className="h-4 w-4 text-yellow-600" />
-      case "rechazado":
-        return <XCircle className="h-4 w-4 text-red-600" />
       default:
         return <UserCheck className="h-4 w-4 text-gray-600" />
     }
@@ -98,8 +96,6 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
         return "Presentado"
       case "no_presentado":
         return "No Presentado"
-      case "rechazado":
-        return "Rechazado"
       default:
         return "Sin Estado"
     }
@@ -109,8 +105,6 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
     switch (status) {
       case "no_presentado":
         return "Ingrese la razón por la cual el candidato no fue presentado..."
-      case "rechazado":
-        return "Ingrese el motivo del rechazo del candidato..."
       default:
         return "Comentario adicional (opcional)..."
     }
@@ -151,12 +145,6 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
                     No Presentado
                   </div>
                 </SelectItem>
-                <SelectItem value="rechazado">
-                  <div className="flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-red-600" />
-                    Rechazado
-                  </div>
-                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -164,7 +152,7 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
           <div className="space-y-2">
             <Label htmlFor="comment">
               Comentario
-              {(formData.status === "no_presentado" || formData.status === "rechazado") && (
+              {formData.status === "no_presentado" && (
                 <span className="text-red-500 ml-1">*</span>
               )}
             </Label>
@@ -176,7 +164,7 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
               rows={3}
               className="resize-none"
             />
-            {(formData.status === "no_presentado" || formData.status === "rechazado") && (
+            {formData.status === "no_presentado" && (
               <p className="text-xs text-muted-foreground">
                 El comentario es obligatorio para este estado.
               </p>

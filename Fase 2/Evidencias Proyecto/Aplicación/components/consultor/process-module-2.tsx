@@ -1891,16 +1891,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           Cambiar Estado
                         </Button>
 
-                        {/* Campo de comentario si es necesario */}
-                        {(candidate.presentation_status === "no_presentado" || candidate.presentation_status === "rechazado") && (
-                          <Textarea
-                            placeholder={candidate.presentation_status === "no_presentado" ? "Razón de no presentación" : "Motivo de rechazo"}
-                            value={candidate.rejection_reason || ""}
-                            onChange={(e) => handleRejectionReason(candidate.id, e.target.value)}
-                            className="text-xs"
-                            rows={2}
-                          />
-                        )}
                       </div>
                     </TableCell>
                     <TableCell>

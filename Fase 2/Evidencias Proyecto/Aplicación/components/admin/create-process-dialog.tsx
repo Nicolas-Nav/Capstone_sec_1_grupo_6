@@ -478,7 +478,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="!w-[80vw] !max-w-[1000px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Editar Solicitud de Proceso' : 'Crear Nueva Solicitud de Proceso'}</DialogTitle>
           <DialogDescription>

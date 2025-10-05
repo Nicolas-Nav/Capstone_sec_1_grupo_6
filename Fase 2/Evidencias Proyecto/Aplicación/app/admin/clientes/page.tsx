@@ -562,15 +562,6 @@ export default function ClientesPage() {
                               <Edit className="h-4 w-4 mr-1" />
                               Editar
                           </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleDeleteClient(client.id)}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-1" />
-                            Eliminar
-                            </Button>
                           </div>
                     </TableCell>
                   </TableRow>

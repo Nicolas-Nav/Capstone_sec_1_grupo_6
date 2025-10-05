@@ -20,10 +20,11 @@ interface PostulacionAttributes {
     id_candidato: number;
     id_estado_candidato: number;
     id_solicitud: number;
-    id_portal_postulacion: number;
+    id_portal_postulacion?: number;
 }
 
-interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'id_postulacion' | 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_rech_obs_cliente' | 'comentario_modulo5_cliente' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion'> { }
+interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'id_postulacion' | 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_rech_obs_cliente' | 'comentario_modulo5_cliente' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion' |
+    'id_portal_postulacion' > { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -43,7 +44,7 @@ class Postulacion extends Model<PostulacionAttributes, PostulacionCreationAttrib
     public id_candidato!: number;
     public id_estado_candidato!: number;
     public id_solicitud!: number;
-    public id_portal_postulacion!: number;
+    public id_portal_postulacion?: number;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -215,17 +216,12 @@ Postulacion.init({
             }
         }
     },
-    id_portal_postulacion: {
+        id_portal_postulacion: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
         references: {
             model: 'portal_postulacion',
             key: 'id_portal_postulacion'
-        },
-        validate: {
-            notNull: {
-                msg: 'El portal de postulación es requerido'
-            }
         }
     }
 }, {

@@ -53,8 +53,8 @@ export class PostulacionController {
                 const nuevaPostulacion = await PostulacionService.createPostulacionDirecta({
                     id_candidato: parseInt(id_candidato),
                     id_solicitud: parseInt(id_solicitud),
-                    id_portal_postulacion: parseInt(id_portal_postulacion),
-                    id_estado_candidato: parseInt(id_estado_candidato),
+                    id_portal_postulacion: id_portal_postulacion ? parseInt(id_portal_postulacion) : undefined,
+                    id_estado_candidato: id_estado_candidato ? parseInt(id_estado_candidato) : 1, // Por defecto: 1 = Presentado
                     motivacion,
                     expectativa_renta: expectativa_renta ? parseFloat(expectativa_renta) : undefined,
                     disponibilidad_postulacion,

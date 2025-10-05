@@ -76,6 +76,9 @@ export class CandidatoController {
      */
     static async create(req: Request, res: Response): Promise<Response> {
         try {
+            console.log('=== CONTROLADOR CANDIDATO CREATE ===');
+            console.log('Body recibido:', JSON.stringify(req.body, null, 2));
+            
             const {
                 name,
                 email,
@@ -113,6 +116,11 @@ export class CandidatoController {
             Logger.info(`Candidato creado: ${nuevoCandidato.id}`);
             return sendSuccess(res, nuevoCandidato, 'Candidato creado exitosamente', 201);
         } catch (error: any) {
+            console.error('=== ERROR EN CONTROLADOR CANDIDATO ===');
+            console.error('Error completo:', error);
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+            
             Logger.error('Error al crear candidato:', error);
             
             if (error.message === 'Ya existe un candidato con este email') {

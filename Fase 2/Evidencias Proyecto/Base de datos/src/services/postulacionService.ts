@@ -112,7 +112,7 @@ export class PostulacionService {
     static async createPostulacionDirecta(data: {
         id_candidato: number;
         id_solicitud: number;
-        id_portal_postulacion: number;
+        id_portal_postulacion?: number; // Opcional para evaluación/test psicolaboral
         id_estado_candidato: number;
         motivacion?: string;
         expectativa_renta?: number;
@@ -127,9 +127,9 @@ export class PostulacionService {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // Validar campos requeridos
-            if (!data.id_candidato || !data.id_solicitud || !data.id_portal_postulacion || !data.id_estado_candidato) {
-                throw new Error('Faltan campos requeridos: id_candidato, id_solicitud, id_portal_postulacion, id_estado_candidato');
+            // Validar campos requeridos (id_portal_postulacion es opcional)
+            if (!data.id_candidato || !data.id_solicitud || !data.id_estado_candidato) {
+                throw new Error('Faltan campos requeridos: id_candidato, id_solicitud, id_estado_candidato');
             }
 
             // Verificar que existe el candidato
@@ -144,17 +144,19 @@ export class PostulacionService {
                 throw new Error('Solicitud no encontrada');
             }
 
-            // Verificar que existe el portal
-            const portal = await PortalPostulacion.findByPk(data.id_portal_postulacion);
-            if (!portal) {
-                throw new Error('Portal de postulación no encontrado');
+            // Verificar que existe el portal (solo si se proporciona)
+            if (data.id_portal_postulacion) {
+                const portal = await PortalPostulacion.findByPk(data.id_portal_postulacion);
+                if (!portal) {
+                    throw new Error('Portal de postulación no encontrado');
+                }
             }
 
             // Crear la postulación
             const nuevaPostulacion = await Postulacion.create({
                 id_candidato: data.id_candidato,
                 id_solicitud: data.id_solicitud,
-                id_portal_postulacion: data.id_portal_postulacion,
+                id_portal_postulacion: data.id_portal_postulacion ?? undefined,
                 id_estado_candidato: data.id_estado_candidato,
                 motivacion: data.motivacion,
                 expectativa_renta: data.expectativa_renta,

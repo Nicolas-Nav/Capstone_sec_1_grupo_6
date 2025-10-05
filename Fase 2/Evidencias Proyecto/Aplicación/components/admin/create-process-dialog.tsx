@@ -15,10 +15,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import { Loader2, Plus, Trash2 } from "lucide-react"
+import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import type { ServiceType } from "@/lib/types"
-import { descripcionCargoService, solicitudService, regionService, comunaService } from "@/lib/api"
+import { descripcionCargoService, solicitudService, regionService, comunaService, candidatoService, postulacionService } from "@/lib/api"
 import * as XLSX from 'xlsx'
 
 interface CreateProcessDialogProps {
@@ -68,6 +70,27 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     excel_file: null as File | null,
   })
 
+  // Estados específicos para evaluación/test psicolaboral
+  const [candidatos, setCandidatos] = useState<Array<{
+    rut_candidato: string,
+    nombre_candidato: string,
+    primer_apellido_candidato: string,
+    segundo_apellido_candidato: string,
+    telefono_candidato: string,
+    email_candidato: string,
+    discapacidad: boolean,
+    cv_file: File | null
+  }>>([{
+    rut_candidato: "",
+    nombre_candidato: "",
+    primer_apellido_candidato: "",
+    segundo_apellido_candidato: "",
+    telefono_candidato: "",
+    email_candidato: "",
+    discapacidad: false,
+    cv_file: null
+  }])
+
   const [showCustomPosition, setShowCustomPosition] = useState(false)
   const [customPosition, setCustomPosition] = useState("")
   const [isLoading, setIsLoading] = useState(true)
@@ -80,6 +103,12 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
   const [comunasFiltradas, setComunasFiltradas] = useState<any[]>([])
   const [loadingRegionComuna, setLoadingRegionComuna] = useState(true)
   const [loadingSolicitudData, setLoadingSolicitudData] = useState(false)
+  
+  // Estados para alertas
+  const [alertOpen, setAlertOpen] = useState(false)
+  const [alertType, setAlertType] = useState<"success" | "error" | "confirm">("success")
+  const [alertTitle, setAlertTitle] = useState("")
+  const [alertDescription, setAlertDescription] = useState("")
 
   // Cargar datos del formulario cuando se abre el diálogo
   useEffect(() => {
@@ -118,6 +147,18 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
       setCustomPosition("")
       setComunasFiltradas([])
       setLoadingSolicitudData(false)
+      
+      // Reset candidatos para evaluación/test psicolaboral
+      setCandidatos([{
+        rut_candidato: "",
+        nombre_candidato: "",
+        primer_apellido_candidato: "",
+        segundo_apellido_candidato: "",
+        telefono_candidato: "",
+        email_candidato: "",
+        discapacidad: false,
+        cv_file: null
+      }])
     }
   }, [open, isEditMode, solicitudToEdit])
 
@@ -348,6 +389,25 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
         return
       }
 
+      // Validaciones específicas para evaluación/test psicolaboral
+      if (isEvaluationProcess) {
+        // Validar que haya al menos un candidato
+        if (candidatos.length === 0) {
+          toast.error('Debe agregar al menos un candidato para evaluar')
+          return
+        }
+
+        // Validar que todos los candidatos tengan los campos requeridos
+        const candidatosInvalidos = candidatos.filter(c => 
+          !c.nombre_candidato || !c.primer_apellido_candidato || !c.telefono_candidato || !c.email_candidato
+        )
+        
+        if (candidatosInvalidos.length > 0) {
+          toast.error('Todos los candidatos deben tener nombre, primer apellido, teléfono y email')
+          return
+        }
+      }
+
       let response
 
       if (isEditMode && solicitudToEdit) {
@@ -357,7 +417,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           service_type: formData.service_type,
           position_title: formData.position_title,
           ciudad: formData.ciudad,
-          description: formData.description || undefined,
+          description: isEvaluationProcess && formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
           requirements: formData.requirements || undefined,
           vacancies: formData.vacancies,
           consultant_id: formData.consultant_id,
@@ -365,44 +425,169 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
         })
       } else {
         // Modo creación: crear nueva solicitud
+        // Para evaluación/test psicolaboral, el número de vacantes es igual al número de candidatos
+        const vacanciesCount = isEvaluationProcess ? candidatos.length : formData.vacancies;
+        
         response = await solicitudService.create({
         contact_id: formData.contact_id,
         service_type: formData.service_type,
         position_title: formData.position_title,
         ciudad: formData.ciudad,
-        description: formData.description || undefined,
+        description: isEvaluationProcess && formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
         requirements: formData.requirements || undefined,
-        vacancies: formData.vacancies,
+        vacancies: vacanciesCount,
         consultant_id: formData.consultant_id,
         deadline_days: 30 // Por defecto 30 días
       })
       }
 
       if (response.success) {
-        // Si hay archivo Excel, procesarlo y enviarlo
-        if (formData.excel_file) {
+        // Si es evaluación/test psicolaboral, crear candidatos y postulaciones con rollback
+        if (isEvaluationProcess && !isEditMode) {
+          const solicitudId = response.data?.id
+          
+          if (!solicitudId) {
+            console.error('Response data:', response.data)
+            throw new Error('No se pudo obtener el ID de la solicitud creada')
+          }
+          
+          const candidatosCreados: number[] = []
+          const postulacionesCreadas: number[] = []
+          
           try {
-            toast.info('Procesando archivo Excel...')
-            const excelData = await processExcelFile(formData.excel_file)
+            toast.info('Creando candidatos y postulaciones...')
+            console.log('Solicitud ID:', solicitudId)
             
-            // Obtener el ID de la descripción de cargo creada
-            const descripcionCargoId = response.data.id_descripcion_cargo
-            
-            if (descripcionCargoId) {
-              const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
+            // Crear cada candidato y su postulación
+            for (const candidato of candidatos) {
+              console.log('Creando candidato:', candidato)
               
-              if (excelResponse.success) {
-                toast.success(isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente')
-              } else {
-                toast.warning(isEditMode ? 'Solicitud actualizada, pero hubo un error al guardar los datos del Excel' : 'Solicitud creada, pero hubo un error al guardar los datos del Excel')
+              const candidatoPayload = {
+                name: `${candidato.nombre_candidato} ${candidato.primer_apellido_candidato} ${candidato.segundo_apellido_candidato}`.trim(),
+                email: candidato.email_candidato,
+                phone: candidato.telefono_candidato,
+                rut: candidato.rut_candidato || undefined,
+                has_disability_credential: candidato.discapacidad
               }
+              console.log('Datos a enviar:', candidatoPayload)
+              
+              // Crear candidato usando el servicio
+              const candidatoResponse = await candidatoService.create(candidatoPayload)
+              
+              if (!candidatoResponse.success || !candidatoResponse.data) {
+                console.error('Error response:', candidatoResponse)
+                throw new Error(`Error al crear candidato ${candidato.nombre_candidato}: ${candidatoResponse.message || 'Error desconocido'}`)
+              }
+              
+              const candidatoId = parseInt(candidatoResponse.data.id)
+              candidatosCreados.push(candidatoId)
+              console.log('Candidato creado exitosamente con ID:', candidatoId)
+              
+              // Crear postulación usando el servicio
+              // Para evaluación/test psicolaboral, no se envía id_portal_postulacion
+              const postulacionPayload: any = {
+                id_candidato: candidatoId,
+                id_solicitud: Number(solicitudId),
+                id_estado_candidato: 1, // 1 = "Presentado" (estado inicial)
+              }
+              
+              // Adjuntar CV si existe
+              if (candidato.cv_file) {
+                postulacionPayload.cv_file = candidato.cv_file
+              }
+              
+              console.log('Creando postulación con datos:', {
+                ...postulacionPayload,
+                cv_file: candidato.cv_file ? 'Archivo adjunto' : 'Sin archivo'
+              })
+              
+              const postulacionResponse = await postulacionService.create(postulacionPayload)
+              
+              if (!postulacionResponse.success || !postulacionResponse.data) {
+                console.error('Error response postulación:', postulacionResponse)
+                throw new Error(`Error al crear postulación para candidato ${candidato.nombre_candidato}: ${postulacionResponse.message || 'Error desconocido'}`)
+              }
+              
+              const postulacionId = postulacionResponse.data.id_postulacion
+              postulacionesCreadas.push(parseInt(postulacionId))
+              console.log('Postulación creada exitosamente con ID:', postulacionId)
             }
-          } catch (excelError: any) {
-            console.error('Error processing Excel:', excelError)
-            toast.warning((isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + excelError.message)
+            
+            // Si todo salió bien, mostrar éxito
+            setAlertType("success")
+            setAlertTitle("¡Proceso completado exitosamente!")
+            setAlertDescription(`Se creó la solicitud con ${candidatos.length} candidato(s) y sus respectivas postulaciones.`)
+            setAlertOpen(true)
+            
+          } catch (error: any) {
+            console.error('Error creating candidatos/postulaciones:', error)
+            
+            // Rollback: eliminar candidatos y postulaciones creadas
+            try {
+              // Eliminar postulaciones creadas
+              for (const postulacionId of postulacionesCreadas) {
+                await fetch(`/api/postulaciones/${postulacionId}`, { method: 'DELETE' })
+              }
+              
+              // Eliminar candidatos creados
+              for (const candidatoId of candidatosCreados) {
+                await fetch(`/api/candidatos/${candidatoId}`, { method: 'DELETE' })
+              }
+              
+              // Eliminar la solicitud creada
+              await fetch(`/api/solicitudes/${solicitudId}`, { method: 'DELETE' })
+              
+              setAlertType("error")
+              setAlertTitle("Error en el proceso")
+              setAlertDescription(`Hubo un error al crear los candidatos/postulaciones. Se realizó rollback completo: ${error.message}`)
+              setAlertOpen(true)
+              
+            } catch (rollbackError: any) {
+              console.error('Error during rollback:', rollbackError)
+              setAlertType("error")
+              setAlertTitle("Error crítico")
+              setAlertDescription(`Error al crear candidatos/postulaciones y falló el rollback. Contacte al administrador. Error: ${error.message}`)
+              setAlertOpen(true)
+            }
           }
         } else {
-          toast.success(isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente')
+          // Si hay archivo Excel, procesarlo y enviarlo
+          if (formData.excel_file) {
+            try {
+              toast.info('Procesando archivo Excel...')
+              const excelData = await processExcelFile(formData.excel_file)
+              
+              // Obtener el ID de la descripción de cargo creada
+              const descripcionCargoId = response.data.id_descripcion_cargo
+              
+              if (descripcionCargoId) {
+                const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
+                
+                if (excelResponse.success) {
+                  setAlertType("success")
+                  setAlertTitle("¡Proceso completado exitosamente!")
+                  setAlertDescription(isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente')
+                  setAlertOpen(true)
+                } else {
+                  setAlertType("error")
+                  setAlertTitle("Error parcial")
+                  setAlertDescription(isEditMode ? 'Solicitud actualizada, pero hubo un error al guardar los datos del Excel' : 'Solicitud creada, pero hubo un error al guardar los datos del Excel')
+                  setAlertOpen(true)
+                }
+              }
+            } catch (excelError: any) {
+              console.error('Error processing Excel:', excelError)
+              setAlertType("error")
+              setAlertTitle("Error al procesar Excel")
+              setAlertDescription((isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + excelError.message)
+              setAlertOpen(true)
+            }
+          } else {
+            setAlertType("success")
+            setAlertTitle("¡Proceso completado exitosamente!")
+            setAlertDescription(isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente')
+            setAlertOpen(true)
+          }
         }
         
     // Reset form
@@ -426,17 +611,31 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     setCustomPosition("")
         setComunasFiltradas([])
         
-        // Cerrar el diálogo
-        onOpenChange(false)
+        // Reset candidatos para evaluación/test psicolaboral
+        setCandidatos([{
+          rut_candidato: "",
+          nombre_candidato: "",
+          primer_apellido_candidato: "",
+          segundo_apellido_candidato: "",
+          telefono_candidato: "",
+          email_candidato: "",
+          discapacidad: false,
+          cv_file: null
+        }])
         
-        // Recargar la página para ver la nueva solicitud
-        window.location.reload()
+        // No cerrar automáticamente, las alertas manejarán el cierre
       } else {
-        toast.error(response.message || 'Error al crear la solicitud')
+        setAlertType("error")
+        setAlertTitle("Error en la operación")
+        setAlertDescription(response.message || 'Error al crear la solicitud')
+        setAlertOpen(true)
       }
     } catch (error: any) {
       console.error('Error creating request:', error)
-      toast.error(error.message || 'Error al crear la solicitud')
+      setAlertType("error")
+      setAlertTitle("Error en la operación")
+      setAlertDescription(error.message || 'Error al crear la solicitud')
+      setAlertOpen(true)
     } finally {
       setIsSubmitting(false)
     }
@@ -474,7 +673,44 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
   const clientContacts = selectedClient?.contactos || []
 
   const isEvaluationProcess =
-    formData.service_type === "evaluacion_psicolaboral" || formData.service_type === "test_psicolaboral"
+    formData.service_type === "ES" || formData.service_type === "TS"
+
+
+  // Funciones para manejar candidatos
+  const addCandidato = () => {
+    setCandidatos([...candidatos, {
+      rut_candidato: "",
+      nombre_candidato: "",
+      primer_apellido_candidato: "",
+      segundo_apellido_candidato: "",
+      telefono_candidato: "",
+      email_candidato: "",
+      discapacidad: false,
+      cv_file: null
+    }])
+  }
+
+  const removeCandidato = (index: number) => {
+    if (candidatos.length > 1) {
+      setCandidatos(candidatos.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateCandidato = (index: number, field: string, value: any) => {
+    const updatedCandidatos = [...candidatos]
+    updatedCandidatos[index] = { ...updatedCandidatos[index], [field]: value }
+    setCandidatos(updatedCandidatos)
+  }
+
+  // Función para manejar el cierre de alertas
+  const handleAlertClose = () => {
+    setAlertOpen(false)
+    // Si fue exitoso, cerrar el diálogo y recargar
+    if (alertType === "success") {
+      onOpenChange(false)
+      window.location.reload()
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -561,8 +797,8 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                       {apiData?.tipos_servicio.map((tipo) => (
                         <SelectItem key={tipo.codigo} value={tipo.codigo}>
                           {tipo.nombre}
-                    </SelectItem>
-                  ))}
+                        </SelectItem>
+                      ))}
                 </SelectContent>
               </Select>
             </div>
@@ -589,40 +825,58 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
 
           <div className="space-y-2">
             <Label htmlFor="position_title">Cargo</Label>
-            {!showCustomPosition ? (
-                  <Select value={formData.position_title} onValueChange={handlePositionChange} required>
+            {isEvaluationProcess ? (
+              <Select value={formData.position_title} onValueChange={(value) => setFormData({ ...formData, position_title: value })} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar cargo" />
                 </SelectTrigger>
                 <SelectContent>
-                      {apiData?.cargos.map((cargo) => (
-                        <SelectItem key={cargo} value={cargo}>
-                          {cargo}
+                  <SelectItem value="Sin cargo">Sin cargo</SelectItem>
+                  {apiData?.cargos.map((cargo) => (
+                    <SelectItem key={cargo} value={cargo}>
+                      {cargo}
                     </SelectItem>
                   ))}
-                  <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
                 </SelectContent>
               </Select>
             ) : (
-              <div className="flex gap-2">
-                <Input
-                  value={customPosition}
-                  onChange={(e) => handleCustomPositionChange(e.target.value)}
-                  placeholder="Ingrese el nombre del cargo"
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowCustomPosition(false)
-                    setFormData({ ...formData, position_title: "" })
-                    setCustomPosition("")
-                  }}
-                >
-                  Cancelar
-                </Button>
-              </div>
+              <>
+                {!showCustomPosition ? (
+                  <Select value={formData.position_title} onValueChange={handlePositionChange} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar cargo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {apiData?.cargos.map((cargo) => (
+                        <SelectItem key={cargo} value={cargo}>
+                          {cargo}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      value={customPosition}
+                      onChange={(e) => handleCustomPositionChange(e.target.value)}
+                      placeholder="Ingrese el nombre del cargo"
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setShowCustomPosition(false)
+                        setFormData({ ...formData, position_title: "" })
+                        setCustomPosition("")
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -672,54 +926,142 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
 
           {isEvaluationProcess && (
             <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="candidate_name">Nombre del Candidato</Label>
-                  <Input
-                    id="candidate_name"
-                    value={formData.candidate_name}
-                    onChange={(e) => setFormData({ ...formData, candidate_name: e.target.value })}
-                        placeholder="Nombre completo"
-                        required={isEvaluationProcess}
-                  />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Candidatos a Evaluar</h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addCandidato}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar Candidato
+                  </Button>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="candidate_rut">RUT del Candidato</Label>
-                  <Input
-                    id="candidate_rut"
-                    value={formData.candidate_rut}
-                    onChange={(e) => setFormData({ ...formData, candidate_rut: e.target.value })}
-                    placeholder="12.345.678-9"
-                        required={isEvaluationProcess}
-                  />
-                </div>
-              </div>
+                {candidatos.map((candidato, index) => (
+                  <div key={index} className="border rounded-lg p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Candidato {index + 1}</h4>
+                      {candidatos.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeCandidato(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="cv_file">CV del Candidato</Label>
-                <Input
-                  id="cv_file"
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                      onChange={(e) => setFormData({ ...formData, cv_file: e.target.files?.[0] || null })}
-                      required={isEvaluationProcess}
-                />
-                    <p className="text-xs text-muted-foreground">Formatos aceptados: PDF, DOC, DOCX</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor={`rut_${index}`}>RUT (Opcional)</Label>
+                        <Input
+                          id={`rut_${index}`}
+                          value={candidato.rut_candidato}
+                          onChange={(e) => updateCandidato(index, 'rut_candidato', e.target.value)}
+                          placeholder="12.345.678-9"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`nombre_${index}`}>Nombre *</Label>
+                        <Input
+                          id={`nombre_${index}`}
+                          value={candidato.nombre_candidato}
+                          onChange={(e) => updateCandidato(index, 'nombre_candidato', e.target.value)}
+                          placeholder="Nombre"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`primer_apellido_${index}`}>Primer Apellido *</Label>
+                        <Input
+                          id={`primer_apellido_${index}`}
+                          value={candidato.primer_apellido_candidato}
+                          onChange={(e) => updateCandidato(index, 'primer_apellido_candidato', e.target.value)}
+                          placeholder="Primer apellido"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`segundo_apellido_${index}`}>Segundo Apellido</Label>
+                        <Input
+                          id={`segundo_apellido_${index}`}
+                          value={candidato.segundo_apellido_candidato}
+                          onChange={(e) => updateCandidato(index, 'segundo_apellido_candidato', e.target.value)}
+                          placeholder="Segundo apellido"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`telefono_${index}`}>Teléfono *</Label>
+                        <Input
+                          id={`telefono_${index}`}
+                          value={candidato.telefono_candidato}
+                          onChange={(e) => updateCandidato(index, 'telefono_candidato', e.target.value)}
+                          placeholder="+56 9 1234 5678"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`email_${index}`}>Email *</Label>
+                        <Input
+                          id={`email_${index}`}
+                          type="email"
+                          value={candidato.email_candidato}
+                          onChange={(e) => updateCandidato(index, 'email_candidato', e.target.value)}
+                          placeholder="candidato@email.com"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`discapacidad_${index}`}
+                        checked={candidato.discapacidad}
+                        onCheckedChange={(checked) => updateCandidato(index, 'discapacidad', checked)}
+                      />
+                      <Label htmlFor={`discapacidad_${index}`} className="text-sm">
+                        ¿Tiene discapacidad?
+                      </Label>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`cv_${index}`}>CV (Opcional)</Label>
+                      <Input
+                        id={`cv_${index}`}
+                        type="file"
+                        accept=".pdf,.doc,.docx"
+                        onChange={(e) => updateCandidato(index, 'cv_file', e.target.files?.[0] || null)}
+                      />
+                      <p className="text-xs text-muted-foreground">Formatos aceptados: PDF, DOC, DOCX</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </>
           )}
 
-            <div className="space-y-2">
+            {!(isEvaluationProcess && formData.position_title === "Sin cargo") && (
+              <div className="space-y-2">
                 <Label htmlFor="description">Descripción</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Descripción del cargo o proceso"
-                rows={3}
-              />
-            </div>
+                  rows={3}
+                />
+              </div>
+            )}
 
           <div className="space-y-2">
                 <Label htmlFor="requirements">Requisitos</Label>
@@ -733,17 +1075,34 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="vacancies">Número de Vacantes</Label>
-              <Input
-                id="vacancies"
-                type="number"
-                min="1"
-                value={formData.vacancies}
-                    onChange={(e) => setFormData({ ...formData, vacancies: parseInt(e.target.value) })}
-                required
-              />
-            </div>
+            {!isEvaluationProcess && (
+              <div className="space-y-2">
+                <Label htmlFor="vacancies">Número de Vacantes</Label>
+                <Input
+                  id="vacancies"
+                  type="number"
+                  min="1"
+                  value={formData.vacancies}
+                  onChange={(e) => setFormData({ ...formData, vacancies: parseInt(e.target.value) })}
+                  required
+                />
+              </div>
+            )}
+            
+            {isEvaluationProcess && (
+              <div className="space-y-2">
+                <Label>Número de personas a evaluar</Label>
+                <div className="flex items-center h-10 px-3 py-2 text-sm border rounded-md bg-muted">
+                  <span className="font-medium">{candidatos.length}</span>
+                  <span className="ml-2 text-muted-foreground">
+                    {candidatos.length === 1 ? 'candidato agregado' : 'candidatos agregados'}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Se calcula automáticamente según los candidatos agregados
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="consultant">Consultor Asignado</Label>
@@ -793,7 +1152,12 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
             </Button>
             <Button 
               type="submit" 
-              disabled={isLoading || isSubmitting || (!!formData.client_id && clientContacts.length === 0)}
+              disabled={
+                isLoading || 
+                isSubmitting || 
+                (!!formData.client_id && clientContacts.length === 0) ||
+                (isEvaluationProcess && candidatos.some(c => !c.nombre_candidato || !c.primer_apellido_candidato || !c.telefono_candidato || !c.email_candidato))
+              }
             >
               {isSubmitting ? (
                 <>
@@ -807,6 +1171,17 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           </DialogFooter>
         </form>
       </DialogContent>
+      
+      {/* CustomAlertDialog para mostrar resultados */}
+      <CustomAlertDialog
+        open={alertOpen}
+        onOpenChange={handleAlertClose}
+        type={alertType}
+        title={alertTitle}
+        description={alertDescription}
+        confirmText="Aceptar"
+        onConfirm={handleAlertClose}
+      />
     </Dialog>
   )
 }

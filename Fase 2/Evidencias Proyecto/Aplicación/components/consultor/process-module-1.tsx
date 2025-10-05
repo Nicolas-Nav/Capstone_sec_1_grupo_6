@@ -15,7 +15,7 @@ import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSp
 import type { Process, ProcessStatus, Candidate, WorkExperience, Education } from "@/lib/types"
 import { useState, useEffect } from "react"
 import { descripcionCargoService, solicitudService, regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService } from "@/lib/api"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 import CVViewerDialog from "./cv-viewer-dialog"
 
 interface ProcessModule1Props {
@@ -24,6 +24,7 @@ interface ProcessModule1Props {
 }
 
 export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Props) {
+  const { toast } = useToast()
   const [personalData, setPersonalData] = useState({
     name: "",
     rut: "",
@@ -115,7 +116,11 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         }
       } catch (error) {
         console.error("Error loading estados:", error)
-        toast.error("Error al cargar estados disponibles")
+        toast({
+          title: "Error",
+          description: "Error al cargar estados disponibles",
+          variant: "destructive",
+        })
       } finally {
         setLoadingEstados(false)
       }
@@ -185,7 +190,135 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
   const handlePersonalDataSubmit = async () => {
     if (!candidateWithCV) {
-      toast.error("No se encontró información del candidato")
+      toast({
+        title: "Error",
+        description: "No se encontró información del candidato",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validaciones de campos obligatorios
+    if (!personalData.name?.trim()) {
+      toast({
+        title: "Campo obligatorio",
+        description: "El nombre del candidato es obligatorio",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!personalData.email?.trim()) {
+      toast({
+        title: "Campo obligatorio",
+        description: "El email del candidato es obligatorio",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(personalData.email)) {
+      toast({
+        title: "Campo obligatorio",
+        description: "Ingresa un email válido (ej: candidato@ejemplo.com)",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!personalData.phone?.trim()) {
+      toast({
+        title: "Campo obligatorio",
+        description: "El teléfono del candidato es obligatorio",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validar formato de teléfono
+    const phoneRegex = /^[\+]?[0-9\s\-\(\)]{8,}$/
+    if (!phoneRegex.test(personalData.phone)) {
+      toast({
+        title: "Campo obligatorio",
+        description: "Ingresa un teléfono válido (mínimo 8 dígitos)",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!personalData.rut?.trim()) {
+      toast({
+        title: "Campo obligatorio",
+        description: "El RUT del candidato es obligatorio",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validar formato de RUT chileno
+    const rutRegex = /^[0-9]+-[0-9kK]$/
+    if (!rutRegex.test(personalData.rut)) {
+      toast({
+        title: "Campo obligatorio",
+        description: "Ingresa un RUT válido (ej: 12345678-9)",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!personalData.birth_date) {
+      toast({
+        title: "Campo obligatorio",
+        description: "La fecha de nacimiento es obligatoria",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!personalData.region) {
+      toast({
+        title: "Campo obligatorio",
+        description: "La región es obligatoria",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!personalData.comuna) {
+      toast({
+        title: "Campo obligatorio",
+        description: "La comuna es obligatoria",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!personalData.nacionalidad) {
+      toast({
+        title: "Campo obligatorio",
+        description: "La nacionalidad es obligatoria",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!personalData.rubro) {
+      toast({
+        title: "Campo obligatorio",
+        description: "El rubro es obligatorio",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!personalData.profession) {
+      toast({
+        title: "Campo obligatorio",
+        description: "La profesión es obligatoria",
+        variant: "destructive",
+      })
       return
     }
 
@@ -232,19 +365,31 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       const response = await candidatoService.update(parseInt(candidateWithCV.id), candidateData)
       
       if (response.success) {
-        toast.success("Datos del candidato guardados exitosamente")
+        toast({
+          title: "¡Éxito!",
+          description: "¡Datos del candidato guardados exitosamente! Redirigiendo al Módulo 4...",
+          variant: "default",
+        })
         
         // Navegar al Módulo 4
         const url = new URL(window.location.href)
         url.searchParams.set('tab', 'modulo-4')
         window.location.href = url.toString()
       } else {
-        toast.error(response.message || "Error al guardar los datos del candidato")
+        toast({
+          title: "Error",
+          description: response.message || "Error al guardar los datos del candidato",
+          variant: "destructive",
+        })
       }
       
     } catch (error) {
       console.error('Error saving candidate data:', error)
-      toast.error("Error al guardar los datos del candidato")
+      toast({
+        title: "Error",
+        description: "Error al guardar los datos del candidato",
+        variant: "destructive",
+      })
     } finally {
       setSavingCandidate(false)
     }
@@ -351,18 +496,30 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       const response = await solicitudService.cambiarEstado(parseInt(process.id), parseInt(estadoId))
       
       if (response.success) {
-        toast.success("Estado actualizado exitosamente")
+        toast({
+          title: "¡Éxito!",
+          description: "Estado actualizado exitosamente",
+          variant: "default",
+        })
         setShowStatusChange(false)
         setSelectedEstado("")
         setStatusChangeReason("")
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
-        toast.error("Error al actualizar el estado")
+        toast({
+          title: "Error",
+          description: "Error al actualizar el estado",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error updating status:", error)
-      toast.error("Error al actualizar el estado")
+      toast({
+        title: "Error",
+        description: "Error al actualizar el estado",
+        variant: "destructive",
+      })
     }
   }
 
@@ -371,17 +528,29 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       const response = await solicitudService.avanzarAModulo2(parseInt(process.id))
       
       if (response.success) {
-        toast.success("Proceso avanzado al Módulo 2 exitosamente")
+        toast({
+          title: "¡Éxito!",
+          description: "Proceso avanzado al Módulo 2 exitosamente",
+          variant: "default",
+        })
         // Navegar al módulo 2 usando URL con parámetro
         const currentUrl = new URL(window.location.href)
         currentUrl.searchParams.set('tab', 'modulo-2')
         window.location.href = currentUrl.toString()
       } else {
-        toast.error("Error al avanzar al Módulo 2")
+        toast({
+          title: "Error",
+          description: "Error al avanzar al Módulo 2",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error al avanzar al Módulo 2:", error)
-      toast.error("Error al avanzar al Módulo 2")
+      toast({
+        title: "Error",
+        description: "Error al avanzar al Módulo 2",
+        variant: "destructive",
+      })
     }
   }
 
@@ -856,7 +1025,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre Completo</Label>
+                  <Label htmlFor="name">Nombre Completo <span className="text-red-500">*</span></Label>
                   <Input
                     id="name"
                     value={personalData.name}
@@ -865,7 +1034,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="rut">RUT</Label>
+                  <Label htmlFor="rut">RUT <span className="text-red-500">*</span></Label>
                   <Input
                     id="rut"
                     value={personalData.rut}
@@ -874,7 +1043,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
                   <Input
                     id="email"
                     type="email"
@@ -884,7 +1053,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono</Label>
+                  <Label htmlFor="phone">Teléfono <span className="text-red-500">*</span></Label>
                   <Input
                     id="phone"
                     value={personalData.phone}
@@ -893,7 +1062,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
+                  <Label htmlFor="birth_date">Fecha de Nacimiento <span className="text-red-500">*</span></Label>
                   <Input
                     id="birth_date"
                     type="date"
@@ -919,7 +1088,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="profession">Profesión</Label>
+                  <Label htmlFor="profession">Profesión <span className="text-red-500">*</span></Label>
                   <Select
                     value={personalData.profession}
                     onValueChange={(value) => setPersonalData({ ...personalData, profession: value })}

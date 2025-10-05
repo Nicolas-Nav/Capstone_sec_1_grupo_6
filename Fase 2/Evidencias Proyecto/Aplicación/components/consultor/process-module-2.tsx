@@ -27,13 +27,13 @@ import { useToast } from "@/hooks/use-toast"
 import { AddPublicationDialog } from "./add-publication-dialog"
 import CVViewerDialog from "./cv-viewer-dialog"
 import { CandidateStatusDialog } from "./candidate-status-dialog"
-import { toast as sonnerToast } from "sonner"
 
 interface ProcessModule2Props {
   process: Process
 }
 
 export function ProcessModule2({ process }: ProcessModule2Props) {
+  console.log('=== ProcessModule2 RENDERIZADO ===')
   const { toast } = useToast()
   
   // Estados ahora inicializan vacíos y se llenan con useEffect
@@ -135,7 +135,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         setCandidates(candidatesData)
       } catch (error) {
         console.error('Error al cargar datos:', error)
-      sonnerToast.error('Error al cargar datos del módulo')
+      toast({
+        title: "Error",
+        description: "Error al cargar datos del módulo",
+        variant: "destructive",
+      })
       } finally {
         setIsLoading(false)
       }
@@ -323,43 +327,120 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const handleAddCandidate = async () => {
     console.log('=== INICIANDO handleAddCandidate ===')
     console.log('Datos del formulario:', newCandidate)
+    console.log('Validando campos obligatorios...')
     
     // Validar que process.id sea válido
     const processId = parseInt(process.id)
     if (isNaN(processId)) {
       console.error('ID de proceso inválido en handleAddCandidate:', process.id)
-      toast({
-        title: "Error",
+        toast({
+          title: "Error",
         description: "ID de proceso inválido",
+          variant: "destructive",
+        })
+        return
+      }
+
+    // Validar campos requeridos con mensajes específicos (FUERA del try)
+    console.log('Validando nombre:', newCandidate.name)
+    if (!newCandidate.name || newCandidate.name.trim() === "") {
+      console.log('❌ Nombre vacío - mostrando error')
+      toast({
+        title: "Campo obligatorio",
+        description: "El nombre del candidato es obligatorio",
+        variant: "destructive",
+      })
+      return
+    }
+    console.log('✅ Nombre válido')
+    
+    console.log('Validando email:', newCandidate.email)
+    if (!newCandidate.email || newCandidate.email.trim() === "") {
+      console.log('❌ Email vacío - mostrando error')
+      toast({
+        title: "Campo obligatorio",
+        description: "El email del candidato es obligatorio",
+        variant: "destructive",
+      })
+      return
+    }
+    console.log('✅ Email válido')
+    
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newCandidate.email.trim())) {
+      toast({
+        title: "Campo obligatorio",
+        description: "Ingresa un email válido (ej: candidato@ejemplo.com)",
         variant: "destructive",
       })
       return
     }
     
+    // console.log('Validando teléfono:', newCandidate.phone)
+    if (!newCandidate.phone || newCandidate.phone.trim() === "") {
+      // console.log('❌ Teléfono vacío - mostrando error')
+      toast({
+        title: "Campo obligatorio",
+        description: "El teléfono del candidato es obligatorio",
+        variant: "destructive",
+      })
+      return
+    }
+    // console.log('✅ Teléfono válido')
+    
+    // Validar formato de teléfono (mínimo 8 dígitos)
+    const phoneRegex = /^[\+]?[0-9\s\-\(\)]{8,}$/
+    if (!phoneRegex.test(newCandidate.phone.trim())) {
+      toast({
+        title: "Campo obligatorio",
+        description: "Ingresa un teléfono válido (mínimo 8 dígitos)",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validar que se haya seleccionado un portal
+    // console.log('Validando portal:', newCandidate.source_portal)
+    if (!newCandidate.source_portal || newCandidate.source_portal.trim() === "") {
+      // console.log('❌ Portal vacío - mostrando error')
+      toast({
+        title: "Campo obligatorio",
+        description: "El portal de origen es obligatorio",
+        variant: "destructive",
+      })
+      return
+    }
+    // console.log('✅ Portal válido')
+    
     try {
-      // Validar campos requeridos
-      if (!newCandidate.name || !newCandidate.email || !newCandidate.phone) {
-        console.log('Validación falló - campos vacíos')
-        toast({
-          title: "Error",
-          description: "Por favor completa los campos obligatorios (Nombre, Email, Teléfono)",
-          variant: "destructive",
-        })
-        return
+      
+      // Validar archivo CV si existe
+      if (newCandidate.cv_file) {
+        // Validar formato de archivo CV
+        const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessorml.document']
+        if (!allowedTypes.includes(newCandidate.cv_file.type)) {
+          toast({
+            title: "Campo obligatorio",
+            description: "El CV debe ser un archivo PDF o Word (.pdf, .doc, .docx)",
+            variant: "destructive",
+          })
+          return
+        }
+        
+        // Validar tamaño del archivo (máximo 5MB)
+        const maxSize = 5 * 1024 * 1024 // 5MB
+        if (newCandidate.cv_file.size > maxSize) {
+          toast({
+            title: "Campo obligatorio",
+            description: "El archivo CV no puede superar los 5MB",
+            variant: "destructive",
+          })
+          return
+        }
       }
 
-      // Validar que se haya seleccionado un portal
-      if (!newCandidate.source_portal) {
-        console.log('Validación falló - sin portal')
-        toast({
-          title: "Error",
-          description: "Por favor selecciona el Portal de Origen",
-          variant: "destructive",
-        })
-        return
-      }
-
-      console.log('Validación OK - preparando datos...')
+      // console.log('Validación OK - preparando datos...')
 
       // Preparar datos para enviar al backend
       const candidateData = {
@@ -430,19 +511,31 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           const postulacionResponse = await postulacionService.create(postulacionData)
           
           if (postulacionResponse.success) {
-            console.log('¡Postulación creada exitosamente!')
-            sonnerToast.success("Candidato y postulación creados correctamente")
+            // console.log('¡Postulación creada exitosamente!')
+        toast({
+          title: "¡Éxito!",
+              description: "¡Candidato y postulación creados correctamente!",
+              variant: "default",
+            })
           } else {
             console.error('Error al crear postulación:', postulacionResponse)
-            sonnerToast.warning("Candidato creado, pero hubo un error al crear la postulación")
+            toast({
+              title: "Campo obligatorio",
+              description: "Candidato creado, pero hubo un error al crear la postulación",
+              variant: "destructive",
+            })
           }
         } catch (postError) {
           console.error('Error al crear postulación:', postError)
-          sonnerToast.warning("Candidato creado, pero hubo un error al crear la postulación")
+          toast({
+            title: "Campo obligatorio",
+            description: "Candidato creado, pero hubo un error al crear la postulación",
+            variant: "destructive",
+          })
         }
 
         // Recargar la lista de candidatos desde el backend
-        console.log('Recargando lista de candidatos...')
+        // console.log('Recargando lista de candidatos...')
         await loadData()
 
         // Limpiar formulario
@@ -479,7 +572,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           },
         })
         setShowAddCandidate(false)
-        console.log('Proceso completado')
+        // console.log('Proceso completado')
       } else {
         console.error('La respuesta no fue exitosa:', response)
         toast({
@@ -580,7 +673,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       const candidateResponse = await candidatoService.update(parseInt(editingCandidate.id), candidateData)
 
       if (!candidateResponse.success) {
-        sonnerToast.error(candidateResponse.message || 'Error al actualizar candidato')
+        toast({
+          title: "Error",
+          description: candidateResponse.message || 'Error al actualizar candidato',
+          variant: "destructive",
+        })
         return
       }
 
@@ -621,7 +718,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         }
       }
 
-      sonnerToast.success('Candidato y postulación actualizados exitosamente')
+      toast({
+        title: "¡Éxito!",
+        description: "Candidato y postulación actualizados exitosamente",
+        variant: "default",
+      })
       
       // Recargar los candidatos desde el backend
       await loadData()
@@ -630,7 +731,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     setShowEditCandidate(false)
     } catch (error: any) {
       console.error('Error al actualizar:', error)
-      sonnerToast.error(error.message || 'Error al actualizar')
+      toast({
+        title: "Error",
+        description: error.message || 'Error al actualizar',
+        variant: "destructive",
+      })
     }
   }
 
@@ -688,10 +793,58 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const handleAddPortal = () => {
-    if (newPortalName.trim() && !customPortals.includes(newPortalName.trim())) {
-      setCustomPortals([...customPortals, newPortalName.trim()])
-      setNewPortalName("")
+    // Validaciones
+    if (!newPortalName || newPortalName.trim() === "") {
+      toast({
+        title: "Campo obligatorio",
+        description: "El nombre del portal es obligatorio",
+        variant: "destructive",
+      })
+      return
     }
+    
+    const portalName = newPortalName.trim()
+    
+    // Validar longitud mínima
+    if (portalName.length < 3) {
+      toast({
+        title: "Nombre muy corto",
+        description: "El nombre del portal debe tener al menos 3 caracteres",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validar que no exista
+    if (customPortals.includes(portalName)) {
+      toast({
+        title: "Portal duplicado",
+        description: "Este portal ya existe en la lista",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validar que no sea un portal por defecto
+    const defaultPortals = ["LinkedIn", "GetOnBoard", "Indeed", "Trabajando.com", "Laborum", "Behance"]
+    if (defaultPortals.includes(portalName)) {
+      toast({
+        title: "Portal por defecto",
+        description: "Este portal ya está disponible por defecto",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Agregar portal
+    setCustomPortals([...customPortals, portalName])
+    setNewPortalName("")
+    
+    toast({
+      title: "¡Éxito!",
+      description: `Portal "${portalName}" agregado correctamente`,
+      variant: "default",
+    })
   }
 
   const handleDeletePortal = (portalName: string) => {
@@ -830,10 +983,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const handleRejectionReason = async (candidateId: string, reason: string) => {
     try {
       // Actualizar el estado local primero
-      const updatedCandidates = candidates.map((candidate) =>
-        candidate.id === candidateId ? { ...candidate, rejection_reason: reason } : candidate,
-      )
-      setCandidates(updatedCandidates)
+    const updatedCandidates = candidates.map((candidate) =>
+      candidate.id === candidateId ? { ...candidate, rejection_reason: reason } : candidate,
+    )
+    setCandidates(updatedCandidates)
 
       // Actualizar también en la API
       const candidate = candidates.find(c => c.id === candidateId);
@@ -854,7 +1007,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         title: "Error",
         description: "No se pudo actualizar el comentario",
         variant: "destructive",
-      });
+      })
     }
   }
 
@@ -912,7 +1065,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                 <div className="space-y-4">
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <Label htmlFor="new_portal">Nuevo Portal</Label>
+                      <Label htmlFor="new_portal">Nuevo Portal <span className="text-red-500">*</span></Label>
                       <Input
                         id="new_portal"
                         value={newPortalName}
@@ -1089,11 +1242,19 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                             try {
                               const response = await publicacionService.delete(publication.id)
                               if (response.success) {
-                                sonnerToast.success('Publicación eliminada')
+                                toast({
+                                  title: "¡Éxito!",
+                                  description: "Publicación eliminada",
+                                  variant: "default",
+                                })
                                 loadData()
                               }
                             } catch (error) {
-                              sonnerToast.error('Error al eliminar publicación')
+                              toast({
+                                title: "Error",
+                                description: "Error al eliminar publicación",
+                                variant: "destructive",
+                              })
                             }
                           }}
                         >
@@ -1143,7 +1304,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                       <h3 className="text-lg font-semibold border-b pb-2">Información Básica</h3>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="candidate_name">Nombre Completo</Label>
+                          <Label htmlFor="candidate_name">Nombre Completo <span className="text-red-500">*</span></Label>
                           <Input
                             id="candidate_name"
                             value={newCandidate.name}
@@ -1152,7 +1313,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="candidate_email">Email</Label>
+                          <Label htmlFor="candidate_email">Email <span className="text-red-500">*</span></Label>
                           <Input
                             id="candidate_email"
                             type="email"
@@ -1165,7 +1326,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="candidate_phone">Teléfono</Label>
+                          <Label htmlFor="candidate_phone">Teléfono <span className="text-red-500">*</span></Label>
                           <Input
                             id="candidate_phone"
                             value={newCandidate.phone}
@@ -1324,7 +1485,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           </p>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="cv_file">CV (Archivo)</Label>
+                          <Label htmlFor="cv_file">CV (Archivo) <span className="text-red-500">*</span></Label>
                           <Input
                             id="cv_file"
                             type="file"
@@ -1854,7 +2015,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                     <TableCell>
                       <div className="flex flex-col gap-2">
                         {/* Mostrar estado actual */}
-                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2">
                           {candidate.presentation_status === "presentado" && (
                             <Badge variant="default" className="text-xs bg-green-600">
                               <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { candidatoService } from "@/lib/api"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 import { UserCheck, AlertCircle, XCircle } from "lucide-react"
 import type { Candidate } from "@/lib/types"
 
@@ -19,6 +19,7 @@ interface CandidateStatusDialogProps {
 }
 
 export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess }: CandidateStatusDialogProps) {
+  const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     status: "",
@@ -41,8 +42,22 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
     if (!candidate) return
 
     // Validar que si es "no_presentado" debe tener comentario
-    if (formData.status === "no_presentado" && !formData.comment.trim()) {
-      toast.error("Debe agregar un comentario para el estado 'No Presentado'")
+    if (formData.status === "no_presentado" && !formData.comment?.trim()) {
+      toast({
+        title: "Campo obligatorio",
+        description: "Debe agregar un comentario para el estado 'No Presentado'",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validar que el comentario no sea solo espacios
+    if (formData.status === "no_presentado" && formData.comment?.trim().length < 10) {
+      toast({
+        title: "Campo obligatorio",
+        description: "El comentario debe tener al menos 10 caracteres",
+        variant: "destructive",
+      })
       return
     }
 
@@ -56,7 +71,11 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
       )
 
       if (response.success) {
-        toast.success("Estado del candidato actualizado correctamente")
+        toast({
+          title: "¡Éxito!",
+          description: "¡Estado del candidato actualizado correctamente!",
+          variant: "default",
+        })
         onSuccess?.()
         onOpenChange(false)
       } else {
@@ -64,7 +83,11 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
       }
     } catch (error) {
       console.error('Error al actualizar estado:', error)
-      toast.error("No se pudo actualizar el estado del candidato")
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el estado del candidato",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { publicacionService } from "@/lib/api"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 import { Globe } from "lucide-react"
 
 interface AddPublicationDialogProps {
@@ -18,6 +18,7 @@ interface AddPublicationDialogProps {
 }
 
 export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSuccess }: AddPublicationDialogProps) {
+  const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [portales, setPortales] = useState<any[]>([])
   const [loadingPortales, setLoadingPortales] = useState(false)
@@ -43,25 +44,41 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
       if (response.success && response.data) {
         setPortales(response.data)
       } else {
-        toast.error("Error al cargar portales de postulación")
+        toast({
+          title: "Error",
+          description: "Error al cargar portales de postulación",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error al cargar portales:", error)
-      toast.error("Error al cargar portales de postulación")
+      toast({
+        title: "Error",
+        description: "Error al cargar portales de postulación",
+        variant: "destructive",
+      })
     } finally {
       setLoadingPortales(false)
     }
   }
 
   const handleSubmit = async () => {
-    // Validaciones
+    // Validaciones con mensajes específicos
     if (!formData.id_portal_postulacion) {
-      toast.error("Selecciona un portal de postulación")
+      toast({
+        title: "Campo obligatorio",
+        description: "El portal de postulación es obligatorio",
+        variant: "destructive",
+      })
       return
     }
 
-    if (!formData.url_publicacion.trim()) {
-      toast.error("Ingresa la URL de la publicación")
+    if (!formData.url_publicacion?.trim()) {
+      toast({
+        title: "Campo obligatorio",
+        description: "La URL de la publicación es obligatoria",
+        variant: "destructive",
+      })
       return
     }
 
@@ -69,7 +86,21 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
     try {
       new URL(formData.url_publicacion)
     } catch (error) {
-      toast.error("Ingresa una URL válida (ej: https://ejemplo.com)")
+      toast({
+        title: "Campo obligatorio",
+        description: "Ingresa una URL válida (ej: https://ejemplo.com)",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validar que la URL tenga protocolo
+    if (!formData.url_publicacion.startsWith('http://') && !formData.url_publicacion.startsWith('https://')) {
+      toast({
+        title: "Campo obligatorio",
+        description: "La URL debe comenzar con http:// o https://",
+        variant: "destructive",
+      })
       return
     }
 
@@ -84,7 +115,11 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
       })
 
       if (response.success) {
-        toast.success("Publicación creada exitosamente")
+        toast({
+          title: "¡Éxito!",
+          description: "¡Publicación creada exitosamente!",
+          variant: "default",
+        })
         
         // Limpiar formulario
         setFormData({
@@ -102,11 +137,19 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
           onSuccess()
         }
       } else {
-        toast.error(response.message || "Error al crear publicación")
+        toast({
+          title: "Error",
+          description: response.message || "Error al crear publicación",
+          variant: "destructive",
+        })
       }
     } catch (error: any) {
       console.error("Error al crear publicación:", error)
-      toast.error(error.message || "Error al crear publicación")
+      toast({
+        title: "Error",
+        description: error.message || "Error al crear publicación",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }

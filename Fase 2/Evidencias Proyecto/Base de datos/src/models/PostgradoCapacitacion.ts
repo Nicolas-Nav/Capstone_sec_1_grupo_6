@@ -8,19 +8,21 @@ import sequelize from '@/config/database';
 interface PostgradoCapacitacionAttributes {
     id_postgradocapacitacion: number;
     nombre_postgradocapacitacion: string;
-    id_institucion: number;
 }
 
-interface PostgradoCapacitacionCreationAttributes extends Optional<PostgradoCapacitacionAttributes, 'id_postgradocapacitacion'> { }
+interface PostgradoCapacitacionCreationAttributes
+    extends Optional<PostgradoCapacitacionAttributes, 'id_postgradocapacitacion'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
 // ===========================================
 
-class PostgradoCapacitacion extends Model<PostgradoCapacitacionAttributes, PostgradoCapacitacionCreationAttributes> implements PostgradoCapacitacionAttributes {
+class PostgradoCapacitacion
+    extends Model<PostgradoCapacitacionAttributes, PostgradoCapacitacionCreationAttributes>
+    implements PostgradoCapacitacionAttributes {
+
     public id_postgradocapacitacion!: number;
     public nombre_postgradocapacitacion!: string;
-    public id_institucion!: number;
 }
 
 // ===========================================
@@ -46,34 +48,12 @@ PostgradoCapacitacion.init({
                 msg: 'El nombre debe tener entre 2 y 100 caracteres'
             }
         }
-    },
-    id_institucion: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'institucion',
-            key: 'id_institucion'
-        },
-        validate: {
-            notNull: {
-                msg: 'La institución es requerida'
-            }
-        }
     }
 }, {
     sequelize,
     tableName: 'postgradocapacitacion',
     timestamps: false,
-    underscored: true,
-    indexes: [
-        {
-            fields: ['id_institucion']
-        },
-        {
-            unique: true,
-            fields: ['nombre_postgradocapacitacion', 'id_institucion']
-        }
-    ]
+    underscored: true
 });
 
 export default PostgradoCapacitacion;

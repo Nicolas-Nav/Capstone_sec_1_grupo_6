@@ -8,7 +8,6 @@ import sequelize from '@/config/database';
 interface ProfesionAttributes {
     id_profesion: number;
     nombre_profesion: string;
-    id_institucion: number;
 }
 
 interface ProfesionCreationAttributes extends Optional<ProfesionAttributes, 'id_profesion'> { }
@@ -20,7 +19,6 @@ interface ProfesionCreationAttributes extends Optional<ProfesionAttributes, 'id_
 class Profesion extends Model<ProfesionAttributes, ProfesionCreationAttributes> implements ProfesionAttributes {
     public id_profesion!: number;
     public nombre_profesion!: string;
-    public id_institucion!: number;
 }
 
 // ===========================================
@@ -46,19 +44,6 @@ Profesion.init({
                 msg: 'El nombre debe tener entre 2 y 100 caracteres'
             }
         }
-    },
-    id_institucion: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'institucion',
-            key: 'id_institucion'
-        },
-        validate: {
-            notNull: {
-                msg: 'La institución es requerida'
-            }
-        }
     }
 }, {
     sequelize,
@@ -67,11 +52,8 @@ Profesion.init({
     underscored: true,
     indexes: [
         {
-            fields: ['id_institucion']
-        },
-        {
             unique: true,
-            fields: ['nombre_profesion', 'id_institucion']
+            fields: ['nombre_profesion']
         }
     ]
 });

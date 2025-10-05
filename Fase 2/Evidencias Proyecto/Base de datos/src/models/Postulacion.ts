@@ -18,13 +18,13 @@ interface PostulacionAttributes {
     valoracion?: number;
     cv_postulacion?: Buffer;
     id_candidato: number;
-    id_estado_candidato: number;
+    id_estado_candidato?: number;
     id_solicitud: number;
     id_portal_postulacion?: number;
 }
 
 interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'id_postulacion' | 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_rech_obs_cliente' | 'comentario_modulo5_cliente' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion' |
-    'id_portal_postulacion' > { }
+    'id_portal_postulacion' | 'id_estado_candidato'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -42,7 +42,7 @@ class Postulacion extends Model<PostulacionAttributes, PostulacionCreationAttrib
     public valoracion?: number;
     public cv_postulacion?: Buffer;
     public id_candidato!: number;
-    public id_estado_candidato!: number;
+    public id_estado_candidato?: number;
     public id_solicitud!: number;
     public id_portal_postulacion?: number;
 
@@ -192,16 +192,11 @@ Postulacion.init({
     },
     id_estado_candidato: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
         references: {
             model: 'estado_candidato',
             key: 'id_estado_candidato'
         },
-        validate: {
-            notNull: {
-                msg: 'El estado del candidato es requerido'
-            }
-        }
     },
     id_solicitud: {
         type: DataTypes.INTEGER,

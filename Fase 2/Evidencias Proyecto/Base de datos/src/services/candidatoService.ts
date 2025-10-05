@@ -66,13 +66,7 @@ export class CandidatoService {
                 {
                     model: PostgradoCapacitacion,
                     as: 'postgradosCapacitaciones',
-                    through: { attributes: [] },
-                    include: [
-                        {
-                            model: Institucion,
-                            as: 'institucion'
-                        }
-                    ]
+                    through: { attributes: [] }
                 }
             ],
             order: [['id_candidato', 'DESC']]
@@ -112,16 +106,10 @@ export class CandidatoService {
                     through: { attributes: [] }
                 },
                 {
-                    model: PostgradoCapacitacion,
-                    as: 'postgradosCapacitaciones',
-                    through: { attributes: [] },
-                    include: [
-                        {
-                            model: Institucion,
-                            as: 'institucion'
-                        }
-                    ]
-                }
+    model: PostgradoCapacitacion,
+    as: 'postgradosCapacitaciones',
+    through: { attributes: [] }
+}
             ]
         });
 
@@ -163,13 +151,7 @@ export class CandidatoService {
                 {
                     model: PostgradoCapacitacion,
                     as: 'postgradosCapacitaciones',
-                    through: { attributes: [] },
-                    include: [
-                        {
-                            model: Institucion,
-                            as: 'institucion'
-                        }
-                    ]
+                    through: { attributes: [] }
                 }
             ]
         });
@@ -357,13 +339,7 @@ export class CandidatoService {
                     {
                         model: PostgradoCapacitacion,
                         as: 'postgradosCapacitaciones',
-                        through: { attributes: [] },
-                        include: [
-                            {
-                                model: Institucion,
-                                as: 'institucion'
-                            }
-                        ]
+                        through: { attributes: [] }
                     }
                 ]
             });
@@ -498,13 +474,7 @@ export class CandidatoService {
                     {
                         model: PostgradoCapacitacion,
                         as: 'postgradosCapacitaciones',
-                        through: { attributes: [] },
-                        include: [
-                            {
-                                model: Institucion,
-                                as: 'institucion'
-                            }
-                        ]
+                        through: { attributes: [] }
                     }
                 ]
             });
@@ -809,7 +779,6 @@ export class CandidatoService {
             education: candidato.postgradosCapacitaciones?.map((edu: any) => ({
                 id: edu.id_postgradocapacitacion.toString(),
                 type: 'postgrado',
-                institution: edu.institucion?.nombre_institucion || '',
                 title: edu.nombre_postgradocapacitacion,
                 start_date: '',
                 completion_date: '',

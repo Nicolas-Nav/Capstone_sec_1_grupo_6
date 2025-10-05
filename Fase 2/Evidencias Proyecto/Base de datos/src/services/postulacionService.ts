@@ -71,13 +71,7 @@ export class PostulacionService {
                         {
                             model: PostgradoCapacitacion,
                             as: 'postgradosCapacitaciones',
-                            through: { attributes: [] },
-                            include: [
-                                {
-                                    model: Institucion,
-                                    as: 'institucion'
-                                }
-                            ]
+                            through: { attributes: [] }
                         }
                     ]
                 },
@@ -590,4 +584,5 @@ export class PostulacionService {
         return age;
     }
 }
+
 

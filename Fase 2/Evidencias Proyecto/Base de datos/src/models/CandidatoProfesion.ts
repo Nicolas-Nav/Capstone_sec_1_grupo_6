@@ -9,18 +9,24 @@ interface CandidatoProfesionAttributes {
     fecha_obtencion: Date;
     id_profesion: number;
     id_candidato: number;
+    id_institucion?: number | null; // nueva FK opcional
 }
 
-interface CandidatoProfesionCreationAttributes extends Optional<CandidatoProfesionAttributes, 'fecha_obtencion'> { }
+interface CandidatoProfesionCreationAttributes
+    extends Optional<CandidatoProfesionAttributes, 'fecha_obtencion'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
 // ===========================================
 
-class CandidatoProfesion extends Model<CandidatoProfesionAttributes, CandidatoProfesionCreationAttributes> implements CandidatoProfesionAttributes {
+class CandidatoProfesion
+    extends Model<CandidatoProfesionAttributes, CandidatoProfesionCreationAttributes>
+    implements CandidatoProfesionAttributes {
+
     public fecha_obtencion!: Date;
     public id_profesion!: number;
     public id_candidato!: number;
+    public id_institucion?: number | null;
 }
 
 // ===========================================
@@ -65,6 +71,14 @@ CandidatoProfesion.init({
                 msg: 'El candidato es requerido'
             }
         }
+    },
+    id_institucion: {
+        type: DataTypes.INTEGER,
+        allowNull: true, // opcional
+        references: {
+            model: 'institucion',
+            key: 'id_institucion'
+        }
     }
 }, {
     sequelize,
@@ -77,6 +91,9 @@ CandidatoProfesion.init({
         },
         {
             fields: ['id_candidato']
+        },
+        {
+            fields: ['id_institucion']
         },
         {
             fields: ['fecha_obtencion']

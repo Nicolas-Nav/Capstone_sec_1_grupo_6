@@ -79,23 +79,35 @@ Contacto.belongsTo(Comuna, {
 // RELACIONES DE FORMACIÓN Y EXPERIENCIA
 // ===========================================
 
-// Institucion -> Profesion (1:N)
-Institucion.hasMany(Profesion, {
-    foreignKey: 'id_institucion',
-    as: 'profesiones'
+// 🔄 NUEVAS RELACIONES: Institución ↔ CandidatoPostgradoCapacitacion
+Institucion.hasMany(CandidatoPostgradoCapacitacion, {
+    foreignKey: {
+        name: 'id_institucion',
+        allowNull: true
+    },
+    as: 'postgrados_capacitaciones'
 });
-Profesion.belongsTo(Institucion, {
-    foreignKey: 'id_institucion',
+CandidatoPostgradoCapacitacion.belongsTo(Institucion, {
+    foreignKey: {
+        name: 'id_institucion',
+        allowNull: true
+    },
     as: 'institucion'
 });
 
-// Institucion -> PostgradoCapacitacion (1:N)
-Institucion.hasMany(PostgradoCapacitacion, {
-    foreignKey: 'id_institucion',
-    as: 'postgradosCapacitaciones'
+// 🔄 NUEVAS RELACIONES: Institución ↔ CandidatoProfesion
+Institucion.hasMany(CandidatoProfesion, {
+    foreignKey: {
+        name: 'id_institucion',
+        allowNull: true
+    },
+    as: 'profesiones'
 });
-PostgradoCapacitacion.belongsTo(Institucion, {
-    foreignKey: 'id_institucion',
+CandidatoProfesion.belongsTo(Institucion, {
+    foreignKey: {
+        name: 'id_institucion',
+        allowNull: true
+    },
     as: 'institucion'
 });
 
@@ -162,6 +174,7 @@ Contacto.hasMany(Solicitud, { foreignKey: 'id_contacto', as: 'solicitudes' });
 TipoServicio.hasMany(Solicitud, { foreignKey: 'codigo_servicio', as: 'solicitudes' });
 Usuario.hasMany(Solicitud, { foreignKey: 'rut_usuario', as: 'solicitudes' });
 EtapaSolicitud.hasMany(Solicitud, { foreignKey: 'id_etapa_solicitud', as: 'solicitudes' });
+
 // ===========================================
 // RELACIONES DE CANDIDATOS
 // ===========================================

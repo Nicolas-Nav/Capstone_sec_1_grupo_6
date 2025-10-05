@@ -9,18 +9,24 @@ interface CandidatoPostgradoCapacitacionAttributes {
     fecha_obtencion: Date;
     id_postgradocapacitacion: number;
     id_candidato: number;
+    id_institucion?: number | null; // nueva FK opcional
 }
 
-interface CandidatoPostgradoCapacitacionCreationAttributes extends Optional<CandidatoPostgradoCapacitacionAttributes, 'fecha_obtencion'> { }
+interface CandidatoPostgradoCapacitacionCreationAttributes
+    extends Optional<CandidatoPostgradoCapacitacionAttributes, 'fecha_obtencion'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
 // ===========================================
 
-class CandidatoPostgradoCapacitacion extends Model<CandidatoPostgradoCapacitacionAttributes, CandidatoPostgradoCapacitacionCreationAttributes> implements CandidatoPostgradoCapacitacionAttributes {
+class CandidatoPostgradoCapacitacion
+    extends Model<CandidatoPostgradoCapacitacionAttributes, CandidatoPostgradoCapacitacionCreationAttributes>
+    implements CandidatoPostgradoCapacitacionAttributes {
+
     public fecha_obtencion!: Date;
     public id_postgradocapacitacion!: number;
     public id_candidato!: number;
+    public id_institucion?: number | null;
 }
 
 // ===========================================
@@ -65,6 +71,14 @@ CandidatoPostgradoCapacitacion.init({
                 msg: 'El candidato es requerido'
             }
         }
+    },
+    id_institucion: {
+        type: DataTypes.INTEGER,
+        allowNull: true, // opcional
+        references: {
+            model: 'institucion',
+            key: 'id_institucion'
+        }
     }
 }, {
     sequelize,
@@ -77,6 +91,9 @@ CandidatoPostgradoCapacitacion.init({
         },
         {
             fields: ['id_candidato']
+        },
+        {
+            fields: ['id_institucion']
         },
         {
             fields: ['fecha_obtencion']

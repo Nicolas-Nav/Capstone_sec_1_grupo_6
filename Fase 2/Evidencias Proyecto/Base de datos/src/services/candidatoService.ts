@@ -689,8 +689,7 @@ export class CandidatoService {
 
                 // Crear postgrado/capacitación
                 const formacion = await PostgradoCapacitacion.create({
-                    nombre_postgradocapacitacion: edu.title,
-                    id_institucion: institucion.id_institucion
+                    nombre_postgradocapacitacion: edu.title
                 }, { transaction: useTransaction });
 
                 // Crear relación candidato-postgrado
@@ -734,16 +733,12 @@ export class CandidatoService {
 
             // Buscar o crear profesión
             let profesion = await Profesion.findOne({
-                where: { 
-                    nombre_profesion: nombreProfesion,
-                    id_institucion: institucion.id_institucion
-                }
+                where: { nombre_profesion: nombreProfesion }
             });
 
             if (!profesion) {
                 profesion = await Profesion.create({
-                    nombre_profesion: nombreProfesion,
-                    id_institucion: institucion.id_institucion
+                    nombre_profesion: nombreProfesion
                 }, { transaction: useTransaction });
             }
 

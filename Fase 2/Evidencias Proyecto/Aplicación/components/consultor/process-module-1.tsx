@@ -11,6 +11,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { serviceTypeLabels, processStatusLabels } from "@/lib/mock-data"
 import { getCandidatesByProcess } from "@/lib/mock-data"
 import { formatDate, getStatusColor } from "@/lib/utils"
+import DatePicker from "react-datepicker"
+import "react-datepicker/dist/react-datepicker.css"
+import { registerLocale, setDefaultLocale } from "react-datepicker"
+import { es } from "date-fns/locale"
+
+// Configurar español como idioma por defecto
+registerLocale("es", es)
+setDefaultLocale("es")
 import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet } from "lucide-react"
 import type { Process, ProcessStatus, Candidate, WorkExperience, Education } from "@/lib/types"
 import { useState, useEffect } from "react"
@@ -1063,18 +1071,28 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="birth_date">Fecha de Nacimiento <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="birth_date"
-                    type="date"
-                    value={personalData.birth_date}
-                    onChange={(e) => {
-                      const age = calculateAge(e.target.value)
-                      setPersonalData({
-                        ...personalData,
-                        birth_date: e.target.value,
-                        age: age,
-                      })
+                  <DatePicker
+                    selected={personalData.birth_date ? new Date(personalData.birth_date) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        const age = calculateAge(date.toISOString().split('T')[0])
+                        setPersonalData({
+                          ...personalData,
+                          birth_date: date.toISOString().split('T')[0],
+                          age: age,
+                        })
+                      }
                     }}
+                    dateFormat="dd/MM/yyyy"
+                    showYearDropdown
+                    showMonthDropdown
+                    dropdownMode="select"
+                    placeholderText="Selecciona fecha de nacimiento"
+                    className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    maxDate={new Date()}
+                    minDate={new Date("1900-01-01")}
+                    yearDropdownItemNumber={100}
+                    locale="es"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1231,19 +1249,44 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Fecha Inicio</Label>
-                      <Input
-                        type="date"
-                        value={newWorkExperience.start_date}
-                        onChange={(e) => setNewWorkExperience({ ...newWorkExperience, start_date: e.target.value })}
+                      <DatePicker
+                        selected={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            setNewWorkExperience({ ...newWorkExperience, start_date: date.toISOString().split('T')[0] })
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        placeholderText="Selecciona fecha"
+                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        maxDate={new Date()}
+                        yearDropdownItemNumber={50}
+                        locale="es"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Fecha Fin</Label>
-                      <Input
-                        type="date"
-                        value={newWorkExperience.end_date}
-                        onChange={(e) => setNewWorkExperience({ ...newWorkExperience, end_date: e.target.value })}
+                      <DatePicker
+                        selected={newWorkExperience.end_date ? new Date(newWorkExperience.end_date) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            setNewWorkExperience({ ...newWorkExperience, end_date: date.toISOString().split('T')[0] })
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        placeholderText="Selecciona fecha"
+                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        maxDate={new Date()}
+                        minDate={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : undefined}
+                        yearDropdownItemNumber={50}
                         disabled={newWorkExperience.is_current}
+                        locale="es"
                       />
                     </div>
                   </div>
@@ -1329,18 +1372,43 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Fecha Inicio</Label>
-                      <Input
-                        type="date"
-                        value={newEducation.start_date}
-                        onChange={(e) => setNewEducation({ ...newEducation, start_date: e.target.value })}
+                      <DatePicker
+                        selected={newEducation.start_date ? new Date(newEducation.start_date) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            setNewEducation({ ...newEducation, start_date: date.toISOString().split('T')[0] })
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        placeholderText="Selecciona fecha"
+                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        maxDate={new Date()}
+                        yearDropdownItemNumber={50}
+                        locale="es"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Fecha Finalización</Label>
-                      <Input
-                        type="date"
-                        value={newEducation.completion_date}
-                        onChange={(e) => setNewEducation({ ...newEducation, completion_date: e.target.value })}
+                      <DatePicker
+                        selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            setNewEducation({ ...newEducation, completion_date: date.toISOString().split('T')[0] })
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        placeholderText="Selecciona fecha"
+                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        maxDate={new Date()}
+                        minDate={newEducation.start_date ? new Date(newEducation.start_date) : undefined}
+                        yearDropdownItemNumber={50}
+                        locale="es"
                       />
                     </div>
                   </div>

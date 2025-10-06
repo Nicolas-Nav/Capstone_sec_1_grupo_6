@@ -365,8 +365,9 @@ export const candidatoService = {
       description?: string;
     }>;
     education?: Array<{
-      id_postgrado_capacitacion: number;
-      id_institucion?: number;
+      title: string;
+      institution: string;
+      start_date?: string;
       completion_date?: string;
     }>;
   }): Promise<ApiResponse<any>> {

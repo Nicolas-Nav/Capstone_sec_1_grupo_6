@@ -797,8 +797,8 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                       {apiData?.tipos_servicio.map((tipo) => (
                         <SelectItem key={tipo.codigo} value={tipo.codigo}>
                           {tipo.nombre}
-                        </SelectItem>
-                      ))}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -841,41 +841,41 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
               </Select>
             ) : (
               <>
-                {!showCustomPosition ? (
+            {!showCustomPosition ? (
                   <Select value={formData.position_title} onValueChange={handlePositionChange} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cargo" />
-                    </SelectTrigger>
-                    <SelectContent>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar cargo" />
+                </SelectTrigger>
+                <SelectContent>
                       {apiData?.cargos.map((cargo) => (
                         <SelectItem key={cargo} value={cargo}>
                           {cargo}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="flex gap-2">
-                    <Input
-                      value={customPosition}
-                      onChange={(e) => handleCustomPositionChange(e.target.value)}
-                      placeholder="Ingrese el nombre del cargo"
-                      required
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setShowCustomPosition(false)
-                        setFormData({ ...formData, position_title: "" })
-                        setCustomPosition("")
-                      }}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                )}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  value={customPosition}
+                  onChange={(e) => handleCustomPositionChange(e.target.value)}
+                  placeholder="Ingrese el nombre del cargo"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowCustomPosition(false)
+                    setFormData({ ...formData, position_title: "" })
+                    setCustomPosition("")
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            )}
               </>
             )}
           </div>
@@ -922,7 +922,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                 </SelectContent>
               </Select>
             </div>
-              </div>
+          </div>
 
           {isEvaluationProcess && (
             <>
@@ -956,8 +956,8 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
                         <Label htmlFor={`rut_${index}`}>RUT (Opcional)</Label>
                         <Input
                           id={`rut_${index}`}
@@ -1001,27 +1001,27 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
 
                       <div className="space-y-2">
                         <Label htmlFor={`telefono_${index}`}>Teléfono *</Label>
-                        <Input
+                  <Input
                           id={`telefono_${index}`}
                           value={candidato.telefono_candidato}
                           onChange={(e) => updateCandidato(index, 'telefono_candidato', e.target.value)}
                           placeholder="+56 9 1234 5678"
-                          required
-                        />
-                      </div>
+                    required
+                  />
+                </div>
 
-                      <div className="space-y-2">
+                <div className="space-y-2">
                         <Label htmlFor={`email_${index}`}>Email *</Label>
-                        <Input
+                  <Input
                           id={`email_${index}`}
                           type="email"
                           value={candidato.email_candidato}
                           onChange={(e) => updateCandidato(index, 'email_candidato', e.target.value)}
                           placeholder="candidato@email.com"
-                          required
-                        />
-                      </div>
-                    </div>
+                    required
+                  />
+                </div>
+              </div>
 
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -1034,14 +1034,14 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                       </Label>
                     </div>
 
-                    <div className="space-y-2">
+              <div className="space-y-2">
                       <Label htmlFor={`cv_${index}`}>CV (Opcional)</Label>
-                      <Input
+                <Input
                         id={`cv_${index}`}
-                        type="file"
-                        accept=".pdf,.doc,.docx"
+                  type="file"
+                  accept=".pdf,.doc,.docx"
                         onChange={(e) => updateCandidato(index, 'cv_file', e.target.files?.[0] || null)}
-                      />
+                />
                       <p className="text-xs text-muted-foreground">Formatos aceptados: PDF, DOC, DOCX</p>
                     </div>
                   </div>
@@ -1051,17 +1051,17 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           )}
 
             {!(isEvaluationProcess && formData.position_title === "Sin cargo") && (
-              <div className="space-y-2">
+            <div className="space-y-2">
                 <Label htmlFor="description">Descripción</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Descripción del cargo o proceso"
-                  rows={3}
-                />
-              </div>
-            )}
+                rows={3}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
                 <Label htmlFor="requirements">Requisitos</Label>
@@ -1076,17 +1076,17 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
 
           <div className="grid grid-cols-2 gap-4">
             {!isEvaluationProcess && (
-              <div className="space-y-2">
-                <Label htmlFor="vacancies">Número de Vacantes</Label>
-                <Input
-                  id="vacancies"
-                  type="number"
-                  min="1"
-                  value={formData.vacancies}
+            <div className="space-y-2">
+              <Label htmlFor="vacancies">Número de Vacantes</Label>
+              <Input
+                id="vacancies"
+                type="number"
+                min="1"
+                value={formData.vacancies}
                   onChange={(e) => setFormData({ ...formData, vacancies: parseInt(e.target.value) })}
-                  required
-                />
-              </div>
+                required
+              />
+            </div>
             )}
             
             {isEvaluationProcess && (

@@ -185,6 +185,8 @@ export class CandidatoService {
         nacionalidad?: string;
         rubro?: string;
         profession?: string;
+        profession_institution?: string;
+        profession_date?: string;
         english_level?: string;
         software_tools?: string;
         has_disability_credential?: boolean;
@@ -207,6 +209,8 @@ export class CandidatoService {
                 nacionalidad,
                 rubro,
                 profession,
+                profession_institution,
+                profession_date,
                 english_level,
                 software_tools,
                 has_disability_credential,
@@ -290,18 +294,29 @@ export class CandidatoService {
             console.log('Candidato creado exitosamente:', nuevoCandidato.id_candidato);
 
             // Agregar experiencias laborales
+            console.log('🔍 Verificando experiencias laborales:', work_experience?.length || 0);
+            console.log('🔍 Datos de experiencias:', work_experience);
             if (work_experience && work_experience.length > 0) {
+                console.log('📝 Agregando experiencias laborales...');
                 await this.addExperiencias(nuevoCandidato.id_candidato, work_experience, useTransaction);
+                console.log('✅ Experiencias laborales agregadas');
             }
 
             // Agregar formación académica
+            console.log('🔍 Verificando formación académica:', education?.length || 0);
+            console.log('🔍 Datos de educación:', education);
             if (education && education.length > 0) {
+                console.log('📚 Agregando formación académica...');
                 await this.addEducacion(nuevoCandidato.id_candidato, education, useTransaction);
+                console.log('✅ Formación académica agregada');
             }
 
             // Agregar profesión si se especificó
+            console.log('🔍 Verificando profesión:', profession);
             if (profession && profession.trim()) {
-                await this.addProfesion(nuevoCandidato.id_candidato, profession.trim(), undefined, useTransaction);
+                console.log('🎓 Agregando profesión...');
+                await this.addProfesion(nuevoCandidato.id_candidato, profession.trim(), profession_institution, profession_date, useTransaction);
+                console.log('✅ Profesión agregada');
             }
 
             // Si no se pasó una transacción externa, hacer commit
@@ -551,11 +566,13 @@ export class CandidatoService {
      * Agregar experiencias a un candidato
      */
     static async addExperiencias(idCandidato: number, experiencias: any[], transaction?: Transaction) {
+        console.log('💼 addExperiencias - Iniciando:', { idCandidato, experiencias });
         const useTransaction = transaction || await sequelize.transaction();
 
         try {
             for (const exp of experiencias) {
-                await Experiencia.create({
+                console.log('💼 Procesando experiencia:', exp);
+                const nuevaExperiencia = await Experiencia.create({
                     empresa: exp.company,
                     cargo: exp.position,
                     fecha_inicio_experiencia: exp.start_date ? new Date(exp.start_date) : new Date(),
@@ -563,6 +580,7 @@ export class CandidatoService {
                     descripcion_funciones_experiencia: exp.description || '',
                     id_candidato: idCandidato
                 }, { transaction: useTransaction });
+                console.log('💼 Experiencia creada con ID:', nuevaExperiencia.id_experiencia);
             }
 
             if (!transaction) {
@@ -642,31 +660,43 @@ export class CandidatoService {
      * Agregar educación a un candidato
      */
     static async addEducacion(idCandidato: number, educacion: any[], transaction?: Transaction) {
+        console.log('📚 addEducacion - Iniciando:', { idCandidato, educacion });
         const useTransaction = transaction || await sequelize.transaction();
 
         try {
             for (const edu of educacion) {
+                console.log('📚 Procesando educación:', edu);
+                
                 // Buscar o crear institución
                 let institucion = await Institucion.findOne({
                     where: { nombre_institucion: edu.institution }
                 });
 
                 if (!institucion) {
+                    console.log('📚 Creando nueva institución:', edu.institution);
                     institucion = await Institucion.create({
                         nombre_institucion: edu.institution
                     }, { transaction: useTransaction });
+                } else {
+                    console.log('📚 Institución encontrada:', institucion.nombre_institucion);
                 }
 
                 // Crear postgrado/capacitación
+                console.log('📚 Creando postgrado/capacitación:', edu.title);
                 const formacion = await PostgradoCapacitacion.create({
                     nombre_postgradocapacitacion: edu.title
                 }, { transaction: useTransaction });
+                console.log('📚 Postgrado creado con ID:', formacion.id_postgradocapacitacion);
 
                 // Crear relación candidato-postgrado
+                console.log('📚 Creando relación candidato-postgrado');
                 await CandidatoPostgradoCapacitacion.create({
                     id_candidato: idCandidato,
-                    id_postgradocapacitacion: formacion.id_postgradocapacitacion
+                    id_postgradocapacitacion: formacion.id_postgradocapacitacion,
+                    id_institucion: institucion.id_institucion, // ✅ AGREGADO
+                    fecha_obtencion: edu.completion_date ? new Date(edu.completion_date) : new Date() // ✅ AGREGADO
                 }, { transaction: useTransaction });
+                console.log('📚 Relación creada exitosamente');
             }
 
             if (!transaction) {
@@ -685,7 +715,8 @@ export class CandidatoService {
     /**
      * Agregar profesión a un candidato
      */
-    static async addProfesion(idCandidato: number, nombreProfesion: string, nombreInstitucion?: string, transaction?: Transaction) {
+    static async addProfesion(idCandidato: number, nombreProfesion: string, nombreInstitucion?: string, fechaObtencion?: string, transaction?: Transaction) {
+        console.log('🎓 addProfesion - Iniciando:', { idCandidato, nombreProfesion, nombreInstitucion, fechaObtencion });
         const useTransaction = transaction || await sequelize.transaction();
 
         try {
@@ -725,7 +756,8 @@ export class CandidatoService {
                 await CandidatoProfesion.create({
                     id_candidato: idCandidato,
                     id_profesion: profesion.id_profesion,
-                    fecha_obtencion: new Date() // Usar fecha actual por defecto
+                    id_institucion: institucion.id_institucion, // ✅ AGREGADO
+                    fecha_obtencion: fechaObtencion ? new Date(fechaObtencion) : new Date() // Usar fecha proporcionada o actual por defecto
                 }, { transaction: useTransaction });
             }
 
@@ -769,8 +801,8 @@ export class CandidatoService {
                 id: exp.id_experiencia.toString(),
                 company: exp.empresa,
                 position: exp.cargo,
-                start_date: exp.fecha_inicio_experiencia?.toISOString().split('T')[0] || '',
-                end_date: exp.fecha_fin_experiencia?.toISOString().split('T')[0] || '',
+                start_date: exp.fecha_inicio_experiencia || '',
+                end_date: exp.fecha_fin_experiencia || '',
                 is_current: !exp.fecha_fin_experiencia,
                 description: exp.descripcion_funciones_experiencia,
                 comments: '',

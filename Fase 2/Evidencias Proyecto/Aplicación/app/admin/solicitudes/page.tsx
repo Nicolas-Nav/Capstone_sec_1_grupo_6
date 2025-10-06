@@ -241,54 +241,54 @@ export default function SolicitudesPage() {
                 : "No se encontraron solicitudes con los filtros aplicados."}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
+          <Table>
+            <TableHeader>
+              <TableRow>
                   <TableHead>ID</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo de Servicio</TableHead>
-                  <TableHead>Consultor</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Fecha Creación</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+                <TableHead>Cargo</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Tipo de Servicio</TableHead>
+                <TableHead>Consultor</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Fecha Creación</TableHead>
+                <TableHead>Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                 {solicitudes.map((solicitud) => (
                   <TableRow key={solicitud.id}>
                     <TableCell className="font-mono text-sm">{solicitud.id}</TableCell>
                     <TableCell className="font-medium">{solicitud.cargo}</TableCell>
                     <TableCell>{solicitud.cliente}</TableCell>
-                    <TableCell>
+                  <TableCell>
                       <Badge variant="outline">{solicitud.tipo_servicio_nombre}</Badge>
-                    </TableCell>
+                  </TableCell>
                     <TableCell>{solicitud.consultor}</TableCell>
-                    <TableCell>
+                  <TableCell>
                       <div className="space-y-1">
                         <Badge className={getStatusColor(solicitud.status)}>
                           {solicitud.estado_solicitud}
                         </Badge>
                         <div className="text-xs text-muted-foreground">{solicitud.etapa}</div>
                       </div>
-                    </TableCell>
+                  </TableCell>
                     <TableCell>{formatDate(solicitud.fecha_creacion)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
+                  <TableCell>
+                    <div className="flex items-center gap-2">
                         <Button 
                           variant="ghost" 
                           size="sm"
                           onClick={() => handleEdit(solicitud)}
                           title="Editar solicitud"
                         >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
           )}
         </CardContent>
       </Card>

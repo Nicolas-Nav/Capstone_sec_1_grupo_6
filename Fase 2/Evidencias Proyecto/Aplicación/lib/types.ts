@@ -131,20 +131,15 @@ export interface WorkExperience {
   position: string
   start_date: string
   end_date?: string
-  is_current: boolean
   description?: string
-  comments?: string
-  exit_reason?: string
 }
 
 export interface Education {
   id: string
-  type: "postgrado" | "capacitacion" | "titulo" | "curso"
   institution: string
   title: string
   start_date?: string
   completion_date?: string
-  observations?: string
 }
 
 export interface Publication {

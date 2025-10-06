@@ -421,11 +421,11 @@ export class SolicitudService {
             const nuevaDescripcionCargo = await DescripcionCargo.create(descripcionCargoData, { transaction });
 
             // Crear historial de estado inicial (estado = "Creado" = ID 1)
-            await EstadoSolicitudHist.create({
-                fecha_cambio_estado_solicitud: new Date(),
+                await EstadoSolicitudHist.create({
+                    fecha_cambio_estado_solicitud: new Date(),
                 id_estado_solicitud: 1, // "Creado"
-                id_solicitud: nuevaSolicitud.id_solicitud
-            }, { transaction });
+                    id_solicitud: nuevaSolicitud.id_solicitud
+                }, { transaction });
 
             await transaction.commit();
 
@@ -608,7 +608,7 @@ export class SolicitudService {
             }
 
             // Actualizar la solicitud
-            await solicitud.update({ 
+            await solicitud.update({
                 id_etapa_solicitud: etapaModulo2.id_etapa_solicitud 
             }, { transaction });
 

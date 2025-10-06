@@ -98,18 +98,18 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   // Load candidates (para proceso de evaluación)
   useEffect(() => {
     if (isEvaluationProcess) {
-      const loadCandidates = async () => {
-        try {
-          setIsLoading(true)
-          const candidatesData = await getCandidatesByProcess(process.id)
-          setCandidates(candidatesData)
-        } catch (error) {
+    const loadCandidates = async () => {
+      try {
+        setIsLoading(true)
+        const candidatesData = await getCandidatesByProcess(process.id)
+        setCandidates(candidatesData)
+      } catch (error) {
           console.error('❌ Error al cargar candidatos:', error)
-        } finally {
-          setIsLoading(false)
-        }
+      } finally {
+        setIsLoading(false)
       }
-      loadCandidates()
+    }
+    loadCandidates()
     }
   }, [process.id, isEvaluationProcess])
 
@@ -564,7 +564,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
   // Verificar si el proceso está cerrado o cancelado
   const isProcessClosed = processStatus === "Cerrado" || processStatus === "Cancelado"
-  
+
   const canChangeStatus = (currentStatus: ProcessStatus, newStatus: ProcessStatus) => {
     // No se puede cambiar a "completado" desde el módulo 1
     if (newStatus === "completado") return false
@@ -581,9 +581,9 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
-          <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
+        <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
         </div>
         <Button
           onClick={handleAdvanceToModule2}
@@ -1030,45 +1030,45 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
             {/* Formulario de datos personales */}
             <div className="space-y-4">
               <h4 className="font-medium text-lg">Datos Personales</h4>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
                   <Label htmlFor="name">Nombre Completo <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="name"
-                    value={personalData.name}
-                    onChange={(e) => setPersonalData({ ...personalData, name: e.target.value })}
-                    placeholder="Ingrese nombre completo"
-                  />
-                </div>
-                <div className="space-y-2">
+                <Input
+                  id="name"
+                  value={personalData.name}
+                  onChange={(e) => setPersonalData({ ...personalData, name: e.target.value })}
+                  placeholder="Ingrese nombre completo"
+                />
+              </div>
+              <div className="space-y-2">
                   <Label htmlFor="rut">RUT <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="rut"
-                    value={personalData.rut}
-                    onChange={(e) => setPersonalData({ ...personalData, rut: e.target.value })}
-                    placeholder="12.345.678-9"
-                  />
-                </div>
-                <div className="space-y-2">
+                <Input
+                  id="rut"
+                  value={personalData.rut}
+                  onChange={(e) => setPersonalData({ ...personalData, rut: e.target.value })}
+                  placeholder="12.345.678-9"
+                />
+              </div>
+              <div className="space-y-2">
                   <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={personalData.email}
-                    onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
-                    placeholder="correo@ejemplo.com"
-                  />
-                </div>
-                <div className="space-y-2">
+                <Input
+                  id="email"
+                  type="email"
+                  value={personalData.email}
+                  onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
+                  placeholder="correo@ejemplo.com"
+                />
+              </div>
+              <div className="space-y-2">
                   <Label htmlFor="phone">Teléfono <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="phone"
-                    value={personalData.phone}
-                    onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
-                    placeholder="+56 9 1234 5678"
-                  />
-                </div>
+                <Input
+                  id="phone"
+                  value={personalData.phone}
+                  onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
+                  placeholder="+56 9 1234 5678"
+                />
+              </div>
                 <div className="space-y-2">
                   <Label htmlFor="birth_date">Fecha de Nacimiento <span className="text-red-500">*</span></Label>
                   <DatePicker
@@ -1133,14 +1133,14 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                   <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad</Label>
                 </div>
-              </div>
+            </div>
 
 
               {/* Información adicional del candidato (editable) */}
               <div className="border-t pt-4">
                 <h4 className="font-medium text-lg mb-4">Información Adicional</h4>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
+            <div className="space-y-2">
                     <Label htmlFor="region">Región</Label>
                     <Select
                       value={personalData.region}
@@ -1305,7 +1305,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   </div>
                   <div className="space-y-2">
                     <Label>Descripción de Funciones</Label>
-                    <Textarea
+              <Textarea
                       value={newWorkExperience.description}
                       onChange={(e) => setNewWorkExperience({ ...newWorkExperience, description: e.target.value })}
                       placeholder="Principales responsabilidades y logros"
@@ -1418,8 +1418,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       value={newEducation.observations}
                       onChange={(e) => setNewEducation({ ...newEducation, observations: e.target.value })}
                       placeholder="Observaciones adicionales"
-                      rows={2}
-                    />
+                rows={2}
+              />
                   </div>
                   <Button
                     onClick={handleAddEducation}
@@ -1452,9 +1452,9 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     ))}
                   </div>
                 )}
-              </div>
+            </div>
 
-              <div className="flex justify-end pt-4">
+            <div className="flex justify-end pt-4">
                 <Button 
                   onClick={handlePersonalDataSubmit}
                   disabled={savingCandidate}

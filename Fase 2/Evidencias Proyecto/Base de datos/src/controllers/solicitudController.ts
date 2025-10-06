@@ -152,7 +152,7 @@ export class SolicitudController {
                 Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado}`);
             } else {
                 // Mantener compatibilidad con el método anterior
-                await SolicitudService.updateEstado(parseInt(id), { status, reason });
+            await SolicitudService.updateEstado(parseInt(id), { status, reason });
                 Logger.info(`Estado actualizado para solicitud ${id}: ${status}`);
             }
 

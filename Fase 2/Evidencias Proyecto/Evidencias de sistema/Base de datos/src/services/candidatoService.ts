@@ -61,12 +61,16 @@ export class CandidatoService {
                 {
                     model: Profesion,
                     as: 'profesiones',
-                    through: { attributes: [] }
+                    through: { 
+                        attributes: ['fecha_obtencion', 'id_institucion']
+                    }
                 },
                 {
                     model: PostgradoCapacitacion,
                     as: 'postgradosCapacitaciones',
-                    through: { attributes: [] }
+                    through: { 
+                        attributes: ['fecha_obtencion', 'id_institucion']
+                    }
                 }
             ],
             order: [['id_candidato', 'DESC']]
@@ -103,13 +107,17 @@ export class CandidatoService {
                 {
                     model: Profesion,
                     as: 'profesiones',
-                    through: { attributes: [] }
+                    through: { 
+                        attributes: ['fecha_obtencion', 'id_institucion']
+                    }
                 },
                 {
-    model: PostgradoCapacitacion,
-    as: 'postgradosCapacitaciones',
-    through: { attributes: [] }
-}
+                    model: PostgradoCapacitacion,
+                    as: 'postgradosCapacitaciones',
+                    through: { 
+                        attributes: ['fecha_obtencion', 'id_institucion']
+                    }
+                }
             ]
         });
 
@@ -349,12 +357,16 @@ export class CandidatoService {
                     {
                         model: Profesion,
                         as: 'profesiones',
-                        through: { attributes: [] }
+                        through: { 
+                            attributes: ['fecha_obtencion', 'id_institucion']
+                        }
                     },
                     {
                         model: PostgradoCapacitacion,
                         as: 'postgradosCapacitaciones',
-                        through: { attributes: [] }
+                        through: { 
+                            attributes: ['fecha_obtencion', 'id_institucion']
+                        }
                     }
                 ]
             });
@@ -484,12 +496,16 @@ export class CandidatoService {
                     {
                         model: Profesion,
                         as: 'profesiones',
-                        through: { attributes: [] }
+                        through: { 
+                            attributes: ['fecha_obtencion', 'id_institucion']
+                        }
                     },
                     {
                         model: PostgradoCapacitacion,
                         as: 'postgradosCapacitaciones',
-                        through: { attributes: [] }
+                        through: { 
+                            attributes: ['fecha_obtencion', 'id_institucion']
+                        }
                     }
                 ]
             });
@@ -723,24 +739,32 @@ export class CandidatoService {
             // Buscar o crear institución (por defecto "Sin Institución")
             const nombreInst = nombreInstitucion && nombreInstitucion.trim() ? nombreInstitucion.trim() : 'Sin Institución';
             let institucion = await Institucion.findOne({
-                where: { nombre_institucion: nombreInst }
+                where: { nombre_institucion: nombreInst },
+                transaction: useTransaction
             });
 
             if (!institucion) {
+                console.log('🎓 Creando nueva institución:', nombreInst);
                 institucion = await Institucion.create({
                     nombre_institucion: nombreInst
                 }, { transaction: useTransaction });
+            } else {
+                console.log('🎓 Institución encontrada:', institucion.nombre_institucion);
             }
 
             // Buscar o crear profesión
             let profesion = await Profesion.findOne({
-                where: { nombre_profesion: nombreProfesion }
+                where: { nombre_profesion: nombreProfesion },
+                transaction: useTransaction
             });
 
             if (!profesion) {
+                console.log('🎓 Creando nueva profesión:', nombreProfesion);
                 profesion = await Profesion.create({
                     nombre_profesion: nombreProfesion
                 }, { transaction: useTransaction });
+            } else {
+                console.log('🎓 Profesión encontrada:', profesion.nombre_profesion);
             }
 
             // Verificar si ya existe la relación
@@ -748,7 +772,8 @@ export class CandidatoService {
                 where: {
                     id_candidato: idCandidato,
                     id_profesion: profesion.id_profesion
-                }
+                },
+                transaction: useTransaction
             });
 
             if (!relacionExistente) {
@@ -812,8 +837,9 @@ export class CandidatoService {
                 id: edu.id_postgradocapacitacion.toString(),
                 type: 'postgrado',
                 title: edu.nombre_postgradocapacitacion,
+                institution: '', // Se puede obtener por separado si es necesario
                 start_date: '',
-                completion_date: '',
+                completion_date: edu.CandidatoPostgradoCapacitacion?.fecha_obtencion?.toISOString().split('T')[0] || '',
                 observations: ''
             })) || []
         };

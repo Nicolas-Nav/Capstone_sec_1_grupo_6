@@ -1,4 +1,4 @@
- "use client"
+"use client"
 
 
 
@@ -74,7 +74,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   console.log('=== ProcessModule2 RENDERIZADO ===')
   const { toast } = useToast()
 
-  
+
 
   // Estados ahora inicializan vacíos y se llenan con useEffect
 
@@ -211,48 +211,48 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     }
   }, [showEditCandidate, editingCandidate?.region, regiones, todasLasComunas])
 
-    const loadData = async () => {
+  const loadData = async () => {
 
-      try {
+    try {
 
-        setIsLoading(true)
+      setIsLoading(true)
 
-      
+
       // Validar que process.id sea válido
       const processId = parseInt(process.id)
       if (isNaN(processId)) {
         console.error('ID de proceso inválido en ProcessModule2:', process.id)
         return
       }
-      
+
       // Cargar publicaciones desde el backend
       const publicationsResponse = await publicacionService.getAll({ solicitud_id: processId })
       const publicationsData = publicationsResponse.success && publicationsResponse.data ? publicationsResponse.data : []
-      
+
       // Cargar candidatos desde el backend (postulaciones)
       const candidatesResponse = await postulacionService.getBySolicitud(processId)
       const candidatesData = candidatesResponse.success && candidatesResponse.data ? candidatesResponse.data : []
-      
-        setPublications(publicationsData)
 
-        setCandidates(candidatesData)
+      setPublications(publicationsData)
 
-      } catch (error) {
+      setCandidates(candidatesData)
 
-        console.error('Error al cargar datos:', error)
+    } catch (error) {
+
+      console.error('Error al cargar datos:', error)
 
       toast({
         title: "Error",
         description: "Error al cargar datos del módulo",
         variant: "destructive",
       })
-      } finally {
+    } finally {
 
-        setIsLoading(false)
-
-      }
+      setIsLoading(false)
 
     }
+
+  }
 
 
 
@@ -435,37 +435,28 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
 
 
-  const [newWorkExperience, setNewWorkExperience] = useState({
-
-    company: "",
-
-    position: "",
-
-    start_date: "",
-
-    end_date: "",
-
-    description: "",
-
-  })
-
-
-
-  const [newEducation, setNewEducation] = useState({
-
-    institution: "",
-
-    title: "",
-
-    start_date: "",
-
-    completion_date: "",
-
-  })
+  // Formularios antiguos eliminados - ahora se usan workExperienceForms y educationForms
 
   // Estados para múltiples formularios de experiencia y educación
-  const [workExperienceForms, setWorkExperienceForms] = useState<any[]>([])
-  const [educationForms, setEducationForms] = useState<any[]>([])
+  const [workExperienceForms, setWorkExperienceForms] = useState<any[]>([
+    {
+      id: '1',
+      company: '',
+      position: '',
+      start_date: '',
+      end_date: '',
+      description: ''
+    }
+  ])
+  const [educationForms, setEducationForms] = useState<any[]>([
+    {
+      id: '1',
+      institution: '',
+      title: '',
+      start_date: '',
+      completion_date: ''
+    }
+  ])
 
   // Listener para sincronización con Módulo 3
 
@@ -475,7 +466,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       const syncKeys = Object.keys(localStorage).filter(key => key.startsWith('candidate_sync_'))
 
-      
+
 
       syncKeys.forEach(key => {
 
@@ -499,15 +490,15 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                     ? {
 
-                        ...candidate,
+                      ...candidate,
 
-                        status: "rechazado" as const,
+                      status: "rechazado" as const,
 
-                        presentation_status: "rechazado" as const,
+                      presentation_status: "rechazado" as const,
 
-                        rejection_reason: syncData.rejection_reason
+                      rejection_reason: syncData.rejection_reason
 
-                      } as Candidate
+                    } as Candidate
 
                     : candidate
 
@@ -616,23 +607,23 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     console.log('Datos del formulario:', newCandidate)
 
     console.log('Validando campos obligatorios...')
-    
+
     // Validar que process.id sea válido
     const processId = parseInt(process.id)
     if (isNaN(processId)) {
       console.error('ID de proceso inválido en handleAddCandidate:', process.id)
-        toast({
+      toast({
 
-          title: "Error",
+        title: "Error",
 
         description: "ID de proceso inválido",
-          variant: "destructive",
+        variant: "destructive",
 
-        })
+      })
 
-        return
+      return
 
-      }
+    }
 
 
 
@@ -648,7 +639,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       return
     }
     console.log('✅ Nombre válido')
-    
+
     console.log('Validando email:', newCandidate.email)
     if (!newCandidate.email || newCandidate.email.trim() === "") {
       console.log('❌ Email vacío - mostrando error')
@@ -660,7 +651,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       return
     }
     console.log('✅ Email válido')
-    
+
     // Validar formato de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(newCandidate.email.trim())) {
@@ -671,7 +662,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       })
       return
     }
-    
+
     // console.log('Validando teléfono:', newCandidate.phone)
     if (!newCandidate.phone || newCandidate.phone.trim() === "") {
       // console.log('❌ Teléfono vacío - mostrando error')
@@ -683,7 +674,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       return
     }
     // console.log('✅ Teléfono válido')
-    
+
     // Validar formato de teléfono (mínimo 8 dígitos)
     const phoneRegex = /^[\+]?[0-9\s\-\(\)]{8,}$/
     if (!phoneRegex.test(newCandidate.phone.trim())) {
@@ -694,7 +685,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       })
       return
     }
-    
+
     // Validar que se haya seleccionado un portal
     // console.log('Validando portal:', newCandidate.source_portal)
     if (!newCandidate.source_portal || newCandidate.source_portal.trim() === "") {
@@ -707,9 +698,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       return
     }
     // console.log('✅ Portal válido')
-    
+
     try {
-      
+
       // Validar archivo CV si existe
       if (newCandidate.cv_file) {
         // Validar formato de archivo CV
@@ -722,7 +713,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           })
           return
         }
-        
+
         // Validar tamaño del archivo (máximo 5MB)
         const maxSize = 5 * 1024 * 1024 // 5MB
         if (newCandidate.cv_file.size > maxSize) {
@@ -739,6 +730,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
 
       // Preparar datos para enviar al backend
+      console.log('📊 Datos de experiencia (workExperienceForms):', workExperienceForms);
+      console.log('📊 Datos de educación (educationForms):', educationForms);
+      console.log('📊 Longitud de workExperienceForms:', workExperienceForms.length);
+      console.log('📊 Longitud de educationForms:', educationForms.length);
 
       const candidateData = {
 
@@ -756,9 +751,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         rubro: newCandidate.rubro || undefined,
 
-        profession: newCandidate.profession ? profesiones.find(p => p.nombre_profesion === newCandidate.profession)?.id_profesion : undefined,
+        // ✅ CORREGIDO: Enviar nombre de profesión, no ID
+        profession: newCandidate.profession || undefined,
 
-        profession_institution: newCandidate.profession_institution ? instituciones.find(i => i.nombre_institucion === newCandidate.profession_institution)?.id_institucion : undefined,
+        // ✅ CORREGIDO: Enviar nombre de institución, no ID
+        profession_institution: newCandidate.profession_institution || undefined,
 
         profession_date: newCandidate.profession_date || undefined,
 
@@ -768,9 +765,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         has_disability_credential: newCandidate.has_disability_credential,
 
-        work_experience: workExperienceForms.length > 0 
+        work_experience: workExperienceForms.length > 0
 
-          ? workExperienceForms.map(exp => ({
+          ? workExperienceForms
+            .filter(exp => exp.company && exp.position) // Solo enviar formularios con datos válidos
+            .map(exp => ({
 
               company: exp.company,
 
@@ -786,13 +785,16 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
           : undefined,
 
+        // ✅ CORREGIDO: Enviar título e institución como nombres, no IDs
         education: educationForms.length > 0
 
-          ? educationForms.map(edu => ({
+          ? educationForms
+            .filter(edu => edu.title && edu.institution) // Solo enviar formularios con datos válidos
+            .map(edu => ({
 
-              id_postgrado_capacitacion: 1, // ID por defecto, se puede ajustar según la lógica de negocio
+              title: edu.title, // ✅ Título del postgrado/capacitación
 
-              id_institucion: edu.institution ? instituciones.find(i => i.nombre_institucion === edu.institution)?.id_institucion : undefined,
+              institution: edu.institution, // ✅ Nombre de la institución
 
               completion_date: edu.completion_date,
 
@@ -811,10 +813,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
 
       // Llamar al API
+      console.log('📊 Datos finales del candidato:', JSON.stringify(candidateData, null, 2));
 
       const response = await candidatoService.create(candidateData)
 
-      
+
 
       console.log('Respuesta del API:', response)
 
@@ -822,7 +825,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       if (response.success && response.data) {
         console.log('¡Candidato creado exitosamente!', response.data)
-        
+
         // Crear la postulación asociada
         try {
           console.log('Creando postulación...')
@@ -834,8 +837,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
             id_portal_postulacion: newCandidate.source_portal ? parseInt(newCandidate.source_portal) : 1, // Por defecto: 1 = LinkedIn
             id_estado_candidato: 1, // 1 = "Presentado" (estado inicial)
             motivacion: newCandidate.portal_responses?.motivation || newCandidate.motivation,
-            expectativa_renta: newCandidate.portal_responses?.salary_expectation 
-              ? parseFloat(newCandidate.portal_responses.salary_expectation) 
+            expectativa_renta: newCandidate.portal_responses?.salary_expectation
+              ? parseFloat(newCandidate.portal_responses.salary_expectation)
               : (newCandidate.salary_expectation ? parseFloat(newCandidate.salary_expectation.toString()) : undefined),
             disponibilidad_postulacion: newCandidate.portal_responses?.availability || newCandidate.availability,
             valoracion: newCandidate.portal_responses?.rating || newCandidate.consultant_rating,
@@ -846,14 +849,14 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
             situacion_familiar: newCandidate.portal_responses?.family_situation || undefined,
             cv_file: newCandidate.cv_file || undefined // El archivo CV se maneja por separado
           }
-          
+
           const postulacionResponse = await postulacionService.create(postulacionData)
-          
+
           if (postulacionResponse.success) {
             // console.log('¡Postulación creada exitosamente!')
-        toast({
+            toast({
 
-          title: "¡Éxito!",
+              title: "¡Éxito!",
 
               description: "¡Candidato y postulación creados correctamente!",
               variant: "default",
@@ -979,7 +982,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       console.error('Stack:', error.stack)
 
-      
+
 
       toast({
 
@@ -1002,7 +1005,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     console.log('🔍 Candidato para editar:', candidate)
     console.log('🔍 Región del candidato:', candidate.region)
     console.log('🔍 Comuna del candidato:', candidate.comuna)
-    
+
     setEditingCandidate({
 
       ...candidate,
@@ -1080,19 +1083,19 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         has_disability_credential: editingCandidate.has_disability_credential,
         work_experience: editingCandidate.work_experience && editingCandidate.work_experience.length > 0
           ? editingCandidate.work_experience.map(exp => ({
-              company: exp.company,
-              position: exp.position,
-              start_date: exp.start_date,
-              end_date: exp.end_date,
-              description: exp.description,
-            }))
+            company: exp.company,
+            position: exp.position,
+            start_date: exp.start_date,
+            end_date: exp.end_date,
+            description: exp.description,
+          }))
           : undefined,
         education: editingCandidate.education && editingCandidate.education.length > 0
           ? editingCandidate.education.map(edu => ({
-              id_postgrado_capacitacion: Number(edu.title),
-              id_institucion: edu.institution ? Number(edu.institution) : undefined,
-              completion_date: edu.completion_date,
-            }))
+            id_postgrado_capacitacion: Number(edu.title),
+            id_institucion: edu.institution ? Number(edu.institution) : undefined,
+            completion_date: edu.completion_date,
+          }))
           : undefined,
       }
 
@@ -1115,18 +1118,18 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         return
       }
       const postulaciones = await postulacionService.getBySolicitud(processId)
-      
+
       // Buscar postulación por id_candidato (el "id" del objeto es el id_candidato)
-      const postulacion = postulaciones.data?.find((p: any) => 
-        p.id_candidato?.toString() === editingCandidate.id?.toString() || 
+      const postulacion = postulaciones.data?.find((p: any) =>
+        p.id_candidato?.toString() === editingCandidate.id?.toString() ||
         p.id?.toString() === editingCandidate.id?.toString()
       )
 
       if (postulacion && postulacion.id_postulacion) {
         const postulacionData = {
           motivacion: editingCandidate.portal_responses?.motivation || editingCandidate.motivation,
-          expectativa_renta: editingCandidate.portal_responses?.salary_expectation 
-            ? parseFloat(editingCandidate.portal_responses.salary_expectation) 
+          expectativa_renta: editingCandidate.portal_responses?.salary_expectation
+            ? parseFloat(editingCandidate.portal_responses.salary_expectation)
             : (editingCandidate.salary_expectation ? parseFloat(editingCandidate.salary_expectation.toString()) : undefined),
           disponibilidad_postulacion: editingCandidate.portal_responses?.availability || editingCandidate.availability,
           valoracion: editingCandidate.portal_responses?.rating || editingCandidate.consultant_rating,
@@ -1136,7 +1139,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         console.log('📤 Datos de postulación a enviar:', postulacionData)
 
         const postulacionResponse = await postulacionService.updateValoracion(postulacion.id_postulacion, postulacionData)
-        
+
         if (!postulacionResponse.success) {
           console.warn('❌ Error al actualizar postulación:', postulacionResponse.message)
         } else {
@@ -1149,13 +1152,13 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         description: "Candidato y postulación actualizados exitosamente",
         variant: "default",
       })
-      
+
       // Recargar los candidatos desde el backend
       await loadData()
 
-    setEditingCandidate(null)
+      setEditingCandidate(null)
 
-    setShowEditCandidate(false)
+      setShowEditCandidate(false)
 
     } catch (error: any) {
       console.error('Error al actualizar:', error)
@@ -1252,11 +1255,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
             key={star}
 
-            className={`h-4 w-4 ${
+            className={`h-4 w-4 ${star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
 
-              star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-
-            } ${editable ? "cursor-pointer" : ""}`}
+              } ${editable ? "cursor-pointer" : ""}`}
 
             onClick={editable ? () => handleRatingChange(candidateId, star) : undefined}
 
@@ -1283,9 +1284,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       })
       return
     }
-    
+
     const portalName = newPortalName.trim()
-    
+
     // Validar longitud mínima
     if (portalName.length < 3) {
       toast({
@@ -1295,7 +1296,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       })
       return
     }
-    
+
     // Validar que no exista
     if (customPortals.includes(portalName)) {
       toast({
@@ -1305,7 +1306,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       })
       return
     }
-    
+
     // Validar que no sea un portal por defecto
     const defaultPortals = ["LinkedIn", "GetOnBoard", "Indeed", "Trabajando.com", "Laborum", "Behance"]
     if (defaultPortals.includes(portalName)) {
@@ -1316,11 +1317,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       })
       return
     }
-    
+
     // Agregar portal
     setCustomPortals([...customPortals, portalName])
     setNewPortalName("")
-    
+
     toast({
       title: "¡Éxito!",
       description: `Portal "${portalName}" agregado correctamente`,
@@ -1446,73 +1447,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
 
 
-  const handleAddWorkExperience = () => {
-
-    const experience: WorkExperience = {
-
-      id: Date.now().toString(),
-
-      ...newWorkExperience,
-
-    }
-
-    setCandidateDetails({
-
-      ...candidateDetails,
-
-      work_experience: [...candidateDetails.work_experience, experience],
-
-    })
-
-    setNewWorkExperience({
-
-      company: "",
-
-      position: "",
-
-      start_date: "",
-
-      end_date: "",
-
-      description: "",
-
-    })
-
-  }
-
-
-
-  const handleAddEducation = () => {
-
-    const education: Education = {
-
-      id: Date.now().toString(),
-
-      ...newEducation,
-
-    }
-
-    setCandidateDetails({
-
-      ...candidateDetails,
-
-      education: [...candidateDetails.education, education],
-
-    })
-
-    setNewEducation({
-
-      institution: "",
-
-      title: "",
-
-      start_date: "",
-
-      completion_date: "",
-
-    })
-
-  }
+  // Funciones antiguas eliminadas - ahora se usan workExperienceForms y educationForms
 
   // Funciones para manejar múltiples formularios de experiencia
   const addWorkExperienceForm = () => {
@@ -1528,8 +1463,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const updateWorkExperienceForm = (id: string, field: string, value: string) => {
-    setWorkExperienceForms(forms => 
-      forms.map(form => 
+    setWorkExperienceForms(forms =>
+      forms.map(form =>
         form.id === id ? { ...form, [field]: value } : form
       )
     )
@@ -1552,8 +1487,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const updateEducationForm = (id: string, field: string, value: string) => {
-    setEducationForms(forms => 
-      forms.map(form => 
+    setEducationForms(forms =>
+      forms.map(form =>
         form.id === id ? { ...form, [field]: value } : form
       )
     )
@@ -1627,21 +1562,21 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const handleRejectionReason = async (candidateId: string, reason: string) => {
     try {
       // Actualizar el estado local primero
-    const updatedCandidates = candidates.map((candidate) =>
+      const updatedCandidates = candidates.map((candidate) =>
 
-      candidate.id === candidateId ? { ...candidate, rejection_reason: reason } : candidate,
+        candidate.id === candidateId ? { ...candidate, rejection_reason: reason } : candidate,
 
-    )
+      )
 
-    setCandidates(updatedCandidates)
+      setCandidates(updatedCandidates)
 
 
       // Actualizar también en la API
       const candidate = candidates.find(c => c.id === candidateId);
       if (candidate && candidate.presentation_status && (candidate.presentation_status === "no_presentado" || candidate.presentation_status === "rechazado")) {
         const response = await candidatoService.updateStatus(
-          parseInt(candidateId), 
-          candidate.presentation_status, 
+          parseInt(candidateId),
+          candidate.presentation_status,
           reason
         );
 
@@ -2001,11 +1936,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
             </div>
 
             <Button onClick={() => setShowAddPublication(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 h-4 w-4" />
 
-                  Agregar Publicación
+              Agregar Publicación
 
-                </Button>
+            </Button>
 
 
             {/* Diálogo de Nueva Publicación */}
@@ -2088,8 +2023,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       <div className="flex items-center gap-2">
 
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={async () => {
                             try {
@@ -2269,14 +2204,14 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                             onChange={(date) => {
                               if (date) {
                                 const age = calculateAge(date.toISOString().split('T')[0])
-                              setNewCandidate({
+                                setNewCandidate({
 
-                                ...newCandidate,
+                                  ...newCandidate,
 
                                   birth_date: date.toISOString().split('T')[0],
-                                age: age,
+                                  age: age,
 
-                              })
+                                })
 
                               }
                             }}
@@ -2807,8 +2742,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       ))}
 
-                      {/* Add Education Form */}
+                      {/* Formulario antiguo de educación eliminado - ahora se usan educationForms */}
 
+                      {/* 
                       <Card>
 
                         <CardHeader>
@@ -3061,7 +2997,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
 
 
-                                          {/* Experiencia Laboral */}
+
+                    {/* Experiencia Laboral */}
 
                     <div className="space-y-4">
 
@@ -3248,6 +3185,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       {/* Add Work Experience Form */}
 
+                      {/* Formulario antiguo de experiencia eliminado - ahora se usan workExperienceForms */}
+                      {/* 
                       <Card>
 
                         <CardHeader>
@@ -3517,6 +3456,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                       )}
 
                     </div>
+
 
 
 
@@ -3802,15 +3742,13 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                               key={star}
 
-                              className={`h-6 w-6 cursor-pointer ${
-
-                                star <= newCandidate.consultant_rating
+                              className={`h-6 w-6 cursor-pointer ${star <= newCandidate.consultant_rating
 
                                   ? "fill-yellow-400 text-yellow-400"
 
                                   : "text-gray-300"
 
-                              }`}
+                                }`}
 
                               onClick={() => setNewCandidate({ ...newCandidate, consultant_rating: star })}
 
@@ -3876,7 +3814,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                 {candidates.map((candidate) => (
 
-                  <TableRow 
+                  <TableRow
 
                     key={candidate.id}
 
@@ -3904,7 +3842,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       <div className="flex flex-col gap-2">
                         {/* Mostrar estado actual */}
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
 
                           {candidate.presentation_status === "presentado" && (
                             <Badge variant="default" className="text-xs bg-green-600">
@@ -4112,28 +4050,28 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                   <div className="space-y-2">
 
                     <Label htmlFor="edit_birth_date">Fecha de Nacimiento</Label>
-                     <DatePicker
-                       selected={editingCandidate.birth_date ? new Date(editingCandidate.birth_date) : null}
-                       onChange={(date) => {
-                         if (date) {
-                           const age = calculateAge(date.toISOString().split('T')[0])
-                           setEditingCandidate({
-                             ...editingCandidate,
-                             birth_date: date.toISOString().split('T')[0],
-                             age: age,
-                           })
-                         }
-                       }}
-                       dateFormat="dd/MM/yyyy"
-                       showYearDropdown
-                       showMonthDropdown
-                       dropdownMode="select"
-                       placeholderText="Selecciona fecha de nacimiento"
-                       className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                       maxDate={new Date()}
-                       minDate={new Date("1900-01-01")}
-                       yearDropdownItemNumber={100}
-                       locale="es"
+                    <DatePicker
+                      selected={editingCandidate.birth_date ? new Date(editingCandidate.birth_date) : null}
+                      onChange={(date) => {
+                        if (date) {
+                          const age = calculateAge(date.toISOString().split('T')[0])
+                          setEditingCandidate({
+                            ...editingCandidate,
+                            birth_date: date.toISOString().split('T')[0],
+                            age: age,
+                          })
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      showYearDropdown
+                      showMonthDropdown
+                      dropdownMode="select"
+                      placeholderText="Selecciona fecha de nacimiento"
+                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      maxDate={new Date()}
+                      minDate={new Date("1900-01-01")}
+                      yearDropdownItemNumber={100}
+                      locale="es"
                     />
 
                   </div>
@@ -4153,7 +4091,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                         console.log('🔍 Región seleccionada:', value)
                         setEditingCandidate({ ...editingCandidate, region: value })
                         // Filtrar comunas por región seleccionada
-                        const comunasDeRegion = todasLasComunas.filter(comuna => 
+                        const comunasDeRegion = todasLasComunas.filter(comuna =>
                           comuna.id_region === regiones.find(r => r.nombre_region === value)?.id_region
                         )
                         setComunasFiltradas(comunasDeRegion)
@@ -4776,33 +4714,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                     </div>
 
-
-                    <div className="space-y-2">
-
-                      <Label>Motivo de Salida (Opcional)</Label>
-
-                      <Input
-
-                        value={exp.exit_reason}
-
-                        onChange={(e) => {
-
-                          const updatedExperience = editingCandidate.work_experience?.map(experience =>
-
-                            experience.id === exp.id ? { ...experience, exit_reason: e.target.value } : experience
-
-                          )
-
-                          setEditingCandidate({ ...editingCandidate, work_experience: updatedExperience })
-
-                        }}
-
-                        placeholder="Razón por la cual dejó el trabajo"
-
-                      />
-
-                    </div>
-
                   </div>
 
                 ))}
@@ -4995,15 +4906,13 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                           key={star}
 
-                          className={`h-6 w-6 cursor-pointer ${
-
-                            star <= editingCandidate.consultant_rating
+                          className={`h-6 w-6 cursor-pointer ${star <= editingCandidate.consultant_rating
 
                               ? "fill-yellow-400 text-yellow-400"
 
                               : "text-gray-300"
 
-                          }`}
+                            }`}
 
                           onClick={() => setEditingCandidate({ ...editingCandidate, consultant_rating: star })}
 

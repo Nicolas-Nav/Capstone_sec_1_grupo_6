@@ -27,7 +27,7 @@ export class SolicitudService {
         page: number = 1,
         limit: number = 10,
         search: string = "",
-        status?: "creado" | "en_progreso" | "cerrado" | "congelado",
+        status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
         service_type?: string,
         consultor_id?: string,
         sortBy: "fecha" | "cargo" | "cliente" = "fecha",
@@ -61,7 +61,9 @@ export class SolicitudService {
                             nombre_estado_solicitud: {
                                 [Op.iLike]: `%${status === 'creado' ? 'Creado' : 
                                            status === 'en_progreso' ? 'En Progreso' :
-                                           status === 'cerrado' ? 'Cerrado' : 'Congelado'}%`
+                                           status === 'cerrado' ? 'Cerrado' : 
+                                           status === 'congelado' ? 'Congelado' : 
+                                           status === 'cancelado' ? 'Cancelado' : 'Cierre Extraordinario'}%`
                             }
                         },
                         attributes: []
@@ -537,10 +539,12 @@ export class SolicitudService {
 
             // Mapear estado del frontend al backend (ID de base de datos)
             const mapeoEstadoId: Record<string, number> = {
-                'creado': 1,        // Creado
-                'en_progreso': 2,   // En Progreso
-                'cerrado': 3,       // Cerrado
-                'congelado': 4      // Congelado
+                'creado': 1,                    // Creado
+                'en_progreso': 2,              // En Progreso
+                'cerrado': 3,                  // Cerrado
+                'congelado': 4,                // Congelado
+                'cancelado': 5,                 // Cancelado
+                'cierre_extraordinario': 6      // Cierre Extraordinario
             };
 
             const idEstado = mapeoEstadoId[status?.toLowerCase()] || 1; // Default: Creado
@@ -884,7 +888,9 @@ export class SolicitudService {
             'Creado': 'creado',
             'En Progreso': 'en_progreso',
             'Cerrado': 'cerrado',
-            'Congelado': 'congelado'
+            'Congelado': 'congelado',
+            'Cancelado': 'cancelado',
+            'Cierre Extraordinario': 'cierre_extraordinario'
         };
         return mapeo[nombreEstado] || 'creado';
     }

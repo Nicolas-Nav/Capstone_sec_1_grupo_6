@@ -18,7 +18,7 @@ export class SolicitudController {
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 10;
             const search = (req.query.search as string) || "";
-            const status = (req.query.status as "creado" | "en_progreso" | "cerrado" | "congelado") || undefined;
+            const status = (req.query.status as "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario") || undefined;
             const service_type = (req.query.service_type as string) || undefined;
             const consultor_id = (req.query.consultor_id as string) || undefined;
             const sortBy = (req.query.sortBy as "fecha" | "cargo" | "cliente") || "fecha";

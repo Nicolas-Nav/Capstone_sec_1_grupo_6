@@ -139,8 +139,11 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     })
 
 
-    // Módulo 2 - Disponible solo si se ha avanzado
-    const module2Enabled = currentStage === "Módulo 2: Publicación y Registro de Candidatos"
+    // Módulo 2 - Disponible si se ha avanzado al Módulo 2 o posterior
+    const module2Enabled = currentStage === "Módulo 2: Publicación y Registro de Candidatos" || 
+                           currentStage === "Módulo 3: Presentación de Candidatos" ||
+                           currentStage === "Módulo 4: Evaluación Psicolaboral" ||
+                           currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
     
     if (serviceType === "PC" || serviceType === "LL" || serviceType === "HH") {
       modules.push({ 

@@ -293,6 +293,37 @@ export class SolicitudController {
     }
 
     /**
+     * Avanzar al módulo 3
+     */
+    static async avanzarAModulo3(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const solicitudId = parseInt(id);
+
+            if (isNaN(solicitudId)) {
+                return sendError(res, 'ID de solicitud inválido', 400);
+            }
+
+            const result = await SolicitudService.avanzarAModulo3(solicitudId);
+            
+            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 3`);
+            return sendSuccess(res, result, result.message);
+        } catch (error: any) {
+            Logger.error('Error al avanzar al módulo 3:', error);
+            
+            if (error.message === 'Solicitud no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+            
+            if (error.message === 'Etapa Módulo 3 no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+            
+            return sendError(res, 'Error al avanzar al módulo 3', 500);
+        }
+    }
+
+    /**
      * Obtener etapas disponibles
      */
     static async getEtapas(req: Request, res: Response): Promise<Response> {

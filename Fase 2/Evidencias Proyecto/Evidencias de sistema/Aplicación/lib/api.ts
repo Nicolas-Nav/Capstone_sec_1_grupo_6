@@ -304,6 +304,13 @@ export const solicitudService = {
     });
   },
 
+  // Avanzar al módulo 3
+  async avanzarAModulo3(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/avanzar-modulo3`, {
+      method: 'PUT',
+    });
+  },
+
   // Obtener etapas disponibles
   async getEtapas(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/solicitudes/etapas/disponibles');
@@ -780,5 +787,36 @@ export const apiUtils = {
       return error;
     }
     return 'Ha ocurrido un error inesperado';
+  },
+};
+
+// SERVICIOS DE ESTADO CLIENTE
+// ===========================================
+
+export const estadoClienteService = {
+  // Actualizar comentario de rechazo/observación
+  async updateComentarioRechazo(id: number, comentario: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente/${id}/comentario-rechazo`, {
+      method: 'PUT',
+      body: JSON.stringify({ comentario }),
+    });
+  },
+
+  // Registrar cambio de estado del cliente
+  async registrarCambioEstado(id: number, nombre_estado: string, comentario?: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente/${id}/cambio-estado`, {
+      method: 'POST',
+      body: JSON.stringify({ nombre_estado, comentario }),
+    });
+  },
+
+  // Obtener historial de estados del cliente
+  async getHistorialEstados(id: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/estado-cliente/${id}/historial`);
+  },
+
+  // Obtener estados de cliente disponibles
+  async getEstadosDisponibles(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/estado-cliente/estados/disponibles');
   },
 };

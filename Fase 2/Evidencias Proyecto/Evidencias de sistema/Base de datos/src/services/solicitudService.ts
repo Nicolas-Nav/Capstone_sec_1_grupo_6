@@ -637,6 +637,58 @@ export class SolicitudService {
     }
 
     /**
+     * Avanzar al módulo 3 (Presentación de Candidatos)
+     */
+    static async avanzarAModulo3(id: number) {
+        const transaction: Transaction = await sequelize.transaction();
+
+        try {
+            const solicitud = await Solicitud.findByPk(id);
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            // Buscar la etapa "Módulo 3: Presentación de Candidatos"
+            console.log('🔍 Buscando etapa Módulo 3...');
+            const etapaModulo3 = await EtapaSolicitud.findOne({
+                where: { nombre_etapa: 'Módulo 3: Presentación de Candidatos' }
+            });
+
+            console.log('📋 Etapa encontrada:', etapaModulo3);
+
+            if (!etapaModulo3) {
+                // Intentar buscar todas las etapas para debug
+                const todasLasEtapas = await EtapaSolicitud.findAll();
+                console.log('📋 Todas las etapas disponibles:', todasLasEtapas.map(e => ({ id: e.id_etapa_solicitud, nombre: e.nombre_etapa })));
+                throw new Error('Etapa Módulo 3 no encontrada');
+            }
+
+            // Actualizar la solicitud
+            await solicitud.update({
+                id_etapa_solicitud: etapaModulo3.id_etapa_solicitud 
+            }, { transaction });
+
+            // Crear entrada en el historial (usar estado por defecto: 2 = En Progreso)
+            await EstadoSolicitudHist.create({
+                id_solicitud: id,
+                id_estado_solicitud: 2, // En Progreso
+                fecha_cambio_estado_solicitud: new Date()
+            }, { transaction });
+
+            await transaction.commit();
+
+            return { 
+                success: true, 
+                message: 'Proceso avanzado al Módulo 3 exitosamente',
+                etapa: etapaModulo3.nombre_etapa
+            };
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+
+    /**
      * Obtener todas las etapas disponibles
      */
     static async getEtapas() {

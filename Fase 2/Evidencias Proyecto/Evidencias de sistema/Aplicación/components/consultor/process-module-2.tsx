@@ -53,7 +53,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
 
-import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, publicacionService, postulacionService, institucionService } from "@/lib/api"
+import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, publicacionService, postulacionService, institucionService, solicitudService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 import { AddPublicationDialog } from "./add-publication-dialog"
@@ -1233,6 +1233,37 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   }
 
+  const handleAdvanceToModule3 = async () => {
+    try {
+      const response = await solicitudService.avanzarAModulo3(parseInt(process.id))
+
+      if (response.success) {
+        toast({
+          title: "¡Éxito!",
+          description: "Proceso avanzado al Módulo 3 exitosamente",
+          variant: "default",
+        })
+        // Navegar al módulo 3 usando URL con parámetro
+        const currentUrl = new URL(window.location.href)
+        currentUrl.searchParams.set('tab', 'modulo-3')
+        window.location.href = currentUrl.toString()
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al avanzar al Módulo 3",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error al avanzar al Módulo 3:", error)
+      toast({
+        title: "Error",
+        description: "Error al avanzar al Módulo 3",
+        variant: "destructive",
+      })
+    }
+  }
+
 
 
   const handleDeleteCandidate = (candidateId: string) => {
@@ -1736,12 +1767,17 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     <div className="space-y-6">
 
-      <div>
-
-        <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
-
-        <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
-
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
+          <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
+        </div>
+        <Button
+          onClick={handleAdvanceToModule3}
+          className="bg-primary hover:bg-primary/90"
+        >
+          Pasar a Módulo 3
+        </Button>
       </div>
 
 

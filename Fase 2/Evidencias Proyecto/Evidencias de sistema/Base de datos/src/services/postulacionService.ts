@@ -369,6 +369,10 @@ export class PostulacionService {
         disponibilidad_postulacion?: string;
         comentario_no_presentado?: string;
     }) {
+        console.log('🔍 === SERVICIO updateValoracion ===');
+        console.log('🔍 ID:', id);
+        console.log('🔍 Data recibida:', JSON.stringify(data, null, 2));
+        
         // Validar valoración si se proporciona
         if (data.valoracion !== undefined && (data.valoracion < 1 || data.valoracion > 5)) {
             throw new Error('La valoración debe estar entre 1 y 5');
@@ -379,6 +383,9 @@ export class PostulacionService {
             throw new Error('Postulación no encontrada');
         }
 
+        console.log('🔍 Postulación encontrada:', postulacion.id_postulacion);
+        console.log('🔍 Valoración actual:', postulacion.valoracion);
+
         // Actualizar solo los campos proporcionados
         const updateData: any = {};
         if (data.valoracion !== undefined) updateData.valoracion = data.valoracion;
@@ -387,7 +394,12 @@ export class PostulacionService {
         if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
         if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
 
+        console.log('🔍 Datos a actualizar:', updateData);
+
         await postulacion.update(updateData);
+
+        console.log('🔍 Postulación actualizada exitosamente');
+        console.log('🔍 Nueva valoración:', postulacion.valoracion);
 
         return { id, ...updateData };
     }

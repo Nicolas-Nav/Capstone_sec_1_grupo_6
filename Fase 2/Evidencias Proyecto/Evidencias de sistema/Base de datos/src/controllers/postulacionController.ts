@@ -178,8 +178,16 @@ export class PostulacionController {
                 comentario_no_presentado 
             } = req.body;
 
+            console.log('🔍 === ACTUALIZANDO VALORACIÓN ===');
+            console.log('🔍 ID de postulación:', id);
+            console.log('🔍 Body recibido:', JSON.stringify(req.body, null, 2));
+            console.log('🔍 Rating recibido:', rating);
+            console.log('🔍 Valoracion recibida:', valoracion);
+
             // Compatibilidad: rating o valoracion
             const finalRating = valoracion || rating;
+            
+            console.log('🔍 Valoración final a guardar:', finalRating);
 
             await PostulacionService.updateValoracion(parseInt(id), {
                 valoracion: finalRating ? parseInt(finalRating) : undefined,

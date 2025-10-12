@@ -10,7 +10,8 @@ import {
     Institucion,
     Comuna,
     Nacionalidad,
-    Rubro
+    Rubro,
+    Postulacion
 } from '@/models';
 
 /**
@@ -71,6 +72,11 @@ export class CandidatoService {
                     through: { 
                         attributes: ['fecha_obtencion', 'id_institucion']
                     }
+                },
+                {
+                    model: Postulacion,
+                    as: 'postulaciones',
+                    attributes: ['id_postulacion', 'valoracion', 'motivacion', 'expectativa_renta', 'disponibilidad_postulacion', 'comentario_no_presentado', 'id_estado_candidato']
                 }
             ],
             order: [['id_candidato', 'DESC']]
@@ -117,6 +123,11 @@ export class CandidatoService {
                     through: { 
                         attributes: ['fecha_obtencion', 'id_institucion']
                     }
+                },
+                {
+                    model: Postulacion,
+                    as: 'postulaciones',
+                    attributes: ['id_postulacion', 'valoracion', 'motivacion', 'expectativa_renta', 'disponibilidad_postulacion', 'comentario_no_presentado', 'id_estado_candidato']
                 }
             ]
         });
@@ -841,7 +852,8 @@ export class CandidatoService {
                 start_date: '',
                 completion_date: edu.CandidatoPostgradoCapacitacion?.fecha_obtencion?.toISOString().split('T')[0] || '',
                 observations: ''
-            })) || []
+            })) || [],
+            consultant_rating: candidato.postulaciones?.[0]?.valoracion || 3
         };
     }
 

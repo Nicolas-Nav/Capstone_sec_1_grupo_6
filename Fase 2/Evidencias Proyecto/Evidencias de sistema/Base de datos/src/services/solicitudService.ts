@@ -51,43 +51,61 @@ export class SolicitudService {
 
         // Filtro por estado
         if (status) {
-            // Buscar IDs de solicitudes con el estado específico
-            const solicitudesConEstado = await EstadoSolicitudHist.findAll({
-                include: [
-                    {
-                        model: EstadoSolicitud,
-                        as: 'estado',
-                        where: {
-                            nombre_estado_solicitud: {
-                                [Op.iLike]: `%${status === 'creado' ? 'Creado' : 
-                                           status === 'en_progreso' ? 'En Progreso' :
-                                           status === 'cerrado' ? 'Cerrado' : 
-                                           status === 'congelado' ? 'Congelado' : 
-                                           status === 'cancelado' ? 'Cancelado' : 'Cierre Extraordinario'}%`
-                            }
-                        },
-                        attributes: []
+            // Mapear el parámetro de estado a los nombres exactos en la base de datos
+            const estadoMapping: { [key: string]: string } = {
+                'creado': 'Creado',
+                'en_progreso': 'En Progreso', 
+                'cerrado': 'Cerrado',
+                'congelado': 'Congelado',
+                'cancelado': 'Cancelado',
+                'cierre_extraordinario': 'Cierre Extraordinario'
+            };
+
+            const nombreEstadoExacto = estadoMapping[status];
+            
+            if (nombreEstadoExacto) {
+                // Obtener todas las solicitudes con su historial de estados
+                const todasLasSolicitudes = await EstadoSolicitudHist.findAll({
+                    include: [
+                        {
+                            model: EstadoSolicitud,
+                            as: 'estado',
+                            attributes: ['nombre_estado_solicitud']
+                        }
+                    ],
+                    attributes: ['id_solicitud', 'fecha_cambio_estado_solicitud'],
+                    order: [['id_solicitud', 'ASC'], ['fecha_cambio_estado_solicitud', 'DESC']]
+                });
+
+                // Agrupar por solicitud y obtener el estado más reciente
+                const estadoPorSolicitud = new Map<number, string>();
+                todasLasSolicitudes.forEach((item: any) => {
+                    if (!estadoPorSolicitud.has(item.id_solicitud)) {
+                        estadoPorSolicitud.set(item.id_solicitud, item.estado.nombre_estado_solicitud);
                     }
-                ],
-                attributes: ['id_solicitud'],
-                raw: true,
-                order: [['fecha_cambio_estado_solicitud', 'DESC']]
-            });
+                });
 
-            // Agrupar por id_solicitud y tomar el más reciente
-            const estadoMap = new Map();
-            solicitudesConEstado.forEach(item => {
-                if (!estadoMap.has(item.id_solicitud)) {
-                    estadoMap.set(item.id_solicitud, item.id_solicitud);
+                // Filtrar solo las solicitudes que tienen el estado deseado como estado actual
+                const idsConEstadoDeseado: number[] = [];
+                estadoPorSolicitud.forEach((estadoActual: string, idSolicitud: number) => {
+                    if (estadoActual === nombreEstadoExacto) {
+                        idsConEstadoDeseado.push(idSolicitud);
+                    }
+                });
+
+                // Debug log para verificar el filtro
+                console.log(`🔍 Filtro por estado "${nombreEstadoExacto}":`, {
+                    totalSolicitudes: estadoPorSolicitud.size,
+                    idsConEstadoDeseado: idsConEstadoDeseado,
+                    estadosEncontrados: Array.from(estadoPorSolicitud.entries()).slice(0, 5) // Solo los primeros 5 para debug
+                });
+
+                if (idsConEstadoDeseado.length > 0) {
+                    andConditions.push({ id_solicitud: { [Op.in]: idsConEstadoDeseado } });
+                } else {
+                    // Si no hay solicitudes con ese estado, devolver array vacío
+                    andConditions.push({ id_solicitud: { [Op.in]: [] } });
                 }
-            });
-
-            const idsConEstado = Array.from(estadoMap.values());
-            if (idsConEstado.length > 0) {
-                andConditions.push({ id_solicitud: { [Op.in]: idsConEstado } });
-            } else {
-                // Si no hay solicitudes con ese estado, devolver array vacío
-                andConditions.push({ id_solicitud: { [Op.in]: [] } });
             }
         }
 

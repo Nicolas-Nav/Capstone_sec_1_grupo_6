@@ -202,6 +202,8 @@ export default function SolicitudesPage() {
                 <SelectItem value="en_progreso">En Progreso</SelectItem>
                 <SelectItem value="cerrado">Cerrado</SelectItem>
                 <SelectItem value="congelado">Congelado</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
+                <SelectItem value="cierre_extraordinario">Cierre Extraordinario</SelectItem>
               </SelectContent>
             </Select>
             <Select value={serviceFilter} onValueChange={setServiceFilter}>

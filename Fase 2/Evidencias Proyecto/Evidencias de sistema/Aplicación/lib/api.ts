@@ -125,6 +125,19 @@ export const solicitudService = {
   async getEtapas(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/solicitudes/etapas/disponibles');
   },
+
+  // Obtener estados disponibles para solicitudes
+  async getEstadosSolicitud(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/solicitudes/estados/disponibles');
+  },
+
+  // Cambiar estado de solicitud
+  async cambiarEstado(id: number, estadoId: number, reason?: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ id_estado: estadoId, reason }),
+    });
+  },
 };
 
 // ===========================================
@@ -360,6 +373,45 @@ export const nacionalidadService = {
   // Obtener todas las nacionalidades
   async getAll(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/nacionalidades');
+  },
+};
+
+// ===========================================
+// SERVICIOS DE DESCRIPCIÓN DE CARGO
+// ===========================================
+
+export const descripcionCargoService = {
+  // Obtener descripción de cargo por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/descripciones-cargo/${id}`);
+  },
+
+  // Obtener datos de Excel por ID de descripción de cargo
+  async getExcelData(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/descripciones-cargo/${id}/excel`);
+  },
+
+  // Crear descripción de cargo
+  async create(data: any): Promise<ApiResponse<any>> {
+    return apiRequest('/api/descripciones-cargo', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar descripción de cargo
+  async update(id: number, data: any): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/descripciones-cargo/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Eliminar descripción de cargo
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/descripciones-cargo/${id}`, {
+      method: 'DELETE',
+    });
   },
 };
 

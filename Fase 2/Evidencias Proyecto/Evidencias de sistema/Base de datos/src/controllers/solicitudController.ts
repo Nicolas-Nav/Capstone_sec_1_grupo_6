@@ -148,8 +148,8 @@ export class SolicitudController {
 
             // Si se envía id_estado, usar el método de cambio por ID
             if (id_estado) {
-                await SolicitudService.cambiarEstado(parseInt(id), parseInt(id_estado));
-                Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado}`);
+                await SolicitudService.cambiarEstado(parseInt(id), parseInt(id_estado), reason);
+                Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado}${reason ? ` con motivo: ${reason}` : ''}`);
             } else {
                 // Mantener compatibilidad con el método anterior
             await SolicitudService.updateEstado(parseInt(id), { status, reason });

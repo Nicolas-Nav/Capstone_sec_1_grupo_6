@@ -762,7 +762,7 @@ export class SolicitudService {
     /**
      * Cambiar estado de solicitud por ID
      */
-    static async cambiarEstado(id: number, id_estado: number) {
+    static async cambiarEstado(id: number, id_estado: number, reason?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
@@ -780,7 +780,8 @@ export class SolicitudService {
             await EstadoSolicitudHist.create({
                 id_solicitud: id,
                 id_estado_solicitud: id_estado,
-                fecha_cambio_estado_solicitud: new Date()
+                fecha_cambio_estado_solicitud: new Date(),
+                comentario_estado_solicitud_hist: reason || null
             }, { transaction });
 
             await transaction.commit();

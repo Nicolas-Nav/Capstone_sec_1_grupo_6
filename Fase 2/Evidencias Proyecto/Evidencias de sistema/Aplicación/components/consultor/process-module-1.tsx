@@ -501,7 +501,11 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
   const handleStatusChange = async (estadoId: string) => {
     try {
-      const response = await solicitudService.cambiarEstado(parseInt(process.id), parseInt(estadoId))
+      const response = await solicitudService.cambiarEstado(
+        parseInt(process.id), 
+        parseInt(estadoId), 
+        statusChangeReason.trim() || undefined
+      )
 
       if (response.success) {
         toast({

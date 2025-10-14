@@ -10,9 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { getCandidatesByProcess, candidateStatusLabels } from "@/lib/mock-data"
+import { estadoClienteService } from "@/lib/api"
 import { getStatusColor, formatCurrency } from "@/lib/utils"
-import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar } from "lucide-react"
+import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 
 interface ProcessModule3Props {
@@ -22,17 +24,37 @@ interface ProcessModule3Props {
 export function ProcessModule3({ process }: ProcessModule3Props) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [estadosCliente, setEstadosCliente] = useState<any[]>([])
+  const [savingState, setSavingState] = useState<Record<string, boolean>>({})
+  
+  // Estado para el modal de actualización
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [updatingCandidate, setUpdatingCandidate] = useState<Candidate | null>(null)
+  const [updateFormData, setUpdateFormData] = useState({
+    client_response: "pendiente" as "pendiente" | "aprobado" | "observado" | "rechazado",
+    presentation_date: "",
+    client_feedback_date: "",
+    client_comments: ""
+  })
 
   // Cargar datos reales desde el backend
   useEffect(() => {
     const loadData = async () => {
       try {
         setIsLoading(true)
+        
+        // Cargar candidatos
         const allCandidates = await getCandidatesByProcess(process.id)
         const filteredCandidates = allCandidates.filter((c: Candidate) => c.presentation_status === "presentado")
         setCandidates(filteredCandidates)
+        
+        // Cargar estados de cliente
+        const estadosResponse = await estadoClienteService.getAll()
+        if (estadosResponse.success && estadosResponse.data) {
+          setEstadosCliente(estadosResponse.data)
+        }
       } catch (error) {
-        console.error('Error al cargar candidatos:', error)
+        console.error('Error al cargar datos:', error)
       } finally {
         setIsLoading(false)
       }
@@ -77,16 +99,6 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     const candidate = candidates.find((c) => c.id === candidateId)
     if (!candidate) return
 
-    // Validar comentarios si es necesario
-    const newValidationErrors = { ...validationErrors }
-    if ((response === "observado" || response === "rechazado") && !candidate.client_comments?.trim()) {
-      newValidationErrors[candidateId] = `Los comentarios son obligatorios para el estado "${response}"`
-    } else {
-      // Limpiar error de validación si hay comentarios
-      delete newValidationErrors[candidateId]
-    }
-    setValidationErrors(newValidationErrors)
-
     // Expandir automáticamente el candidato si se selecciona observado o rechazado
     if (response === "observado" || response === "rechazado") {
       setExpandedCandidate(candidateId)
@@ -94,46 +106,14 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
     const updatedCandidates = candidates.map((candidate) => {
       if (candidate.id === candidateId) {
-        let newStatus = candidate.status
-        let newPresentationStatus = candidate.presentation_status
-
-        if (response === "rechazado") {
-          newStatus = "rechazado"
-          newPresentationStatus = "rechazado"
-          
-          // Sincronizar con Módulo 2 usando localStorage y evento personalizado
-          const syncData = {
-            candidateId,
-            status: "rechazado",
-            presentation_status: "rechazado",
-            rejection_reason: candidate.client_comments || "Rechazado por el cliente",
-            timestamp: Date.now()
-          }
-          localStorage.setItem(`candidate_sync_${candidateId}`, JSON.stringify(syncData))
-          
-          // Disparar evento personalizado para sincronización en la misma pestaña
-          window.dispatchEvent(new CustomEvent('candidateSync', { detail: syncData }))
-          
-        } else if (response === "aprobado") {
-          newStatus = "aprobado"
-        }
-
         return {
           ...candidate,
           client_response: response,
-          status: newStatus as any,
-          presentation_status: newPresentationStatus,
         }
       }
       return candidate
     })
     setCandidates(updatedCandidates)
-
-    if (response === "rechazado") {
-      console.log(
-        `[SYNC] Candidate ${candidate.name} rejected by client - status synchronized with Module 2 as "rechazado"`,
-      )
-    }
   }
 
   const handleClientCommentsChange = (candidateId: string, comments: string) => {
@@ -150,12 +130,129 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       return candidate
     })
     setCandidates(updatedCandidates)
+  }
 
-    // Limpiar error de validación si se agregan comentarios
-    if (comments.trim()) {
-      const newValidationErrors = { ...validationErrors }
-      delete newValidationErrors[candidateId]
-      setValidationErrors(newValidationErrors)
+  const handleOpenUpdateModal = (candidate: Candidate) => {
+    setUpdatingCandidate(candidate)
+    setUpdateFormData({
+      client_response: candidate.client_response || "pendiente",
+      presentation_date: candidate.presentation_date?.split("T")[0] || "",
+      client_feedback_date: candidate.client_feedback_date?.split("T")[0] || "",
+      client_comments: candidate.client_comments || ""
+    })
+    setShowUpdateModal(true)
+  }
+
+  const handleCloseUpdateModal = () => {
+    setShowUpdateModal(false)
+    setUpdatingCandidate(null)
+    setUpdateFormData({
+      client_response: "pendiente",
+      presentation_date: "",
+      client_feedback_date: "",
+      client_comments: ""
+    })
+  }
+
+  const handleUpdateFormChange = (field: string, value: string) => {
+    setUpdateFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleUpdateCandidateState = async () => {
+    if (!updatingCandidate) return
+
+    // Validar comentarios si es necesario
+    if ((updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && !updateFormData.client_comments?.trim()) {
+      alert(`Los comentarios son obligatorios para el estado "${updateFormData.client_response}"`)
+      return
+    }
+
+    // Encontrar el estado de cliente correspondiente
+    const estadoCliente = estadosCliente.find(estado => 
+      estado.nombre_estado.toLowerCase() === updateFormData.client_response.toLowerCase()
+    )
+
+    if (!estadoCliente) {
+      console.error('Estado de cliente no encontrado:', updateFormData.client_response)
+      return
+    }
+
+    setSavingState(prev => ({ ...prev, [updatingCandidate.id]: true }))
+
+    try {
+      // Guardar en la base de datos
+      const responseData = await estadoClienteService.cambiarEstado(
+        parseInt((updatingCandidate as any).id_postulacion || updatingCandidate.id),
+        {
+          id_estado_cliente: estadoCliente.id_estado_cliente,
+          comentarios: updateFormData.client_comments || undefined,
+          fecha_presentacion: updateFormData.presentation_date || undefined,
+          fecha_feedback_cliente: updateFormData.client_feedback_date || undefined
+        }
+      )
+
+      if (responseData.success) {
+        console.log('Estado de cliente guardado exitosamente:', responseData.data)
+        
+        // Actualizar el estado local con los cambios del backend
+        const updatedCandidates = candidates.map((c) => {
+          if (c.id === updatingCandidate.id) {
+            let newStatus = c.status
+            let newPresentationStatus = c.presentation_status
+
+            if (updateFormData.client_response === "rechazado") {
+              newStatus = "rechazado"
+              newPresentationStatus = "rechazado"
+              
+              // Sincronizar con Módulo 2 usando localStorage y evento personalizado
+              const syncData = {
+                candidateId: updatingCandidate.id,
+                status: "rechazado",
+                presentation_status: "rechazado",
+                rejection_reason: updateFormData.client_comments || "Rechazado por el cliente",
+                timestamp: Date.now()
+              }
+              localStorage.setItem(`candidate_sync_${updatingCandidate.id}`, JSON.stringify(syncData))
+              
+              // Disparar evento personalizado para sincronización en la misma pestaña
+              window.dispatchEvent(new CustomEvent('candidateSync', { detail: syncData }))
+              
+            } else if (updateFormData.client_response === "aprobado") {
+              newStatus = "aprobado"
+            }
+
+            return {
+              ...c,
+              client_response: updateFormData.client_response,
+              presentation_date: updateFormData.presentation_date,
+              client_feedback_date: updateFormData.client_feedback_date,
+              client_comments: updateFormData.client_comments,
+              status: newStatus as any,
+              presentation_status: newPresentationStatus,
+            }
+          }
+          return c
+        })
+        setCandidates(updatedCandidates)
+
+        // Cerrar modal
+        handleCloseUpdateModal()
+
+        if (updateFormData.client_response === "rechazado") {
+          console.log(
+            `[SYNC] Candidate ${updatingCandidate.name} rejected by client - status synchronized with Module 2 as "rechazado"`,
+          )
+        }
+      } else {
+        console.error('Error al guardar estado de cliente:', responseData.message)
+      }
+    } catch (error) {
+      console.error('Error al guardar estado de cliente:', error)
+    } finally {
+      setSavingState(prev => ({ ...prev, [updatingCandidate.id]: false }))
     }
   }
 
@@ -190,8 +287,8 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const allRejected = candidates.every((c) => c.client_response === "rechazado")
   const hasApproved = candidates.some((c) => c.client_response === "aprobado")
 
-  const canAdvanceToModule4 = process.service_type === "proceso_completo" && hasApproved
-  const processEndsHere = process.service_type === "long_list"
+  const canAdvanceToModule4 = (process.service_type as string) === "proceso_completo" && hasApproved
+  const processEndsHere = (process.service_type as string) === "long_list"
 
   // Mostrar indicador de carga
   if (isLoading) {
@@ -295,6 +392,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                     <TableHead>Respuesta Cliente</TableHead>
                     <TableHead>Fecha Feedback Cliente</TableHead>
                     <TableHead>Estado</TableHead>
+                    <TableHead className="w-32">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -373,10 +471,30 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                             {candidateStatusLabels[candidate.status as keyof typeof candidateStatusLabels]}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            onClick={() => handleOpenUpdateModal(candidate)}
+                            disabled={savingState[candidate.id]}
+                            size="sm"
+                            className="w-full"
+                          >
+                            {savingState[candidate.id] ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Guardando...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="h-4 w-4 mr-2" />
+                                Actualizar
+                              </>
+                            )}
+                          </Button>
+                        </TableCell>
                       </TableRow>
                       {expandedCandidate === candidate.id && (
                         <TableRow>
-                          <TableCell colSpan={6} className="bg-muted/30">
+                          <TableCell colSpan={7} className="bg-muted/30">
                             <Collapsible open={expandedCandidate === candidate.id}>
                               <CollapsibleContent>
                                 <div className="p-4 space-y-4">
@@ -512,6 +630,121 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Actualización */}
+      <Dialog open={showUpdateModal} onOpenChange={setShowUpdateModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Actualizar Estado del Candidato</DialogTitle>
+            <DialogDescription>
+              Modifica el estado, fechas y comentarios del candidato {updatingCandidate?.name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Respuesta del Cliente */}
+            <div className="space-y-2">
+              <Label htmlFor="client_response">Respuesta del Cliente</Label>
+              <Select
+                value={updateFormData.client_response}
+                onValueChange={(value: "pendiente" | "aprobado" | "observado" | "rechazado") => 
+                  handleUpdateFormChange("client_response", value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar respuesta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="aprobado">Aprobado</SelectItem>
+                  <SelectItem value="observado">Observado</SelectItem>
+                  <SelectItem value="rechazado">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Fecha de Presentación */}
+            <div className="space-y-2">
+              <Label htmlFor="presentation_date">Fecha de Envío al Cliente</Label>
+              <Input
+                id="presentation_date"
+                type="date"
+                value={updateFormData.presentation_date}
+                onChange={(e) => handleUpdateFormChange("presentation_date", e.target.value)}
+              />
+            </div>
+
+            {/* Fecha de Feedback del Cliente */}
+            <div className="space-y-2">
+              <Label htmlFor="client_feedback_date">Fecha de Feedback del Cliente</Label>
+              <Input
+                id="client_feedback_date"
+                type="date"
+                value={updateFormData.client_feedback_date}
+                onChange={(e) => handleUpdateFormChange("client_feedback_date", e.target.value)}
+                disabled={!updateFormData.client_response || updateFormData.client_response === "pendiente"}
+              />
+            </div>
+
+            {/* Comentarios */}
+            <div className="space-y-2">
+              <Label htmlFor="client_comments">
+                Comentarios del Cliente
+                {(updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && (
+                  <span className="text-red-500 ml-1">*</span>
+                )}
+              </Label>
+              <Textarea
+                id="client_comments"
+                value={updateFormData.client_comments}
+                onChange={(e) => handleUpdateFormChange("client_comments", e.target.value)}
+                placeholder={
+                  updateFormData.client_response === "observado"
+                    ? "Ingrese las observaciones del cliente..."
+                    : updateFormData.client_response === "rechazado"
+                    ? "Ingrese la razón del rechazo..."
+                    : "Comentarios adicionales del cliente..."
+                }
+                rows={4}
+                className={
+                  updateFormData.client_response === "observado"
+                    ? "border-yellow-300 focus:border-yellow-500"
+                    : updateFormData.client_response === "rechazado"
+                    ? "border-red-300 focus:border-red-500"
+                    : ""
+                }
+              />
+              {(updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && (
+                <p className="text-xs text-muted-foreground">
+                  Los comentarios son obligatorios para este estado
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseUpdateModal}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleUpdateCandidateState}
+              disabled={savingState[updatingCandidate?.id || '']}
+            >
+              {savingState[updatingCandidate?.id || ''] ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Guardar Cambios
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -29,6 +29,7 @@ import profesionRoutes from '@/routes/profesiones';
 import institucionRoutes from '@/routes/instituciones';
 import rubroRoutes from '@/routes/rubros';
 import nacionalidadRoutes from '@/routes/nacionalidades';
+import estadoClienteRoutes from '@/routes/estadoCliente';
 
 const app = express();
 
@@ -225,6 +226,7 @@ app.use('/api/profesiones', profesionRoutes);
 app.use('/api/instituciones', institucionRoutes);
 app.use('/api/rubros', rubroRoutes);
 app.use('/api/nacionalidades', nacionalidadRoutes);
+app.use('/api/estado-cliente', estadoClienteRoutes);
 // Rutas de la API (se descomentarán cuando se creen)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

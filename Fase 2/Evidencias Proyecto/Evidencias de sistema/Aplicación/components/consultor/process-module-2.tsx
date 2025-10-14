@@ -1768,9 +1768,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     <div className="space-y-6">
 
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
-          <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
+        <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
         </div>
         <Button
           onClick={handleAdvanceToModule3}

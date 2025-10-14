@@ -548,6 +548,7 @@ export class PostulacionService {
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),
             rejection_reason: postulacion.comentario_rech_obs_cliente,
             has_disability_credential: candidato.discapacidad,
+            licencia: candidato.licencia,
             work_experience: candidato.experiencias?.map((exp: any) => ({
                 id: exp.id_experiencia.toString(),
                 company: exp.empresa,

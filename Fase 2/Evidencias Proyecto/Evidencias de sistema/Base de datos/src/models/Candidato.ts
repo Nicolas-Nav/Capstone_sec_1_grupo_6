@@ -19,6 +19,7 @@ interface CandidatoAttributes {
     software_herramientas?: string;
     nivel_ingles?: string;
     discapacidad: boolean;
+    licencia: boolean;
     id_comuna?: number;
     id_nacionalidad?: number;
     id_rubro?: number;
@@ -43,6 +44,7 @@ class Candidato extends Model<CandidatoAttributes, CandidatoCreationAttributes> 
     public software_herramientas?: string;
     public nivel_ingles?: string;
     public discapacidad!: boolean;
+    public licencia!: boolean;
     public id_comuna?: number;
     public id_nacionalidad?: number;
     public id_rubro?: number;
@@ -194,6 +196,14 @@ Candidato.init({
         allowNull: true
     },
     discapacidad: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        validate: {
+            isBoolean: true
+        }
+    },
+    licencia: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,

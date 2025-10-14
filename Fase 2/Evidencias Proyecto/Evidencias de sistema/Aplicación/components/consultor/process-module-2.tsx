@@ -341,6 +341,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     has_disability_credential: false,
 
+    licencia: false,
+
     work_experience: [] as WorkExperience[],
 
     education: [] as Education[],
@@ -359,7 +361,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       english_level: "",
 
-      has_driving_license: false,
+      licencia: false,
 
       software_tools: "",
 
@@ -413,6 +415,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     has_disability_credential: false,
 
+    licencia: false,
+
     work_experience: [] as WorkExperience[],
 
     education: [] as Education[],
@@ -431,7 +435,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       english_level: "",
 
-      has_driving_license: false,
+      licencia: false,
 
       software_tools: "",
 
@@ -801,6 +805,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         has_disability_credential: newCandidate.has_disability_credential,
 
+        licencia: newCandidate.licencia,
+
         work_experience: workExperienceForms.length > 0 
 
           ? workExperienceForms
@@ -965,6 +971,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
           has_disability_credential: false,
 
+    licencia: false,
+
           work_experience: [],
 
           education: [],
@@ -982,8 +990,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
             rating: 3,
 
             english_level: "",
-
-            has_driving_license: false,
 
             software_tools: "",
 
@@ -1074,6 +1080,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       work_experience: candidate.work_experience || [],
 
+      licencia: candidate.licencia || false,
+
       portal_responses: {
 
         motivation: candidate.portal_responses?.motivation || "",
@@ -1087,8 +1095,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         rating: candidate.portal_responses?.rating || 3,
 
         english_level: candidate.portal_responses?.english_level || "",
-
-        has_driving_license: candidate.portal_responses?.has_driving_license || false,
 
         software_tools: candidate.portal_responses?.software_tools || "",
 
@@ -1184,6 +1190,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         english_level: editingCandidate.portal_responses?.english_level || undefined,
         software_tools: editingCandidate.portal_responses?.software_tools || undefined,
         has_disability_credential: editingCandidate.has_disability_credential,
+        licencia: editingCandidate.licencia,
         work_experience: editWorkExperienceForms.length > 0
           ? editWorkExperienceForms
             .filter(exp => exp.company && exp.position) // Solo enviar formularios con datos válidos
@@ -1511,6 +1518,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       education: candidate.education || [],
 
+      licencia: candidate.licencia || false,
+
       portal_responses: candidate.portal_responses || {
 
         motivation: "",
@@ -1524,8 +1533,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         rating: 3,
 
         english_level: "",
-
-        has_driving_license: false,
 
         software_tools: "",
 
@@ -3872,9 +3879,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                             type="checkbox"
 
-                            id="has_driving_license"
+                            id="licencia"
 
-                            checked={newCandidate.portal_responses.has_driving_license}
+                            checked={newCandidate.licencia}
 
                             onChange={(e) =>
 
@@ -3882,7 +3889,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                                 ...newCandidate,
 
-                                portal_responses: { ...newCandidate.portal_responses, has_driving_license: e.target.checked },
+                                licencia: e.target.checked,
 
                               })
 
@@ -3890,7 +3897,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                           />
 
-                          <Label htmlFor="has_driving_license">Licencia de Conducir</Label>
+                          <Label htmlFor="licencia">Licencia de Conducir</Label>
 
                         </div>
 
@@ -5021,21 +5028,21 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       type="checkbox"
 
-                      id="edit_has_driving_license"
+                      id="edit_licencia"
 
-                      checked={editingCandidate.portal_responses?.has_driving_license || false}
+                      checked={editingCandidate.licencia || false}
 
                       onChange={(e) => setEditingCandidate({
 
                         ...editingCandidate,
 
-                        portal_responses: { ...editingCandidate.portal_responses, has_driving_license: e.target.checked }
+                        licencia: e.target.checked
 
                       })}
 
                     />
 
-                    <Label htmlFor="edit_has_driving_license">Licencia de Conducir</Label>
+                    <Label htmlFor="edit_licencia">Licencia de Conducir</Label>
 
                   </div>
 

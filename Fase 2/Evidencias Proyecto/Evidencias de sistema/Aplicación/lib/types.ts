@@ -112,6 +112,8 @@ export interface Candidate {
   rejection_reason?: string
   // Disability credential
   has_disability_credential?: boolean
+  // Driving license
+  licencia?: boolean
 }
 
 export interface PortalResponses {

@@ -94,6 +94,7 @@ export class CandidatoController {
                 english_level,
                 software_tools,
                 has_disability_credential,
+                licencia,
                 work_experience,
                 education
             } = req.body;
@@ -113,6 +114,7 @@ export class CandidatoController {
                 english_level,
                 software_tools,
                 has_disability_credential,
+                licencia,
                 work_experience,
                 education
             });
@@ -154,6 +156,7 @@ export class CandidatoController {
                 english_level,
                 software_tools,
                 has_disability_credential,
+                licencia,
                 work_experience,
                 education
             } = req.body;
@@ -170,6 +173,7 @@ export class CandidatoController {
                 english_level,
                 software_tools,
                 has_disability_credential,
+                licencia,
                 work_experience,
                 education
             });

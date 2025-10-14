@@ -209,6 +209,7 @@ export class CandidatoService {
         english_level?: string;
         software_tools?: string;
         has_disability_credential?: boolean;
+        licencia?: boolean;
         work_experience?: any[];
         education?: any[];
     }, transaction?: Transaction) {
@@ -233,6 +234,7 @@ export class CandidatoService {
                 english_level,
                 software_tools,
                 has_disability_credential,
+                licencia,
                 work_experience = [],
                 education = []
             } = data;
@@ -306,6 +308,7 @@ export class CandidatoService {
                 nivel_ingles: english_level,
                 software_herramientas: software_tools,
                 discapacidad: has_disability_credential || false,
+                licencia: licencia || false,
                 id_comuna: idComuna,
                 id_nacionalidad: idNacionalidad,
                 id_rubro: idRubro
@@ -421,6 +424,7 @@ export class CandidatoService {
         english_level?: string;
         software_tools?: string;
         has_disability_credential?: boolean;
+        licencia?: boolean;
         work_experience?: Array<{
             company: string;
             position: string;
@@ -457,6 +461,7 @@ export class CandidatoService {
             if (data.english_level !== undefined) updateData.nivel_ingles = data.english_level;
             if (data.software_tools !== undefined) updateData.software_herramientas = data.software_tools;
             if (data.has_disability_credential !== undefined) updateData.discapacidad = data.has_disability_credential;
+            if (data.licencia !== undefined) updateData.licencia = data.licencia;
 
             if (data.birth_date) {
                 const fechaNacimiento = new Date(data.birth_date);

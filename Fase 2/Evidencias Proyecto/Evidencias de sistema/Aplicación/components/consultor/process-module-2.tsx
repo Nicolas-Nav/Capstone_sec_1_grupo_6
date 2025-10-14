@@ -701,6 +701,21 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       })
       return
     }
+    
+    // Validar que el portal seleccionado ya haya sido publicado
+    const selectedPortalId = parseInt(newCandidate.source_portal)
+    const portalExistsInPublications = publications.some((publication: any) => 
+      publication.id_portal_postulacion === selectedPortalId
+    )
+    
+    if (!portalExistsInPublications) {
+      toast({
+        title: "Portal no publicado",
+        description: "Debes publicar en este portal antes de agregar candidatos desde él. Ve a la sección 'Publicaciones en Portales' y agrega una publicación para este portal.",
+        variant: "destructive",
+      })
+      return
+    }
     // console.log('✅ Portal válido')
     
     try {
@@ -1009,10 +1024,26 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     console.log('🔍 Candidato para editar:', candidate)
     console.log('🔍 Región del candidato:', candidate.region)
     console.log('🔍 Comuna del candidato:', candidate.comuna)
+    console.log('🔍 Portal del candidato:', candidate.source_portal)
+    
+    // Convertir el nombre del portal a su ID correspondiente
+    let portalId = ""
+    if (candidate.source_portal) {
+      const portal = portalesDB.find(p => p.nombre === candidate.source_portal)
+      if (portal) {
+        portalId = portal.id.toString()
+        console.log('🔍 Portal encontrado - ID:', portalId, 'Nombre:', portal.nombre)
+      } else {
+        console.log('⚠️ Portal no encontrado en portalesDB:', candidate.source_portal)
+      }
+    }
     
     setEditingCandidate({
 
       ...candidate,
+
+      // Convertir el nombre del portal al ID para el dropdown
+      source_portal: portalId,
 
       // Asegurar que todos los campos opcionales estén definidos
 
@@ -1705,8 +1736,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       if (candidate && candidate.presentation_status && (candidate.presentation_status === "no_presentado" || candidate.presentation_status === "rechazado")) {
         const response = await candidatoService.updateStatus(
           parseInt(candidateId), 
-          candidate.presentation_status, 
-          reason
+          candidate.presentation_status
         );
 
         if (!response.success) {

@@ -205,6 +205,14 @@ export const candidatoService = {
     });
   },
 
+  // Actualizar estado del candidato
+  async updateStatus(id: number, status: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/candidatos/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  },
+
   // Eliminar candidato
   async delete(id: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/candidatos/${id}`, {
@@ -421,8 +429,15 @@ export const descripcionCargoService = {
 
 export const publicacionService = {
   // Obtener todas las publicaciones
-  async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/publicaciones');
+  async getAll(params?: { solicitud_id?: number; portal_id?: number; estado?: string }): Promise<ApiResponse<any[]>> {
+    const queryParams = new URLSearchParams();
+    if (params?.solicitud_id) queryParams.append('solicitud_id', params.solicitud_id.toString());
+    if (params?.portal_id) queryParams.append('portal_id', params.portal_id.toString());
+    if (params?.estado) queryParams.append('estado', params.estado);
+    
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/api/publicaciones?${queryString}` : '/api/publicaciones';
+    return apiRequest(endpoint);
   },
 
   // Obtener publicación por ID

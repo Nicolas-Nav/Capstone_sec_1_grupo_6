@@ -4023,7 +4023,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                     <TableCell>{candidate.source_portal || "No especificado"}</TableCell>
 
-                    <TableCell>{renderStars(candidate.consultant_rating, candidate.id)}</TableCell>
+                    <TableCell>{renderStars(candidate.consultant_rating, candidate.id, false)}</TableCell>
 
                     <TableCell>
 

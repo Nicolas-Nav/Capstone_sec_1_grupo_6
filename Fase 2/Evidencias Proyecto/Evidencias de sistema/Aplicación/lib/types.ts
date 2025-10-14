@@ -98,6 +98,8 @@ export interface Candidate {
   nacionalidad?: string
   rubro?: string
   profession?: string
+  profession_institution?: string
+  profession_date?: string
   address?: string
   work_experience?: WorkExperience[]
   education?: Education[]

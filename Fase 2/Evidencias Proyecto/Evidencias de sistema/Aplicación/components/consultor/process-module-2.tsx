@@ -305,6 +305,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     phone: "",
 
+    rut: "",
+
     cv_file: null as File | null,
 
     motivation: "",
@@ -690,6 +692,19 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       return
     }
     
+    // Validar formato de RUT si se proporciona (opcional)
+    if (newCandidate.rut && newCandidate.rut.trim() !== "") {
+      const rutRegex = /^[0-9]+-[0-9kK]$/
+      if (!rutRegex.test(newCandidate.rut.trim())) {
+        toast({
+          title: "Formato de RUT inválido",
+          description: "Ingresa un RUT válido (ej: 12345678-9)",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+    
     // Validar que se haya seleccionado un portal
     // console.log('Validando portal:', newCandidate.source_portal)
     if (!newCandidate.source_portal || newCandidate.source_portal.trim() === "") {
@@ -761,6 +776,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         email: newCandidate.email,
 
         phone: newCandidate.phone,
+
+        rut: newCandidate.rut || undefined,
 
         birth_date: newCandidate.birth_date || undefined,
 
@@ -911,6 +928,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           email: "",
 
           phone: "",
+
+          rut: "",
 
           cv_file: null,
 
@@ -1073,7 +1092,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         software_tools: candidate.portal_responses?.software_tools || "",
 
-      }
+      },
+
+      // Agregar campos de profesión que faltaban
+      profession_institution: candidate.profession_institution || "",
+      profession_date: candidate.profession_date || ""
 
     })
 
@@ -1108,14 +1131,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         description: ''
       }]
 
+    // Debug: Ver qué datos de educación están llegando
+    console.log('🔍 Datos de educación del candidato:', candidate.education)
+    
     const educationForms = candidate.education && candidate.education.length > 0
-      ? candidate.education.map((edu, index) => ({
-        id: edu.id || `edu-${index}`,
-        institution: edu.institution || '',
-        title: edu.title || '',
-        start_date: edu.start_date || '',
-        completion_date: edu.completion_date || ''
-      }))
+      ? candidate.education.map((edu, index) => {
+          console.log(`🔍 Educación ${index}:`, edu)
+          return {
+            id: edu.id || `edu-${index}`,
+            institution: edu.institution || '',
+            title: edu.title || '',
+            start_date: edu.start_date || '',
+            completion_date: edu.completion_date || ''
+          }
+        })
       : [{
         id: '1',
         institution: '',
@@ -1146,6 +1175,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         name: editingCandidate.name,
         email: editingCandidate.email,
         phone: editingCandidate.phone,
+        rut: editingCandidate.rut || undefined,
         birth_date: editingCandidate.birth_date || undefined,
         comuna: editingCandidate.comuna || undefined,
         nacionalidad: editingCandidate.nacionalidad || undefined,
@@ -1592,7 +1622,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       id: Date.now().toString(),
       institution: "",
       title: "",
-      start_date: "",
       completion_date: ""
     }
     setEducationForms([...educationForms, newForm])
@@ -2359,6 +2388,22 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                         <div className="space-y-2">
 
+                          <Label htmlFor="candidate_rut">RUT (Opcional)</Label>
+                          <Input
+                            id="candidate_rut"
+                            value={newCandidate.rut || ""}
+                            onChange={(e) => setNewCandidate({ ...newCandidate, rut: e.target.value })}
+                            placeholder="12.345.678-9"
+                          />
+
+                        </div>
+
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+
+                        <div className="space-y-2">
+
                           <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
 
                           <DatePicker
@@ -2873,7 +2918,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                               <div className="space-y-2">
 
-                                <Label>Fecha Final</Label>
+                                <Label>Fecha Fin</Label>
 
                                 <DatePicker
                                   selected={form.completion_date ? new Date(form.completion_date) : null}
@@ -2971,35 +3016,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-4">
 
                             <div className="space-y-2">
 
-                              <Label>Fecha Inicio</Label>
-
-                              <DatePicker
-                                selected={newEducation.start_date ? new Date(newEducation.start_date) : null}
-                                onChange={(date) => {
-                                  if (date) {
-                                    setNewEducation({ ...newEducation, start_date: date.toISOString().split('T')[0] })
-                                  }
-                                }}
-                                dateFormat="dd/MM/yyyy"
-                                showYearDropdown
-                                showMonthDropdown
-                                dropdownMode="select"
-                                placeholderText="Selecciona fecha"
-                                className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                maxDate={new Date()}
-                                yearDropdownItemNumber={50}
-                                locale="es"
-                              />
-
-                            </div>
-
-                            <div className="space-y-2">
-
-                              <Label>Fecha Término</Label>
+                              <Label>Fecha de Obtención</Label>
 
                               <DatePicker
                                 selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
@@ -3015,7 +3036,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                 placeholderText="Selecciona fecha"
                                 className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 maxDate={new Date()}
-                                minDate={newEducation.start_date ? new Date(newEducation.start_date) : undefined}
                                 yearDropdownItemNumber={50}
                                 locale="es"
                               />
@@ -3054,8 +3074,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                   institution: "",
 
                                   title: "",
-
-                                  start_date: "",
 
                                   completion_date: "",
 
@@ -4211,6 +4229,19 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                   <div className="space-y-2">
 
+                    <Label htmlFor="edit_candidate_rut">RUT (Opcional)</Label>
+
+                    <Input
+                      id="edit_candidate_rut"
+                      value={editingCandidate.rut || ""}
+                      onChange={(e) => setEditingCandidate({ ...editingCandidate, rut: e.target.value })}
+                      placeholder="12.345.678-9"
+                    />
+
+                  </div>
+
+                  <div className="space-y-2">
+
                     <Label htmlFor="edit_birth_date">Fecha de Nacimiento</Label>
                      <DatePicker
                        selected={editingCandidate.birth_date ? new Date(editingCandidate.birth_date) : null}
@@ -4637,27 +4668,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4">
 
                       <div className="space-y-2">
 
-                          <Label>Fecha Inicio</Label>
-
-                        <Input
-
-                          type="date"
-
-                            value={form.start_date}
-
-                            onChange={(e) => updateEditEducationForm(form.id, 'start_date', e.target.value)}
-
-                        />
-
-                      </div>
-
-                      <div className="space-y-2">
-
-                          <Label>Fecha Término</Label>
+                          <Label>Fecha de Obtención</Label>
 
                         <Input
 
@@ -4806,7 +4821,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       <div className="space-y-2">
 
-                        <Label>Fecha de Finalización</Label>
+                        <Label>Fecha Fin</Label>
 
                         <Input
 

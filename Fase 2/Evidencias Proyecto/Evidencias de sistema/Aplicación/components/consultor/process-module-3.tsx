@@ -16,12 +16,14 @@ import { estadoClienteService } from "@/lib/api"
 import { getStatusColor, formatCurrency } from "@/lib/utils"
 import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast"
 
 interface ProcessModule3Props {
   process: Process
 }
 
 export function ProcessModule3({ process }: ProcessModule3Props) {
+  const { toast } = useToast()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [estadosCliente, setEstadosCliente] = useState<any[]>([])
@@ -112,7 +114,11 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
     // Validar comentarios si es necesario
     if ((updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && !updateFormData.client_comments?.trim()) {
-      alert(`Los comentarios son obligatorios para el estado "${updateFormData.client_response}"`)
+      toast({
+        title: "Validación requerida",
+        description: `Los comentarios son obligatorios para el estado "${updateFormData.client_response}"`,
+        variant: "destructive",
+      })
       return
     }
 
@@ -123,6 +129,11 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
     if (!estadoCliente) {
       console.error('Estado de cliente no encontrado:', updateFormData.client_response)
+      toast({
+        title: "Error",
+        description: "Estado de cliente no encontrado",
+        variant: "destructive",
+      })
       return
     }
 
@@ -143,60 +154,54 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       if (responseData.success) {
         console.log('Estado de cliente guardado exitosamente:', responseData.data)
         
-        // Actualizar el estado local con los cambios del backend
-        const updatedCandidates = candidates.map((c) => {
-          if (c.id === updatingCandidate.id) {
-            let newStatus = c.status
-            let newPresentationStatus = c.presentation_status
-
-            if (updateFormData.client_response === "rechazado") {
-              newStatus = "rechazado"
-              newPresentationStatus = "rechazado"
-              
-              // Sincronizar con Módulo 2 usando localStorage y evento personalizado
-              const syncData = {
-                candidateId: updatingCandidate.id,
-                status: "rechazado",
-                presentation_status: "rechazado",
-                rejection_reason: updateFormData.client_comments || "Rechazado por el cliente",
-                timestamp: Date.now()
-              }
-              localStorage.setItem(`candidate_sync_${updatingCandidate.id}`, JSON.stringify(syncData))
-              
-              // Disparar evento personalizado para sincronización en la misma pestaña
-              window.dispatchEvent(new CustomEvent('candidateSync', { detail: syncData }))
-              
-            } else if (updateFormData.client_response === "aprobado") {
-              newStatus = "aprobado"
-            }
-
-            return {
-              ...c,
-              client_response: updateFormData.client_response,
-              presentation_date: updateFormData.presentation_date,
-              client_feedback_date: updateFormData.client_feedback_date,
-              client_comments: updateFormData.client_comments,
-              status: newStatus as any,
-              presentation_status: newPresentationStatus,
-            }
-          }
-          return c
-        })
-        setCandidates(updatedCandidates)
-
-        // Cerrar modal
-        handleCloseUpdateModal()
-
+        // Sincronizar con Módulo 2 si es rechazado
         if (updateFormData.client_response === "rechazado") {
+          const syncData = {
+            candidateId: updatingCandidate.id,
+            status: "rechazado",
+            presentation_status: "rechazado",
+            rejection_reason: updateFormData.client_comments || "Rechazado por el cliente",
+            timestamp: Date.now()
+          }
+          localStorage.setItem(`candidate_sync_${updatingCandidate.id}`, JSON.stringify(syncData))
+          
+          // Disparar evento personalizado para sincronización en la misma pestaña
+          window.dispatchEvent(new CustomEvent('candidateSync', { detail: syncData }))
+          
           console.log(
             `[SYNC] Candidate ${updatingCandidate.name} rejected by client - status synchronized with Module 2 as "rechazado"`,
           )
         }
+
+        // Recargar datos desde la base de datos para reflejar los cambios reales
+        const allCandidates = await getCandidatesByProcess(process.id)
+        const filteredCandidates = allCandidates.filter((c: Candidate) => c.presentation_status === "presentado")
+        setCandidates(filteredCandidates)
+
+        // Cerrar modal
+        handleCloseUpdateModal()
+
+        // Mostrar toast de éxito
+        toast({
+          title: "¡Éxito!",
+          description: `Estado del candidato ${updatingCandidate.name} actualizado correctamente`,
+          variant: "default",
+        })
       } else {
         console.error('Error al guardar estado de cliente:', responseData.message)
+        toast({
+          title: "Error",
+          description: responseData.message || "No se pudo actualizar el estado del candidato",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error('Error al guardar estado de cliente:', error)
+      toast({
+        title: "Error",
+        description: "Ocurrió un error al actualizar el estado del candidato",
+        variant: "destructive",
+      })
     } finally {
       setSavingState(prev => ({ ...prev, [updatingCandidate.id]: false }))
     }

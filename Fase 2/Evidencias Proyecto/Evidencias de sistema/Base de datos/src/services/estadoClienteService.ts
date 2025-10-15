@@ -55,25 +55,39 @@ export class EstadoClienteService {
                 throw new Error(`Los comentarios son obligatorios para el estado "${estadoCliente.nombre_estado}"`);
             }
 
-            // Crear registro en estado_cliente_postulacion
-            const fechaCambio = new Date();
-            await EstadoClientePostulacion.create({
-                id_postulacion,
-                id_estado_cliente,
-                fecha_cambio_estado_cliente: fechaCambio
-            }, { transaction });
+            // Verificar si el estado realmente cambió
+            // Obtener el último estado de cliente para esta postulación
+            const ultimoEstadoCliente = await EstadoClientePostulacion.findOne({
+                where: { id_postulacion },
+                order: [['fecha_cambio_estado_cliente', 'DESC']]
+            });
+
+            // Solo crear registro en estado_cliente_postulacion si el estado cambió
+            let fechaCambio: Date | null = null;
+            if (!ultimoEstadoCliente || ultimoEstadoCliente.id_estado_cliente !== id_estado_cliente) {
+                // El estado cambió o es el primer estado, crear registro
+                fechaCambio = new Date();
+                await EstadoClientePostulacion.create({
+                    id_postulacion,
+                    id_estado_cliente,
+                    fecha_cambio_estado_cliente: fechaCambio
+                }, { transaction });
+            } else {
+                // El estado no cambió, usar la fecha del último cambio
+                fechaCambio = ultimoEstadoCliente.fecha_cambio_estado_cliente;
+            }
 
             // Preparar datos para actualizar la postulación
             const updateData: any = {};
 
             // Actualizar comentarios si se proporcionan
             if (comentarios && comentarios.trim() !== '') {
-                updateData.comentario_no_presentado = comentarios.trim();
+                updateData.comentario_rech_obs_cliente = comentarios.trim();
             }
 
             // Actualizar fechas si se proporcionan
             if (fecha_presentacion) {
-                updateData.fecha_presentacion = new Date(fecha_presentacion);
+                updateData.fecha_envio = new Date(fecha_presentacion);
             }
 
             if (fecha_feedback_cliente) {

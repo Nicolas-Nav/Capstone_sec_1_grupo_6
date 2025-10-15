@@ -517,6 +517,16 @@ export class PostulacionService {
         const candidato = postulacion.get('candidato') as any;
         const estado = postulacion.get('estadoCandidato') as any;
         const portal = postulacion.get('portalPostulacion') as any;
+        const estadosCliente = postulacion.get('estadosCliente') as any[];
+
+        // Obtener el último estado de cliente (más reciente)
+        const ultimoEstadoCliente = estadosCliente && estadosCliente.length > 0 
+            ? estadosCliente.sort((a: any, b: any) => 
+                new Date(b.fecha_cambio_estado_cliente).getTime() - new Date(a.fecha_cambio_estado_cliente).getTime()
+              )[0]
+            : null;
+
+        const estadoClienteNombre = ultimoEstadoCliente?.estadoCliente?.nombre_estado?.toLowerCase();
 
         return {
             id: candidato.id_candidato.toString(),
@@ -547,6 +557,11 @@ export class PostulacionService {
             consultant_comment: postulacion.comentario_no_presentado,
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),
             rejection_reason: postulacion.comentario_rech_obs_cliente,
+            // Campos del módulo 3 - Presentación de candidatos
+            presentation_date: postulacion.fecha_envio ? (postulacion.fecha_envio instanceof Date ? postulacion.fecha_envio.toISOString() : new Date(postulacion.fecha_envio).toISOString()) : undefined,
+            client_response: estadoClienteNombre || undefined,
+            client_feedback_date: postulacion.fecha_feedback_cliente ? (postulacion.fecha_feedback_cliente instanceof Date ? postulacion.fecha_feedback_cliente.toISOString() : new Date(postulacion.fecha_feedback_cliente).toISOString()) : undefined,
+            client_comments: postulacion.comentario_rech_obs_cliente || undefined,
             has_disability_credential: candidato.discapacidad,
             licencia: candidato.licencia,
             work_experience: candidato.experiencias?.map((exp: any) => ({

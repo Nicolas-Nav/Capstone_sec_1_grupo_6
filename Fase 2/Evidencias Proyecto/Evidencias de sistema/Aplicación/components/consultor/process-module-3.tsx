@@ -78,60 +78,6 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     return Object.keys(errors).length === 0
   }
 
-  const handlePresentationDateChange = (candidateId: string, date: string) => {
-    const updatedCandidates = candidates.map((candidate) =>
-      candidate.id === candidateId ? { ...candidate, presentation_date: date } : candidate,
-    )
-    setCandidates(updatedCandidates)
-  }
-
-  const handleClientFeedbackDateChange = (candidateId: string, date: string) => {
-    const updatedCandidates = candidates.map((candidate) =>
-      candidate.id === candidateId ? { ...candidate, client_feedback_date: date } : candidate,
-    )
-    setCandidates(updatedCandidates)
-  }
-
-  const handleClientResponseChange = (
-    candidateId: string,
-    response: "pendiente" | "aprobado" | "observado" | "rechazado",
-  ) => {
-    const candidate = candidates.find((c) => c.id === candidateId)
-    if (!candidate) return
-
-    // Expandir automáticamente el candidato si se selecciona observado o rechazado
-    if (response === "observado" || response === "rechazado") {
-      setExpandedCandidate(candidateId)
-    }
-
-    const updatedCandidates = candidates.map((candidate) => {
-      if (candidate.id === candidateId) {
-        return {
-          ...candidate,
-          client_response: response,
-        }
-      }
-      return candidate
-    })
-    setCandidates(updatedCandidates)
-  }
-
-  const handleClientCommentsChange = (candidateId: string, comments: string) => {
-    const updatedCandidates = candidates.map((candidate) => {
-      if (candidate.id === candidateId) {
-        const updatedCandidate = { ...candidate, client_comments: comments }
-
-        if (candidate.client_response === "rechazado" || candidate.client_response === "observado") {
-          updatedCandidate.rejection_reason = comments
-        }
-
-        return updatedCandidate
-      }
-      return candidate
-    })
-    setCandidates(updatedCandidates)
-  }
-
   const handleOpenUpdateModal = (candidate: Candidate) => {
     setUpdatingCandidate(candidate)
     setUpdateFormData({
@@ -376,8 +322,8 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         <CardHeader>
           <CardTitle>Candidatos Presentados al Cliente</CardTitle>
           <CardDescription>
-            Registra las fechas de envío y respuestas del cliente. Los estados se sincronizan automáticamente con el
-            Módulo 2.
+            Visualiza las fechas de envío y respuestas del cliente. Los estados se sincronizan automáticamente con el
+            Módulo 2. Para modificar la información, usa el botón "Actualizar" de cada candidato.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -423,47 +369,36 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <Input
-                              type="date"
-                              value={candidate.presentation_date?.split("T")[0] || ""}
-                              onChange={(e) => handlePresentationDateChange(candidate.id, e.target.value)}
-                              className="w-40"
-                            />
+                            <span className="text-sm text-muted-foreground">
+                              {candidate.presentation_date?.split("T")[0] || "No registrada"}
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
-                            <Select
-                              value={candidate.client_response || "pendiente"}
-                              onValueChange={(value: "pendiente" | "aprobado" | "observado" | "rechazado") =>
-                                handleClientResponseChange(candidate.id, value)
+                            <Badge 
+                              variant={
+                                candidate.client_response === "aprobado" ? "default" :
+                                candidate.client_response === "rechazado" ? "destructive" :
+                                candidate.client_response === "observado" ? "secondary" :
+                                "outline"
                               }
+                              className="w-fit"
                             >
-                              <SelectTrigger className={`w-32 ${validationErrors[candidate.id] ? 'border-red-500' : ''}`}>
-                                <SelectValue placeholder="Respuesta" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="pendiente">Pendiente</SelectItem>
-                                <SelectItem value="aprobado">Aprobado</SelectItem>
-                                <SelectItem value="observado">Observado</SelectItem>
-                                <SelectItem value="rechazado">Rechazado</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            {validationErrors[candidate.id] && (
-                              <p className="text-xs text-red-600">{validationErrors[candidate.id]}</p>
-                            )}
+                              {candidate.client_response === "pendiente" && "Pendiente"}
+                              {candidate.client_response === "aprobado" && "Aprobado"}
+                              {candidate.client_response === "observado" && "Observado"}
+                              {candidate.client_response === "rechazado" && "Rechazado"}
+                              {!candidate.client_response && "Pendiente"}
+                            </Badge>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <Input
-                              type="date"
-                              value={candidate.client_feedback_date?.split("T")[0] || ""}
-                              onChange={(e) => handleClientFeedbackDateChange(candidate.id, e.target.value)}
-                              className="w-40"
-                              disabled={!candidate.client_response || candidate.client_response === "pendiente"}
-                            />
+                            <span className="text-sm text-muted-foreground">
+                              {candidate.client_feedback_date?.split("T")[0] || "No registrada"}
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -563,19 +498,18 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                                       <Textarea
                                         id={`reason-${candidate.id}`}
                                         value={candidate.client_comments || ""}
-                                        onChange={(e) => handleClientCommentsChange(candidate.id, e.target.value)}
+                                        readOnly
                                         placeholder={
                                           candidate.client_response === "observado"
-                                            ? "Ingrese las observaciones del cliente (campo obligatorio)..."
-                                            : "Ingrese la razón del rechazo (campo obligatorio)..."
+                                            ? "No hay observaciones registradas"
+                                            : "No hay razón de rechazo registrada"
                                         }
                                         rows={3}
-                                        className={`mt-2 ${
+                                        className={`mt-2 bg-gray-50 ${
                                           candidate.client_response === "observado"
-                                            ? "border-yellow-300 focus:border-yellow-500"
-                                            : "border-red-300 focus:border-red-500"
-                                        } ${validationErrors[candidate.id] ? 'border-red-500' : ''}`}
-                                        required
+                                            ? "border-yellow-300"
+                                            : "border-red-300"
+                                        }`}
                                       />
                                       <p
                                         className={`text-xs mt-1 ${
@@ -584,6 +518,8 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                                       >
                                         💡 Esta información se sincroniza automáticamente con el Módulo 2
                                         {candidate.client_response === "rechazado" && " y actualiza el estado del candidato"}
+                                        <br />
+                                        📝 Para modificar esta información, usa el botón "Actualizar" en la tabla
                                       </p>
                                     </div>
                                   )}
@@ -600,10 +536,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                                         <Textarea
                                           id={`comments-${candidate.id}`}
                                           value={candidate.client_comments || ""}
-                                          onChange={(e) => handleClientCommentsChange(candidate.id, e.target.value)}
-                                          placeholder="Comentarios adicionales del cliente..."
+                                          readOnly
+                                          placeholder="No hay comentarios registrados"
                                           rows={2}
-                                          className="mt-2 border-blue-300 focus:border-blue-500"
+                                          className="mt-2 border-blue-300 bg-gray-50"
                                         />
                                       </div>
                                     )}

@@ -283,7 +283,15 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                   Los estados se han sincronizado con el Módulo 2. Necesitas agregar más candidatos.
                 </p>
               </div>
-              <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-100 bg-transparent">
+              <Button 
+                variant="outline" 
+                className="border-red-300 text-red-700 hover:bg-red-100 bg-transparent"
+                onClick={() => {
+                  const currentUrl = new URL(window.location.href)
+                  currentUrl.searchParams.set('tab', 'modulo-2')
+                  window.location.href = currentUrl.toString()
+                }}
+              >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Volver a Módulo 2
               </Button>

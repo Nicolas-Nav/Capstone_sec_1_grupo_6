@@ -11,11 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { getCandidatesByProcess, candidateStatusLabels } from "@/lib/mock-data"
-import { estadoClienteService } from "@/lib/api"
+import { getCandidatesByProcess, candidateStatusLabels, processStatusLabels } from "@/lib/mock-data"
+import { estadoClienteService, solicitudService } from "@/lib/api"
 import { getStatusColor, formatCurrency } from "@/lib/utils"
-import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2 } from "lucide-react"
-import type { Process, Candidate } from "@/lib/types"
+import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle } from "lucide-react"
+import type { Process, Candidate, ProcessStatus } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
 interface ProcessModule3Props {
@@ -38,6 +38,14 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     client_feedback_date: "",
     client_comments: ""
   })
+
+  // Estados para finalizar solicitud (solo Long List)
+  const [processStatus, setProcessStatus] = useState<ProcessStatus>((process.estado_solicitud || process.status) as ProcessStatus)
+  const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
+  const [loadingEstados, setLoadingEstados] = useState(false)
+  const [showStatusChange, setShowStatusChange] = useState(false)
+  const [selectedEstado, setSelectedEstado] = useState<string>("")
+  const [statusChangeReason, setStatusChangeReason] = useState("")
 
   // Cargar datos reales desde el backend
   useEffect(() => {
@@ -63,6 +71,45 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     }
     loadData()
   }, [process.id])
+
+  // Cargar estados de solicitud disponibles para finalización (solo Long List)
+  useEffect(() => {
+    const loadEstados = async () => {
+      // Solo cargar estados si es Long List
+      const serviceType = (process.service_type as string)?.toLowerCase() || ""
+      const isLongList = serviceType === "long_list" || serviceType === "ll"
+      
+      if (!isLongList) {
+        return
+      }
+
+      try {
+        setLoadingEstados(true)
+        const response = await solicitudService.getEstadosSolicitud()
+        if (response.success && response.data) {
+          // Filtrar solo estados de cierre: Cerrado, Congelado, Cancelado, Cierre Extraordinario
+          const estadosCierre = response.data.filter((estado: any) => {
+            const nombre = estado.nombre?.toLowerCase() || estado.nombre_estado_solicitud?.toLowerCase() || ""
+            return nombre === "cerrado" || 
+                   nombre === "congelado" || 
+                   nombre === "cancelado" || 
+                   nombre === "cierre extraordinario"
+          })
+          setEstadosDisponibles(estadosCierre)
+        }
+      } catch (error) {
+        console.error("Error al cargar estados de solicitud:", error)
+        toast({
+          title: "Error",
+          description: "Error al cargar estados disponibles",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingEstados(false)
+      }
+    }
+    loadEstados()
+  }, [process.service_type])
 
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
@@ -235,11 +282,58 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     handleMultipleCandidateDecision()
   }, [candidates.map((c) => c.client_response).join(",")])
 
+  // Función para cambiar estado de la solicitud (finalizar)
+  const handleStatusChange = async (estadoId: string) => {
+    try {
+      const response = await solicitudService.cambiarEstado(
+        parseInt(process.id), 
+        parseInt(estadoId), 
+        statusChangeReason.trim() || undefined
+      )
+
+      if (response.success) {
+        toast({
+          title: "¡Éxito!",
+          description: "Solicitud finalizada exitosamente",
+          variant: "default",
+        })
+        setShowStatusChange(false)
+        setSelectedEstado("")
+        setStatusChangeReason("")
+        // Recargar la página para reflejar el cambio
+        window.location.reload()
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al finalizar la solicitud",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error al cambiar estado:", error)
+      toast({
+        title: "Error",
+        description: "Error al finalizar la solicitud",
+        variant: "destructive",
+      })
+    }
+  }
+
   const allRejected = candidates.every((c) => c.client_response === "rechazado")
   const hasApproved = candidates.some((c) => c.client_response === "aprobado")
 
-  const canAdvanceToModule4 = (process.service_type as string) === "proceso_completo" && hasApproved
-  const processEndsHere = (process.service_type as string) === "long_list"
+  // Verificar tipo de servicio (código o nombre)
+  const serviceType = (process.service_type as string)?.toLowerCase() || ""
+  const canAdvanceToModule4 = (serviceType === "proceso_completo" || serviceType === "pc") && hasApproved
+  const processEndsHere = serviceType === "long_list" || serviceType === "ll"
+  
+  // Debug: mostrar el tipo de servicio
+  console.log("🔍 Module 3 - Service Type:", {
+    original: process.service_type,
+    normalized: serviceType,
+    processEndsHere,
+    canAdvanceToModule4
+  })
 
   // Mostrar indicador de carga
   if (isLoading) {
@@ -326,6 +420,94 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
               </div>
               <Button className="bg-blue-600 hover:bg-blue-700">Avanzar a Módulo 4</Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Finalizar Solicitud - Solo para Long List */}
+      {processEndsHere && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" />
+              Finalizar Solicitud
+            </CardTitle>
+            <CardDescription>
+              Una vez que hayas finalizado la revisión de candidatos, puedes cerrar la solicitud
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <Label htmlFor="estado-select">Estado Actual: </Label>
+                <Badge className={getStatusColor(processStatus)}>
+                  {processStatusLabels[processStatus] || processStatus}
+                </Badge>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setShowStatusChange(!showStatusChange)}
+                disabled={loadingEstados}
+              >
+                {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
+              </Button>
+            </div>
+
+            {showStatusChange && (
+              <div className="mt-4 space-y-4 p-4 border rounded-lg bg-muted/50">
+                <div>
+                  <Label htmlFor="new-estado">Estado Final</Label>
+                  <Select
+                    value={selectedEstado}
+                    onValueChange={setSelectedEstado}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Selecciona un estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {estadosDisponibles.map((estado) => (
+                        <SelectItem 
+                          key={estado.id || estado.id_estado_solicitud} 
+                          value={(estado.id || estado.id_estado_solicitud).toString()}
+                        >
+                          {estado.nombre || estado.nombre_estado_solicitud}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="reason">Motivo del Cambio (Opcional)</Label>
+                  <Textarea
+                    id="reason"
+                    placeholder="Explica el motivo de finalización..."
+                    value={statusChangeReason}
+                    onChange={(e) => setStatusChangeReason(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleStatusChange(selectedEstado)}
+                    disabled={!selectedEstado}
+                  >
+                    Actualizar Estado
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowStatusChange(false)
+                      setSelectedEstado("")
+                      setStatusChangeReason("")
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

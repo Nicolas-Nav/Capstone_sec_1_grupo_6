@@ -18,7 +18,7 @@ export class SolicitudController {
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 10;
             const search = (req.query.search as string) || "";
-            const status = (req.query.status as "creado" | "en_progreso" | "cerrado" | "congelado") || undefined;
+            const status = (req.query.status as "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario") || undefined;
             const service_type = (req.query.service_type as string) || undefined;
             const consultor_id = (req.query.consultor_id as string) || undefined;
             const sortBy = (req.query.sortBy as "fecha" | "cargo" | "cliente") || "fecha";
@@ -148,8 +148,8 @@ export class SolicitudController {
 
             // Si se envía id_estado, usar el método de cambio por ID
             if (id_estado) {
-                await SolicitudService.cambiarEstado(parseInt(id), parseInt(id_estado));
-                Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado}`);
+                await SolicitudService.cambiarEstado(parseInt(id), parseInt(id_estado), reason);
+                Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado}${reason ? ` con motivo: ${reason}` : ''}`);
             } else {
                 // Mantener compatibilidad con el método anterior
             await SolicitudService.updateEstado(parseInt(id), { status, reason });
@@ -289,6 +289,37 @@ export class SolicitudController {
             }
             
             return sendError(res, 'Error al avanzar al módulo 2', 500);
+        }
+    }
+
+    /**
+     * Avanzar al módulo 3
+     */
+    static async avanzarAModulo3(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const solicitudId = parseInt(id);
+
+            if (isNaN(solicitudId)) {
+                return sendError(res, 'ID de solicitud inválido', 400);
+            }
+
+            const result = await SolicitudService.avanzarAModulo3(solicitudId);
+            
+            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 3`);
+            return sendSuccess(res, result, result.message);
+        } catch (error: any) {
+            Logger.error('Error al avanzar al módulo 3:', error);
+            
+            if (error.message === 'Solicitud no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+            
+            if (error.message === 'Etapa Módulo 3 no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+            
+            return sendError(res, 'Error al avanzar al módulo 3', 500);
         }
     }
 

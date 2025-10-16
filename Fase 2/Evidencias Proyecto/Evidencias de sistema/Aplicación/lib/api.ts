@@ -115,10 +115,6 @@ export const clientService = {
 };
 
 // ===========================================
-// UTILIDADES
-// ===========================================
-
-// ===========================================
 // SERVICIOS DE REGIONES Y COMUNAS
 // ===========================================
 
@@ -304,6 +300,13 @@ export const solicitudService = {
     });
   },
 
+  // Avanzar al módulo 3
+  async avanzarAModulo3(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/avanzar-modulo3`, {
+      method: 'PUT',
+    });
+  },
+
   // Obtener etapas disponibles
   async getEtapas(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/solicitudes/etapas/disponibles');
@@ -320,6 +323,35 @@ export const solicitudService = {
       method: 'PUT',
       body: JSON.stringify({ id_etapa }),
     });
+  },
+};
+
+// ===========================================
+// SERVICIOS DE ESTADO CLIENTE
+// ===========================================
+
+export const estadoClienteService = {
+  // Obtener todos los estados de cliente
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/estado-cliente');
+  },
+
+  // Cambiar estado de cliente para una postulación
+  async cambiarEstado(id_postulacion: number, data: {
+    id_estado_cliente: number;
+    comentarios?: string;
+    fecha_presentacion?: string;
+    fecha_feedback_cliente?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente/postulacion/${id_postulacion}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Obtener historial de cambios de estado para una postulación
+  async getHistorial(id_postulacion: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/estado-cliente/postulacion/${id_postulacion}/historial`);
   },
 };
 
@@ -646,12 +678,6 @@ export const postulacionService = {
 };
 
 // ===========================================
-// SERVICIOS DE PUBLICACIONES
-// ===========================================
-
-// (Servicio de publicaciones movido más abajo después de instituciones)
-
-// ===========================================
 // SERVICIOS DE NACIONALIDAD
 // ===========================================
 
@@ -754,6 +780,23 @@ export const publicacionService = {
     });
   },
 };
+
+// ===========================================
+// FUNCIÓN PARA OBTENER CANDIDATOS POR PROCESO
+// ===========================================
+
+export async function getCandidatesByProcess(processId: string): Promise<any[]> {
+  try {
+    const response = await postulacionService.getBySolicitud(parseInt(processId));
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return [];
+  } catch (error) {
+    console.error('Error al obtener candidatos por proceso:', error);
+    return [];
+  }
+}
 
 // ===========================================
 // UTILIDADES

@@ -33,11 +33,12 @@ class EstadoSolicitud extends Model<EstadoSolicitudAttributes, EstadoSolicitudCr
     }
 
     /**
-     * Verifica si el estado es final (Cerrado, Congelado)
+     * Verifica si el estado es final (Cerrado, Congelado, Cancelado, Cierre Extraordinario)
      */
     public esFinal(): boolean {
         const nombreEstado = this.nombre_estado_solicitud.toLowerCase();
-        return nombreEstado === 'cerrado' || nombreEstado === 'congelado';
+        return nombreEstado === 'cerrado' || nombreEstado === 'congelado' || 
+               nombreEstado === 'cancelado' || nombreEstado === 'cierre extraordinario';
     }
 
     /**
@@ -69,6 +70,20 @@ class EstadoSolicitud extends Model<EstadoSolicitudAttributes, EstadoSolicitudCr
     }
 
     /**
+     * Verifica si el estado es cancelado
+     */
+    public esCancelado(): boolean {
+        return this.nombre_estado_solicitud.toLowerCase() === 'cancelado';
+    }
+
+    /**
+     * Verifica si el estado es cierre extraordinario
+     */
+    public esCierreExtraordinario(): boolean {
+        return this.nombre_estado_solicitud.toLowerCase() === 'cierre extraordinario';
+    }
+
+    /**
      * Obtiene el nombre del estado formateado
      */
     public getNombreFormateado(): string {
@@ -86,6 +101,8 @@ class EstadoSolicitud extends Model<EstadoSolicitudAttributes, EstadoSolicitudCr
         enProgreso: boolean;
         cerrado: boolean;
         congelado: boolean;
+        cancelado: boolean;
+        cierreExtraordinario: boolean;
     } {
         return {
             nombre: this.getNombreFormateado(),
@@ -94,7 +111,9 @@ class EstadoSolicitud extends Model<EstadoSolicitudAttributes, EstadoSolicitudCr
             abierto: this.esAbierto(),
             enProgreso: this.esEnProgreso(),
             cerrado: this.esCerrado(),
-            congelado: this.esCongelado()
+            congelado: this.esCongelado(),
+            cancelado: this.esCancelado(),
+            cierreExtraordinario: this.esCierreExtraordinario()
         };
     }
 
@@ -106,13 +125,17 @@ class EstadoSolicitud extends Model<EstadoSolicitudAttributes, EstadoSolicitudCr
 
         switch (nombreEstado) {
             case 'abierto':
-                return ['en progreso', 'cerrado', 'congelado'];
+                return ['en progreso', 'cerrado', 'congelado', 'cancelado', 'cierre extraordinario'];
             case 'en progreso':
-                return ['cerrado', 'congelado'];
+                return ['cerrado', 'congelado', 'cancelado', 'cierre extraordinario'];
             case 'cerrado':
                 return []; // Estado final
             case 'congelado':
-                return ['cerrado', 'en progreso']; // Se puede descongelar
+                return ['cerrado', 'en progreso', 'cancelado', 'cierre extraordinario']; // Se puede descongelar
+            case 'cancelado':
+                return []; // Estado final
+            case 'cierre extraordinario':
+                return []; // Estado final
             default:
                 return [];
         }

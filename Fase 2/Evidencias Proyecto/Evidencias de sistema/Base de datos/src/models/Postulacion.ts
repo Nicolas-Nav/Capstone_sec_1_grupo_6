@@ -16,6 +16,8 @@ interface PostulacionAttributes {
     comentario_modulo5_cliente?: string;
     situacion_familiar?: string;
     valoracion?: number;
+    fecha_envio?: Date;
+    fecha_feedback_cliente?: Date;
     cv_postulacion?: Buffer;
     id_candidato: number;
     id_estado_candidato?: number;
@@ -40,6 +42,8 @@ class Postulacion extends Model<PostulacionAttributes, PostulacionCreationAttrib
     public comentario_modulo5_cliente?: string;
     public situacion_familiar?: string;
     public valoracion?: number;
+    public fecha_envio?: Date;
+    public fecha_feedback_cliente?: Date;
     public cv_postulacion?: Buffer;
     public id_candidato!: number;
     public id_estado_candidato?: number;
@@ -161,6 +165,15 @@ Postulacion.init({
                 msg: 'La situación familiar no puede exceder 300 caracteres'
             }
         }
+    },
+    fecha_envio: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        
+    },
+    fecha_feedback_cliente: {
+        type: DataTypes.DATE,
+        allowNull: true,
     },
     valoracion: {
         type: DataTypes.INTEGER,

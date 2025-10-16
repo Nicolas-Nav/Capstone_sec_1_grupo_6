@@ -27,7 +27,7 @@ export class SolicitudService {
         page: number = 1,
         limit: number = 10,
         search: string = "",
-        status?: "creado" | "en_progreso" | "cerrado" | "congelado",
+        status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
         service_type?: string,
         consultor_id?: string,
         sortBy: "fecha" | "cargo" | "cliente" = "fecha",
@@ -51,41 +51,61 @@ export class SolicitudService {
 
         // Filtro por estado
         if (status) {
-            // Buscar IDs de solicitudes con el estado específico
-            const solicitudesConEstado = await EstadoSolicitudHist.findAll({
-                include: [
-                    {
-                        model: EstadoSolicitud,
-                        as: 'estado',
-                        where: {
-                            nombre_estado_solicitud: {
-                                [Op.iLike]: `%${status === 'creado' ? 'Creado' : 
-                                           status === 'en_progreso' ? 'En Progreso' :
-                                           status === 'cerrado' ? 'Cerrado' : 'Congelado'}%`
-                            }
-                        },
-                        attributes: []
+            // Mapear el parámetro de estado a los nombres exactos en la base de datos
+            const estadoMapping: { [key: string]: string } = {
+                'creado': 'Creado',
+                'en_progreso': 'En Progreso', 
+                'cerrado': 'Cerrado',
+                'congelado': 'Congelado',
+                'cancelado': 'Cancelado',
+                'cierre_extraordinario': 'Cierre Extraordinario'
+            };
+
+            const nombreEstadoExacto = estadoMapping[status];
+            
+            if (nombreEstadoExacto) {
+                // Obtener todas las solicitudes con su historial de estados
+                const todasLasSolicitudes = await EstadoSolicitudHist.findAll({
+                    include: [
+                        {
+                            model: EstadoSolicitud,
+                            as: 'estado',
+                            attributes: ['nombre_estado_solicitud']
+                        }
+                    ],
+                    attributes: ['id_solicitud', 'fecha_cambio_estado_solicitud'],
+                    order: [['id_solicitud', 'ASC'], ['fecha_cambio_estado_solicitud', 'DESC']]
+                });
+
+                // Agrupar por solicitud y obtener el estado más reciente
+                const estadoPorSolicitud = new Map<number, string>();
+                todasLasSolicitudes.forEach((item: any) => {
+                    if (!estadoPorSolicitud.has(item.id_solicitud)) {
+                        estadoPorSolicitud.set(item.id_solicitud, item.estado.nombre_estado_solicitud);
                     }
-                ],
-                attributes: ['id_solicitud'],
-                raw: true,
-                order: [['fecha_cambio_estado_solicitud', 'DESC']]
-            });
+                });
 
-            // Agrupar por id_solicitud y tomar el más reciente
-            const estadoMap = new Map();
-            solicitudesConEstado.forEach(item => {
-                if (!estadoMap.has(item.id_solicitud)) {
-                    estadoMap.set(item.id_solicitud, item.id_solicitud);
+                // Filtrar solo las solicitudes que tienen el estado deseado como estado actual
+                const idsConEstadoDeseado: number[] = [];
+                estadoPorSolicitud.forEach((estadoActual: string, idSolicitud: number) => {
+                    if (estadoActual === nombreEstadoExacto) {
+                        idsConEstadoDeseado.push(idSolicitud);
+                    }
+                });
+
+                // Debug log para verificar el filtro
+                console.log(`🔍 Filtro por estado "${nombreEstadoExacto}":`, {
+                    totalSolicitudes: estadoPorSolicitud.size,
+                    idsConEstadoDeseado: idsConEstadoDeseado,
+                    estadosEncontrados: Array.from(estadoPorSolicitud.entries()).slice(0, 5) // Solo los primeros 5 para debug
+                });
+
+                if (idsConEstadoDeseado.length > 0) {
+                    andConditions.push({ id_solicitud: { [Op.in]: idsConEstadoDeseado } });
+                } else {
+                    // Si no hay solicitudes con ese estado, devolver array vacío
+                    andConditions.push({ id_solicitud: { [Op.in]: [] } });
                 }
-            });
-
-            const idsConEstado = Array.from(estadoMap.values());
-            if (idsConEstado.length > 0) {
-                andConditions.push({ id_solicitud: { [Op.in]: idsConEstado } });
-            } else {
-                // Si no hay solicitudes con ese estado, devolver array vacío
-                andConditions.push({ id_solicitud: { [Op.in]: [] } });
             }
         }
 
@@ -537,10 +557,12 @@ export class SolicitudService {
 
             // Mapear estado del frontend al backend (ID de base de datos)
             const mapeoEstadoId: Record<string, number> = {
-                'creado': 1,        // Creado
-                'en_progreso': 2,   // En Progreso
-                'cerrado': 3,       // Cerrado
-                'congelado': 4      // Congelado
+                'creado': 1,                    // Creado
+                'en_progreso': 2,              // En Progreso
+                'cerrado': 3,                  // Cerrado
+                'congelado': 4,                // Congelado
+                'cancelado': 5,                 // Cancelado
+                'cierre_extraordinario': 6      // Cierre Extraordinario
             };
 
             const idEstado = mapeoEstadoId[status?.toLowerCase()] || 1; // Default: Creado
@@ -633,6 +655,58 @@ export class SolicitudService {
     }
 
     /**
+     * Avanzar al módulo 3 (Presentación de Candidatos)
+     */
+    static async avanzarAModulo3(id: number) {
+        const transaction: Transaction = await sequelize.transaction();
+
+        try {
+            const solicitud = await Solicitud.findByPk(id);
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            // Buscar la etapa "Módulo 3: Presentación de Candidatos"
+            console.log('🔍 Buscando etapa Módulo 3...');
+            const etapaModulo3 = await EtapaSolicitud.findOne({
+                where: { nombre_etapa: 'Módulo 3: Presentación de Candidatos' }
+            });
+
+            console.log('📋 Etapa encontrada:', etapaModulo3);
+
+            if (!etapaModulo3) {
+                // Intentar buscar todas las etapas para debug
+                const todasLasEtapas = await EtapaSolicitud.findAll();
+                console.log('📋 Todas las etapas disponibles:', todasLasEtapas.map(e => ({ id: e.id_etapa_solicitud, nombre: e.nombre_etapa })));
+                throw new Error('Etapa Módulo 3 no encontrada');
+            }
+
+            // Actualizar la solicitud
+            await solicitud.update({
+                id_etapa_solicitud: etapaModulo3.id_etapa_solicitud 
+            }, { transaction });
+
+            // Crear entrada en el historial (usar estado por defecto: 2 = En Progreso)
+            await EstadoSolicitudHist.create({
+                id_solicitud: id,
+                id_estado_solicitud: 2, // En Progreso
+                fecha_cambio_estado_solicitud: new Date()
+            }, { transaction });
+
+            await transaction.commit();
+
+            return { 
+                success: true, 
+                message: 'Proceso avanzado al Módulo 3 exitosamente',
+                etapa: etapaModulo3.nombre_etapa
+            };
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+
+    /**
      * Obtener todas las etapas disponibles
      */
     static async getEtapas() {
@@ -688,7 +762,7 @@ export class SolicitudService {
     /**
      * Cambiar estado de solicitud por ID
      */
-    static async cambiarEstado(id: number, id_estado: number) {
+    static async cambiarEstado(id: number, id_estado: number, reason?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
@@ -706,7 +780,8 @@ export class SolicitudService {
             await EstadoSolicitudHist.create({
                 id_solicitud: id,
                 id_estado_solicitud: id_estado,
-                fecha_cambio_estado_solicitud: new Date()
+                fecha_cambio_estado_solicitud: new Date(),
+                comentario_estado_solicitud_hist: reason || null
             }, { transaction });
 
             await transaction.commit();
@@ -884,7 +959,9 @@ export class SolicitudService {
             'Creado': 'creado',
             'En Progreso': 'en_progreso',
             'Cerrado': 'cerrado',
-            'Congelado': 'congelado'
+            'Congelado': 'congelado',
+            'Cancelado': 'cancelado',
+            'Cierre Extraordinario': 'cierre_extraordinario'
         };
         return mapeo[nombreEstado] || 'creado';
     }

@@ -98,6 +98,8 @@ export interface Candidate {
   nacionalidad?: string
   rubro?: string
   profession?: string
+  profession_institution?: string
+  profession_date?: string
   address?: string
   work_experience?: WorkExperience[]
   education?: Education[]
@@ -110,6 +112,8 @@ export interface Candidate {
   rejection_reason?: string
   // Disability credential
   has_disability_credential?: boolean
+  // Driving license
+  licencia?: boolean
 }
 
 export interface PortalResponses {

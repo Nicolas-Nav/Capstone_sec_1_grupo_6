@@ -52,7 +52,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const [statusChangeReason, setStatusChangeReason] = useState("")
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  
+
   // Estados para listas desplegables
   const [regiones, setRegiones] = useState<any[]>([])
   const [todasLasComunas, setTodasLasComunas] = useState<any[]>([])
@@ -62,7 +62,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const [nacionalidades, setNacionalidades] = useState<any[]>([])
   const [loadingLists, setLoadingLists] = useState(false)
   const [savingCandidate, setSavingCandidate] = useState(false)
-  
+
   // Estados para experiencia laboral y educación
   const [workExperience, setWorkExperience] = useState<WorkExperience[]>([])
   const [education, setEducation] = useState<Education[]>([])
@@ -98,18 +98,18 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   // Load candidates (para proceso de evaluación)
   useEffect(() => {
     if (isEvaluationProcess) {
-    const loadCandidates = async () => {
-      try {
-        setIsLoading(true)
-        const candidatesData = await getCandidatesByProcess(process.id)
-        setCandidates(candidatesData)
-      } catch (error) {
+      const loadCandidates = async () => {
+        try {
+          setIsLoading(true)
+          const candidatesData = await getCandidatesByProcess(process.id)
+          setCandidates(candidatesData)
+        } catch (error) {
           console.error('❌ Error al cargar candidatos:', error)
-      } finally {
-        setIsLoading(false)
+        } finally {
+          setIsLoading(false)
+        }
       }
-    }
-    loadCandidates()
+      loadCandidates()
     }
   }, [process.id, isEvaluationProcess])
 
@@ -147,12 +147,12 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
       // Si no, intentar cargar desde la API
       const descripcionCargoId = process.id_descripcion_cargo || process.id_descripcioncargo
-      
+
       if (descripcionCargoId && descripcionCargoId > 0) {
         try {
           setLoadingExcel(true)
           const response = await descripcionCargoService.getExcelData(descripcionCargoId)
-          
+
           if (response.success && response.data) {
             setExcelData(response.data)
           } else {
@@ -170,7 +170,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
   // For evaluation processes, find the candidate with CV
   const candidateWithCV = candidates.find((c) => c.cv_file)
-  
+
 
   // Pre-llenar datos del candidato cuando se carga el componente
   useEffect(() => {
@@ -189,7 +189,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         profession: candidateWithCV.profession || "",
         has_disability_credential: candidateWithCV.has_disability_credential || false,
       })
-      
+
       // Pre-llenar experiencia laboral y educación
       setWorkExperience(candidateWithCV.work_experience || [])
       setEducation(candidateWithCV.education || [])
@@ -215,7 +215,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     if (!personalData.email?.trim()) {
       toast({
         title: "Campo obligatorio",
@@ -224,7 +224,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     // Validar formato de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(personalData.email)) {
@@ -235,7 +235,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     if (!personalData.phone?.trim()) {
       toast({
         title: "Campo obligatorio",
@@ -244,7 +244,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     // Validar formato de teléfono
     const phoneRegex = /^[\+]?[0-9\s\-\(\)]{8,}$/
     if (!phoneRegex.test(personalData.phone)) {
@@ -255,7 +255,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     if (!personalData.rut?.trim()) {
       toast({
         title: "Campo obligatorio",
@@ -264,7 +264,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     // Validar formato de RUT chileno
     const rutRegex = /^[0-9]+-[0-9kK]$/
     if (!rutRegex.test(personalData.rut)) {
@@ -275,7 +275,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     if (!personalData.birth_date) {
       toast({
         title: "Campo obligatorio",
@@ -284,7 +284,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     if (!personalData.region) {
       toast({
         title: "Campo obligatorio",
@@ -293,7 +293,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     if (!personalData.comuna) {
       toast({
         title: "Campo obligatorio",
@@ -302,7 +302,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     if (!personalData.nacionalidad) {
       toast({
         title: "Campo obligatorio",
@@ -311,7 +311,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     if (!personalData.rubro) {
       toast({
         title: "Campo obligatorio",
@@ -320,7 +320,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       })
       return
     }
-    
+
     if (!personalData.profession) {
       toast({
         title: "Campo obligatorio",
@@ -332,7 +332,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
     try {
       setSavingCandidate(true)
-      
+
       // Preparar datos para actualizar el candidato
       const candidateData = {
         name: personalData.name,
@@ -347,38 +347,38 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         rubro: personalData.rubro,
         profession: personalData.profession,
         has_disability_credential: personalData.has_disability_credential,
-        work_experience: workExperience.length > 0 
+        work_experience: workExperience.length > 0
           ? workExperience.map(exp => ({
-              company: exp.company,
-              position: exp.position,
-              start_date: exp.start_date,
-              end_date: exp.end_date,
-              description: exp.description,
-            }))
+            company: exp.company,
+            position: exp.position,
+            start_date: exp.start_date,
+            end_date: exp.end_date,
+            description: exp.description,
+          }))
           : undefined,
         education: education.length > 0
           ? education.map(edu => ({
-              type: edu.type,
-              institution: edu.institution,
-              title: edu.title,
-              start_date: edu.start_date,
-              completion_date: edu.completion_date,
-              observations: edu.observations,
-            }))
+            type: edu.type,
+            institution: edu.institution,
+            title: edu.title,
+            start_date: edu.start_date,
+            completion_date: edu.completion_date,
+            observations: edu.observations,
+          }))
           : undefined,
       }
 
 
       // Actualizar el candidato
       const response = await candidatoService.update(parseInt(candidateWithCV.id), candidateData)
-      
+
       if (response.success) {
         toast({
           title: "¡Éxito!",
           description: "¡Datos del candidato guardados exitosamente! Redirigiendo al Módulo 4...",
           variant: "default",
         })
-        
+
         // Navegar al Módulo 4
         const url = new URL(window.location.href)
         url.searchParams.set('tab', 'modulo-4')
@@ -390,7 +390,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           variant: "destructive",
         })
       }
-      
+
     } catch (error) {
       console.error('Error saving candidate data:', error)
       toast({
@@ -470,7 +470,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           rubroService.getAll(),
           nacionalidadService.getAll(),
         ])
-        
+
         setRegiones(regionesRes.data || [])
         setTodasLasComunas(comunasRes.data || [])
         setProfesiones(profesionesRes.data || [])
@@ -482,7 +482,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         setLoadingLists(false)
       }
     }
-    
+
     loadLists()
   }, [])
 
@@ -501,8 +501,12 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
   const handleStatusChange = async (estadoId: string) => {
     try {
-      const response = await solicitudService.cambiarEstado(parseInt(process.id), parseInt(estadoId))
-      
+      const response = await solicitudService.cambiarEstado(
+        parseInt(process.id), 
+        parseInt(estadoId), 
+        statusChangeReason.trim() || undefined
+      )
+
       if (response.success) {
         toast({
           title: "¡Éxito!",
@@ -534,7 +538,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const handleAdvanceToModule2 = async () => {
     try {
       const response = await solicitudService.avanzarAModulo2(parseInt(process.id))
-      
+
       if (response.success) {
         toast({
           title: "¡Éxito!",
@@ -568,22 +572,22 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const canChangeStatus = (currentStatus: ProcessStatus, newStatus: ProcessStatus) => {
     // No se puede cambiar a "completado" desde el módulo 1
     if (newStatus === "completado") return false
-    
+
     // No se puede cambiar de "cancelado" o "congelado" a estados activos sin razón
-    if ((currentStatus === "cancelado" || currentStatus === "congelado") && 
-        (newStatus === "iniciado" || newStatus === "en_progreso")) {
+    if ((currentStatus === "cancelado" || currentStatus === "congelado") &&
+      (newStatus === "iniciado" || newStatus === "en_progreso")) {
       return statusChangeReason.trim().length > 0
     }
-    
+
     return true
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
-        <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
+          <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
         </div>
         <Button
           onClick={handleAdvanceToModule2}
@@ -807,10 +811,10 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   {Object.entries(excelData).map(([key, value]) => {
                     // Omitir campos vacíos o null
                     if (!value || value === '' || value === 'null') return null
-                    
+
                     // Formatear el nombre del campo
                     const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-                    
+
                     // Formatear el valor
                     let displayValue: any = value
                     if (typeof value === 'object' && value !== null) {
@@ -839,7 +843,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         displayValue = JSON.stringify(value, null, 2)
                       }
                     }
-                    
+
                     return (
                       <TableRow key={key}>
                         <TableCell className="font-medium align-top">{fieldName}</TableCell>
@@ -886,111 +890,6 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         </CardContent>
       </Card>
 
-      {/* Process Status Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Gestión del Estado del Proceso
-          </CardTitle>
-          <CardDescription>
-            Cambia el estado del proceso según sea necesario. Disponible para todos los tipos de proceso.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="current-status">Estado Actual</Label>
-              <div className="mt-1">
-                <Badge className={getStatusColor(processStatus)}>
-                  {processStatusLabels[processStatus]}
-                </Badge>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="new-status">Nuevo Estado</Label>
-              <Select
-                value={processStatus}
-                onValueChange={(value: ProcessStatus) => {
-                  if (canChangeStatus(process.status, value)) {
-                    setProcessStatus(value)
-                  }
-                }}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="creado">Creado</SelectItem>
-                  <SelectItem value="iniciado">Iniciado</SelectItem>
-                  <SelectItem value="en_progreso">En Progreso</SelectItem>
-                  <SelectItem value="congelado">Congelado</SelectItem>
-                  <SelectItem value="cancelado">Cancelado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {(processStatus === "cancelado" || processStatus === "congelado") && (
-            <div className="space-y-2">
-              <Label htmlFor="status-reason">
-                {processStatus === "cancelado" ? "Motivo de Cancelación" : "Motivo de Congelamiento"}
-              </Label>
-              <Textarea
-                id="status-reason"
-                value={statusChangeReason}
-                onChange={(e) => setStatusChangeReason(e.target.value)}
-                placeholder={
-                  processStatus === "cancelado" 
-                    ? "Describe el motivo por el cual se cancela el proceso..."
-                    : "Describe el motivo por el cual se congela el proceso..."
-                }
-                rows={3}
-                className="resize-none"
-              />
-            </div>
-          )}
-
-          {processStatus !== process.status && (
-            <div className="flex gap-2 pt-2">
-              <Button 
-                onClick={() => handleStatusChange(processStatus)}
-                variant={processStatus === "cancelado" ? "destructive" : "default"}
-                className={
-                  processStatus === "cancelado" 
-                    ? "bg-red-600 hover:bg-red-700" 
-                    : processStatus === "congelado"
-                    ? "bg-orange-600 hover:bg-orange-700"
-                    : ""
-                }
-              >
-                {processStatus === "cancelado" ? "Cancelar Proceso" : 
-                 processStatus === "congelado" ? "Congelar Proceso" : 
-                 "Actualizar Estado"}
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setProcessStatus(process.status)
-                  setStatusChangeReason("")
-                }}
-              >
-                Cancelar
-              </Button>
-            </div>
-          )}
-
-          {/* Status Information */}
-          <div className="mt-4 p-3 bg-muted rounded-lg">
-            <h4 className="font-medium text-sm mb-2">Información sobre Estados:</h4>
-            <ul className="text-xs text-muted-foreground space-y-1">
-              <li><strong>Congelado:</strong> Pausa temporal del proceso. Se puede reactivar más tarde.</li>
-              <li><strong>Cancelado:</strong> Termina definitivamente el proceso. Requiere motivo.</li>
-              <li><strong>En Progreso:</strong> El proceso está activo y en desarrollo.</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Formulario de Datos del Candidato - Solo para procesos psicolaborales */}
       {isEvaluationProcess && candidateWithCV && (
@@ -1031,44 +930,44 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
             <div className="space-y-4">
               <h4 className="font-medium text-lg">Datos Personales</h4>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <Label htmlFor="name">Nombre Completo <span className="text-red-500">*</span></Label>
-                <Input
-                  id="name"
-                  value={personalData.name}
-                  onChange={(e) => setPersonalData({ ...personalData, name: e.target.value })}
-                  placeholder="Ingrese nombre completo"
-                />
-              </div>
-              <div className="space-y-2">
+                  <Input
+                    id="name"
+                    value={personalData.name}
+                    onChange={(e) => setPersonalData({ ...personalData, name: e.target.value })}
+                    placeholder="Ingrese nombre completo"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="rut">RUT <span className="text-red-500">*</span></Label>
-                <Input
-                  id="rut"
-                  value={personalData.rut}
-                  onChange={(e) => setPersonalData({ ...personalData, rut: e.target.value })}
-                  placeholder="12.345.678-9"
-                />
-              </div>
-              <div className="space-y-2">
+                  <Input
+                    id="rut"
+                    value={personalData.rut}
+                    onChange={(e) => setPersonalData({ ...personalData, rut: e.target.value })}
+                    placeholder="12.345.678-9"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={personalData.email}
-                  onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
-                  placeholder="correo@ejemplo.com"
-                />
-              </div>
-              <div className="space-y-2">
+                  <Input
+                    id="email"
+                    type="email"
+                    value={personalData.email}
+                    onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
+                    placeholder="correo@ejemplo.com"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="phone">Teléfono <span className="text-red-500">*</span></Label>
-                <Input
-                  id="phone"
-                  value={personalData.phone}
-                  onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
-                  placeholder="+56 9 1234 5678"
-                />
-              </div>
+                  <Input
+                    id="phone"
+                    value={personalData.phone}
+                    onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
+                    placeholder="+56 9 1234 5678"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="birth_date">Fecha de Nacimiento <span className="text-red-500">*</span></Label>
                   <DatePicker
@@ -1133,14 +1032,14 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                   <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad</Label>
                 </div>
-            </div>
+              </div>
 
 
               {/* Información adicional del candidato (editable) */}
               <div className="border-t pt-4">
                 <h4 className="font-medium text-lg mb-4">Información Adicional</h4>
                 <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+                  <div className="space-y-2">
                     <Label htmlFor="region">Región</Label>
                     <Select
                       value={personalData.region}
@@ -1224,7 +1123,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               {/* Experiencia Laboral */}
               <div className="border-t pt-4">
                 <h4 className="font-medium text-lg mb-4">Experiencia Laboral</h4>
-                
+
                 {/* Formulario para agregar experiencia */}
                 <div className="space-y-4 p-4 bg-muted rounded-lg">
                   <h5 className="font-medium">Agregar Experiencia</h5>
@@ -1305,7 +1204,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   </div>
                   <div className="space-y-2">
                     <Label>Descripción de Funciones</Label>
-              <Textarea
+                    <Textarea
                       value={newWorkExperience.description}
                       onChange={(e) => setNewWorkExperience({ ...newWorkExperience, description: e.target.value })}
                       placeholder="Principales responsabilidades y logros"
@@ -1347,7 +1246,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               {/* Formación Académica */}
               <div className="border-t pt-4">
                 <h4 className="font-medium text-lg mb-4">Formación Académica</h4>
-                
+
                 {/* Formulario para agregar formación */}
                 <div className="space-y-4 p-4 bg-muted rounded-lg">
                   <h5 className="font-medium">Agregar Formación</h5>
@@ -1418,8 +1317,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       value={newEducation.observations}
                       onChange={(e) => setNewEducation({ ...newEducation, observations: e.target.value })}
                       placeholder="Observaciones adicionales"
-                rows={2}
-              />
+                      rows={2}
+                    />
                   </div>
                   <Button
                     onClick={handleAddEducation}
@@ -1452,10 +1351,10 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     ))}
                   </div>
                 )}
-            </div>
+              </div>
 
-            <div className="flex justify-end pt-4">
-                <Button 
+              <div className="flex justify-end pt-4">
+                <Button
                   onClick={handlePersonalDataSubmit}
                   disabled={savingCandidate}
                 >

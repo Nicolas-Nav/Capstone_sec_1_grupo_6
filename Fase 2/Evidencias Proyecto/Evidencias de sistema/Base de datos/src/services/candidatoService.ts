@@ -10,7 +10,8 @@ import {
     Institucion,
     Comuna,
     Nacionalidad,
-    Rubro
+    Rubro,
+    Postulacion
 } from '@/models';
 
 /**
@@ -61,12 +62,21 @@ export class CandidatoService {
                 {
                     model: Profesion,
                     as: 'profesiones',
-                    through: { attributes: [] }
+                    through: { 
+                        attributes: ['fecha_obtencion', 'id_institucion']
+                    }
                 },
                 {
                     model: PostgradoCapacitacion,
                     as: 'postgradosCapacitaciones',
-                    through: { attributes: [] }
+                    through: { 
+                        attributes: ['fecha_obtencion', 'id_institucion']
+                    }
+                },
+                {
+                    model: Postulacion,
+                    as: 'postulaciones',
+                    attributes: ['id_postulacion', 'valoracion', 'motivacion', 'expectativa_renta', 'disponibilidad_postulacion', 'comentario_no_presentado', 'id_estado_candidato']
                 }
             ],
             order: [['id_candidato', 'DESC']]
@@ -103,13 +113,22 @@ export class CandidatoService {
                 {
                     model: Profesion,
                     as: 'profesiones',
-                    through: { attributes: [] }
+                    through: { 
+                        attributes: ['fecha_obtencion', 'id_institucion']
+                    }
                 },
                 {
-    model: PostgradoCapacitacion,
-    as: 'postgradosCapacitaciones',
-    through: { attributes: [] }
-}
+                    model: PostgradoCapacitacion,
+                    as: 'postgradosCapacitaciones',
+                    through: { 
+                        attributes: ['fecha_obtencion', 'id_institucion']
+                    }
+                },
+                {
+                    model: Postulacion,
+                    as: 'postulaciones',
+                    attributes: ['id_postulacion', 'valoracion', 'motivacion', 'expectativa_renta', 'disponibilidad_postulacion', 'comentario_no_presentado', 'id_estado_candidato']
+                }
             ]
         });
 
@@ -190,6 +209,7 @@ export class CandidatoService {
         english_level?: string;
         software_tools?: string;
         has_disability_credential?: boolean;
+        licencia?: boolean;
         work_experience?: any[];
         education?: any[];
     }, transaction?: Transaction) {
@@ -214,6 +234,7 @@ export class CandidatoService {
                 english_level,
                 software_tools,
                 has_disability_credential,
+                licencia,
                 work_experience = [],
                 education = []
             } = data;
@@ -287,6 +308,7 @@ export class CandidatoService {
                 nivel_ingles: english_level,
                 software_herramientas: software_tools,
                 discapacidad: has_disability_credential || false,
+                licencia: licencia || false,
                 id_comuna: idComuna,
                 id_nacionalidad: idNacionalidad,
                 id_rubro: idRubro
@@ -349,12 +371,16 @@ export class CandidatoService {
                     {
                         model: Profesion,
                         as: 'profesiones',
-                        through: { attributes: [] }
+                        through: { 
+                            attributes: ['fecha_obtencion', 'id_institucion']
+                        }
                     },
                     {
                         model: PostgradoCapacitacion,
                         as: 'postgradosCapacitaciones',
-                        through: { attributes: [] }
+                        through: { 
+                            attributes: ['fecha_obtencion', 'id_institucion']
+                        }
                     }
                 ]
             });
@@ -398,6 +424,19 @@ export class CandidatoService {
         english_level?: string;
         software_tools?: string;
         has_disability_credential?: boolean;
+        licencia?: boolean;
+        work_experience?: Array<{
+            company: string;
+            position: string;
+            start_date: string;
+            end_date: string;
+            description: string;
+        }>;
+        education?: Array<{
+            title: string;
+            institution: string;
+            completion_date: string;
+        }>;
     }) {
         const transaction: Transaction = await sequelize.transaction();
 
@@ -422,6 +461,7 @@ export class CandidatoService {
             if (data.english_level !== undefined) updateData.nivel_ingles = data.english_level;
             if (data.software_tools !== undefined) updateData.software_herramientas = data.software_tools;
             if (data.has_disability_credential !== undefined) updateData.discapacidad = data.has_disability_credential;
+            if (data.licencia !== undefined) updateData.licencia = data.licencia;
 
             if (data.birth_date) {
                 const fechaNacimiento = new Date(data.birth_date);
@@ -457,6 +497,48 @@ export class CandidatoService {
             }
 
             await candidato.update(updateData, { transaction });
+
+            // Actualizar educación si se proporciona
+            if (data.education && data.education.length > 0) {
+                // Eliminar todas las relaciones de educación existentes
+                await CandidatoPostgradoCapacitacion.destroy({
+                    where: { id_candidato: id },
+                    transaction
+                });
+
+                // Crear nuevas relaciones de educación
+                for (const edu of data.education) {
+                    if (edu.title && edu.institution) {
+                        // Buscar o crear el postgrado/capacitación
+                        let postgrado = await PostgradoCapacitacion.findOne({
+                            where: { nombre_postgradocapacitacion: edu.title.trim() }
+                        });
+
+                        if (!postgrado) {
+                            postgrado = await PostgradoCapacitacion.create({
+                                nombre_postgradocapacitacion: edu.title.trim()
+                            }, { transaction });
+                        }
+
+                        // Buscar la institución
+                        let institucion = null;
+                        if (edu.institution) {
+                            institucion = await Institucion.findOne({
+                                where: { nombre_institucion: edu.institution.trim() }
+                            });
+                        }
+
+                        // Crear la relación
+                        await CandidatoPostgradoCapacitacion.create({
+                            id_candidato: id,
+                            id_postgradocapacitacion: postgrado.id_postgradocapacitacion,
+                            fecha_obtencion: edu.completion_date ? new Date(edu.completion_date) : undefined,
+                            id_institucion: institucion ? institucion.id_institucion : undefined
+                        }, { transaction });
+                    }
+                }
+            }
+
             await transaction.commit();
 
             // Obtener el candidato actualizado con todas las relaciones
@@ -484,12 +566,16 @@ export class CandidatoService {
                     {
                         model: Profesion,
                         as: 'profesiones',
-                        through: { attributes: [] }
+                        through: { 
+                            attributes: ['fecha_obtencion', 'id_institucion']
+                        }
                     },
                     {
                         model: PostgradoCapacitacion,
                         as: 'postgradosCapacitaciones',
-                        through: { attributes: [] }
+                        through: { 
+                            attributes: ['fecha_obtencion', 'id_institucion']
+                        }
                     }
                 ]
             });
@@ -723,24 +809,32 @@ export class CandidatoService {
             // Buscar o crear institución (por defecto "Sin Institución")
             const nombreInst = nombreInstitucion && nombreInstitucion.trim() ? nombreInstitucion.trim() : 'Sin Institución';
             let institucion = await Institucion.findOne({
-                where: { nombre_institucion: nombreInst }
+                where: { nombre_institucion: nombreInst },
+                transaction: useTransaction
             });
 
             if (!institucion) {
+                console.log('🎓 Creando nueva institución:', nombreInst);
                 institucion = await Institucion.create({
                     nombre_institucion: nombreInst
                 }, { transaction: useTransaction });
+            } else {
+                console.log('🎓 Institución encontrada:', institucion.nombre_institucion);
             }
 
             // Buscar o crear profesión
             let profesion = await Profesion.findOne({
-                where: { nombre_profesion: nombreProfesion }
+                where: { nombre_profesion: nombreProfesion },
+                transaction: useTransaction
             });
 
             if (!profesion) {
+                console.log('🎓 Creando nueva profesión:', nombreProfesion);
                 profesion = await Profesion.create({
                     nombre_profesion: nombreProfesion
                 }, { transaction: useTransaction });
+            } else {
+                console.log('🎓 Profesión encontrada:', profesion.nombre_profesion);
             }
 
             // Verificar si ya existe la relación
@@ -748,7 +842,8 @@ export class CandidatoService {
                 where: {
                     id_candidato: idCandidato,
                     id_profesion: profesion.id_profesion
-                }
+                },
+                transaction: useTransaction
             });
 
             if (!relacionExistente) {
@@ -812,10 +907,12 @@ export class CandidatoService {
                 id: edu.id_postgradocapacitacion.toString(),
                 type: 'postgrado',
                 title: edu.nombre_postgradocapacitacion,
+                institution: '', // Se puede obtener por separado si es necesario
                 start_date: '',
-                completion_date: '',
+                completion_date: edu.CandidatoPostgradoCapacitacion?.fecha_obtencion?.toISOString().split('T')[0] || '',
                 observations: ''
-            })) || []
+            })) || [],
+            consultant_rating: candidato.postulaciones?.[0]?.valoracion || 3
         };
     }
 

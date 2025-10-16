@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import type { Process } from "@/lib/types"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
@@ -40,6 +40,11 @@ export function useSolicitudes() {
   
   // Estado para almacenar todos los tipos de servicio disponibles
   const [allServiceTypes, setAllServiceTypes] = useState<string[]>([])
+
+  // Referencias para rastrear valores anteriores de filtros
+  const prevSearchTerm = useRef(searchTerm)
+  const prevStatusFilter = useRef(statusFilter)
+  const prevServiceFilter = useRef(serviceFilter)
 
   // Función para obtener solicitudes con paginación y filtros
   const fetchSolicitudes = async () => {
@@ -153,11 +158,21 @@ export function useSolicitudes() {
 
   // Efecto para recargar solicitudes cuando cambien los filtros o paginación
   useEffect(() => {
-    // Reset a la página 1 cuando cambie el término de búsqueda
-    if (searchTerm !== "" && currentPage !== 1) {
+    // Detectar si cambiaron los filtros (no la paginación)
+    const searchChanged = prevSearchTerm.current !== searchTerm
+    const statusChanged = prevStatusFilter.current !== statusFilter
+    const serviceChanged = prevServiceFilter.current !== serviceFilter
+    
+    // Si cambiaron los filtros, resetear a página 1
+    if ((searchChanged || statusChanged || serviceChanged) && currentPage !== 1) {
       setCurrentPage(1)
       return
     }
+    
+    // Actualizar las referencias después de verificar cambios
+    prevSearchTerm.current = searchTerm
+    prevStatusFilter.current = statusFilter
+    prevServiceFilter.current = serviceFilter
     
     // Debounce para búsqueda
     const timeoutId = setTimeout(() => {

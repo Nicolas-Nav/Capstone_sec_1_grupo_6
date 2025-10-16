@@ -20,7 +20,8 @@ const getStatusColor = (status: string) => {
     en_progreso: "bg-purple-100 text-purple-800",
     cerrado: "bg-green-100 text-green-800",
     congelado: "bg-gray-100 text-gray-800",
-    cancelado: "bg-red-100 text-red-800"
+    cancelado: "bg-red-100 text-red-800",
+    cierre_extraordinario: "bg-orange-100 text-orange-800"
   }
   return colors[status] || "bg-gray-100 text-gray-800"
 }
@@ -38,7 +39,8 @@ const processStatusLabels: Record<string, string> = {
   en_progreso: "En Progreso",
   cerrado: "Cerrado",
   congelado: "Congelado",
-  cancelado: "Cancelado"
+  cancelado: "Cancelado",
+  cierre_extraordinario: "Cierre Extraordinario"
 }
 
 export default function ConsultorPage() {
@@ -115,7 +117,8 @@ export default function ConsultorPage() {
       (statusFilter === "en_progreso" && process.estado_solicitud === "En Progreso") ||
       (statusFilter === "cerrado" && process.estado_solicitud === "Cerrado") ||
       (statusFilter === "congelado" && process.estado_solicitud === "Congelado") ||
-      (statusFilter === "cancelado" && process.estado_solicitud === "Cancelado")
+      (statusFilter === "cancelado" && process.estado_solicitud === "Cancelado") ||
+      (statusFilter === "cierre_extraordinario" && process.estado_solicitud === "Cierre Extraordinario")
 
     return matchesSearch && matchesStatus
   })
@@ -123,7 +126,9 @@ export default function ConsultorPage() {
   const pendingProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Creado" || p.status === "creado")
   const activeProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "En Progreso" || p.status === "en_progreso")
   const completedProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cerrado" || p.status === "cerrado")
+  const frozenProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Congelado" || p.status === "congelado")
   const cancelledProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cancelado" || p.status === "cancelado")
+  const extraordinaryClosureProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cierre Extraordinario" || p.status === "cierre_extraordinario")
   
 
   const handleStartProcess = async (processId: string) => {
@@ -158,7 +163,7 @@ export default function ConsultorPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Asignados</CardTitle>
@@ -197,11 +202,29 @@ export default function ConsultorPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Congelados</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-600">{frozenProcesses.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Cancelados</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{cancelledProcesses.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cierre Extraordinario</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{extraordinaryClosureProcesses.length}</div>
           </CardContent>
         </Card>
       </div>
@@ -235,6 +258,7 @@ export default function ConsultorPage() {
                 <SelectItem value="cerrado">Cerrado</SelectItem>
                 <SelectItem value="congelado">Congelado</SelectItem>
                 <SelectItem value="cancelado">Cancelado</SelectItem>
+                <SelectItem value="cierre_extraordinario">Cierre Extraordinario</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -422,6 +446,66 @@ export default function ConsultorPage() {
         </Card>
       )}
 
+      {frozenProcesses.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-gray-600" />
+              Procesos Congelados
+            </CardTitle>
+            <CardDescription>Procesos que han sido pausados temporalmente</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cargo</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Tipo de Servicio</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Fecha Creación</TableHead>
+                  <TableHead>Fecha Congelamiento</TableHead>
+                  <TableHead>Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {frozenProcesses.map((process) => (
+                  <TableRow key={process.id}>
+                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Building2 className="h-3 w-3" />
+                        {process.cliente}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(process.status)}>
+                        {processStatusLabels[process.status] || process.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(process.fecha_creacion).toLocaleDateString()}</TableCell>
+                    <TableCell>{process.completed_at ? new Date(process.completed_at).toLocaleDateString() : "-"}</TableCell>
+                    <TableCell>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/consultor/proceso/${process.id}`}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver Detalle
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       {cancelledProcesses.length > 0 && (
         <Card>
           <CardHeader>
@@ -446,6 +530,66 @@ export default function ConsultorPage() {
               </TableHeader>
               <TableBody>
                 {cancelledProcesses.map((process) => (
+                  <TableRow key={process.id}>
+                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Building2 className="h-3 w-3" />
+                        {process.cliente}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(process.status)}>
+                        {processStatusLabels[process.status] || process.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(process.fecha_creacion).toLocaleDateString()}</TableCell>
+                    <TableCell>{process.completed_at ? new Date(process.completed_at).toLocaleDateString() : "-"}</TableCell>
+                    <TableCell>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/consultor/proceso/${process.id}`}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver Detalle
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {extraordinaryClosureProcesses.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
+              Procesos con Cierre Extraordinario
+            </CardTitle>
+            <CardDescription>Procesos que han sido cerrados de manera extraordinaria</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cargo</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Tipo de Servicio</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Fecha Creación</TableHead>
+                  <TableHead>Fecha Cierre</TableHead>
+                  <TableHead>Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {extraordinaryClosureProcesses.map((process) => (
                   <TableRow key={process.id}>
                     <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>

@@ -1,5 +1,6 @@
 import { Transaction } from 'sequelize';
 import sequelize from '@/config/database';
+import { Logger } from '@/utils/logger';
 import {
     Postulacion,
     Candidato,
@@ -10,6 +11,7 @@ import {
     Profesion,
     PostgradoCapacitacion,
     CandidatoPostgradoCapacitacion,
+    CandidatoProfesion,
     Institucion,
     EstadoClientePostulacion,
     EstadoCliente,
@@ -66,12 +68,16 @@ export class PostulacionService {
                         {
                             model: Profesion,
                             as: 'profesiones',
-                            through: { attributes: [] }
+                            through: { 
+                                attributes: ['fecha_obtencion', 'id_institucion']
+                            }
                         },
                         {
                             model: PostgradoCapacitacion,
                             as: 'postgradosCapacitaciones',
-                            through: { attributes: [] }
+                            through: { 
+                                attributes: ['fecha_obtencion', 'id_institucion']
+                            }
                         }
                     ]
                 },
@@ -97,7 +103,15 @@ export class PostulacionService {
             order: [['id_postulacion', 'DESC']]
         });
 
-        return postulaciones.map(postulacion => this.transformPostulacion(postulacion));
+        const transformedPostulaciones = postulaciones.map(postulacion => this.transformPostulacion(postulacion));
+        
+        // Llenar nombres de instituciones para cada postulación
+        for (let i = 0; i < transformedPostulaciones.length; i++) {
+            const candidato = postulaciones[i].get('candidato') as any;
+            await this.fillInstitutionNamesForCandidato(transformedPostulaciones[i], candidato);
+        }
+        
+        return transformedPostulaciones;
     }
 
     /**
@@ -369,6 +383,10 @@ export class PostulacionService {
         disponibilidad_postulacion?: string;
         comentario_no_presentado?: string;
     }) {
+        console.log('🔍 === SERVICIO updateValoracion ===');
+        console.log('🔍 ID:', id);
+        console.log('🔍 Data recibida:', JSON.stringify(data, null, 2));
+        
         // Validar valoración si se proporciona
         if (data.valoracion !== undefined && (data.valoracion < 1 || data.valoracion > 5)) {
             throw new Error('La valoración debe estar entre 1 y 5');
@@ -379,6 +397,9 @@ export class PostulacionService {
             throw new Error('Postulación no encontrada');
         }
 
+        console.log('🔍 Postulación encontrada:', postulacion.id_postulacion);
+        console.log('🔍 Valoración actual:', postulacion.valoracion);
+
         // Actualizar solo los campos proporcionados
         const updateData: any = {};
         if (data.valoracion !== undefined) updateData.valoracion = data.valoracion;
@@ -387,7 +408,12 @@ export class PostulacionService {
         if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
         if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
 
+        console.log('🔍 Datos a actualizar:', updateData);
+
         await postulacion.update(updateData);
+
+        console.log('🔍 Postulación actualizada exitosamente');
+        console.log('🔍 Nueva valoración:', postulacion.valoracion);
 
         return { id, ...updateData };
     }
@@ -491,6 +517,16 @@ export class PostulacionService {
         const candidato = postulacion.get('candidato') as any;
         const estado = postulacion.get('estadoCandidato') as any;
         const portal = postulacion.get('portalPostulacion') as any;
+        const estadosCliente = postulacion.get('estadosCliente') as any[];
+
+        // Obtener el último estado de cliente (más reciente)
+        const ultimoEstadoCliente = estadosCliente && estadosCliente.length > 0 
+            ? estadosCliente.sort((a: any, b: any) => 
+                new Date(b.fecha_cambio_estado_cliente).getTime() - new Date(a.fecha_cambio_estado_cliente).getTime()
+              )[0]
+            : null;
+
+        const estadoClienteNombre = ultimoEstadoCliente?.estadoCliente?.nombre_estado?.toLowerCase();
 
         return {
             id: candidato.id_candidato.toString(),
@@ -516,10 +552,18 @@ export class PostulacionService {
             nacionalidad: candidato.nacionalidad?.nombre_nacionalidad || '',
             rubro: candidato.rubro?.nombre_rubro || '',
             profession: candidato.profesiones?.[0]?.nombre_profesion || '',
+            profession_institution: '', // Se llenará después con consulta separada
+            profession_date: candidato.profesiones?.[0]?.CandidatoProfesion?.fecha_obtencion ? new Date(candidato.profesiones[0].CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0] : '',
             consultant_comment: postulacion.comentario_no_presentado,
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),
             rejection_reason: postulacion.comentario_rech_obs_cliente,
+            // Campos del módulo 3 - Presentación de candidatos
+            presentation_date: postulacion.fecha_envio ? (postulacion.fecha_envio instanceof Date ? postulacion.fecha_envio.toISOString() : new Date(postulacion.fecha_envio).toISOString()) : undefined,
+            client_response: estadoClienteNombre || undefined,
+            client_feedback_date: postulacion.fecha_feedback_cliente ? (postulacion.fecha_feedback_cliente instanceof Date ? postulacion.fecha_feedback_cliente.toISOString() : new Date(postulacion.fecha_feedback_cliente).toISOString()) : undefined,
+            client_comments: postulacion.comentario_rech_obs_cliente || undefined,
             has_disability_credential: candidato.discapacidad,
+            licencia: candidato.licencia,
             work_experience: candidato.experiencias?.map((exp: any) => ({
                 id: exp.id_experiencia.toString(),
                 company: exp.empresa,
@@ -534,10 +578,11 @@ export class PostulacionService {
             education: candidato.postgradosCapacitaciones?.map((edu: any) => ({
                 id: edu.id_postgradocapacitacion.toString(),
                 type: 'postgrado',
-                institution: edu.institucion?.nombre_institucion || '',
+                institution: '', // Se llenará después con consulta separada
                 title: edu.nombre_postgradocapacitacion,
-                start_date: '',
-                completion_date: '',
+                start_date: '', // No hay fecha de inicio en el modelo actual
+                completion_date: (edu.CandidatoPostgradoCapacitaci || edu.CandidatoPostgradoCapacitacion)?.fecha_obtencion ? 
+                    new Date((edu.CandidatoPostgradoCapacitaci || edu.CandidatoPostgradoCapacitacion).fecha_obtencion).toISOString().split('T')[0] : '',
                 observations: ''
             })) || [],
             portal_responses: {
@@ -551,6 +596,47 @@ export class PostulacionService {
                 software_tools: candidato.software_herramientas
             }
         };
+    }
+
+    /**
+     * Llenar nombres de instituciones en los datos transformados
+     */
+    private static async fillInstitutionNamesForCandidato(transformedData: any, candidato: any): Promise<void> {
+        // Llenar institución de profesión
+        if (candidato.profesiones?.[0]?.CandidatoProfesion?.id_institucion) {
+            const institucionProfesion = await Institucion.findByPk(candidato.profesiones[0].CandidatoProfesion.id_institucion);
+            if (institucionProfesion) {
+                transformedData.profession_institution = institucionProfesion.nombre_institucion;
+            }
+        }
+
+        // Llenar instituciones de educación
+        if (candidato.postgradosCapacitaciones && transformedData.education) {
+            for (let i = 0; i < candidato.postgradosCapacitaciones.length; i++) {
+                const edu = candidato.postgradosCapacitaciones[i];
+                
+                // Hacer consulta separada para obtener datos de la tabla intermedia
+                const candidatoPostgrado = await CandidatoPostgradoCapacitacion.findOne({
+                    where: {
+                        id_candidato: candidato.id_candidato,
+                        id_postgradocapacitacion: edu.id_postgradocapacitacion
+                    }
+                });
+                
+                if (candidatoPostgrado?.id_institucion && transformedData.education[i]) {
+                    const institucionEducacion = await Institucion.findByPk(candidatoPostgrado.id_institucion);
+                    
+                    if (institucionEducacion) {
+                        transformedData.education[i].institution = institucionEducacion.nombre_institucion;
+                    }
+                    
+                    // También llenar la fecha de obtención
+                    if (candidatoPostgrado.fecha_obtencion) {
+                        transformedData.education[i].completion_date = new Date(candidatoPostgrado.fecha_obtencion).toISOString().split('T')[0];
+                    }
+                }
+            }
+        }
     }
 
     /**

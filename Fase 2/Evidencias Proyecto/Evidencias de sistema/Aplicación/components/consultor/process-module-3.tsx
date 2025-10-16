@@ -10,35 +10,106 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { getCandidatesByProcess, candidateStatusLabels } from "@/lib/mock-data"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { getCandidatesByProcess, candidateStatusLabels, processStatusLabels } from "@/lib/mock-data"
+import { estadoClienteService, solicitudService } from "@/lib/api"
 import { getStatusColor, formatCurrency } from "@/lib/utils"
-import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar } from "lucide-react"
-import type { Process, Candidate } from "@/lib/types"
+import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle } from "lucide-react"
+import type { Process, Candidate, ProcessStatus } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast"
 
 interface ProcessModule3Props {
   process: Process
 }
 
 export function ProcessModule3({ process }: ProcessModule3Props) {
+  const { toast } = useToast()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [estadosCliente, setEstadosCliente] = useState<any[]>([])
+  const [savingState, setSavingState] = useState<Record<string, boolean>>({})
+  
+  // Estado para el modal de actualización
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [updatingCandidate, setUpdatingCandidate] = useState<Candidate | null>(null)
+  const [updateFormData, setUpdateFormData] = useState({
+    client_response: "pendiente" as "pendiente" | "aprobado" | "observado" | "rechazado",
+    presentation_date: "",
+    client_feedback_date: "",
+    client_comments: ""
+  })
+
+  // Estados para finalizar solicitud (solo Long List)
+  const [processStatus, setProcessStatus] = useState<ProcessStatus>((process.estado_solicitud || process.status) as ProcessStatus)
+  const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
+  const [loadingEstados, setLoadingEstados] = useState(false)
+  const [showStatusChange, setShowStatusChange] = useState(false)
+  const [selectedEstado, setSelectedEstado] = useState<string>("")
+  const [statusChangeReason, setStatusChangeReason] = useState("")
 
   // Cargar datos reales desde el backend
   useEffect(() => {
     const loadData = async () => {
       try {
         setIsLoading(true)
+        
+        // Cargar candidatos
         const allCandidates = await getCandidatesByProcess(process.id)
         const filteredCandidates = allCandidates.filter((c: Candidate) => c.presentation_status === "presentado")
         setCandidates(filteredCandidates)
+        
+        // Cargar estados de cliente
+        const estadosResponse = await estadoClienteService.getAll()
+        if (estadosResponse.success && estadosResponse.data) {
+          setEstadosCliente(estadosResponse.data)
+        }
       } catch (error) {
-        console.error('Error al cargar candidatos:', error)
+        console.error('Error al cargar datos:', error)
       } finally {
         setIsLoading(false)
       }
     }
     loadData()
   }, [process.id])
+
+  // Cargar estados de solicitud disponibles para finalización (solo Long List)
+  useEffect(() => {
+    const loadEstados = async () => {
+      // Solo cargar estados si es Long List
+      const serviceType = (process.service_type as string)?.toLowerCase() || ""
+      const isLongList = serviceType === "long_list" || serviceType === "ll"
+      
+      if (!isLongList) {
+        return
+      }
+
+      try {
+        setLoadingEstados(true)
+        const response = await solicitudService.getEstadosSolicitud()
+        if (response.success && response.data) {
+          // Filtrar solo estados de cierre: Cerrado, Congelado, Cancelado, Cierre Extraordinario
+          const estadosCierre = response.data.filter((estado: any) => {
+            const nombre = estado.nombre?.toLowerCase() || estado.nombre_estado_solicitud?.toLowerCase() || ""
+            return nombre === "cerrado" || 
+                   nombre === "congelado" || 
+                   nombre === "cancelado" || 
+                   nombre === "cierre extraordinario"
+          })
+          setEstadosDisponibles(estadosCierre)
+        }
+      } catch (error) {
+        console.error("Error al cargar estados de solicitud:", error)
+        toast({
+          title: "Error",
+          description: "Error al cargar estados disponibles",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingEstados(false)
+      }
+    }
+    loadEstados()
+  }, [process.service_type])
 
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
@@ -56,106 +127,130 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     return Object.keys(errors).length === 0
   }
 
-  const handlePresentationDateChange = (candidateId: string, date: string) => {
-    const updatedCandidates = candidates.map((candidate) =>
-      candidate.id === candidateId ? { ...candidate, presentation_date: date } : candidate,
-    )
-    setCandidates(updatedCandidates)
+  const handleOpenUpdateModal = (candidate: Candidate) => {
+    setUpdatingCandidate(candidate)
+    setUpdateFormData({
+      client_response: candidate.client_response || "pendiente",
+      presentation_date: candidate.presentation_date?.split("T")[0] || "",
+      client_feedback_date: candidate.client_feedback_date?.split("T")[0] || "",
+      client_comments: candidate.client_comments || ""
+    })
+    setShowUpdateModal(true)
   }
 
-  const handleClientFeedbackDateChange = (candidateId: string, date: string) => {
-    const updatedCandidates = candidates.map((candidate) =>
-      candidate.id === candidateId ? { ...candidate, client_feedback_date: date } : candidate,
-    )
-    setCandidates(updatedCandidates)
+  const handleCloseUpdateModal = () => {
+    setShowUpdateModal(false)
+    setUpdatingCandidate(null)
+    setUpdateFormData({
+      client_response: "pendiente",
+      presentation_date: "",
+      client_feedback_date: "",
+      client_comments: ""
+    })
   }
 
-  const handleClientResponseChange = (
-    candidateId: string,
-    response: "pendiente" | "aprobado" | "observado" | "rechazado",
-  ) => {
-    const candidate = candidates.find((c) => c.id === candidateId)
-    if (!candidate) return
+  const handleUpdateFormChange = (field: string, value: string) => {
+    setUpdateFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleUpdateCandidateState = async () => {
+    if (!updatingCandidate) return
 
     // Validar comentarios si es necesario
-    const newValidationErrors = { ...validationErrors }
-    if ((response === "observado" || response === "rechazado") && !candidate.client_comments?.trim()) {
-      newValidationErrors[candidateId] = `Los comentarios son obligatorios para el estado "${response}"`
-    } else {
-      // Limpiar error de validación si hay comentarios
-      delete newValidationErrors[candidateId]
-    }
-    setValidationErrors(newValidationErrors)
-
-    // Expandir automáticamente el candidato si se selecciona observado o rechazado
-    if (response === "observado" || response === "rechazado") {
-      setExpandedCandidate(candidateId)
+    if ((updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && !updateFormData.client_comments?.trim()) {
+      toast({
+        title: "Validación requerida",
+        description: `Los comentarios son obligatorios para el estado "${updateFormData.client_response}"`,
+        variant: "destructive",
+      })
+      return
     }
 
-    const updatedCandidates = candidates.map((candidate) => {
-      if (candidate.id === candidateId) {
-        let newStatus = candidate.status
-        let newPresentationStatus = candidate.presentation_status
+    // Encontrar el estado de cliente correspondiente
+    const estadoCliente = estadosCliente.find(estado => 
+      estado.nombre_estado.toLowerCase() === updateFormData.client_response.toLowerCase()
+    )
 
-        if (response === "rechazado") {
-          newStatus = "rechazado"
-          newPresentationStatus = "rechazado"
-          
-          // Sincronizar con Módulo 2 usando localStorage y evento personalizado
+    if (!estadoCliente) {
+      console.error('Estado de cliente no encontrado:', updateFormData.client_response)
+      toast({
+        title: "Error",
+        description: "Estado de cliente no encontrado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSavingState(prev => ({ ...prev, [updatingCandidate.id]: true }))
+
+    try {
+      // Guardar en la base de datos
+      const responseData = await estadoClienteService.cambiarEstado(
+        parseInt((updatingCandidate as any).id_postulacion || updatingCandidate.id),
+        {
+          id_estado_cliente: estadoCliente.id_estado_cliente,
+          comentarios: updateFormData.client_comments || undefined,
+          fecha_presentacion: updateFormData.presentation_date || undefined,
+          fecha_feedback_cliente: updateFormData.client_feedback_date || undefined
+        }
+      )
+
+      if (responseData.success) {
+        console.log('Estado de cliente guardado exitosamente:', responseData.data)
+        
+        // Sincronizar con Módulo 2 si es rechazado
+        if (updateFormData.client_response === "rechazado") {
           const syncData = {
-            candidateId,
+            candidateId: updatingCandidate.id,
             status: "rechazado",
             presentation_status: "rechazado",
-            rejection_reason: candidate.client_comments || "Rechazado por el cliente",
+            rejection_reason: updateFormData.client_comments || "Rechazado por el cliente",
             timestamp: Date.now()
           }
-          localStorage.setItem(`candidate_sync_${candidateId}`, JSON.stringify(syncData))
+          localStorage.setItem(`candidate_sync_${updatingCandidate.id}`, JSON.stringify(syncData))
           
           // Disparar evento personalizado para sincronización en la misma pestaña
           window.dispatchEvent(new CustomEvent('candidateSync', { detail: syncData }))
           
-        } else if (response === "aprobado") {
-          newStatus = "aprobado"
+          console.log(
+            `[SYNC] Candidate ${updatingCandidate.name} rejected by client - status synchronized with Module 2 as "rechazado"`,
+          )
         }
 
-        return {
-          ...candidate,
-          client_response: response,
-          status: newStatus as any,
-          presentation_status: newPresentationStatus,
-        }
+        // Recargar datos desde la base de datos para reflejar los cambios reales
+        const allCandidates = await getCandidatesByProcess(process.id)
+        const filteredCandidates = allCandidates.filter((c: Candidate) => c.presentation_status === "presentado")
+        setCandidates(filteredCandidates)
+
+        // Cerrar modal
+        handleCloseUpdateModal()
+
+        // Mostrar toast de éxito
+        toast({
+          title: "¡Éxito!",
+          description: `Estado del candidato ${updatingCandidate.name} actualizado correctamente`,
+          variant: "default",
+        })
+      } else {
+        console.error('Error al guardar estado de cliente:', responseData.message)
+        toast({
+          title: "Error",
+          description: responseData.message || "No se pudo actualizar el estado del candidato",
+          variant: "destructive",
+        })
       }
-      return candidate
-    })
-    setCandidates(updatedCandidates)
-
-    if (response === "rechazado") {
-      console.log(
-        `[SYNC] Candidate ${candidate.name} rejected by client - status synchronized with Module 2 as "rechazado"`,
-      )
-    }
-  }
-
-  const handleClientCommentsChange = (candidateId: string, comments: string) => {
-    const updatedCandidates = candidates.map((candidate) => {
-      if (candidate.id === candidateId) {
-        const updatedCandidate = { ...candidate, client_comments: comments }
-
-        if (candidate.client_response === "rechazado" || candidate.client_response === "observado") {
-          updatedCandidate.rejection_reason = comments
-        }
-
-        return updatedCandidate
-      }
-      return candidate
-    })
-    setCandidates(updatedCandidates)
-
-    // Limpiar error de validación si se agregan comentarios
-    if (comments.trim()) {
-      const newValidationErrors = { ...validationErrors }
-      delete newValidationErrors[candidateId]
-      setValidationErrors(newValidationErrors)
+    } catch (error) {
+      console.error('Error al guardar estado de cliente:', error)
+      toast({
+        title: "Error",
+        description: "Ocurrió un error al actualizar el estado del candidato",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingState(prev => ({ ...prev, [updatingCandidate.id]: false }))
     }
   }
 
@@ -187,11 +282,58 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     handleMultipleCandidateDecision()
   }, [candidates.map((c) => c.client_response).join(",")])
 
+  // Función para cambiar estado de la solicitud (finalizar)
+  const handleStatusChange = async (estadoId: string) => {
+    try {
+      const response = await solicitudService.cambiarEstado(
+        parseInt(process.id), 
+        parseInt(estadoId), 
+        statusChangeReason.trim() || undefined
+      )
+
+      if (response.success) {
+        toast({
+          title: "¡Éxito!",
+          description: "Solicitud finalizada exitosamente",
+          variant: "default",
+        })
+        setShowStatusChange(false)
+        setSelectedEstado("")
+        setStatusChangeReason("")
+        // Recargar la página para reflejar el cambio
+        window.location.reload()
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al finalizar la solicitud",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error al cambiar estado:", error)
+      toast({
+        title: "Error",
+        description: "Error al finalizar la solicitud",
+        variant: "destructive",
+      })
+    }
+  }
+
   const allRejected = candidates.every((c) => c.client_response === "rechazado")
   const hasApproved = candidates.some((c) => c.client_response === "aprobado")
 
-  const canAdvanceToModule4 = process.service_type === "proceso_completo" && hasApproved
-  const processEndsHere = process.service_type === "long_list"
+  // Verificar tipo de servicio (código o nombre)
+  const serviceType = (process.service_type as string)?.toLowerCase() || ""
+  const canAdvanceToModule4 = (serviceType === "proceso_completo" || serviceType === "pc") && hasApproved
+  const processEndsHere = serviceType === "long_list" || serviceType === "ll"
+  
+  // Debug: mostrar el tipo de servicio
+  console.log("🔍 Module 3 - Service Type:", {
+    original: process.service_type,
+    normalized: serviceType,
+    processEndsHere,
+    canAdvanceToModule4
+  })
 
   // Mostrar indicador de carga
   if (isLoading) {
@@ -235,7 +377,15 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                   Los estados se han sincronizado con el Módulo 2. Necesitas agregar más candidatos.
                 </p>
               </div>
-              <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-100 bg-transparent">
+              <Button 
+                variant="outline" 
+                className="border-red-300 text-red-700 hover:bg-red-100 bg-transparent"
+                onClick={() => {
+                  const currentUrl = new URL(window.location.href)
+                  currentUrl.searchParams.set('tab', 'modulo-2')
+                  window.location.href = currentUrl.toString()
+                }}
+              >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Volver a Módulo 2
               </Button>
@@ -274,13 +424,101 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         </Card>
       )}
 
+      {/* Finalizar Solicitud - Solo para Long List */}
+      {processEndsHere && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" />
+              Finalizar Solicitud
+            </CardTitle>
+            <CardDescription>
+              Una vez que hayas finalizado la revisión de candidatos, puedes cerrar la solicitud
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <Label htmlFor="estado-select">Estado Actual: </Label>
+                <Badge className={getStatusColor(processStatus)}>
+                  {processStatusLabels[processStatus] || processStatus}
+                </Badge>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setShowStatusChange(!showStatusChange)}
+                disabled={loadingEstados}
+              >
+                {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
+              </Button>
+            </div>
+
+            {showStatusChange && (
+              <div className="mt-4 space-y-4 p-4 border rounded-lg bg-muted/50">
+                <div>
+                  <Label htmlFor="new-estado">Estado Final</Label>
+                  <Select
+                    value={selectedEstado}
+                    onValueChange={setSelectedEstado}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Selecciona un estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {estadosDisponibles.map((estado) => (
+                        <SelectItem 
+                          key={estado.id || estado.id_estado_solicitud} 
+                          value={(estado.id || estado.id_estado_solicitud).toString()}
+                        >
+                          {estado.nombre || estado.nombre_estado_solicitud}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="reason">Motivo del Cambio (Opcional)</Label>
+                  <Textarea
+                    id="reason"
+                    placeholder="Explica el motivo de finalización..."
+                    value={statusChangeReason}
+                    onChange={(e) => setStatusChangeReason(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleStatusChange(selectedEstado)}
+                    disabled={!selectedEstado}
+                  >
+                    Actualizar Estado
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowStatusChange(false)
+                      setSelectedEstado("")
+                      setStatusChangeReason("")
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Candidates Presentation Table */}
       <Card>
         <CardHeader>
           <CardTitle>Candidatos Presentados al Cliente</CardTitle>
           <CardDescription>
-            Registra las fechas de envío y respuestas del cliente. Los estados se sincronizan automáticamente con el
-            Módulo 2.
+            Visualiza las fechas de envío y respuestas del cliente. Los estados se sincronizan automáticamente con el
+            Módulo 2. Para modificar la información, usa el botón "Actualizar" de cada candidato.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -295,6 +533,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                     <TableHead>Respuesta Cliente</TableHead>
                     <TableHead>Fecha Feedback Cliente</TableHead>
                     <TableHead>Estado</TableHead>
+                    <TableHead className="w-32">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -325,47 +564,36 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <Input
-                              type="date"
-                              value={candidate.presentation_date?.split("T")[0] || ""}
-                              onChange={(e) => handlePresentationDateChange(candidate.id, e.target.value)}
-                              className="w-40"
-                            />
+                            <span className="text-sm text-muted-foreground">
+                              {candidate.presentation_date?.split("T")[0] || "No registrada"}
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
-                            <Select
-                              value={candidate.client_response || "pendiente"}
-                              onValueChange={(value: "pendiente" | "aprobado" | "observado" | "rechazado") =>
-                                handleClientResponseChange(candidate.id, value)
+                            <Badge 
+                              variant={
+                                candidate.client_response === "aprobado" ? "default" :
+                                candidate.client_response === "rechazado" ? "destructive" :
+                                candidate.client_response === "observado" ? "secondary" :
+                                "outline"
                               }
+                              className="w-fit"
                             >
-                              <SelectTrigger className={`w-32 ${validationErrors[candidate.id] ? 'border-red-500' : ''}`}>
-                                <SelectValue placeholder="Respuesta" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="pendiente">Pendiente</SelectItem>
-                                <SelectItem value="aprobado">Aprobado</SelectItem>
-                                <SelectItem value="observado">Observado</SelectItem>
-                                <SelectItem value="rechazado">Rechazado</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            {validationErrors[candidate.id] && (
-                              <p className="text-xs text-red-600">{validationErrors[candidate.id]}</p>
-                            )}
+                              {candidate.client_response === "pendiente" && "Pendiente"}
+                              {candidate.client_response === "aprobado" && "Aprobado"}
+                              {candidate.client_response === "observado" && "Observado"}
+                              {candidate.client_response === "rechazado" && "Rechazado"}
+                              {!candidate.client_response && "Pendiente"}
+                            </Badge>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <Input
-                              type="date"
-                              value={candidate.client_feedback_date?.split("T")[0] || ""}
-                              onChange={(e) => handleClientFeedbackDateChange(candidate.id, e.target.value)}
-                              className="w-40"
-                              disabled={!candidate.client_response || candidate.client_response === "pendiente"}
-                            />
+                            <span className="text-sm text-muted-foreground">
+                              {candidate.client_feedback_date?.split("T")[0] || "No registrada"}
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -373,10 +601,30 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                             {candidateStatusLabels[candidate.status as keyof typeof candidateStatusLabels]}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            onClick={() => handleOpenUpdateModal(candidate)}
+                            disabled={savingState[candidate.id]}
+                            size="sm"
+                            className="w-full"
+                          >
+                            {savingState[candidate.id] ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Guardando...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="h-4 w-4 mr-2" />
+                                Actualizar
+                              </>
+                            )}
+                          </Button>
+                        </TableCell>
                       </TableRow>
                       {expandedCandidate === candidate.id && (
                         <TableRow>
-                          <TableCell colSpan={6} className="bg-muted/30">
+                          <TableCell colSpan={7} className="bg-muted/30">
                             <Collapsible open={expandedCandidate === candidate.id}>
                               <CollapsibleContent>
                                 <div className="p-4 space-y-4">
@@ -445,19 +693,18 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                                       <Textarea
                                         id={`reason-${candidate.id}`}
                                         value={candidate.client_comments || ""}
-                                        onChange={(e) => handleClientCommentsChange(candidate.id, e.target.value)}
+                                        readOnly
                                         placeholder={
                                           candidate.client_response === "observado"
-                                            ? "Ingrese las observaciones del cliente (campo obligatorio)..."
-                                            : "Ingrese la razón del rechazo (campo obligatorio)..."
+                                            ? "No hay observaciones registradas"
+                                            : "No hay razón de rechazo registrada"
                                         }
                                         rows={3}
-                                        className={`mt-2 ${
+                                        className={`mt-2 bg-gray-50 ${
                                           candidate.client_response === "observado"
-                                            ? "border-yellow-300 focus:border-yellow-500"
-                                            : "border-red-300 focus:border-red-500"
-                                        } ${validationErrors[candidate.id] ? 'border-red-500' : ''}`}
-                                        required
+                                            ? "border-yellow-300"
+                                            : "border-red-300"
+                                        }`}
                                       />
                                       <p
                                         className={`text-xs mt-1 ${
@@ -466,6 +713,8 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                                       >
                                         💡 Esta información se sincroniza automáticamente con el Módulo 2
                                         {candidate.client_response === "rechazado" && " y actualiza el estado del candidato"}
+                                        <br />
+                                        📝 Para modificar esta información, usa el botón "Actualizar" en la tabla
                                       </p>
                                     </div>
                                   )}
@@ -482,10 +731,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                                         <Textarea
                                           id={`comments-${candidate.id}`}
                                           value={candidate.client_comments || ""}
-                                          onChange={(e) => handleClientCommentsChange(candidate.id, e.target.value)}
-                                          placeholder="Comentarios adicionales del cliente..."
+                                          readOnly
+                                          placeholder="No hay comentarios registrados"
                                           rows={2}
-                                          className="mt-2 border-blue-300 focus:border-blue-500"
+                                          className="mt-2 border-blue-300 bg-gray-50"
                                         />
                                       </div>
                                     )}
@@ -512,6 +761,121 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Actualización */}
+      <Dialog open={showUpdateModal} onOpenChange={setShowUpdateModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Actualizar Estado del Candidato</DialogTitle>
+            <DialogDescription>
+              Modifica el estado, fechas y comentarios del candidato {updatingCandidate?.name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Respuesta del Cliente */}
+            <div className="space-y-2">
+              <Label htmlFor="client_response">Respuesta del Cliente</Label>
+              <Select
+                value={updateFormData.client_response}
+                onValueChange={(value: "pendiente" | "aprobado" | "observado" | "rechazado") => 
+                  handleUpdateFormChange("client_response", value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar respuesta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="aprobado">Aprobado</SelectItem>
+                  <SelectItem value="observado">Observado</SelectItem>
+                  <SelectItem value="rechazado">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Fecha de Presentación */}
+            <div className="space-y-2">
+              <Label htmlFor="presentation_date">Fecha de Envío al Cliente</Label>
+              <Input
+                id="presentation_date"
+                type="date"
+                value={updateFormData.presentation_date}
+                onChange={(e) => handleUpdateFormChange("presentation_date", e.target.value)}
+              />
+            </div>
+
+            {/* Fecha de Feedback del Cliente */}
+            <div className="space-y-2">
+              <Label htmlFor="client_feedback_date">Fecha de Feedback del Cliente</Label>
+              <Input
+                id="client_feedback_date"
+                type="date"
+                value={updateFormData.client_feedback_date}
+                onChange={(e) => handleUpdateFormChange("client_feedback_date", e.target.value)}
+                disabled={!updateFormData.client_response || updateFormData.client_response === "pendiente"}
+              />
+            </div>
+
+            {/* Comentarios */}
+            <div className="space-y-2">
+              <Label htmlFor="client_comments">
+                Comentarios del Cliente
+                {(updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && (
+                  <span className="text-red-500 ml-1">*</span>
+                )}
+              </Label>
+              <Textarea
+                id="client_comments"
+                value={updateFormData.client_comments}
+                onChange={(e) => handleUpdateFormChange("client_comments", e.target.value)}
+                placeholder={
+                  updateFormData.client_response === "observado"
+                    ? "Ingrese las observaciones del cliente..."
+                    : updateFormData.client_response === "rechazado"
+                    ? "Ingrese la razón del rechazo..."
+                    : "Comentarios adicionales del cliente..."
+                }
+                rows={4}
+                className={
+                  updateFormData.client_response === "observado"
+                    ? "border-yellow-300 focus:border-yellow-500"
+                    : updateFormData.client_response === "rechazado"
+                    ? "border-red-300 focus:border-red-500"
+                    : ""
+                }
+              />
+              {(updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && (
+                <p className="text-xs text-muted-foreground">
+                  Los comentarios son obligatorios para este estado
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseUpdateModal}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleUpdateCandidateState}
+              disabled={savingState[updatingCandidate?.id || '']}
+            >
+              {savingState[updatingCandidate?.id || ''] ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Guardar Cambios
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

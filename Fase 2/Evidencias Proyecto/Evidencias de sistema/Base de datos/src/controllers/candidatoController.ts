@@ -89,9 +89,12 @@ export class CandidatoController {
                 nacionalidad,
                 rubro,
                 profession,
+                profession_institution,
+                profession_date,
                 english_level,
                 software_tools,
                 has_disability_credential,
+                licencia,
                 work_experience,
                 education
             } = req.body;
@@ -106,9 +109,12 @@ export class CandidatoController {
                 nacionalidad,
                 rubro,
                 profession,
+                profession_institution,
+                profession_date,
                 english_level,
                 software_tools,
                 has_disability_credential,
+                licencia,
                 work_experience,
                 education
             });
@@ -149,7 +155,10 @@ export class CandidatoController {
                 rubro,
                 english_level,
                 software_tools,
-                has_disability_credential
+                has_disability_credential,
+                licencia,
+                work_experience,
+                education
             } = req.body;
 
             const candidatoActualizado = await CandidatoService.updateCandidato(parseInt(id), {
@@ -163,7 +172,10 @@ export class CandidatoController {
                 rubro,
                 english_level,
                 software_tools,
-                has_disability_credential
+                has_disability_credential,
+                licencia,
+                work_experience,
+                education
             });
 
             Logger.info(`Candidato actualizado: ${id}`);

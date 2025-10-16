@@ -36,6 +36,20 @@ import PostgradoCapacitacion from './PostgradoCapacitacion';
 import Experiencia from './Experiencia';
 import CandidatoProfesion from './CandidatoProfesion';
 import CandidatoPostgradoCapacitacion from './CandidatoPostgradoCapacitacion';
+import ReferenciaLaboral from './ReferenciaLaboral';
+
+// Modelos de hitos y contratación
+import HitoSolicitud from './HitoSolicitud';
+import EstadoContratacion from './EstadoContratacion';
+import Contratacion from './Contratacion';
+
+// Modelos de evaluación psicolaboral
+import TestPsicolaboral from './TestPsicolaboral';
+import EvaluacionPsicolaboral from './EvaluacionPsicolaboral';
+import EvaluacionTest from './EvaluacionTest';
+
+// Modelos de auditoría
+import LogCambios from './LogCambios';
 
 // ===========================================
 // CONFIGURAR RELACIONES ENTRE MODELOS
@@ -121,6 +135,16 @@ Experiencia.belongsTo(Candidato, {
     as: 'candidato'
 });
 
+// Candidato -> ReferenciaLaboral (1:N)
+Candidato.hasMany(ReferenciaLaboral, {
+    foreignKey: 'id_candidato',
+    as: 'referenciasLaborales'
+});
+ReferenciaLaboral.belongsTo(Candidato, {
+    foreignKey: 'id_candidato',
+    as: 'candidato'
+});
+
 // Candidato -> Nacionalidad (N:1)
 Candidato.belongsTo(Nacionalidad, {
     foreignKey: 'id_nacionalidad',
@@ -164,6 +188,10 @@ EstadoSolicitudHist.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'soli
 // Solicitud -> Publicacion (1:N)
 Solicitud.hasMany(Publicacion, { foreignKey: 'id_solicitud', as: 'publicaciones' });
 Publicacion.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'solicitud' });
+
+// Solicitud -> HitoSolicitud (1:N)
+Solicitud.hasMany(HitoSolicitud, { foreignKey: 'id_solicitud', as: 'hitos' });
+HitoSolicitud.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'solicitud' });
 
 // PortalPostulacion -> Publicacion (1:N)
 PortalPostulacion.hasMany(Publicacion, { foreignKey: 'id_portal_postulacion', as: 'publicaciones' });
@@ -231,6 +259,58 @@ Postulacion.hasMany(EstadoClientePostulacion, {
 EstadoClientePostulacion.belongsTo(Postulacion, {
     foreignKey: 'id_postulacion',
     as: 'postulacion'
+});
+
+// ===========================================
+// RELACIONES DE CONTRATACIÓN
+// ===========================================
+
+// Postulacion -> Contratacion (1:1)
+Postulacion.hasOne(Contratacion, {
+    foreignKey: 'id_postulacion',
+    as: 'contratacion'
+});
+Contratacion.belongsTo(Postulacion, {
+    foreignKey: 'id_postulacion',
+    as: 'postulacion'
+});
+
+// EstadoContratacion -> Contratacion (1:N)
+EstadoContratacion.hasMany(Contratacion, {
+    foreignKey: 'id_estado_contratacion',
+    as: 'contrataciones'
+});
+Contratacion.belongsTo(EstadoContratacion, {
+    foreignKey: 'id_estado_contratacion',
+    as: 'estadoContratacion'
+});
+
+// ===========================================
+// RELACIONES DE EVALUACIÓN PSICOLABORAL
+// ===========================================
+
+// Postulacion -> EvaluacionPsicolaboral (1:N)
+Postulacion.hasMany(EvaluacionPsicolaboral, {
+    foreignKey: 'id_postulacion',
+    as: 'evaluacionesPsicolaborales'
+});
+EvaluacionPsicolaboral.belongsTo(Postulacion, {
+    foreignKey: 'id_postulacion',
+    as: 'postulacion'
+});
+
+// EvaluacionPsicolaboral <-> TestPsicolaboral (N:N)
+EvaluacionPsicolaboral.belongsToMany(TestPsicolaboral, {
+    through: EvaluacionTest,
+    foreignKey: 'id_evaluacion_psicolaboral',
+    otherKey: 'id_test_psicolaboral',
+    as: 'tests'
+});
+TestPsicolaboral.belongsToMany(EvaluacionPsicolaboral, {
+    through: EvaluacionTest,
+    foreignKey: 'id_test_psicolaboral',
+    otherKey: 'id_evaluacion_psicolaboral',
+    as: 'evaluaciones'
 });
 
 // ===========================================
@@ -314,5 +394,13 @@ export {
     PostgradoCapacitacion,
     Experiencia,
     CandidatoProfesion,
-    CandidatoPostgradoCapacitacion
+    CandidatoPostgradoCapacitacion,
+    ReferenciaLaboral,
+    HitoSolicitud,
+    EstadoContratacion,
+    Contratacion,
+    TestPsicolaboral,
+    EvaluacionPsicolaboral,
+    EvaluacionTest,
+    LogCambios
 };

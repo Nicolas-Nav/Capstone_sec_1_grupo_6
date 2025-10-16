@@ -30,6 +30,13 @@ import institucionRoutes from '@/routes/instituciones';
 import rubroRoutes from '@/routes/rubros';
 import nacionalidadRoutes from '@/routes/nacionalidades';
 import estadoClienteRoutes from '@/routes/estadoCliente';
+import referenciaLaboralRoutes from '@/routes/referenciasLaborales';
+import hitoSolicitudRoutes from '@/routes/hitosSolicitud';
+import estadoContratacionRoutes from '@/routes/estadosContratacion';
+import contratacionRoutes from '@/routes/contrataciones';
+import testPsicolaboralRoutes from '@/routes/testsPsicolaborales';
+import evaluacionPsicolaboralRoutes from '@/routes/evaluacionesPsicolaborales';
+import logRoutes from '@/routes/logs';
 
 const app = express();
 
@@ -227,6 +234,13 @@ app.use('/api/instituciones', institucionRoutes);
 app.use('/api/rubros', rubroRoutes);
 app.use('/api/nacionalidades', nacionalidadRoutes);
 app.use('/api/estado-cliente', estadoClienteRoutes);
+app.use('/api/referencias-laborales', referenciaLaboralRoutes);
+app.use('/api/hitos-solicitud', hitoSolicitudRoutes);
+app.use('/api/estados-contratacion', estadoContratacionRoutes);
+app.use('/api/contrataciones', contratacionRoutes);
+app.use('/api/tests-psicolaborales', testPsicolaboralRoutes);
+app.use('/api/evaluaciones-psicolaborales', evaluacionPsicolaboralRoutes);
+app.use('/api/logs', logRoutes);
 // Rutas de la API (se descomentarán cuando se creen)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

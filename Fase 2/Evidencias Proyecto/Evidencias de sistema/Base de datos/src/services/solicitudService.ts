@@ -13,6 +13,7 @@ import {
     Cargo,
     Comuna
 } from '@/models';
+import { HitoSolicitudService } from './hitoSolicitudService';
 
 /**
  * Servicio para gestión de Solicitudes
@@ -448,6 +449,15 @@ export class SolicitudService {
                 }, { transaction });
 
             await transaction.commit();
+
+            // Crear hitos automáticamente basados en las plantillas del servicio
+            try {
+                await HitoSolicitudService.copiarPlantillasASolicitud(nuevaSolicitud.id_solicitud);
+            } catch (hitoError) {
+                // Log del error pero no fallar la creación de solicitud
+                console.warn(`⚠️  Advertencia: No se pudieron crear hitos para la solicitud ${nuevaSolicitud.id_solicitud}:`, hitoError);
+                // Los hitos se pueden crear manualmente después si es necesario
+            }
 
             return { 
                 id: nuevaSolicitud.id_solicitud,

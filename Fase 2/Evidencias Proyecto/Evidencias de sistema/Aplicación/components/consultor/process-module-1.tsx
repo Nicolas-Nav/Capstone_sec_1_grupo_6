@@ -93,6 +93,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [selectedEstado, setSelectedEstado] = useState<string>("")
   const [showCVViewer, setShowCVViewer] = useState(false)
+  const [showFullFormForNonCV, setShowFullFormForNonCV] = useState(false)
 
   const isEvaluationProcess =
     (process.service_type === "ES" || process.service_type === "TS")
@@ -356,7 +357,10 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
             position: exp.position,
             start_date: exp.start_date,
             end_date: exp.end_date,
+            is_current: exp.is_current,
             description: exp.description,
+            comments: exp.comments,
+            exit_reason: exp.exit_reason,
           }))
           : undefined,
         education: education.length > 0
@@ -422,6 +426,11 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         comments: "",
         exit_reason: "",
       })
+      toast({
+        title: "Experiencia agregada",
+        description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+        variant: "default",
+      })
     }
   }
 
@@ -444,6 +453,11 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         start_date: "",
         completion_date: "",
         observations: "",
+      })
+      toast({
+        title: "Formación agregada",
+        description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+        variant: "default",
       })
     }
   }
@@ -915,54 +929,57 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="w-full space-y-3">
             <Accordion 
               type="single" 
               collapsible 
               value={currentCandidateId || undefined}
               onValueChange={(value) => setCurrentCandidateId(value || null)}
+              className="w-full"
             >
               {candidates.map((candidate) => (
-                <AccordionItem key={candidate.id} value={candidate.id}>
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center justify-between w-full pr-4">
-                      <span className="font-medium text-left">{candidate.name}</span>
-                      <Badge variant={candidate.cv_file ? "default" : "secondary"} className="ml-2">
-                        {candidate.cv_file ? "✅ Tiene CV" : "📝 Datos básicos"}
-                      </Badge>
+                <div key={candidate.id} className="border border-border rounded-lg bg-card w-full mb-3">
+                <AccordionItem value={candidate.id} className="border-0">
+                  <AccordionTrigger className="hover:no-underline px-4 py-0 h-[52px] min-h-[52px] max-h-[52px] flex items-center">
+                    <div className="flex items-center justify-between w-full h-full">
+                      <span className="font-semibold text-[17px] leading-[1.2] text-left truncate mr-4">{candidate.name}</span>
+                      {candidate.cv_file ? (
+                        <Badge 
+                          variant="default" 
+                          className="shrink-0 text-sm h-[32px] px-4 flex items-center gap-1.5 cursor-pointer hover:bg-primary/90 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowCVViewer(true);
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                          Ver CV
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="shrink-0 text-sm h-[32px] px-4 flex items-center">
+                          Datos básicos
+                        </Badge>
+                      )}
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-6 pt-4">
-            {/* CV Viewer - Solo si el candidato tiene CV */}
-            {candidate.cv_file && (
-              <div className="p-4 bg-muted rounded-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    <span className="font-medium">Curriculum Vitae</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowCVViewer(true)}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Ver CV
-                  </Button>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  <p><strong>Archivo:</strong> {candidate.cv_file}</p>
-                  <p className="mt-1">Haz clic en "Ver CV" para visualizar el documento completo</p>
-                </div>
-              </div>
-            )}
-
+                  <AccordionContent className="px-4 pb-4 pt-0">
+                    <div className="space-y-4">
             {/* Mostrar formulario completo solo si tiene CV */}
             {candidate.cv_file ? (
               <>
+              {/* Acordeón interno para organizar secciones */}
+              <Accordion type="multiple" defaultValue={["datos-personales"]} className="space-y-3">
+              
               {/* Formulario de datos personales */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-lg">Datos Personales</h4>
+              <div className="bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <AccordionItem value="datos-personales" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Datos Personales
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4 pt-2">
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -972,6 +989,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     value={personalData.name}
                     onChange={(e) => setPersonalData({ ...personalData, name: e.target.value })}
                     placeholder="Ingrese nombre completo"
+                    className="bg-white dark:bg-gray-950"
                   />
                 </div>
                 <div className="space-y-2">
@@ -981,6 +999,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     value={personalData.rut}
                     onChange={(e) => setPersonalData({ ...personalData, rut: e.target.value })}
                     placeholder="12.345.678-9"
+                    className="bg-white dark:bg-gray-950"
                   />
                 </div>
                 <div className="space-y-2">
@@ -991,6 +1010,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     value={personalData.email}
                     onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
                     placeholder="correo@ejemplo.com"
+                    className="bg-white dark:bg-gray-950"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1000,6 +1020,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     value={personalData.phone}
                     onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
                     placeholder="+56 9 1234 5678"
+                    className="bg-white dark:bg-gray-950"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1035,7 +1056,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     type="number"
                     value={personalData.age}
                     readOnly
-                    className="bg-muted"
+                    className="bg-white dark:bg-gray-950"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1045,7 +1066,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     onValueChange={(value) => setPersonalData({ ...personalData, profession: value })}
                     disabled={loadingLists || isBlocked}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-white dark:bg-gray-950">
                       <SelectValue placeholder="Seleccione profesión" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1083,7 +1104,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       }}
                       disabled={loadingLists}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione región" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1102,7 +1123,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onValueChange={(value) => setPersonalData({ ...personalData, comuna: value })}
                       disabled={loadingLists || !personalData.region}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder={personalData.region ? "Seleccione comuna" : "Primero seleccione región"} />
                       </SelectTrigger>
                       <SelectContent>
@@ -1121,7 +1142,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onValueChange={(value) => setPersonalData({ ...personalData, nacionalidad: value })}
                       disabled={loadingLists}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione nacionalidad" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1140,7 +1161,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onValueChange={(value) => setPersonalData({ ...personalData, rubro: value })}
                       disabled={loadingLists}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione rubro" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1154,10 +1175,21 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   </div>
                 </div>
               </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              </div>
 
               {/* Experiencia Laboral */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium text-lg mb-4">Experiencia Laboral</h4>
+              <div className="bg-slate-50/50 dark:bg-slate-950/20 rounded-lg border border-slate-200 dark:border-slate-800">
+              <AccordionItem value="experiencia" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Experiencia Laboral {workExperience.length > 0 && <span className="text-muted-foreground">({workExperience.length})</span>}
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4 pt-2">
 
                 {/* Formulario para agregar experiencia */}
                 <div className="space-y-4 p-4 bg-muted rounded-lg">
@@ -1169,6 +1201,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         value={newWorkExperience.company}
                         onChange={(e) => setNewWorkExperience({ ...newWorkExperience, company: e.target.value })}
                         placeholder="Nombre de la empresa"
+                        className="bg-white dark:bg-gray-950"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1177,6 +1210,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         value={newWorkExperience.position}
                         onChange={(e) => setNewWorkExperience({ ...newWorkExperience, position: e.target.value })}
                         placeholder="Título del cargo"
+                        className="bg-white dark:bg-gray-950"
                       />
                     </div>
                   </div>
@@ -1244,6 +1278,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onChange={(e) => setNewWorkExperience({ ...newWorkExperience, description: e.target.value })}
                       placeholder="Principales responsabilidades y logros"
                       rows={3}
+                      className="bg-white dark:bg-gray-950"
                     />
                   </div>
                   <Button
@@ -1258,8 +1293,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                 {/* Lista de experiencias */}
                 {workExperience.length > 0 && (
                   <div className="mt-4 space-y-2">
-                    <h5 className="font-medium">Experiencias Registradas</h5>
-                    {workExperience.map((exp) => (
+                    <h5 className="font-medium">Experiencias Registradas (más reciente primero)</h5>
+                    {[...workExperience].reverse().map((exp) => (
                       <div key={exp.id} className="p-3 border rounded-lg">
                         <div className="flex justify-between items-start">
                           <div>
@@ -1276,11 +1311,21 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     ))}
                   </div>
                 )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
               </div>
 
               {/* Formación Académica */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium text-lg mb-4">Formación Académica</h4>
+              <div className="bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+              <AccordionItem value="educacion" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Formación Académica {education.length > 0 && <span className="text-muted-foreground">({education.length})</span>}
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4 pt-2">
 
                 {/* Formulario para agregar formación */}
                 <div className="space-y-4 p-4 bg-muted rounded-lg">
@@ -1292,6 +1337,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         value={newEducation.institution}
                         onChange={(e) => setNewEducation({ ...newEducation, institution: e.target.value })}
                         placeholder="Nombre de la institución"
+                        className="bg-white dark:bg-gray-950"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1300,6 +1346,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         value={newEducation.title}
                         onChange={(e) => setNewEducation({ ...newEducation, title: e.target.value })}
                         placeholder="Título obtenido"
+                        className="bg-white dark:bg-gray-950"
                       />
                     </div>
                   </div>
@@ -1353,6 +1400,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onChange={(e) => setNewEducation({ ...newEducation, observations: e.target.value })}
                       placeholder="Observaciones adicionales"
                       rows={2}
+                      className="bg-white dark:bg-gray-950"
                     />
                   </div>
                   <Button
@@ -1367,8 +1415,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                 {/* Lista de formación */}
                 {education.length > 0 && (
                   <div className="mt-4 space-y-2">
-                    <h5 className="font-medium">Formación Registrada</h5>
-                    {education.map((edu) => (
+                    <h5 className="font-medium">Formación Registrada (más reciente primero)</h5>
+                    {[...education].reverse().map((edu) => (
                       <div key={edu.id} className="p-3 border rounded-lg">
                         <div className="flex justify-between items-start">
                           <div>
@@ -1386,8 +1434,14 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     ))}
                   </div>
                 )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
               </div>
 
+              </Accordion>
+
+              {/* Botón guardar fuera de las secciones */}
               <div className="flex justify-end pt-4">
                 <Button
                   onClick={handlePersonalDataSubmit}
@@ -1396,55 +1450,71 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   {savingCandidate ? "Guardando..." : "Guardar Datos del Candidato"}
                 </Button>
               </div>
-            </div>
               </>
             ) : (
               /* Vista simplificada sin CV - Solo datos básicos */
               <div className="space-y-4">
-                <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed">
-                  <p className="text-sm text-muted-foreground text-center mb-4">
-                    Este candidato no tiene CV adjunto. Solo se muestran los datos básicos ingresados.
+                <div className="p-4 bg-amber-50/50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <p className="text-sm text-amber-800 dark:text-amber-200 text-center font-medium">
+                    Este candidato no tiene CV adjunto
                   </p>
                 </div>
                 
                 <div className="space-y-4">
-                  <h4 className="font-medium text-lg">Datos Básicos</h4>
+                  <h4 className="font-semibold text-lg text-foreground">Datos Básicos Registrados</h4>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
                     <div className="space-y-1">
-                      <Label className="text-muted-foreground">Nombre Completo</Label>
-                      <p className="font-medium">{candidate.name || 'No especificado'}</p>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Nombre Completo</Label>
+                      <p className="font-medium text-foreground">{candidate.name || 'No especificado'}</p>
                     </div>
                     
                     <div className="space-y-1">
-                      <Label className="text-muted-foreground">Email</Label>
-                      <p className="font-medium">{candidate.email || 'No especificado'}</p>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Email</Label>
+                      <p className="font-medium text-foreground">{candidate.email || 'No especificado'}</p>
                     </div>
                     
                     <div className="space-y-1">
-                      <Label className="text-muted-foreground">Teléfono</Label>
-                      <p className="font-medium">{candidate.phone || 'No especificado'}</p>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Teléfono</Label>
+                      <p className="font-medium text-foreground">{candidate.phone || 'No especificado'}</p>
                     </div>
                     
                     <div className="space-y-1">
-                      <Label className="text-muted-foreground">RUT</Label>
-                      <p className="font-medium">{candidate.rut || 'No especificado'}</p>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">RUT</Label>
+                      <p className="font-medium text-foreground">{candidate.rut || 'No especificado'}</p>
                     </div>
                   </div>
                   
-                  <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg mt-4">
-                    <p className="text-sm text-blue-800 dark:text-blue-200">
-                      💡 Para completar más información, solicite al candidato que envíe su CV.
-                    </p>
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => setShowFullFormForNonCV(!showFullFormForNonCV)}
+                    >
+                      {showFullFormForNonCV ? "Ocultar formulario" : "+ Completar información adicional"}
+                    </Button>
                   </div>
+                  
+                  {showFullFormForNonCV && (
+                    <div className="pt-4 border-t">
+                      <p className="text-sm text-muted-foreground mb-4 text-center">
+                        Complete manualmente la información adicional del candidato
+                      </p>
+                      {/* Aquí va el mismo formulario completo */}
+                      {/* (Lo agregaremos en el siguiente paso) */}
+                      <p className="text-center text-muted-foreground">Formulario completo (próximo paso)</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
                     </div>
                   </AccordionContent>
                 </AccordionItem>
+                </div>
               ))}
             </Accordion>
+            </div>
           </CardContent>
         </Card>
       )}

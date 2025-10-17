@@ -38,7 +38,7 @@ import {
 
 import { getPublicationsByProcess, getCandidatesByProcess } from "@/lib/mock-data"
 
-import { formatDate } from "@/lib/utils"
+import { formatDate, isProcessBlocked } from "@/lib/utils"
 
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
@@ -58,6 +58,7 @@ import { useToast } from "@/hooks/use-toast"
 
 import { AddPublicationDialog } from "./add-publication-dialog"
 import CVViewerDialog from "./cv-viewer-dialog"
+import { ProcessBlocked } from "./ProcessBlocked"
 import { CandidateStatusDialog } from "./candidate-status-dialog"
 
 
@@ -133,7 +134,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   const [currentStep, setCurrentStep] = useState<"basic" | "education" | "experience" | "portal_responses">("basic")
 
-
+  // Estado del proceso para verificar bloqueo
+  const [processStatus, setProcessStatus] = useState<string>((process.estado_solicitud || process.status) as string)
+  
+  // Verificar si el proceso está bloqueado (estado final)
+  const isBlocked = isProcessBlocked(processStatus)
 
   // Cargar datos reales desde el backend
 
@@ -1841,12 +1846,17 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         <Button
           onClick={handleAdvanceToModule3}
           className="bg-primary hover:bg-primary/90"
+          disabled={isBlocked}
         >
           Pasar a Módulo 3
         </Button>
       </div>
 
-
+      {/* Componente de bloqueo si el proceso está en estado final */}
+      <ProcessBlocked 
+        processStatus={processStatus} 
+        moduleName="Módulo 2" 
+      />
 
       <Card>
 
@@ -2133,7 +2143,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
             </div>
 
-            <Button onClick={() => setShowAddPublication(true)}>
+            <Button onClick={() => setShowAddPublication(true)} disabled={isBlocked}>
                   <Plus className="mr-2 h-4 w-4" />
 
                   Agregar Publicación
@@ -2243,6 +2253,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                               })
                             }
                           }}
+                          disabled={isBlocked}
                         >
                           <Trash2 className="h-4 w-4" />
 
@@ -2300,7 +2311,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                 <DialogTrigger asChild>
 
-                  <Button>
+                  <Button disabled={isBlocked}>
 
                     <Plus className="mr-2 h-4 w-4" />
 
@@ -4068,6 +4079,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           size="sm"
                           onClick={() => handleOpenStatusDialog(candidate)}
                           className="text-xs h-7"
+                          disabled={isBlocked}
                         >
                           Cambiar Estado
                         </Button>
@@ -4097,7 +4109,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           onClick={() => handleEditCandidate(candidate)}
 
                           title="Editar candidato"
-
+                          disabled={isBlocked}
                         >
 
                           <Edit className="h-4 w-4" />
@@ -4111,11 +4123,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           size="sm"
 
                           onClick={() => handleDeleteCandidate(candidate.id)}
-
                           title="Eliminar candidato"
-
                           className="text-destructive hover:text-destructive"
-
+                          disabled={isBlocked}
                         >
 
                           <Trash2 className="h-4 w-4" />

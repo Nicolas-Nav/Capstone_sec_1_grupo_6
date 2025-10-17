@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { getCandidatesByProcess, getPsychologicalEvaluationByCandidate } from "@/lib/mock-data"
-import { formatDate } from "@/lib/utils"
+import { formatDate, isProcessBlocked } from "@/lib/utils"
 import {
   Plus,
   ChevronDown,
@@ -38,6 +38,7 @@ import {
   AlertCircle,
 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
+import { ProcessBlocked } from "./ProcessBlocked"
 
 interface WorkReference {
   id: string
@@ -66,6 +67,12 @@ interface ProcessModule4Props {
 export function ProcessModule4({ process }: ProcessModule4Props) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  
+  // Estado del proceso para verificar bloqueo
+  const [processStatus, setProcessStatus] = useState<string>((process.estado_solicitud || process.status) as string)
+  
+  // Verificar si el proceso está bloqueado (estado final)
+  const isBlocked = isProcessBlocked(processStatus)
 
   // Cargar datos reales desde el backend
   useEffect(() => {
@@ -275,6 +282,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             : "Realiza evaluaciones psicolaborales a candidatos aprobados por el cliente"}
         </p>
       </div>
+
+      {/* Componente de bloqueo si el proceso está en estado final */}
+      <ProcessBlocked 
+        processStatus={processStatus} 
+        moduleName="Módulo 4" 
+      />
 
       {/* Process Header for Evaluation Processes */}
       {isEvaluationProcess && (

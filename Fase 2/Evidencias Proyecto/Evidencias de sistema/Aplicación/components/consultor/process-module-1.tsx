@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { serviceTypeLabels, processStatusLabels } from "@/lib/mock-data"
 import { getCandidatesByProcess } from "@/lib/mock-data"
-import { formatDate, getStatusColor } from "@/lib/utils"
+import { formatDate, getStatusColor, isProcessBlocked } from "@/lib/utils"
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import { registerLocale, setDefaultLocale } from "react-datepicker"
@@ -25,6 +25,7 @@ import { useState, useEffect } from "react"
 import { descripcionCargoService, solicitudService, regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import CVViewerDialog from "./cv-viewer-dialog"
+import { ProcessBlocked } from "./ProcessBlocked"
 
 interface ProcessModule1Props {
   process: Process
@@ -500,6 +501,16 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   }, [personalData.region, regiones, todasLasComunas])
 
   const handleStatusChange = async (estadoId: string) => {
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede cambiar el estado de un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       const response = await solicitudService.cambiarEstado(
         parseInt(process.id), 
@@ -536,6 +547,16 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   }
 
   const handleAdvanceToModule2 = async () => {
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede avanzar un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       const response = await solicitudService.avanzarAModulo2(parseInt(process.id))
 
@@ -566,8 +587,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     }
   }
 
-  // Verificar si el proceso está cerrado o cancelado
-  const isProcessClosed = processStatus === "Cerrado" || processStatus === "Cancelado"
+  // Verificar si el proceso está bloqueado (estado final)
+  const isBlocked = isProcessBlocked(processStatus)
 
   const canChangeStatus = (currentStatus: ProcessStatus, newStatus: ProcessStatus) => {
     // No se puede cambiar a "completado" desde el módulo 1
@@ -592,10 +613,17 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         <Button
           onClick={handleAdvanceToModule2}
           className="bg-primary hover:bg-primary/90"
+          disabled={isProcessBlocked(processStatus)}
         >
           Pasar a Módulo 2
         </Button>
       </div>
+
+      {/* Componente de bloqueo si el proceso está en estado final */}
+      <ProcessBlocked 
+        processStatus={processStatus} 
+        moduleName="Módulo 1" 
+      />
 
       {/* Botón de cambio de estado al inicio */}
       <Card>
@@ -679,23 +707,6 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           )}
         </CardContent>
       </Card>
-
-      {/* Mensaje si el proceso está cerrado o cancelado */}
-      {isProcessClosed && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-red-800">
-              <Settings className="h-5 w-5" />
-              <div>
-                <h3 className="font-semibold">Proceso {processStatus === "Cerrado" ? "Cerrado" : "Cancelado"}</h3>
-                <p className="text-sm">
-                  Este proceso ha sido {processStatus === "Cerrado" ? "cerrado" : "cancelado"} y no se puede modificar.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Process Information */}
       <Card>
@@ -1009,7 +1020,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   <Select
                     value={personalData.profession}
                     onValueChange={(value) => setPersonalData({ ...personalData, profession: value })}
-                    disabled={loadingLists}
+                    disabled={loadingLists || isBlocked}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccione profesión" />
@@ -1029,6 +1040,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     id="has_disability_credential"
                     checked={personalData.has_disability_credential}
                     onChange={(e) => setPersonalData({ ...personalData, has_disability_credential: e.target.checked })}
+                    disabled={isBlocked}
                   />
                   <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad</Label>
                 </div>

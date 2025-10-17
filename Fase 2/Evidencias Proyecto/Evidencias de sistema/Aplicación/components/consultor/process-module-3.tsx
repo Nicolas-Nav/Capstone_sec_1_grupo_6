@@ -13,10 +13,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { getCandidatesByProcess, candidateStatusLabels, processStatusLabels } from "@/lib/mock-data"
 import { estadoClienteService, solicitudService } from "@/lib/api"
-import { getStatusColor, formatCurrency } from "@/lib/utils"
+import { getStatusColor, formatCurrency, isProcessBlocked } from "@/lib/utils"
 import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle } from "lucide-react"
 import type { Process, Candidate, ProcessStatus } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
+import { ProcessBlocked } from "./ProcessBlocked"
 
 interface ProcessModule3Props {
   process: Process
@@ -46,6 +47,9 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [selectedEstado, setSelectedEstado] = useState<string>("")
   const [statusChangeReason, setStatusChangeReason] = useState("")
+  
+  // Verificar si el proceso está bloqueado (estado final)
+  const isBlocked = isProcessBlocked(processStatus)
 
   // Cargar datos reales desde el backend
   useEffect(() => {
@@ -158,6 +162,16 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
   const handleUpdateCandidateState = async () => {
     if (!updatingCandidate) return
+
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede actualizar candidatos en un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
 
     // Validar comentarios si es necesario
     if ((updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && !updateFormData.client_comments?.trim()) {
@@ -284,6 +298,16 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
   // Función para cambiar estado de la solicitud (finalizar)
   const handleStatusChange = async (estadoId: string) => {
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede cambiar el estado de un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       const response = await solicitudService.cambiarEstado(
         parseInt(process.id), 
@@ -366,6 +390,12 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         </p>
       </div>
 
+      {/* Componente de bloqueo si el proceso está en estado final */}
+      <ProcessBlocked 
+        processStatus={processStatus} 
+        moduleName="Módulo 3" 
+      />
+
       {/* Navigation Actions */}
       {allRejected && (
         <Card className="border-red-200 bg-red-50">
@@ -389,20 +419,6 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Volver a Módulo 2
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {processEndsHere && hasApproved && (
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <h3 className="font-semibold text-green-800 mb-2">Proceso Long List Completado</h3>
-              <p className="text-sm text-green-600 mb-4">
-                El cliente ha aprobado candidatos. Los candidatos rechazados han sido actualizados en el Módulo 2.
-              </p>
-              <Button className="bg-green-600 hover:bg-green-700">Finalizar Proceso</Button>
             </div>
           </CardContent>
         </Card>
@@ -604,7 +620,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                         <TableCell>
                           <Button
                             onClick={() => handleOpenUpdateModal(candidate)}
-                            disabled={savingState[candidate.id]}
+                            disabled={savingState[candidate.id] || isBlocked}
                             size="sm"
                             className="w-full"
                           >

@@ -41,6 +41,8 @@ export function getStatusColor(status: string): string {
     completado: "bg-green-100 text-green-800",
     cancelado: "bg-red-100 text-red-800",
     congelado: "bg-orange-100 text-orange-800",
+    cerrado: "bg-green-100 text-green-800",
+    "cierre extraordinario": "bg-purple-100 text-purple-800",
 
     // Candidate statuses
     postulado: "bg-gray-100 text-gray-800",
@@ -75,4 +77,38 @@ export function isOverdue(dueDate: string): boolean {
 export function isNearDue(dueDate: string, anticipationDays = 2): boolean {
   const daysUntil = calculateDaysUntilDue(dueDate)
   return daysUntil <= anticipationDays && daysUntil >= 0
+}
+
+/**
+ * Determina si un proceso está en estado final y por tanto bloqueado para edición
+ */
+export function isProcessBlocked(processStatus: string): boolean {
+  const finalStates = ['cerrado', 'congelado', 'cancelado', 'cierre extraordinario']
+  return finalStates.some(state => 
+    processStatus.toLowerCase().includes(state.toLowerCase())
+  )
+}
+
+/**
+ * Obtiene el mensaje descriptivo del estado final
+ */
+export function getFinalStateMessage(processStatus: string): string {
+  const status = processStatus.toLowerCase()
+  if (status.includes('cerrado')) return 'Cerrado'
+  if (status.includes('congelado')) return 'Congelado'
+  if (status.includes('cancelado')) return 'Cancelado'
+  if (status.includes('cierre extraordinario')) return 'Cierre Extraordinario'
+  return processStatus
+}
+
+/**
+ * Obtiene la descripción del estado final
+ */
+export function getFinalStateDescription(processStatus: string): string {
+  const status = processStatus.toLowerCase()
+  if (status.includes('cerrado')) return 'El proceso ha sido completado exitosamente'
+  if (status.includes('congelado')) return 'El proceso ha sido pausado temporalmente'
+  if (status.includes('cancelado')) return 'El proceso ha sido cancelado'
+  if (status.includes('cierre extraordinario')) return 'El proceso ha sido cerrado de manera extraordinaria'
+  return 'El proceso está en estado final'
 }

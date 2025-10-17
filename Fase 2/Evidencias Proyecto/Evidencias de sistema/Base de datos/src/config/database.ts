@@ -22,10 +22,11 @@ const sequelize = new Sequelize({
   dialect: 'postgres',
   logging: NODE_ENV === 'development' ? console.log : false,
   pool: {
-    max: 5,
-    min: 0,
+    max: 20,
+    min: 2,
     acquire: 30000,
-    idle: 10000
+    idle: 10000,
+    evict: 1000
   },
   define: {
     timestamps: false,

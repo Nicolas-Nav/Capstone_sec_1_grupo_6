@@ -1,7 +1,9 @@
 import app, { initializeApp } from './app';
 import { config } from '@/config';
 import { testConnection, syncDatabase } from '@/config/database';
+import sequelize from '@/config/database';
 import { Logger } from '@/utils/logger';
+import { cleanupConnections } from '@/middleware/connectionManager';
 // Importar modelos para que Sequelize los reconozca
 import '@/models';
 
@@ -29,12 +31,31 @@ const startServer = async (): Promise<void> => {
             Logger.info(`API disponible en: http://localhost:${config.server.port}/api`);
         });
 
+        // Limpieza periódica de conexiones cada 15 minutos (menos frecuente para Aiven)
+        const cleanupInterval = setInterval(async () => {
+            await cleanupConnections();
+        }, 15 * 60 * 1000); // 15 minutos
+
+        // Limpiar el intervalo cuando el servidor se cierre
+        server.on('close', () => {
+            clearInterval(cleanupInterval);
+        });
+
         // Manejo de cierre graceful
-        const gracefulShutdown = (signal: string) => {
+        const gracefulShutdown = async (signal: string) => {
             Logger.info(`📡 Recibida señal ${signal}. Cerrando servidor...`);
 
-            server.close(() => {
+            server.close(async () => {
                 Logger.info('✅ Servidor cerrado correctamente');
+                
+                // Cerrar conexiones de la base de datos
+                try {
+                    await sequelize.close();
+                    Logger.info('✅ Conexiones de base de datos cerradas');
+                } catch (error) {
+                    Logger.error('❌ Error cerrando conexiones de BD:', error);
+                }
+                
                 process.exit(0);
             });
 

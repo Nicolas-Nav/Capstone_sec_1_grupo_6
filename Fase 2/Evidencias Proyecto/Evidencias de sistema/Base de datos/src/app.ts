@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from '@/config';
 import { Logger } from '@/utils/logger';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
+import { connectionManager } from '@/middleware/connectionManager';
 import authRoutes from '@/routes/authRoutes';
 import userRoutes from '@/routes/userRoutes';
 import { authenticateToken, requireAdmin, requireConsultorOrAdmin } from '@/middleware/auth';
@@ -93,6 +94,13 @@ if (config.server.nodeEnv === 'development') {
 } else {
   app.use(morgan('combined'));
 }
+
+// ===========================================
+// MIDDLEWARE DE GESTIÓN DE CONEXIONES
+// ===========================================
+
+// Middleware para manejar conexiones de base de datos
+app.use(connectionManager);
 
 // ===========================================
 // RUTAS

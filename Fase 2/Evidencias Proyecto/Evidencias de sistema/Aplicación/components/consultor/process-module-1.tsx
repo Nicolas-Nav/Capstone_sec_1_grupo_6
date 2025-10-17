@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { serviceTypeLabels, processStatusLabels } from "@/lib/mock-data"
 import { getCandidatesByProcess } from "@/lib/mock-data"
 import { formatDate, getStatusColor, isProcessBlocked } from "@/lib/utils"
@@ -169,36 +170,37 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     loadExcelData()
   }, [process.id_descripcion_cargo, process.id_descripcioncargo, process.datos_excel])
 
-  // For evaluation processes, find the candidate with CV
-  const candidateWithCV = candidates.find((c) => c.cv_file)
+  // For evaluation processes - track current candidate in accordion
+  const [currentCandidateId, setCurrentCandidateId] = useState<string | null>(null)
+  const currentCandidate = candidates.find(c => c.id === currentCandidateId)
 
 
-  // Pre-llenar datos del candidato cuando se carga el componente
+  // Pre-llenar datos del candidato cuando se selecciona en el acordeón
   useEffect(() => {
-    if (isEvaluationProcess && candidateWithCV) {
+    if (isEvaluationProcess && currentCandidate) {
       setPersonalData({
-        name: candidateWithCV.name || "",
-        rut: candidateWithCV.rut || "",
-        email: candidateWithCV.email || "",
-        phone: candidateWithCV.phone || "",
-        birth_date: candidateWithCV.birth_date || "",
-        age: candidateWithCV.age || 0,
-        region: candidateWithCV.region || "",
-        comuna: candidateWithCV.comuna || "",
-        nacionalidad: candidateWithCV.nacionalidad || "",
-        rubro: candidateWithCV.rubro || "",
-        profession: candidateWithCV.profession || "",
-        has_disability_credential: candidateWithCV.has_disability_credential || false,
+        name: currentCandidate.name || "",
+        rut: currentCandidate.rut || "",
+        email: currentCandidate.email || "",
+        phone: currentCandidate.phone || "",
+        birth_date: currentCandidate.birth_date || "",
+        age: currentCandidate.age || 0,
+        region: currentCandidate.region || "",
+        comuna: currentCandidate.comuna || "",
+        nacionalidad: currentCandidate.nacionalidad || "",
+        rubro: currentCandidate.rubro || "",
+        profession: currentCandidate.profession || "",
+        has_disability_credential: currentCandidate.has_disability_credential || false,
       })
 
       // Pre-llenar experiencia laboral y educación
-      setWorkExperience(candidateWithCV.work_experience || [])
-      setEducation(candidateWithCV.education || [])
+      setWorkExperience(currentCandidate.work_experience || [])
+      setEducation(currentCandidate.education || [])
     }
-  }, [isEvaluationProcess, candidateWithCV])
+  }, [isEvaluationProcess, currentCandidate])
 
   const handlePersonalDataSubmit = async () => {
-    if (!candidateWithCV) {
+    if (!currentCandidate) {
       toast({
         title: "Error",
         description: "No se encontró información del candidato",
@@ -371,19 +373,18 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
 
       // Actualizar el candidato
-      const response = await candidatoService.update(parseInt(candidateWithCV.id), candidateData)
+      const response = await candidatoService.update(parseInt(currentCandidate.id), candidateData)
 
       if (response.success) {
         toast({
           title: "¡Éxito!",
-          description: "¡Datos del candidato guardados exitosamente! Redirigiendo al Módulo 4...",
+          description: "Datos del candidato guardados exitosamente",
           variant: "default",
         })
-
-        // Navegar al Módulo 4
-        const url = new URL(window.location.href)
-        url.searchParams.set('tab', 'modulo-4')
-        window.location.href = url.toString()
+        
+        // Recargar candidatos para actualizar la información
+        const candidatesData = await getCandidatesByProcess(process.id)
+        setCandidates(candidatesData)
       } else {
         toast({
           title: "Error",
@@ -514,8 +515,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     try {
       const response = await solicitudService.cambiarEstado(
         parseInt(process.id), 
-        parseInt(estadoId), 
-        statusChangeReason.trim() || undefined
+        parseInt(estadoId)
       )
 
       if (response.success) {
@@ -903,43 +903,66 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
 
       {/* Formulario de Datos del Candidato - Solo para procesos psicolaborales */}
-      {isEvaluationProcess && candidateWithCV && (
+      {isEvaluationProcess && candidates.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
-              Completar Datos del Candidato
+              Candidatos a Evaluar ({candidates.length})
             </CardTitle>
             <CardDescription>
-              Complete y edite los datos personales del candidato para proceder con la evaluación.
+              Expanda cada candidato para ver o completar sus datos personales y proceder con la evaluación.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* CV Viewer */}
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  <span className="font-medium">Curriculum Vitae</span>
+          <CardContent>
+            <Accordion 
+              type="single" 
+              collapsible 
+              value={currentCandidateId || undefined}
+              onValueChange={(value) => setCurrentCandidateId(value || null)}
+            >
+              {candidates.map((candidate) => (
+                <AccordionItem key={candidate.id} value={candidate.id}>
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center justify-between w-full pr-4">
+                      <span className="font-medium text-left">{candidate.name}</span>
+                      <Badge variant={candidate.cv_file ? "default" : "secondary"} className="ml-2">
+                        {candidate.cv_file ? "✅ Tiene CV" : "📝 Datos básicos"}
+                      </Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-6 pt-4">
+            {/* CV Viewer - Solo si el candidato tiene CV */}
+            {candidate.cv_file && (
+              <div className="p-4 bg-muted rounded-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    <span className="font-medium">Curriculum Vitae</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCVViewer(true)}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Ver CV
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowCVViewer(true)}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Ver CV
-                </Button>
+                <div className="text-sm text-muted-foreground">
+                  <p><strong>Archivo:</strong> {candidate.cv_file}</p>
+                  <p className="mt-1">Haz clic en "Ver CV" para visualizar el documento completo</p>
+                </div>
               </div>
-              <div className="text-sm text-muted-foreground">
-                <p><strong>Archivo:</strong> {candidateWithCV.cv_file || 'CV no disponible'}</p>
-                <p className="mt-1">Haz clic en "Ver CV" para visualizar el documento completo</p>
-              </div>
-            </div>
+            )}
 
-            {/* Formulario de datos personales */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-lg">Datos Personales</h4>
+            {/* Mostrar formulario completo solo si tiene CV */}
+            {candidate.cv_file ? (
+              <>
+              {/* Formulario de datos personales */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-lg">Datos Personales</h4>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -1370,18 +1393,66 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   onClick={handlePersonalDataSubmit}
                   disabled={savingCandidate}
                 >
-                  {savingCandidate ? "Guardando..." : "Guardar y Continuar a Evaluación"}
+                  {savingCandidate ? "Guardando..." : "Guardar Datos del Candidato"}
                 </Button>
               </div>
             </div>
+              </>
+            ) : (
+              /* Vista simplificada sin CV - Solo datos básicos */
+              <div className="space-y-4">
+                <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed">
+                  <p className="text-sm text-muted-foreground text-center mb-4">
+                    Este candidato no tiene CV adjunto. Solo se muestran los datos básicos ingresados.
+                  </p>
+                </div>
+                
+                <div className="space-y-4">
+                  <h4 className="font-medium text-lg">Datos Básicos</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-muted-foreground">Nombre Completo</Label>
+                      <p className="font-medium">{candidate.name || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-muted-foreground">Email</Label>
+                      <p className="font-medium">{candidate.email || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-muted-foreground">Teléfono</Label>
+                      <p className="font-medium">{candidate.phone || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-muted-foreground">RUT</Label>
+                      <p className="font-medium">{candidate.rut || 'No especificado'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg mt-4">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      💡 Para completar más información, solicite al candidato que envíe su CV.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           </CardContent>
         </Card>
       )}
 
       {/* CV Viewer Dialog */}
-      {showCVViewer && candidateWithCV && (
+      {showCVViewer && currentCandidate && (
         <CVViewerDialog
-          candidate={candidateWithCV}
+          candidate={currentCandidate}
           isOpen={showCVViewer}
           onClose={() => setShowCVViewer(false)}
         />

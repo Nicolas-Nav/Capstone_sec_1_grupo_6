@@ -22,7 +22,7 @@ const serviceTypeLabels: Record<string, string> = {
   LL: "Long List",
   HH: "Head Hunting",
   TS: "Test Psicolaboral",
-  ES: "Evaluación y Seguimiento"
+  ES: "Evaluación Psicolaboral"
 }
 
 const processStatusLabels: Record<string, string> = {

@@ -402,10 +402,10 @@ export class SolicitudService {
                 }
             }
 
-            // Determinar la etapa inicial según el tipo de servicio
-            // TS y ES empiezan en Módulo 4: Evaluación Psicolaboral (id = 4)
-            // PC, LL, HH empiezan en Módulo 1: Registro y Gestión de Solicitudes (id = 1)
-            const idEtapaInicial = (service_type === 'TS' || service_type === 'ES') ? 4 : 1;
+            // Todos los procesos inician en Módulo 1
+            // ES, TS y AP usan módulos 1 y 4 (pero inician en 1)
+            // Los demás servicios usan los módulos según su configuración
+            const idEtapaInicial = 1;
 
             // Calcular plazo máximo
             const fechaIngreso = new Date();

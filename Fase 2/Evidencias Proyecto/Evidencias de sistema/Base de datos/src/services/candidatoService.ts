@@ -436,19 +436,13 @@ export class CandidatoService {
             company: string;
             position: string;
             start_date: string;
-            end_date?: string;
-            is_current?: boolean;
-            description?: string;
-            comments?: string;
-            exit_reason?: string;
+            end_date: string;
+            description: string;
         }>;
         education?: Array<{
-            type?: string;
             title: string;
             institution: string;
-            start_date?: string;
-            completion_date?: string;
-            observations?: string;
+            completion_date: string;
         }>;
     }) {
         const transaction: Transaction = await sequelize.transaction();
@@ -582,6 +576,8 @@ export class CandidatoService {
 
             // Actualizar educación si se proporciona
             if (data.education && data.education.length > 0) {
+                console.log('📚 Guardando educación para candidato', id, ':', data.education);
+                
                 // Eliminar todas las relaciones de educación existentes
                 await CandidatoPostgradoCapacitacion.destroy({
                     where: { id_candidato: id },
@@ -590,6 +586,7 @@ export class CandidatoService {
 
                 // Crear nuevas relaciones de educación
                 for (const edu of data.education) {
+                    console.log('📖 Procesando educación:', edu);
                     if (edu.title && edu.institution) {
                         // Buscar o crear el postgrado/capacitación
                         let postgrado = await PostgradoCapacitacion.findOne({
@@ -602,21 +599,34 @@ export class CandidatoService {
                             }, { transaction });
                         }
 
-                        // Buscar la institución
+                        // Buscar o crear la institución
                         let institucion = null;
                         if (edu.institution) {
                             institucion = await Institucion.findOne({
                                 where: { nombre_institucion: edu.institution.trim() }
                             });
+                            
+                            // Si no existe, crearla
+                            if (!institucion) {
+                                institucion = await Institucion.create({
+                                    nombre_institucion: edu.institution.trim()
+                                }, { transaction });
+                            }
                         }
 
                         // Crear la relación
-                        await CandidatoPostgradoCapacitacion.create({
+                        const relationData = {
                             id_candidato: id,
                             id_postgradocapacitacion: postgrado.id_postgradocapacitacion,
-                            fecha_obtencion: edu.completion_date ? new Date(edu.completion_date) : undefined,
-                            id_institucion: institucion ? institucion.id_institucion : undefined
-                        }, { transaction });
+                            fecha_obtencion: edu.completion_date ? new Date(edu.completion_date) : new Date(),
+                            id_institucion: institucion ? institucion.id_institucion : null
+                        };
+                        
+                        console.log('💾 Guardando relación CandidatoPostgradoCapacitacion:', relationData);
+                        await CandidatoPostgradoCapacitacion.create(relationData, { transaction });
+                        console.log('✅ Educación guardada exitosamente');
+                    } else {
+                        console.log('⚠️ Educación NO guardada - falta título o institución');
                     }
                 }
             }

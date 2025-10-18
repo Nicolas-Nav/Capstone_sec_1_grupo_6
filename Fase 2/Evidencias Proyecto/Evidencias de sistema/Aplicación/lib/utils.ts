@@ -5,6 +5,35 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Valida RUT chileno con algoritmo matemático completo
+ */
+export function validateRut(rut: string): boolean {
+  // Limpiar RUT
+  const cleanRut = rut.replace(/[^0-9kK]/g, '');
+  
+  if (cleanRut.length < 8 || cleanRut.length > 9) {
+    return false;
+  }
+
+  const rutNumber = cleanRut.slice(0, -1);
+  const dv = cleanRut.slice(-1).toUpperCase();
+
+  // Calcular dígito verificador
+  let sum = 0;
+  let multiplier = 2;
+
+  for (let i = rutNumber.length - 1; i >= 0; i--) {
+    sum += parseInt(rutNumber[i]) * multiplier;
+    multiplier = multiplier === 7 ? 2 : multiplier + 1;
+  }
+
+  const remainder = sum % 11;
+  const calculatedDv = remainder === 0 ? '0' : remainder === 1 ? 'K' : (11 - remainder).toString();
+
+  return dv === calculatedDv;
+}
+
 export function formatDate(date: string | Date): string {
   const d = typeof date === "string" ? new Date(date) : date
   return d.toLocaleDateString("es-CL", {

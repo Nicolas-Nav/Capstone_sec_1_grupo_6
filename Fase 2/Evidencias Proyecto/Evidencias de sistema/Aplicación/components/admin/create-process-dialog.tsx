@@ -18,10 +18,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
 import { Loader2, Plus, Trash2 } from "lucide-react"
+import { validateRut } from "@/lib/utils"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import type { ServiceType } from "@/lib/types"
 import { descripcionCargoService, solicitudService, regionService, comunaService, candidatoService, postulacionService } from "@/lib/api"
 import * as XLSX from 'xlsx'
+import { useFormValidation, validationSchemas, validateCandidates } from "@/hooks/useFormValidation"
+import { ValidatedInput, ValidatedTextarea, ValidatedSelect, ValidatedSelectItem, ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
 interface CreateProcessDialogProps {
   open: boolean
@@ -110,6 +113,9 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
   const [alertTitle, setAlertTitle] = useState("")
   const [alertDescription, setAlertDescription] = useState("")
 
+  // Hook de validación
+  const { errors: validationErrors, validateField, validateAllFields, clearAllErrors } = useFormValidation()
+
   // Cargar datos del formulario cuando se abre el diálogo
   useEffect(() => {
     if (open) {
@@ -147,6 +153,9 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
       setCustomPosition("")
       setComunasFiltradas([])
       setLoadingSolicitudData(false)
+      clearAllErrors()
+      setCandidateErrors({})
+      setCandidateGeneralError(undefined)
       
       // Reset candidatos para evaluación/test psicolaboral
       setCandidatos([{
@@ -375,37 +384,74 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     try {
       setIsSubmitting(true)
 
-      // Validar campos requeridos
-      if (!formData.client_id || !formData.contact_id || !formData.service_type || 
-          !formData.position_title || !formData.region || !formData.ciudad || !formData.consultant_id) {
-        toast.error('Por favor completa todos los campos requeridos')
-        return
+      // Validar todos los campos usando el nuevo sistema
+      let hasErrors = false
+
+      // Validar campos básicos del formulario
+      const basicValidation = validateAllFields(formData, validationSchemas.processForm)
+      if (!basicValidation) {
+        hasErrors = true
       }
 
-      // Validar que el cliente tenga contactos
-      const selectedClientData = apiData?.clientes.find((c) => c.id === formData.client_id)
-      if (!selectedClientData || !selectedClientData.contactos || selectedClientData.contactos.length === 0) {
-        toast.error('El cliente seleccionado no tiene contactos registrados. Por favor, agregue un contacto primero.')
-        return
+      // Validación adicional para cliente con contactos
+      if (formData.client_id) {
+        const selectedClientData = apiData?.clientes.find((c) => c.id === formData.client_id)
+        if (!selectedClientData || !selectedClientData.contactos || selectedClientData.contactos.length === 0) {
+          validateField('client_id', '', { 
+            client_id: { 
+              required: true, 
+              message: 'Este cliente no tiene contactos registrados' 
+            } 
+          })
+          hasErrors = true
+        }
       }
 
       // Validaciones específicas para evaluación/test psicolaboral
       if (isEvaluationProcess) {
         // Validar que haya al menos un candidato
         if (candidatos.length === 0) {
-          toast.error('Debe agregar al menos un candidato para evaluar')
-          return
-        }
+          setCandidateGeneralError('Debe agregar al menos un candidato para evaluar')
+          hasErrors = true
+        } else {
+          // Validar cada candidato individualmente
+          const newCandidateErrors: { [key: number]: { [field: string]: string } } = {}
+          let candidateHasErrors = false
 
-        // Validar que todos los candidatos tengan los campos requeridos
-        const candidatosInvalidos = candidatos.filter(c => 
-          !c.nombre_candidato || !c.primer_apellido_candidato || !c.telefono_candidato || !c.email_candidato
-        )
-        
-        if (candidatosInvalidos.length > 0) {
-          toast.error('Todos los candidatos deben tener nombre, primer apellido, teléfono y email')
-          return
+          candidatos.forEach((candidato, index) => {
+            const candidatoErrors: { [field: string]: string } = {}
+
+            // Validar cada campo del candidato
+            Object.keys(validationSchemas.candidateForm).forEach(field => {
+              const rule = validationSchemas.candidateForm[field as keyof typeof validationSchemas.candidateForm]
+              const value = candidato[field as keyof typeof candidato]
+              const errorMessage = validateSingleField(value, rule)
+
+              if (errorMessage) {
+                candidatoErrors[field] = errorMessage
+                candidateHasErrors = true
+              }
+            })
+
+            if (Object.keys(candidatoErrors).length > 0) {
+              newCandidateErrors[index] = candidatoErrors
+            }
+          })
+
+          if (candidateHasErrors) {
+            setCandidateErrors(newCandidateErrors)
+            hasErrors = true
+          } else {
+            setCandidateErrors({})
+            setCandidateGeneralError(undefined)
+          }
         }
+      }
+
+      // Si hay errores, no continuar
+      if (hasErrors) {
+        toast.error('Por favor corrige los errores antes de continuar')
+        return
       }
 
       let response
@@ -610,6 +656,9 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     setShowCustomPosition(false)
     setCustomPosition("")
         setComunasFiltradas([])
+        clearAllErrors()
+        setCandidateErrors({})
+        setCandidateGeneralError(undefined)
         
         // Reset candidatos para evaluación/test psicolaboral
         setCandidatos([{
@@ -641,6 +690,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     }
   }
 
+  // Función helper para validar campos específicos
+  const validateSpecificField = (field: string, value: any) => {
+    validateField(field, value, validationSchemas.processForm)
+  }
+
   const handleClientChange = (value: string) => {
     const client = apiData?.clientes.find((c) => c.id === value)
     
@@ -648,25 +702,36 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     if (client && (!client.contactos || client.contactos.length === 0)) {
       toast.error(`El cliente "${client.nombre}" no tiene contactos registrados. Por favor, agregue al menos un contacto antes de crear una solicitud.`)
       setFormData({ ...formData, client_id: "", contact_id: "" })
+      // Validar con mensaje personalizado
+      validateField('client_id', '', { 
+        client_id: { 
+          required: true, 
+          message: 'Este cliente no tiene contactos registrados' 
+        } 
+      })
       return
     }
     
     setFormData({ ...formData, client_id: value, contact_id: "" })
+    validateSpecificField('client_id', value)
   }
 
   const handlePositionChange = (value: string) => {
     if (value === "custom") {
       setShowCustomPosition(true)
       setFormData({ ...formData, position_title: "" })
+      validateSpecificField('position_title', "")
     } else {
       setShowCustomPosition(false)
       setFormData({ ...formData, position_title: value })
+      validateSpecificField('position_title', value)
     }
   }
 
   const handleCustomPositionChange = (value: string) => {
     setCustomPosition(value)
     setFormData({ ...formData, position_title: value })
+    validateSpecificField('position_title', value)
   }
 
   const selectedClient = apiData?.clientes.find((client) => client.id === formData.client_id)
@@ -700,6 +765,91 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     const updatedCandidatos = [...candidatos]
     updatedCandidatos[index] = { ...updatedCandidatos[index], [field]: value }
     setCandidatos(updatedCandidatos)
+    
+    // Validar el campo específico en tiempo real
+    validateCandidateField(index, field, value)
+  }
+
+  const validateCandidatoField = (index: number, field: string, value: any) => {
+    // Crear un esquema temporal para este campo específico
+    const tempSchema = { [field]: validationSchemas.candidateForm[field as keyof typeof validationSchemas.candidateForm] }
+    validateField(field, value, tempSchema)
+  }
+
+  // Estado local para errores de candidatos (ya que el sistema principal no maneja bien arrays)
+  const [candidateErrors, setCandidateErrors] = useState<{ [key: number]: { [field: string]: string } }>({})
+  const [candidateGeneralError, setCandidateGeneralError] = useState<string | undefined>(undefined)
+
+  // Helper para obtener errores de candidatos de forma segura
+  const getCandidateError = (index: number, field: string): string | undefined => {
+    return candidateErrors[index]?.[field]
+  }
+
+  // Helper para obtener error general de candidatos
+  const getCandidateGeneralError = (): string | undefined => {
+    return candidateGeneralError
+  }
+
+  // Función mejorada para validar candidatos
+  const validateCandidateField = (index: number, field: string, value: any) => {
+    const rule = validationSchemas.candidateForm[field as keyof typeof validationSchemas.candidateForm]
+    if (!rule) return
+
+    const errorMessage = validateSingleField(value, rule)
+    
+    setCandidateErrors(prev => {
+      const newErrors = { ...prev }
+      if (!newErrors[index]) {
+        newErrors[index] = {}
+      }
+      
+      if (errorMessage) {
+        newErrors[index][field] = errorMessage
+      } else {
+        delete newErrors[index][field]
+        // Si no hay errores en este candidato, eliminar el objeto completo
+        if (Object.keys(newErrors[index]).length === 0) {
+          delete newErrors[index]
+        }
+      }
+      
+      return newErrors
+    })
+  }
+
+  // Función helper para validar un solo campo
+  const validateSingleField = (value: any, rule: any): string | null => {
+    // Validación requerida
+    if (rule.required && (!value || (typeof value === 'string' && !value.trim()))) {
+      return rule.message || 'Este campo es requerido'
+    }
+
+    // Si el campo no es requerido y está vacío, no validar más
+    if (!rule.required && (!value || (typeof value === 'string' && !value.trim()))) {
+      return null
+    }
+
+    // Validación de longitud mínima
+    if (rule.minLength && typeof value === 'string' && value.trim().length < rule.minLength) {
+      return rule.message || `Debe tener al menos ${rule.minLength} caracteres`
+    }
+
+    // Validación de longitud máxima
+    if (rule.maxLength && typeof value === 'string' && value.length > rule.maxLength) {
+      return rule.message || `No puede exceder ${rule.maxLength} caracteres`
+    }
+
+    // Validación de patrón
+    if (rule.pattern && typeof value === 'string' && !rule.pattern.test(value.trim())) {
+      return rule.message || 'Formato inválido'
+    }
+
+    // Validación personalizada
+    if (rule.custom) {
+      return rule.custom(value)
+    }
+
+    return null
   }
 
   // Función para manejar el cierre de alertas
@@ -721,7 +871,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
             {isEditMode ? 'Modifique los campos necesarios para actualizar la solicitud.' : 'Complete la información para iniciar un nuevo proceso de selección.'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {isLoading || (isEditMode && loadingSolicitudData) ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin" />
@@ -732,42 +882,41 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           ) : (
             <>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="client">Cliente</Label>
-                  <Select value={formData.client_id} onValueChange={handleClientChange} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                      {apiData?.clientes.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                          {client.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <ValidatedSelect
+              id="client"
+              label="Cliente"
+              value={formData.client_id}
+              onValueChange={handleClientChange}
+              placeholder="Seleccionar cliente con contacto"
+              required
+              error={typeof validationErrors.client_id === 'string' ? validationErrors.client_id : undefined}
+            >
+              {apiData?.clientes.map((client) => (
+                <ValidatedSelectItem key={client.id} value={client.id}>
+                  {client.nombre}
+                </ValidatedSelectItem>
+              ))}
+            </ValidatedSelect>
 
                 {formData.client_id && clientContacts.length > 0 && (
-              <div className="space-y-2">
-                    <Label htmlFor="contact">Contacto</Label>
-                <Select
-                  value={formData.contact_id}
-                  onValueChange={(value) => setFormData({ ...formData, contact_id: value })}
-                      required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar contacto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientContacts.map((contact) => (
-                      <SelectItem key={contact.id} value={contact.id}>
-                            {contact.nombre} - {contact.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <ValidatedSelect
+                id="contact"
+                label="Contacto"
+                value={formData.contact_id}
+                onValueChange={(value) => {
+                  setFormData({ ...formData, contact_id: value })
+                  validateSpecificField('contact_id', value)
+                }}
+                placeholder="Seleccionar contacto"
+                required
+                error={typeof validationErrors.contact_id === 'string' ? validationErrors.contact_id : undefined}
+              >
+                {clientContacts.map((contact) => (
+                  <ValidatedSelectItem key={contact.id} value={contact.id}>
+                    {contact.nombre} - {contact.email}
+                  </ValidatedSelectItem>
+                ))}
+              </ValidatedSelect>
             )}
 
             {formData.client_id && clientContacts.length === 0 && (
@@ -783,25 +932,25 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
               </div>
             )}
 
-                <div className={`space-y-2 ${formData.client_id && clientContacts.length > 0 ? "col-span-2" : ""}`}>
-              <Label htmlFor="service_type">Tipo de Servicio</Label>
-              <Select
-                value={formData.service_type}
-                onValueChange={(value) => setFormData({ ...formData, service_type: value as ServiceType })}
-                    required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar servicio" />
-                </SelectTrigger>
-                <SelectContent>
-                      {apiData?.tipos_servicio.map((tipo) => (
-                        <SelectItem key={tipo.codigo} value={tipo.codigo}>
-                          {tipo.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <ValidatedSelect
+              id="service_type"
+              label="Tipo de Servicio"
+              value={formData.service_type}
+              onValueChange={(value) => {
+                setFormData({ ...formData, service_type: value as ServiceType })
+                validateSpecificField('service_type', value)
+              }}
+              placeholder="Seleccionar servicio"
+              required
+              error={typeof validationErrors.service_type === 'string' ? validationErrors.service_type : undefined}
+              className={formData.client_id && clientContacts.length > 0 ? "col-span-2" : ""}
+            >
+              {apiData?.tipos_servicio.map((tipo) => (
+                <ValidatedSelectItem key={tipo.codigo} value={tipo.codigo}>
+                  {tipo.nombre}
+                </ValidatedSelectItem>
+              ))}
+            </ValidatedSelect>
           </div>
 
           {formData.contact_id && (
@@ -824,11 +973,20 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="position_title">Cargo</Label>
+            <Label htmlFor="position_title">Cargo <span className="text-red-500">*</span></Label>
             {isEvaluationProcess ? (
-              <Select value={formData.position_title} onValueChange={(value) => setFormData({ ...formData, position_title: value })} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cargo" />
+              <Select 
+                value={formData.position_title} 
+                onValueChange={(value) => {
+                  setFormData({ ...formData, position_title: value })
+                  validateSpecificField('position_title', value)
+                }} 
+                required
+              >
+                <SelectTrigger className={validationErrors.position_title ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Seleccionar cargo">
+                    {formData.position_title === "Sin cargo" ? "Sin cargo" : formData.position_title}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Sin cargo">Sin cargo</SelectItem>
@@ -843,7 +1001,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
               <>
             {!showCustomPosition ? (
                   <Select value={formData.position_title} onValueChange={handlePositionChange} required>
-                <SelectTrigger>
+                <SelectTrigger className={validationErrors.position_title ? "border-red-500" : ""}>
                   <SelectValue placeholder="Seleccionar cargo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -862,6 +1020,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                   onChange={(e) => handleCustomPositionChange(e.target.value)}
                   placeholder="Ingrese el nombre del cargo"
                   required
+                  className={validationErrors.position_title ? "border-red-500" : ""}
                 />
                 <Button
                   type="button"
@@ -878,18 +1037,24 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
             )}
               </>
             )}
+            {typeof validationErrors.position_title === 'string' && (
+              <p className="text-sm text-red-500">{validationErrors.position_title}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-              <Label htmlFor="region">Región</Label>
+              <Label htmlFor="region">Región <span className="text-red-500">*</span></Label>
               <Select 
                 value={formData.region} 
-                onValueChange={(value) => setFormData({ ...formData, region: value, ciudad: "" })} 
+                onValueChange={(value) => {
+                  setFormData({ ...formData, region: value, ciudad: "" })
+                  validateSpecificField('region', value)
+                }} 
                 required
                 disabled={loadingRegionComuna}
               >
-                  <SelectTrigger>
+                  <SelectTrigger className={validationErrors.region ? "border-red-500" : ""}>
                   <SelectValue placeholder={loadingRegionComuna ? "Cargando regiones..." : "Seleccionar región"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -900,17 +1065,23 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                     ))}
                   </SelectContent>
                 </Select>
+                {typeof validationErrors.region === 'string' && (
+                  <p className="text-sm text-red-500">{validationErrors.region}</p>
+                )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ciudad">Ciudad/Comuna</Label>
+              <Label htmlFor="ciudad">Ciudad/Comuna <span className="text-red-500">*</span></Label>
               <Select 
                 value={formData.ciudad} 
-                onValueChange={(value) => setFormData({ ...formData, ciudad: value })} 
+                onValueChange={(value) => {
+                  setFormData({ ...formData, ciudad: value })
+                  validateSpecificField('ciudad', value)
+                }} 
                 required
                 disabled={loadingRegionComuna || !formData.region}
               >
-                <SelectTrigger>
+                <SelectTrigger className={validationErrors.ciudad ? "border-red-500" : ""}>
                   <SelectValue placeholder={formData.region ? "Seleccionar comuna" : "Primero seleccione región"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -921,6 +1092,9 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                   ))}
                 </SelectContent>
               </Select>
+              {typeof validationErrors.ciudad === 'string' && (
+                <p className="text-sm text-red-500">{validationErrors.ciudad}</p>
+              )}
             </div>
           </div>
 
@@ -939,6 +1113,14 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                     Agregar Candidato
                   </Button>
                 </div>
+
+                {getCandidateGeneralError() && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-600 font-medium">
+                      {getCandidateGeneralError()}
+                    </p>
+                  </div>
+                )}
 
                 {candidatos.map((candidato, index) => (
                   <div key={index} className="border rounded-lg p-4 space-y-4">
@@ -964,7 +1146,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                           value={candidato.rut_candidato}
                           onChange={(e) => updateCandidato(index, 'rut_candidato', e.target.value)}
                           placeholder="12.345.678-9"
+                          className={getCandidateError(index, 'rut_candidato') ? "border-red-500" : ""}
                         />
+                        {getCandidateError(index, 'rut_candidato') && (
+                          <p className="text-sm text-red-500">{getCandidateError(index, 'rut_candidato')}</p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -974,8 +1160,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                           value={candidato.nombre_candidato}
                           onChange={(e) => updateCandidato(index, 'nombre_candidato', e.target.value)}
                           placeholder="Nombre"
-                          required
+                          className={getCandidateError(index, 'nombre_candidato') ? "border-red-500" : ""}
                         />
+                        {getCandidateError(index, 'nombre_candidato') && (
+                          <p className="text-sm text-red-500">{getCandidateError(index, 'nombre_candidato')}</p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -985,18 +1174,25 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                           value={candidato.primer_apellido_candidato}
                           onChange={(e) => updateCandidato(index, 'primer_apellido_candidato', e.target.value)}
                           placeholder="Primer apellido"
-                          required
+                          className={getCandidateError(index, 'primer_apellido_candidato') ? "border-red-500" : ""}
                         />
+                        {getCandidateError(index, 'primer_apellido_candidato') && (
+                          <p className="text-sm text-red-500">{getCandidateError(index, 'primer_apellido_candidato')}</p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor={`segundo_apellido_${index}`}>Segundo Apellido</Label>
+                        <Label htmlFor={`segundo_apellido_${index}`}>Segundo Apellido *</Label>
                         <Input
                           id={`segundo_apellido_${index}`}
                           value={candidato.segundo_apellido_candidato}
                           onChange={(e) => updateCandidato(index, 'segundo_apellido_candidato', e.target.value)}
                           placeholder="Segundo apellido"
+                          className={getCandidateError(index, 'segundo_apellido_candidato') ? "border-red-500" : ""}
                         />
+                        {getCandidateError(index, 'segundo_apellido_candidato') && (
+                          <p className="text-sm text-red-500">{getCandidateError(index, 'segundo_apellido_candidato')}</p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -1006,42 +1202,108 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                           value={candidato.telefono_candidato}
                           onChange={(e) => updateCandidato(index, 'telefono_candidato', e.target.value)}
                           placeholder="+56 9 1234 5678"
-                    required
+                    className={getCandidateError(index, 'telefono_candidato') ? "border-red-500" : ""}
                   />
+                  {getCandidateError(index, 'telefono_candidato') && (
+                    <p className="text-sm text-red-500">{getCandidateError(index, 'telefono_candidato')}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                         <Label htmlFor={`email_${index}`}>Email *</Label>
                   <Input
                           id={`email_${index}`}
-                          type="email"
+                          type="text"
                           value={candidato.email_candidato}
                           onChange={(e) => updateCandidato(index, 'email_candidato', e.target.value)}
                           placeholder="candidato@email.com"
-                    required
+                    className={getCandidateError(index, 'email_candidato') ? "border-red-500" : ""}
                   />
+                  {getCandidateError(index, 'email_candidato') && (
+                    <p className="text-sm text-red-500">{getCandidateError(index, 'email_candidato')}</p>
+                  )}
                 </div>
               </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <Checkbox
                         id={`discapacidad_${index}`}
                         checked={candidato.discapacidad}
                         onCheckedChange={(checked) => updateCandidato(index, 'discapacidad', checked)}
+                        className="border-blue-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                       />
-                      <Label htmlFor={`discapacidad_${index}`} className="text-sm">
+                      <Label htmlFor={`discapacidad_${index}`} className="text-sm font-medium text-blue-800 cursor-pointer">
                         ¿Tiene discapacidad?
                       </Label>
                     </div>
 
               <div className="space-y-2">
                       <Label htmlFor={`cv_${index}`}>CV (Opcional)</Label>
+                
+                {/* Área de drag & drop para CV */}
+                <div 
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-green-400 hover:bg-green-50 transition-colors cursor-pointer"
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const files = e.dataTransfer.files
+                    if (files.length > 0) {
+                      const file = files[0]
+                      if (file.name.endsWith('.pdf') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+                        updateCandidato(index, 'cv_file', file)
+                      }
+                    }
+                  }}
+                  onClick={() => document.getElementById(`cv_${index}`)?.click()}
+                >
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-gray-700">
+                        {candidato.cv_file ? 'CV seleccionado' : 'Arrastra tu CV aquí'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        o haz clic para seleccionar
+                      </p>
+                    </div>
+                    
+                    {candidato.cv_file ? (
+                      <div className="flex items-center space-x-2 text-green-600">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-xs font-medium">{candidato.cv_file.name}</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400">
+                        PDF, DOC, DOCX
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Input oculto */}
                 <Input
                         id={`cv_${index}`}
                   type="file"
                   accept=".pdf,.doc,.docx"
                         onChange={(e) => updateCandidato(index, 'cv_file', e.target.files?.[0] || null)}
+                  className="hidden"
                 />
+                
                       <p className="text-xs text-muted-foreground">Formatos aceptados: PDF, DOC, DOCX</p>
                     </div>
                   </div>
@@ -1051,42 +1313,53 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           )}
 
             {!(isEvaluationProcess && formData.position_title === "Sin cargo") && (
-            <div className="space-y-2">
-                <Label htmlFor="description">Descripción</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Descripción del cargo o proceso"
-                rows={3}
-              />
-            </div>
+            <ValidatedTextarea
+              id="description"
+              label="Descripción"
+              value={formData.description}
+              onChange={(value) => {
+                setFormData({ ...formData, description: value })
+                validateSpecificField('description', value)
+              }}
+              placeholder="Descripción del cargo o proceso"
+              required
+              error={typeof validationErrors.description === 'string' ? validationErrors.description : undefined}
+              maxLength={500}
+              showCharCount
+            />
           )}
 
-          <div className="space-y-2">
-                <Label htmlFor="requirements">Requisitos</Label>
-            <Textarea
-              id="requirements"
-              value={formData.requirements}
-              onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
-                  placeholder="Requisitos y condiciones"
-              rows={3}
-            />
-          </div>
+          <ValidatedTextarea
+            id="requirements"
+            label="Requisitos"
+            value={formData.requirements}
+            onChange={(value) => {
+              setFormData({ ...formData, requirements: value })
+              validateSpecificField('requirements', value)
+            }}
+            placeholder="Requisitos y condiciones"
+            required
+            error={typeof validationErrors.requirements === 'string' ? validationErrors.requirements : undefined}
+            maxLength={500}
+            showCharCount
+          />
 
           <div className="grid grid-cols-2 gap-4">
             {!isEvaluationProcess && (
-            <div className="space-y-2">
-              <Label htmlFor="vacancies">Número de Vacantes</Label>
-              <Input
-                id="vacancies"
-                type="number"
-                min="1"
-                value={formData.vacancies}
-                  onChange={(e) => setFormData({ ...formData, vacancies: parseInt(e.target.value) })}
-                required
-              />
-            </div>
+            <ValidatedInput
+              id="vacancies"
+              label="Número de Vacantes"
+              type="number"
+              value={formData.vacancies.toString()}
+              onChange={(value) => {
+                const numValue = parseInt(value)
+                setFormData({ ...formData, vacancies: numValue })
+                validateSpecificField('vacancies', numValue)
+              }}
+              required
+              error={typeof validationErrors.vacancies === 'string' ? validationErrors.vacancies : undefined}
+              min={1}
+            />
             )}
             
             {isEvaluationProcess && (
@@ -1104,44 +1377,97 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="consultant">Consultor Asignado</Label>
-              <Select
-                value={formData.consultant_id}
-                onValueChange={(value) => setFormData({ ...formData, consultant_id: value })}
-                    required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar consultor" />
-                </SelectTrigger>
-                <SelectContent>
-                      {apiData?.consultores.map((consultor) => (
-                        <SelectItem key={consultor.rut} value={consultor.rut}>
-                          {consultor.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <ValidatedSelect
+              id="consultant"
+              label="Consultor Asignado"
+              value={formData.consultant_id}
+              onValueChange={(value) => {
+                setFormData({ ...formData, consultant_id: value })
+                validateSpecificField('consultant_id', value)
+              }}
+              placeholder="Seleccionar consultor"
+              required
+              error={typeof validationErrors.consultant_id === 'string' ? validationErrors.consultant_id : undefined}
+            >
+              {apiData?.consultores.map((consultor) => (
+                <ValidatedSelectItem key={consultor.rut} value={consultor.rut}>
+                  {consultor.nombre}
+                </ValidatedSelectItem>
+              ))}
+            </ValidatedSelect>
           </div>
 
             <div className="space-y-2">
                 <Label htmlFor="excel_file">Archivo Excel de Descripción de Cargo (Opcional)</Label>
+              
+              {/* Área de drag & drop */}
+              <div 
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer"
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  const files = e.dataTransfer.files
+                  if (files.length > 0) {
+                    const file = files[0]
+                    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                      setFormData({ ...formData, excel_file: file })
+                    }
+                  }
+                }}
+                onClick={() => document.getElementById('excel_file')?.click()}
+              >
+                <div className="flex flex-col items-center space-y-3">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-gray-700">
+                      {formData.excel_file ? 'Archivo seleccionado' : 'Arrastra tu archivo Excel aquí'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      o haz clic para seleccionar
+                    </p>
+                  </div>
+                  
+                  {formData.excel_file ? (
+                    <div className="flex items-center space-x-2 text-green-600">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm font-medium">{formData.excel_file.name}</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400">
+                      Formatos aceptados: .xlsx, .xls
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              {/* Input oculto */}
               <Input
                 id="excel_file"
                 type="file"
                 accept=".xlsx,.xls"
-                  onChange={(e) => setFormData({ ...formData, excel_file: e.target.files?.[0] || null })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Si tienes un archivo Excel con los detalles del cargo, puedes subirlo aquí. 
-                  Los datos serán procesados automáticamente. Formatos aceptados: .xlsx, .xls
-                </p>
-                {formData.excel_file && (
-                  <p className="text-sm text-green-600">
-                    ✓ Archivo seleccionado: {formData.excel_file.name}
-                  </p>
-                )}
+                onChange={(e) => setFormData({ ...formData, excel_file: e.target.files?.[0] || null })}
+                className="hidden"
+              />
+              
+              <p className="text-xs text-muted-foreground">
+                Si tienes un archivo Excel con los detalles del cargo, puedes subirlo aquí. 
+                Los datos serán procesados automáticamente.
+              </p>
             </div>
             </>
           )}
@@ -1152,12 +1478,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
             </Button>
             <Button 
               type="submit" 
-              disabled={
-                isLoading || 
-                isSubmitting || 
-                (!!formData.client_id && clientContacts.length === 0) ||
-                (isEvaluationProcess && candidatos.some(c => !c.nombre_candidato || !c.primer_apellido_candidato || !c.telefono_candidato || !c.email_candidato))
-              }
+              disabled={isLoading || isSubmitting}
             >
               {isSubmitting ? (
                 <>

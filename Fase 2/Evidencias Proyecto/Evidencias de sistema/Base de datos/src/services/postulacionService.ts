@@ -580,16 +580,14 @@ export class PostulacionService {
                 comments: '',
                 exit_reason: ''
             })) || [],
-            education: candidato.postgradosCapacitaciones?.map((edu: any) => ({
-                id: edu.id_postgradocapacitacion.toString(),
-                type: 'postgrado',
-                institution: '', // Se llenará después con consulta separada
-                title: edu.nombre_postgradocapacitacion,
-                start_date: '', // No hay fecha de inicio en el modelo actual
-                completion_date: (edu.CandidatoPostgradoCapacitaci || edu.CandidatoPostgradoCapacitacion)?.fecha_obtencion ? 
-                    new Date((edu.CandidatoPostgradoCapacitaci || edu.CandidatoPostgradoCapacitacion).fecha_obtencion).toISOString().split('T')[0] : '',
-                observations: ''
-            })) || [],
+            education: candidato.postgradosCapacitaciones?.map((edu: any) => {
+                return {
+                    id: edu.id_postgradocapacitacion.toString(),
+                    title: edu.nombre_postgradocapacitacion,
+                    institution: '', // Se llenará después con query directo
+                    completion_date: '' // Se llenará después con query directo
+                };
+            }) || [],
             portal_responses: {
                 motivation: postulacion.motivacion,
                 salary_expectation: postulacion.expectativa_renta?.toString(),
@@ -628,29 +626,34 @@ export class PostulacionService {
             }
         }
 
-        // Llenar instituciones de educación
+        // Llenar instituciones de educación (postgrados/capacitaciones)
+        // Nota: Usamos query directo porque Sequelize trunca el nombre de la tabla through
+        // (CandidatoPostgradoCapacitacion → CandidatoPostgradoCapacitaci) y no expone correctamente los datos
         if (candidato.postgradosCapacitaciones && transformedData.education) {
             for (let i = 0; i < candidato.postgradosCapacitaciones.length; i++) {
                 const edu = candidato.postgradosCapacitaciones[i];
                 
-                // Hacer consulta separada para obtener datos de la tabla intermedia
-                const candidatoPostgrado = await CandidatoPostgradoCapacitacion.findOne({
+                // Query directo a la tabla through para obtener id_institucion y fecha_obtencion
+                const throughData = await CandidatoPostgradoCapacitacion.findOne({
                     where: {
-                        id_candidato: candidato.id_candidato,
+                        id_candidato: transformedData.id,
                         id_postgradocapacitacion: edu.id_postgradocapacitacion
                     }
                 });
                 
-                if (candidatoPostgrado?.id_institucion && transformedData.education[i]) {
-                    const institucionEducacion = await Institucion.findByPk(candidatoPostgrado.id_institucion);
-                    
-                    if (institucionEducacion) {
-                        transformedData.education[i].institution = institucionEducacion.nombre_institucion;
+                if (throughData && transformedData.education[i]) {
+                    // Llenar institución si existe
+                    if (throughData.id_institucion) {
+                        const institucion = await Institucion.findByPk(throughData.id_institucion);
+                        if (institucion) {
+                            transformedData.education[i].institution = institucion.nombre_institucion;
+                        }
                     }
                     
-                    // También llenar la fecha de obtención
-                    if (candidatoPostgrado.fecha_obtencion) {
-                        transformedData.education[i].completion_date = new Date(candidatoPostgrado.fecha_obtencion).toISOString().split('T')[0];
+                    // Llenar fecha de obtención
+                    if (throughData.fecha_obtencion) {
+                        transformedData.education[i].completion_date = 
+                            new Date(throughData.fecha_obtencion).toISOString().split('T')[0];
                     }
                 }
             }

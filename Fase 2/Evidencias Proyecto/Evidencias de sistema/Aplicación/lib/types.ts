@@ -100,6 +100,11 @@ export interface Candidate {
   profession?: string
   profession_institution?: string
   profession_date?: string
+  professions?: Array<{
+    profession: string
+    institution: string
+    date: string
+  }>
   address?: string
   work_experience?: WorkExperience[]
   education?: Education[]
@@ -135,15 +140,20 @@ export interface WorkExperience {
   position: string
   start_date: string
   end_date?: string
+  is_current?: boolean
   description?: string
+  comments?: string
+  exit_reason?: string
 }
 
 export interface Education {
   id: string
+  type?: "titulo" | "postgrado" | "capacitacion" | "curso"
   institution: string
   title: string
   start_date?: string
   completion_date?: string
+  observations?: string
 }
 
 export interface Publication {

@@ -20,10 +20,10 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet } from "lucide-react"
+import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet, Trash2, Plus } from "lucide-react"
 import type { Process, ProcessStatus, Candidate, WorkExperience, Education } from "@/lib/types"
 import { useState, useEffect } from "react"
-import { descripcionCargoService, solicitudService, regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService } from "@/lib/api"
+import { descripcionCargoService, solicitudService, regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, institucionService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import CVViewerDialog from "./cv-viewer-dialog"
 import { ProcessBlocked } from "./ProcessBlocked"
@@ -46,8 +46,22 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     comuna: "",
     nacionalidad: "",
     rubro: "",
-    profession: "",
     has_disability_credential: false,
+    english_level: "",
+    software_tools: "",
+  })
+  
+  // Estados para profesiones múltiples
+  const [professions, setProfessions] = useState<Array<{
+    id: string
+    profession: string
+    institution: string
+    date: string
+  }>>([])
+  const [newProfession, setNewProfession] = useState({
+    profession: "",
+    institution: "",
+    date: "",
   })
 
   const [processStatus, setProcessStatus] = useState<ProcessStatus>((process.estado_solicitud || process.status) as ProcessStatus)
@@ -62,6 +76,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const [profesiones, setProfesiones] = useState<any[]>([])
   const [rubros, setRubros] = useState<any[]>([])
   const [nacionalidades, setNacionalidades] = useState<any[]>([])
+  const [instituciones, setInstituciones] = useState<any[]>([])
   const [loadingLists, setLoadingLists] = useState(false)
   const [savingCandidate, setSavingCandidate] = useState(false)
 
@@ -179,6 +194,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   // Pre-llenar datos del candidato cuando se selecciona en el acordeón
   useEffect(() => {
     if (isEvaluationProcess && currentCandidate) {
+      console.log('🔄 Cargando datos del candidato:', currentCandidate)
+      
       setPersonalData({
         name: currentCandidate.name || "",
         rut: currentCandidate.rut || "",
@@ -190,11 +207,29 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         comuna: currentCandidate.comuna || "",
         nacionalidad: currentCandidate.nacionalidad || "",
         rubro: currentCandidate.rubro || "",
-        profession: currentCandidate.profession || "",
         has_disability_credential: currentCandidate.has_disability_credential || false,
+        english_level: currentCandidate.portal_responses?.english_level || "",
+        software_tools: currentCandidate.portal_responses?.software_tools || "",
       })
 
+      // Pre-llenar profesiones si existen
+      if (currentCandidate.professions && currentCandidate.professions.length > 0) {
+        console.log('📋 Profesiones encontradas:', currentCandidate.professions)
+        const professionsData = currentCandidate.professions.map((prof: any, index: number) => ({
+          id: `prof-${index}-${Date.now()}`,
+          profession: prof.profession || prof.nombre_profesion || "",
+          institution: prof.institution || "",
+          date: prof.date || prof.fecha_obtencion || "",
+        }))
+        setProfessions(professionsData)
+      } else {
+        console.log('❌ No hay profesiones para este candidato')
+        setProfessions([])
+      }
+
       // Pre-llenar experiencia laboral y educación
+      console.log('💼 Experiencias:', currentCandidate.work_experience?.length || 0)
+      console.log('🎓 Educación:', currentCandidate.education?.length || 0)
       setWorkExperience(currentCandidate.work_experience || [])
       setEducation(currentCandidate.education || [])
     }
@@ -260,79 +295,20 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       return
     }
 
-    if (!personalData.rut?.trim()) {
-      toast({
-        title: "Campo obligatorio",
-        description: "El RUT del candidato es obligatorio",
-        variant: "destructive",
-      })
-      return
+    // Validar formato de RUT si se proporciona
+    if (personalData.rut?.trim()) {
+      const rutRegex = /^[0-9]+-[0-9kK]$/
+      if (!rutRegex.test(personalData.rut)) {
+        toast({
+          title: "Formato inválido",
+          description: "Ingresa un RUT válido (ej: 12345678-9)",
+          variant: "destructive",
+        })
+        return
+      }
     }
-
-    // Validar formato de RUT chileno
-    const rutRegex = /^[0-9]+-[0-9kK]$/
-    if (!rutRegex.test(personalData.rut)) {
-      toast({
-        title: "Campo obligatorio",
-        description: "Ingresa un RUT válido (ej: 12345678-9)",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.birth_date) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La fecha de nacimiento es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.region) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La región es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.comuna) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La comuna es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.nacionalidad) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La nacionalidad es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.rubro) {
-      toast({
-        title: "Campo obligatorio",
-        description: "El rubro es obligatorio",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.profession) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La profesión es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
+    
+    // Los demás campos son opcionales (rut, birth_date, region, comuna, nacionalidad, rubro)
 
     try {
       setSavingCandidate(true)
@@ -342,15 +318,24 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         name: personalData.name,
         email: personalData.email,
         phone: personalData.phone,
-        rut: personalData.rut,
-        birth_date: personalData.birth_date,
-        age: personalData.age,
-        region: personalData.region,
-        comuna: personalData.comuna,
-        nacionalidad: personalData.nacionalidad,
-        rubro: personalData.rubro,
-        profession: personalData.profession,
+        rut: personalData.rut || undefined,
+        birth_date: personalData.birth_date || undefined,
+        age: personalData.age || undefined,
+        region: personalData.region || undefined,
+        comuna: personalData.comuna || undefined,
+        nacionalidad: personalData.nacionalidad || undefined,
+        rubro: personalData.rubro || undefined,
         has_disability_credential: personalData.has_disability_credential,
+        english_level: personalData.english_level || undefined,
+        software_tools: personalData.software_tools || undefined,
+        // Profesiones múltiples
+        professions: professions.length > 0
+          ? professions.map(prof => ({
+            profession: prof.profession,
+            institution: prof.institution,
+            date: prof.date,
+          }))
+          : undefined,
         work_experience: workExperience.length > 0
           ? workExperience.map(exp => ({
             company: exp.company,
@@ -375,9 +360,15 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           : undefined,
       }
 
+      console.log('📤 Datos a enviar al backend:', candidateData)
+      console.log('📋 Profesiones:', professions.length)
+      console.log('💼 Experiencias:', workExperience.length)
+      console.log('🎓 Educación:', education.length)
 
       // Actualizar el candidato
       const response = await candidatoService.update(parseInt(currentCandidate.id), candidateData)
+      
+      console.log('📥 Respuesta del backend:', response)
 
       if (response.success) {
         toast({
@@ -407,6 +398,32 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     } finally {
       setSavingCandidate(false)
     }
+  }
+
+  // Funciones para manejar profesiones
+  const handleAddProfession = () => {
+    if (newProfession.profession && newProfession.institution) {
+      const profession = {
+        id: Date.now().toString(),
+        ...newProfession,
+      }
+      setProfessions([...professions, profession])
+      setNewProfession({
+        profession: "",
+        institution: "",
+        date: "",
+      })
+
+      toast({
+        title: "Profesión agregada",
+        description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+        variant: "default",
+      })
+    }
+  }
+
+  const handleRemoveProfession = (id: string) => {
+    setProfessions(professions.filter(p => p.id !== id))
   }
 
   const handleAddWorkExperience = () => {
@@ -479,12 +496,13 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     const loadLists = async () => {
       try {
         setLoadingLists(true)
-        const [regionesRes, comunasRes, profesionesRes, rubrosRes, nacionalidadesRes] = await Promise.all([
+        const [regionesRes, comunasRes, profesionesRes, rubrosRes, nacionalidadesRes, institucionesRes] = await Promise.all([
           regionService.getAll(),
           comunaService.getAll(),
           profesionService.getAll(),
           rubroService.getAll(),
           nacionalidadService.getAll(),
+          institucionService.getAll(),
         ])
 
         setRegiones(regionesRes.data || [])
@@ -492,6 +510,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         setProfesiones(profesionesRes.data || [])
         setRubros(rubrosRes.data || [])
         setNacionalidades(nacionalidadesRes.data || [])
+        setInstituciones(institucionesRes.data || [])
       } catch (error) {
         console.error('Error loading lists:', error)
       } finally {
@@ -993,7 +1012,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="rut">RUT <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="rut">RUT</Label>
                   <Input
                     id="rut"
                     value={personalData.rut}
@@ -1024,7 +1043,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="birth_date">Fecha de Nacimiento <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
                   <DatePicker
                     selected={personalData.birth_date ? new Date(personalData.birth_date) : null}
                     onChange={(date) => {
@@ -1059,34 +1078,15 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     className="bg-white dark:bg-gray-950"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="profession">Profesión <span className="text-red-500">*</span></Label>
-                  <Select
-                    value={personalData.profession}
-                    onValueChange={(value) => setPersonalData({ ...personalData, profession: value })}
-                    disabled={loadingLists || isBlocked}
-                  >
-                    <SelectTrigger className="bg-white dark:bg-gray-950">
-                      <SelectValue placeholder="Seleccione profesión" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profesiones.map((prof) => (
-                        <SelectItem key={prof.id_profesion} value={prof.nombre_profesion}>
-                          {prof.nombre_profesion}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     id="has_disability_credential"
                     checked={personalData.has_disability_credential}
-                    onChange={(e) => setPersonalData({ ...personalData, has_disability_credential: e.target.checked })}
-                    disabled={isBlocked}
+                    readOnly
+                    disabled
                   />
-                  <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad</Label>
+                  <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad (registrado por administrador)</Label>
                 </div>
               </div>
 
@@ -1175,6 +1175,279 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   </div>
                 </div>
               </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              </div>
+
+              {/* Formación Académica */}
+              <div className="bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+              <AccordionItem value="formacion" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Formación Académica {(professions.length > 0 || education.length > 0) && <span className="text-muted-foreground">({professions.length + education.length})</span>}
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-6 pt-2">
+
+              {/* Profesión(es) */}
+              <div className="space-y-4">
+                <h5 className="font-medium border-b pb-2">Profesión(es) (Opcional)</h5>
+                
+                {/* Formulario para agregar profesión */}
+                <div className="space-y-4 p-4 bg-muted rounded-lg">
+                  <h6 className="font-medium text-sm">Agregar Profesión</h6>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Profesión</Label>
+                      <Input
+                        value={newProfession.profession}
+                        onChange={(e) => setNewProfession({ ...newProfession, profession: e.target.value })}
+                        placeholder="Ej: Ingeniero en Sistemas"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Institución</Label>
+                      <Select
+                        value={newProfession.institution}
+                        onValueChange={(value) => setNewProfession({ ...newProfession, institution: value })}
+                        disabled={loadingLists}
+                      >
+                        <SelectTrigger className="bg-white dark:bg-gray-950">
+                          <SelectValue placeholder={loadingLists ? "Cargando instituciones..." : "Seleccione institución"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {instituciones.length > 0 ? (
+                            instituciones.map((inst) => (
+                              <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
+                                {inst.nombre_institucion}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              No hay instituciones disponibles
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha de Obtención</Label>
+                    <DatePicker
+                      selected={newProfession.date ? new Date(newProfession.date) : null}
+                      onChange={(date) => {
+                        if (date) {
+                          setNewProfession({ ...newProfession, date: date.toISOString().split('T')[0] })
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      showYearDropdown
+                      showMonthDropdown
+                      dropdownMode="select"
+                      placeholderText="Selecciona fecha de obtención"
+                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      maxDate={new Date()}
+                      minDate={new Date("1900-01-01")}
+                      yearDropdownItemNumber={100}
+                      locale="es"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleAddProfession}
+                    disabled={!newProfession.profession || !newProfession.institution}
+                    className="w-full"
+                  >
+                    Agregar Profesión
+                  </Button>
+                </div>
+
+                {/* Lista de profesiones agregadas */}
+                {professions.length > 0 && (
+                  <div className="space-y-2">
+                    <h6 className="font-medium text-sm">Profesiones agregadas ({professions.length})</h6>
+                    <div className="space-y-2">
+                      {[...professions].reverse().map((prof, index) => (
+                        <div
+                          key={prof.id}
+                          className="flex items-start justify-between p-3 border rounded-lg bg-card"
+                        >
+                          <div>
+                            <p className="font-medium">{prof.profession}</p>
+                            <p className="text-sm text-muted-foreground">{prof.institution}</p>
+                            {prof.date && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {formatDate(prof.date)}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveProfession(prof.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Postgrados y Capacitaciones */}
+              <div className="space-y-4 border-t pt-4">
+                <h5 className="font-medium border-b pb-2">Postgrados y Capacitaciones (Opcional)</h5>
+                
+                {/* Formulario para agregar formación */}
+                <div className="space-y-4 p-4 bg-muted rounded-lg">
+                  <h6 className="font-medium text-sm">Agregar Formación</h6>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Institución</Label>
+                      <Input
+                        value={newEducation.institution}
+                        onChange={(e) => setNewEducation({ ...newEducation, institution: e.target.value })}
+                        placeholder="Nombre de la institución"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Título</Label>
+                      <Input
+                        value={newEducation.title}
+                        onChange={(e) => setNewEducation({ ...newEducation, title: e.target.value })}
+                        placeholder="Título obtenido"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Fecha Inicio</Label>
+                      <DatePicker
+                        selected={newEducation.start_date ? new Date(newEducation.start_date) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            setNewEducation({ ...newEducation, start_date: date.toISOString().split('T')[0] })
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        placeholderText="Selecciona fecha"
+                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        maxDate={new Date()}
+                        yearDropdownItemNumber={50}
+                        locale="es"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Fecha Finalización</Label>
+                      <DatePicker
+                        selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            setNewEducation({ ...newEducation, completion_date: date.toISOString().split('T')[0] })
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        placeholderText="Selecciona fecha"
+                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        maxDate={new Date()}
+                        minDate={newEducation.start_date ? new Date(newEducation.start_date) : undefined}
+                        yearDropdownItemNumber={50}
+                        locale="es"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Observaciones</Label>
+                    <Textarea
+                      value={newEducation.observations}
+                      onChange={(e) => setNewEducation({ ...newEducation, observations: e.target.value })}
+                      placeholder="Observaciones adicionales"
+                      rows={2}
+                      className="bg-white dark:bg-gray-950"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleAddEducation}
+                    disabled={!newEducation.institution || !newEducation.title}
+                    className="w-full"
+                  >
+                    Agregar Formación
+                  </Button>
+                </div>
+
+                {/* Lista de formación */}
+                {education.length > 0 && (
+                  <div className="space-y-2">
+                    <h6 className="font-medium text-sm">Formación registrada ({education.length})</h6>
+                    <div className="space-y-2">
+                      {[...education].reverse().map((edu) => (
+                        <div key={edu.id} className="flex items-start justify-between p-3 border rounded-lg bg-card">
+                          <div>
+                            <p className="font-medium">{edu.title}</p>
+                            <p className="text-sm text-muted-foreground">{edu.institution}</p>
+                            {(edu.start_date || edu.completion_date) && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {edu.start_date && formatDate(edu.start_date)}
+                                {edu.start_date && edu.completion_date && " - "}
+                                {edu.completion_date && formatDate(edu.completion_date)}
+                              </p>
+                            )}
+                            {edu.observations && (
+                              <p className="text-sm mt-1">{edu.observations}</p>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEducation(education.filter(e => e.id !== edu.id))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Manejo de Inglés y Software */}
+              <div className="space-y-4 border-t pt-4">
+                <h5 className="font-medium border-b pb-2">Habilidades Adicionales (Opcional)</h5>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="english_level">Nivel de Inglés</Label>
+                    <Input
+                      id="english_level"
+                      value={personalData.english_level}
+                      onChange={(e) => setPersonalData({ ...personalData, english_level: e.target.value })}
+                      placeholder="Ej: Intermedio, Avanzado, Nativo"
+                      className="bg-white dark:bg-gray-950"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="software_tools">Software y Herramientas</Label>
+                    <Input
+                      id="software_tools"
+                      value={personalData.software_tools}
+                      onChange={(e) => setPersonalData({ ...personalData, software_tools: e.target.value })}
+                      placeholder="Ej: Excel, SAP, AutoCAD"
+                      className="bg-white dark:bg-gray-950"
+                    />
+                  </div>
+                </div>
+              </div>
+
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -1292,146 +1565,31 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
                 {/* Lista de experiencias */}
                 {workExperience.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <h5 className="font-medium">Experiencias Registradas (más reciente primero)</h5>
-                    {[...workExperience].reverse().map((exp) => (
-                      <div key={exp.id} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start">
+                  <div className="space-y-2">
+                    <h6 className="font-medium text-sm">Experiencias registradas ({workExperience.length})</h6>
+                    <div className="space-y-2">
+                      {[...workExperience].reverse().map((exp) => (
+                        <div key={exp.id} className="flex items-start justify-between p-3 border rounded-lg bg-card">
                           <div>
-                            <p className="font-medium">{exp.position} en {exp.company}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {exp.start_date} - {exp.is_current ? 'Actual' : exp.end_date}
+                            <p className="font-medium">{exp.position}</p>
+                            <p className="text-sm text-muted-foreground">{exp.company}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {exp.start_date && formatDate(exp.start_date)} - {exp.is_current ? 'Actual' : (exp.end_date ? formatDate(exp.end_date) : 'No especificada')}
                             </p>
                             {exp.description && (
                               <p className="text-sm mt-1">{exp.description}</p>
                             )}
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setWorkExperience(workExperience.filter(e => e.id !== exp.id))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-              </div>
-
-              {/* Formación Académica */}
-              <div className="bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
-              <AccordionItem value="educacion" className="border-0">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                  <h4 className="font-semibold text-lg text-foreground">
-                    Formación Académica {education.length > 0 && <span className="text-muted-foreground">({education.length})</span>}
-                  </h4>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <div className="space-y-4 pt-2">
-
-                {/* Formulario para agregar formación */}
-                <div className="space-y-4 p-4 bg-muted rounded-lg">
-                  <h5 className="font-medium">Agregar Formación</h5>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Institución</Label>
-                      <Input
-                        value={newEducation.institution}
-                        onChange={(e) => setNewEducation({ ...newEducation, institution: e.target.value })}
-                        placeholder="Nombre de la institución"
-                        className="bg-white dark:bg-gray-950"
-                      />
+                      ))}
                     </div>
-                    <div className="space-y-2">
-                      <Label>Título</Label>
-                      <Input
-                        value={newEducation.title}
-                        onChange={(e) => setNewEducation({ ...newEducation, title: e.target.value })}
-                        placeholder="Título obtenido"
-                        className="bg-white dark:bg-gray-950"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Fecha Inicio</Label>
-                      <DatePicker
-                        selected={newEducation.start_date ? new Date(newEducation.start_date) : null}
-                        onChange={(date) => {
-                          if (date) {
-                            setNewEducation({ ...newEducation, start_date: date.toISOString().split('T')[0] })
-                          }
-                        }}
-                        dateFormat="dd/MM/yyyy"
-                        showYearDropdown
-                        showMonthDropdown
-                        dropdownMode="select"
-                        placeholderText="Selecciona fecha"
-                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        maxDate={new Date()}
-                        yearDropdownItemNumber={50}
-                        locale="es"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Fecha Finalización</Label>
-                      <DatePicker
-                        selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
-                        onChange={(date) => {
-                          if (date) {
-                            setNewEducation({ ...newEducation, completion_date: date.toISOString().split('T')[0] })
-                          }
-                        }}
-                        dateFormat="dd/MM/yyyy"
-                        showYearDropdown
-                        showMonthDropdown
-                        dropdownMode="select"
-                        placeholderText="Selecciona fecha"
-                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        maxDate={new Date()}
-                        minDate={newEducation.start_date ? new Date(newEducation.start_date) : undefined}
-                        yearDropdownItemNumber={50}
-                        locale="es"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Observaciones</Label>
-                    <Textarea
-                      value={newEducation.observations}
-                      onChange={(e) => setNewEducation({ ...newEducation, observations: e.target.value })}
-                      placeholder="Observaciones adicionales"
-                      rows={2}
-                      className="bg-white dark:bg-gray-950"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleAddEducation}
-                    disabled={!newEducation.institution || !newEducation.title}
-                    size="sm"
-                  >
-                    Agregar Formación
-                  </Button>
-                </div>
-
-                {/* Lista de formación */}
-                {education.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <h5 className="font-medium">Formación Registrada (más reciente primero)</h5>
-                    {[...education].reverse().map((edu) => (
-                      <div key={edu.id} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">{edu.title}</p>
-                            <p className="text-sm text-muted-foreground">{edu.institution}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {edu.start_date} - {edu.completion_date}
-                            </p>
-                            {edu.observations && (
-                              <p className="text-sm mt-1">{edu.observations}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 )}
                   </div>

@@ -554,6 +554,11 @@ export class PostulacionService {
             profession: candidato.profesiones?.[0]?.nombre_profesion || '',
             profession_institution: '', // Se llenará después con consulta separada
             profession_date: candidato.profesiones?.[0]?.CandidatoProfesion?.fecha_obtencion ? new Date(candidato.profesiones[0].CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0] : '',
+            professions: candidato.profesiones?.map((prof: any) => ({
+                profession: prof.nombre_profesion,
+                institution: '', // Se llenará después con consulta separada
+                date: prof.CandidatoProfesion?.fecha_obtencion ? new Date(prof.CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0] : ''
+            })) || [],
             consultant_comment: postulacion.comentario_no_presentado,
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),
             rejection_reason: postulacion.comentario_rech_obs_cliente,
@@ -602,11 +607,24 @@ export class PostulacionService {
      * Llenar nombres de instituciones en los datos transformados
      */
     private static async fillInstitutionNamesForCandidato(transformedData: any, candidato: any): Promise<void> {
-        // Llenar institución de profesión
+        // Llenar institución de profesión (primera)
         if (candidato.profesiones?.[0]?.CandidatoProfesion?.id_institucion) {
             const institucionProfesion = await Institucion.findByPk(candidato.profesiones[0].CandidatoProfesion.id_institucion);
             if (institucionProfesion) {
                 transformedData.profession_institution = institucionProfesion.nombre_institucion;
+            }
+        }
+
+        // Llenar instituciones de todas las profesiones
+        if (candidato.profesiones && transformedData.professions) {
+            for (let i = 0; i < candidato.profesiones.length; i++) {
+                const prof = candidato.profesiones[i];
+                if (prof.CandidatoProfesion?.id_institucion && transformedData.professions[i]) {
+                    const institucionProf = await Institucion.findByPk(prof.CandidatoProfesion.id_institucion);
+                    if (institucionProf) {
+                        transformedData.professions[i].institution = institucionProf.nombre_institucion;
+                    }
+                }
             }
         }
 

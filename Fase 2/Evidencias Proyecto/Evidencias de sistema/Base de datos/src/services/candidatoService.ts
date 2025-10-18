@@ -418,9 +418,16 @@ export class CandidatoService {
         phone?: string;
         rut?: string;
         birth_date?: string;
+        age?: number;
+        region?: string;
         comuna?: string;
         nacionalidad?: string;
         rubro?: string;
+        professions?: Array<{
+            profession: string;
+            institution: string;
+            date: string;
+        }>;
         english_level?: string;
         software_tools?: string;
         has_disability_credential?: boolean;
@@ -429,13 +436,19 @@ export class CandidatoService {
             company: string;
             position: string;
             start_date: string;
-            end_date: string;
-            description: string;
+            end_date?: string;
+            is_current?: boolean;
+            description?: string;
+            comments?: string;
+            exit_reason?: string;
         }>;
         education?: Array<{
+            type?: string;
             title: string;
             institution: string;
-            completion_date: string;
+            start_date?: string;
+            completion_date?: string;
+            observations?: string;
         }>;
     }) {
         const transaction: Transaction = await sequelize.transaction();
@@ -496,7 +509,76 @@ export class CandidatoService {
                 }
             }
 
+            // Actualizar edad si se proporciona
+            if (data.age !== undefined) {
+                updateData.edad_candidato = data.age;
+            }
+
             await candidato.update(updateData, { transaction });
+
+            // Actualizar profesiones si se proporciona
+            if (data.professions && data.professions.length > 0) {
+                // Eliminar todas las relaciones de profesión existentes
+                await CandidatoProfesion.destroy({
+                    where: { id_candidato: id },
+                    transaction
+                });
+
+                // Crear nuevas relaciones de profesión
+                for (const prof of data.professions) {
+                    if (prof.profession && prof.institution) {
+                        // Buscar o crear la profesión
+                        let profesion = await Profesion.findOne({
+                            where: { nombre_profesion: prof.profession.trim() }
+                        });
+
+                        if (!profesion) {
+                            profesion = await Profesion.create({
+                                nombre_profesion: prof.profession.trim()
+                            }, { transaction });
+                        }
+
+                        // Buscar la institución
+                        let institucion = null;
+                        if (prof.institution) {
+                            institucion = await Institucion.findOne({
+                                where: { nombre_institucion: prof.institution.trim() }
+                            });
+                        }
+
+                        // Crear la relación
+                        await CandidatoProfesion.create({
+                            id_candidato: id,
+                            id_profesion: profesion.id_profesion,
+                            fecha_obtencion: prof.date ? new Date(prof.date) : undefined,
+                            id_institucion: institucion ? institucion.id_institucion : undefined
+                        }, { transaction });
+                    }
+                }
+            }
+
+            // Actualizar experiencia laboral si se proporciona
+            if (data.work_experience && data.work_experience.length > 0) {
+                // Eliminar todas las experiencias existentes
+                await Experiencia.destroy({
+                    where: { id_candidato: id },
+                    transaction
+                });
+
+                // Crear nuevas experiencias
+                for (const exp of data.work_experience) {
+                    if (exp.company && exp.position) {
+                        await Experiencia.create({
+                            id_candidato: id,
+                            empresa: exp.company.trim(),
+                            cargo: exp.position.trim(),
+                            fecha_inicio_experiencia: exp.start_date ? new Date(exp.start_date) : new Date(),
+                            fecha_fin_experiencia: exp.end_date ? new Date(exp.end_date) : undefined,
+                            descripcion_funciones_experiencia: exp.description || ''
+                        }, { transaction });
+                    }
+                }
+            }
 
             // Actualizar educación si se proporciona
             if (data.education && data.education.length > 0) {

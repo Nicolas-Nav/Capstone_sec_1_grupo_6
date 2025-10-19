@@ -77,8 +77,28 @@ export class ClienteController {
         } catch (error: any) {
             Logger.error('Error al crear cliente:', error);
             
-            if (error.name === 'SequelizeUniqueConstraintError') {
-                return sendError(res, 'Ya existe un cliente con ese nombre', 400);
+            // Manejar errores de constraint único de PostgreSQL
+            if (error.name === 'SequelizeUniqueConstraintError' || error.original?.code === '23505') {
+                const constraint = error.original?.constraint || error.fields || {};
+                
+                // Detectar qué campo está duplicado
+                if (constraint === 'cliente_nombre_cliente' || error.fields?.nombre_cliente) {
+                    return sendError(res, 'Ya existe un cliente con ese nombre', 400);
+                } else if (constraint === 'contacto_email_contacto' || error.fields?.email_contacto) {
+                    // Extraer el valor del email del mensaje de error: Key (email_contacto)=(valor@email.com) already exists.
+                    const detail = error.original?.detail || '';
+                    const emailMatch = detail.match(/\)\s*=\s*\(([^)]+)\)/);
+                    const email = emailMatch?.[1] || 'el correo especificado';
+                    return sendError(res, `El correo electrónico ${email} ya está registrado en otro contacto`, 400);
+                } else if (constraint === 'contacto_telefono_contacto' || error.fields?.telefono_contacto) {
+                    // Extraer el valor del teléfono del mensaje de error
+                    const detail = error.original?.detail || '';
+                    const telefonoMatch = detail.match(/\)\s*=\s*\(([^)]+)\)/);
+                    const telefono = telefonoMatch?.[1] || 'el teléfono especificado';
+                    return sendError(res, `El teléfono ${telefono} ya está registrado en otro contacto`, 400);
+                }
+                
+                return sendError(res, 'Ya existe un registro con esos datos', 400);
             }
             
             return sendError(res, error.message || 'Error al crear cliente', 400);
@@ -101,8 +121,28 @@ export class ClienteController {
         } catch (error: any) {
             Logger.error('Error al actualizar cliente:', error);
             
-            if (error.name === 'SequelizeUniqueConstraintError') {
-                return sendError(res, 'Ya existe un cliente con ese nombre', 400);
+            // Manejar errores de constraint único de PostgreSQL
+            if (error.name === 'SequelizeUniqueConstraintError' || error.original?.code === '23505') {
+                const constraint = error.original?.constraint || error.fields || {};
+                
+                // Detectar qué campo está duplicado
+                if (constraint === 'cliente_nombre_cliente' || error.fields?.nombre_cliente) {
+                    return sendError(res, 'Ya existe un cliente con ese nombre', 400);
+                } else if (constraint === 'contacto_email_contacto' || error.fields?.email_contacto) {
+                    // Extraer el valor del email del mensaje de error: Key (email_contacto)=(valor@email.com) already exists.
+                    const detail = error.original?.detail || '';
+                    const emailMatch = detail.match(/\)\s*=\s*\(([^)]+)\)/);
+                    const email = emailMatch?.[1] || 'el correo especificado';
+                    return sendError(res, `El correo electrónico ${email} ya está registrado en otro contacto`, 400);
+                } else if (constraint === 'contacto_telefono_contacto' || error.fields?.telefono_contacto) {
+                    // Extraer el valor del teléfono del mensaje de error
+                    const detail = error.original?.detail || '';
+                    const telefonoMatch = detail.match(/\)\s*=\s*\(([^)]+)\)/);
+                    const telefono = telefonoMatch?.[1] || 'el teléfono especificado';
+                    return sendError(res, `El teléfono ${telefono} ya está registrado en otro contacto`, 400);
+                }
+                
+                return sendError(res, 'Ya existe un registro con esos datos', 400);
             }
             
             if (error.message === 'Cliente no encontrado') {

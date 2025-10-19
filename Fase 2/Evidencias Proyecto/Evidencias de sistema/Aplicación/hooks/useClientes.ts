@@ -22,6 +22,7 @@ interface NewClientInput {
     phone: string
     position: string
     city: string
+    region: string
     is_primary: boolean
   }>
 }
@@ -57,6 +58,7 @@ export function useClientes() {
         phone: "",
         position: "",
         city: "",
+        region: "",
         is_primary: true,
       },
     ],
@@ -168,6 +170,7 @@ export function useClientes() {
               phone: "",
               position: "",
               city: "",
+              region: "",
               is_primary: true,
             },
           ],
@@ -226,6 +229,7 @@ export function useClientes() {
               phone: "",
               position: "",
               city: "",
+              region: "",
               is_primary: true,
             },
           ],

@@ -20,8 +20,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
-import { clientService, comunaService, apiUtils } from "@/lib/api"
-import type { Client, ClientContact, Comuna } from "@/lib/types"
+import { clientService, comunaService, regionService, apiUtils } from "@/lib/api"
+import type { Client, ClientContact, Comuna, Region } from "@/lib/types"
+import { useFormValidation, validationSchemas, validateClientContacts } from "@/hooks/useFormValidation"
 import { toast } from "sonner"
 import { useClientes } from "@/hooks/useClientes"
 
@@ -52,6 +53,9 @@ export default function ClientesPage() {
     handlePageSizeChange,
   } = useClientes()
 
+  // Hook de validación
+  const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
+
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isResultOpen, setIsResultOpen] = useState(false)
@@ -59,6 +63,8 @@ export default function ClientesPage() {
   const [resultMessage, setResultMessage] = useState<string>("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comunas, setComunas] = useState<Comuna[]>([])
+  const [regiones, setRegiones] = useState<Region[]>([])
+  const [contactErrors, setContactErrors] = useState<{[key: string]: string}>({})
   
   // Estado para confirmación de eliminación
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
@@ -66,9 +72,10 @@ export default function ClientesPage() {
 
   // Los clientes ya vienen filtrados del servidor, no necesitamos filtrar en el cliente
 
-  // Cargar comunas al montar el componente
+  // Cargar comunas y regiones al montar el componente
   useEffect(() => {
     loadAllComunas()
+    loadAllRegiones()
   }, [])
 
   const loadAllComunas = async () => {
@@ -79,6 +86,17 @@ export default function ClientesPage() {
       }
     } catch (error) {
       console.error('Error loading comunas:', error)
+    }
+  }
+
+  const loadAllRegiones = async () => {
+    try {
+      const response = await regionService.getAll()
+      if (response.success && response.data) {
+        setRegiones(response.data)
+      }
+    } catch (error) {
+      console.error('Error loading regiones:', error)
     }
   }
 
@@ -99,6 +117,7 @@ export default function ClientesPage() {
           phone: "",
           position: "",
           city: "",
+          region: "",
           is_primary: false,
         },
       ],
@@ -116,7 +135,7 @@ export default function ClientesPage() {
     }
   }
 
-  const updateContact = (index: number, field: keyof ClientContact, value: string | boolean) => {
+  const updateContact = (index: number, field: keyof ClientContact | 'region', value: string | boolean) => {
     const newContacts = [...newClient.contacts]
     if (field === "is_primary" && value === true) {
       // Only one contact can be primary
@@ -127,32 +146,120 @@ export default function ClientesPage() {
       ;(newContacts[index] as any)[field] = value
     }
     setNewClient({ ...newClient, contacts: newContacts })
+    
+    // Validar el campo en tiempo real
+    if (field !== "is_primary" && field !== 'region') {
+      const rule = validationSchemas.clientContactForm[field as keyof typeof validationSchemas.clientContactForm]
+      if (rule) {
+        const errorKey = `contact-${index}-${field}`
+        const errorMessage = validateSingleFieldHelper(value, rule)
+        
+        setContactErrors(prev => {
+          const newErrors = { ...prev }
+          if (errorMessage) {
+            newErrors[errorKey] = errorMessage
+          } else {
+            delete newErrors[errorKey]
+          }
+          return newErrors
+        })
+      }
+    } else if (field === 'region') {
+      const rule = validationSchemas.clientContactForm.region
+      const errorKey = `contact-${index}-region`
+      const errorMessage = validateSingleFieldHelper(value, rule)
+      
+      setContactErrors(prev => {
+        const newErrors = { ...prev }
+        if (errorMessage) {
+          newErrors[errorKey] = errorMessage
+        } else {
+          delete newErrors[errorKey]
+        }
+        return newErrors
+      })
+    }
+  }
+
+  // Helper function para validar un campo individual
+  const validateSingleFieldHelper = (value: any, rule: any): string | null => {
+    // Validación requerida
+    if (rule.required && (!value || (typeof value === 'string' && !value.trim()))) {
+      return rule.message || 'Este campo es requerido'
+    }
+
+    // Si el campo no es requerido y está vacío, no validar más
+    if (!rule.required && (!value || (typeof value === 'string' && !value.trim()))) {
+      return null
+    }
+
+    // Validación de longitud mínima
+    if (rule.minLength && typeof value === 'string' && value.trim().length < rule.minLength) {
+      return rule.message || `Debe tener al menos ${rule.minLength} caracteres`
+    }
+
+    // Validación de longitud máxima
+    if (rule.maxLength && typeof value === 'string' && value.length > rule.maxLength) {
+      return rule.message || `No puede exceder ${rule.maxLength} caracteres`
+    }
+
+    // Validación de patrón
+    if (rule.pattern && typeof value === 'string' && !rule.pattern.test(value.trim())) {
+      return rule.message || 'Formato inválido'
+    }
+
+    // Validación personalizada
+    if (rule.custom) {
+      return rule.custom(value)
+    }
+
+    return null
   }
 
 
   const validateForm = () => {
-    if (!newClient.name.trim()) {
-      toast.error('El nombre de la empresa es requerido')
-      return false
+    let isValid = true
+    
+    // Validar nombre de empresa manualmente
+    const nameRule = validationSchemas.clientForm.name
+    const nameError = validateSingleFieldHelper(newClient.name, nameRule)
+    
+    if (nameError) {
+      toast.error(nameError)
+      isValid = false
+    }
+    
+    // Validar contactos
+    const contactsValidation = validateClientContacts(newClient.contacts)
+    
+    if (contactsValidation.hasErrors) {
+      isValid = false
+      
+      if (contactsValidation.errors.general) {
+        toast.error(contactsValidation.errors.general as string)
+      } else {
+        // Mostrar errores de contactos específicos y marcar campos
+        const newContactErrors: {[key: string]: string} = {}
+        
+        Object.keys(contactsValidation.errors).forEach(contactIndex => {
+          const contactErrors = contactsValidation.errors[contactIndex] as any
+          const contactNumber = parseInt(contactIndex) + 1
+          
+          // Mostrar mensaje principal del contacto
+          toast.error(`Contacto ${contactNumber}: Complete todos los campos obligatorios`)
+          
+          // Marcar campos con errores específicos
+          Object.keys(contactErrors).forEach(field => {
+            const errorKey = `contact-${contactIndex}-${field}`
+            newContactErrors[errorKey] = contactErrors[field]
+          })
+        })
+        
+        setContactErrors(newContactErrors)
+      }
     }
 
-    for (let i = 0; i < newClient.contacts.length; i++) {
-      const contact = newClient.contacts[i]
-      if (!contact.name.trim()) {
-        toast.error(`El nombre del contacto ${i + 1} es requerido`)
-        return false
-      }
-      if (!contact.email.trim()) {
-        toast.error(`El email del contacto ${i + 1} es requerido`)
-        return false
-      }
-      if (!contact.phone.trim()) {
-        toast.error(`El teléfono del contacto ${i + 1} es requerido`)
-        return false
-      }
-    }
-
-    return true
+    return isValid
   }
 
   const handleCreateClient = async () => {
@@ -192,10 +299,13 @@ export default function ClientesPage() {
           phone: "",
           position: "",
           city: "",
+          region: "",
           is_primary: true,
         },
       ],
     })
+    clearAllErrors()
+    setContactErrors({})
   }
 
   const handleEditClient = async () => {
@@ -255,10 +365,41 @@ export default function ClientesPage() {
 
   const openEditDialog = (client: Client) => {
     setEditingClient(client as any)
+    
+    // Mapear contactos y calcular la región basándose en la ciudad/comuna
+    const contactsWithRegion = (client.contacts || []).map(contact => {
+      let regionName = contact.region || ""
+      
+      // Si no tiene región pero tiene ciudad, buscar la región
+      if (!regionName && contact.city) {
+        // Buscar comuna (comparación case-insensitive por si acaso)
+        const comunaEncontrada = comunas.find(c => 
+          c.nombre_comuna.toLowerCase() === contact.city.toLowerCase()
+        )
+        
+        if (comunaEncontrada) {
+          const regionEncontrada = regiones.find(r => r.id_region === comunaEncontrada.id_region)
+          if (regionEncontrada) {
+            regionName = regionEncontrada.nombre_region
+          }
+        }
+      }
+      
+      return {
+        ...contact,
+        region: regionName,
+        is_primary: contact.is_primary ?? false
+      }
+    })
+    
     setNewClient({
       name: client.name,
-      contacts: [...(client.contacts || [])],
+      contacts: contactsWithRegion,
     })
+    
+    // Limpiar errores previos
+    clearAllErrors()
+    setContactErrors({})
     setIsEditDialogOpen(true)
   }
 
@@ -276,27 +417,41 @@ export default function ClientesPage() {
           <h1 className="text-3xl font-bold tracking-tight">Gestión de Clientes</h1>
           <p className="text-muted-foreground">Administra la información de contacto de tus clientes</p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+          setIsCreateDialogOpen(open)
+          if (!open) {
+            // Limpiar errores al cerrar
+            clearAllErrors()
+            setContactErrors({})
+          }
+        }}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
               Nuevo Cliente
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto w-full" style={{ width: '50vw', maxWidth: '1200px' }}>
             <DialogHeader>
               <DialogTitle>Crear Nuevo Cliente</DialogTitle>
               <DialogDescription>Ingresa la información del nuevo cliente y sus contactos</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Nombre de la Empresa</Label>
+                <Label htmlFor="name">Nombre de la Empresa *</Label>
                 <Input
                   id="name"
                   value={newClient.name}
-                  onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                  onChange={(e) => {
+                    setNewClient({ ...newClient, name: e.target.value })
+                    validateField('name', e.target.value, validationSchemas.clientForm)
+                  }}
                   placeholder="Ej: Empresa ABC S.A."
+                  className={errors.name ? 'border-red-500' : ''}
                 />
+                {errors.name && (
+                  <p className="text-sm text-red-500">{errors.name as string}</p>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -335,59 +490,137 @@ export default function ClientesPage() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="grid gap-2">
-                        <Label htmlFor={`contact-name-${index}`}>Nombre</Label>
+                        <Label htmlFor={`contact-name-${index}`}>Nombre *</Label>
                         <Input
                           id={`contact-name-${index}`}
                           value={contact.name}
                           onChange={(e) => updateContact(index, "name", e.target.value)}
                           placeholder="Ej: Juan Pérez"
+                          className={contactErrors[`contact-${index}-name`] ? 'border-red-500' : ''}
                         />
+                        {contactErrors[`contact-${index}-name`] && (
+                          <p className="text-sm text-red-500">{contactErrors[`contact-${index}-name`]}</p>
+                        )}
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor={`contact-position-${index}`}>Cargo</Label>
+                        <Label htmlFor={`contact-position-${index}`}>Cargo *</Label>
                         <Input
                           id={`contact-position-${index}`}
                           value={contact.position}
                           onChange={(e) => updateContact(index, "position", e.target.value)}
                           placeholder="Ej: Gerente de RRHH"
+                          className={contactErrors[`contact-${index}-position`] ? 'border-red-500' : ''}
                         />
+                        {contactErrors[`contact-${index}-position`] && (
+                          <p className="text-sm text-red-500">{contactErrors[`contact-${index}-position`]}</p>
+                        )}
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor={`contact-email-${index}`}>Correo Electrónico</Label>
+                        <Label htmlFor={`contact-email-${index}`}>Correo Electrónico *</Label>
                         <Input
                           id={`contact-email-${index}`}
                           type="email"
                           value={contact.email}
                           onChange={(e) => updateContact(index, "email", e.target.value)}
                           placeholder="contacto@empresa.com"
+                          className={contactErrors[`contact-${index}-email`] ? 'border-red-500' : ''}
                         />
+                        {contactErrors[`contact-${index}-email`] && (
+                          <p className="text-sm text-red-500">{contactErrors[`contact-${index}-email`]}</p>
+                        )}
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor={`contact-phone-${index}`}>Teléfono</Label>
+                        <Label htmlFor={`contact-phone-${index}`}>Teléfono * (8-12 caracteres)</Label>
                         <Input
                           id={`contact-phone-${index}`}
                           value={contact.phone}
                           onChange={(e) => updateContact(index, "phone", e.target.value)}
-                          placeholder="+56 9 1234 5678"
+                          placeholder="+56912345678"
+                          className={contactErrors[`contact-${index}-phone`] ? 'border-red-500' : ''}
                         />
+                        {contactErrors[`contact-${index}-phone`] && (
+                          <p className="text-sm text-red-500">{contactErrors[`contact-${index}-phone`]}</p>
+                        )}
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor={`contact-city-${index}`}>Comuna</Label>
+                        <Label htmlFor={`contact-region-${index}`}>Región *</Label>
                         <Select
-                          value={contact.city || ""}
-                          onValueChange={(value) => updateContact(index, "city", value)}
+                          value={contact.region || ""}
+                          onValueChange={(value) => {
+                            // Actualizar región
+                            const newContacts = [...newClient.contacts]
+                            newContacts[index].region = value
+                            // Limpiar comuna cuando se cambia la región
+                            newContacts[index].city = ""
+                            setNewClient({ ...newClient, contacts: newContacts })
+                            
+                            // Validar región en tiempo real
+                            const rule = validationSchemas.clientContactForm.region
+                            const errorKey = `contact-${index}-region`
+                            const errorMessage = validateSingleFieldHelper(value, rule)
+                            
+                            // Validar ciudad (estará vacía, así que mostrará error)
+                            const cityRule = validationSchemas.clientContactForm.city
+                            const cityErrorKey = `contact-${index}-city`
+                            const cityErrorMessage = validateSingleFieldHelper("", cityRule)
+                            
+                            setContactErrors(prev => {
+                              const newErrors = { ...prev }
+                              if (errorMessage) {
+                                newErrors[errorKey] = errorMessage
+                              } else {
+                                delete newErrors[errorKey]
+                              }
+                              if (cityErrorMessage) {
+                                newErrors[cityErrorKey] = cityErrorMessage
+                              } else {
+                                delete newErrors[cityErrorKey]
+                              }
+                              return newErrors
+                            })
+                          }}
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona una comuna" />
+                          <SelectTrigger className={contactErrors[`contact-${index}-region`] ? 'border-red-500' : ''}>
+                            <SelectValue placeholder="Selecciona una región" />
                           </SelectTrigger>
                           <SelectContent>
-                            {comunas.map((comuna) => (
-                              <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
-                                {comuna.nombre_comuna}
+                            {regiones.map((region) => (
+                              <SelectItem key={region.id_region} value={region.nombre_region}>
+                                {region.nombre_region}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        {contactErrors[`contact-${index}-region`] && (
+                          <p className="text-sm text-red-500">{contactErrors[`contact-${index}-region`]}</p>
+                        )}
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor={`contact-city-${index}`}>Comuna *</Label>
+                        <Select
+                          value={contact.city || ""}
+                          onValueChange={(value) => updateContact(index, "city", value)}
+                          disabled={!contact.region}
+                        >
+                          <SelectTrigger className={contactErrors[`contact-${index}-city`] ? 'border-red-500' : ''}>
+                            <SelectValue placeholder={contact.region ? "Selecciona una comuna" : "Primero selecciona una región"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {comunas
+                              .filter(comuna => {
+                                const region = regiones.find(r => r.nombre_region === contact.region)
+                                return region ? comuna.id_region === region.id_region : false
+                              })
+                              .map((comuna) => (
+                                <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
+                                  {comuna.nombre_comuna}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        {contactErrors[`contact-${index}-city`] && (
+                          <p className="text-sm text-red-500">{contactErrors[`contact-${index}-city`]}</p>
+                        )}
                       </div>
                       <div className="flex items-center space-x-2 pt-6">
                         <input
@@ -650,8 +883,15 @@ export default function ClientesPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open)
+        if (!open) {
+          // Limpiar errores al cerrar
+          clearAllErrors()
+          setContactErrors({})
+        }
+      }}>
+        <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto w-full" style={{ width: '50vw', maxWidth: '1200px' }}>
           <DialogHeader>
             <DialogTitle>Editar Cliente</DialogTitle>
             <DialogDescription>
@@ -661,12 +901,20 @@ export default function ClientesPage() {
           </DialogHeader>
           <div className="grid gap-6 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="edit-name">Nombre de la Empresa</Label>
+              <Label htmlFor="edit-name">Nombre de la Empresa *</Label>
               <Input
                 id="edit-name"
                 value={newClient.name}
-                onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                onChange={(e) => {
+                  setNewClient({ ...newClient, name: e.target.value })
+                  validateField('name', e.target.value, validationSchemas.clientForm)
+                }}
+                placeholder="Ej: Empresa ABC S.A."
+                className={errors.name ? 'border-red-500' : ''}
               />
+              {errors.name && (
+                <p className="text-sm text-red-500">{errors.name as string}</p>
+              )}
             </div>
 
             <div className="space-y-4">
@@ -705,55 +953,137 @@ export default function ClientesPage() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="grid gap-2">
-                      <Label htmlFor={`edit-contact-name-${index}`}>Nombre</Label>
+                      <Label htmlFor={`edit-contact-name-${index}`}>Nombre *</Label>
                       <Input
                         id={`edit-contact-name-${index}`}
                         value={contact.name}
                         onChange={(e) => updateContact(index, "name", e.target.value)}
+                        placeholder="Ej: Juan Pérez"
+                        className={contactErrors[`contact-${index}-name`] ? 'border-red-500' : ''}
                       />
+                      {contactErrors[`contact-${index}-name`] && (
+                        <p className="text-sm text-red-500">{contactErrors[`contact-${index}-name`]}</p>
+                      )}
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor={`edit-contact-position-${index}`}>Cargo</Label>
+                      <Label htmlFor={`edit-contact-position-${index}`}>Cargo *</Label>
                       <Input
                         id={`edit-contact-position-${index}`}
                         value={contact.position}
                         onChange={(e) => updateContact(index, "position", e.target.value)}
+                        placeholder="Ej: Gerente de RRHH"
+                        className={contactErrors[`contact-${index}-position`] ? 'border-red-500' : ''}
                       />
+                      {contactErrors[`contact-${index}-position`] && (
+                        <p className="text-sm text-red-500">{contactErrors[`contact-${index}-position`]}</p>
+                      )}
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor={`edit-contact-email-${index}`}>Correo Electrónico</Label>
+                      <Label htmlFor={`edit-contact-email-${index}`}>Correo Electrónico *</Label>
                       <Input
                         id={`edit-contact-email-${index}`}
                         type="email"
                         value={contact.email}
                         onChange={(e) => updateContact(index, "email", e.target.value)}
+                        placeholder="contacto@empresa.com"
+                        className={contactErrors[`contact-${index}-email`] ? 'border-red-500' : ''}
                       />
+                      {contactErrors[`contact-${index}-email`] && (
+                        <p className="text-sm text-red-500">{contactErrors[`contact-${index}-email`]}</p>
+                      )}
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor={`edit-contact-phone-${index}`}>Teléfono</Label>
+                      <Label htmlFor={`edit-contact-phone-${index}`}>Teléfono * (8-12 caracteres)</Label>
                       <Input
                         id={`edit-contact-phone-${index}`}
                         value={contact.phone}
                         onChange={(e) => updateContact(index, "phone", e.target.value)}
+                        placeholder="+56912345678"
+                        className={contactErrors[`contact-${index}-phone`] ? 'border-red-500' : ''}
                       />
+                      {contactErrors[`contact-${index}-phone`] && (
+                        <p className="text-sm text-red-500">{contactErrors[`contact-${index}-phone`]}</p>
+                      )}
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor={`edit-contact-city-${index}`}>Comuna</Label>
+                      <Label htmlFor={`edit-contact-region-${index}`}>Región *</Label>
                       <Select
-                        value={contact.city || ""}
-                        onValueChange={(value) => updateContact(index, "city", value)}
+                        value={contact.region || ""}
+                        onValueChange={(value) => {
+                          // Actualizar región
+                          const newContacts = [...newClient.contacts]
+                          newContacts[index].region = value
+                          // Limpiar comuna cuando se cambia la región
+                          newContacts[index].city = ""
+                          setNewClient({ ...newClient, contacts: newContacts })
+                          
+                          // Validar región en tiempo real
+                          const rule = validationSchemas.clientContactForm.region
+                          const errorKey = `contact-${index}-region`
+                          const errorMessage = validateSingleFieldHelper(value, rule)
+                          
+                          // Validar ciudad (estará vacía, así que mostrará error)
+                          const cityRule = validationSchemas.clientContactForm.city
+                          const cityErrorKey = `contact-${index}-city`
+                          const cityErrorMessage = validateSingleFieldHelper("", cityRule)
+                          
+                          setContactErrors(prev => {
+                            const newErrors = { ...prev }
+                            if (errorMessage) {
+                              newErrors[errorKey] = errorMessage
+                            } else {
+                              delete newErrors[errorKey]
+                            }
+                            if (cityErrorMessage) {
+                              newErrors[cityErrorKey] = cityErrorMessage
+                            } else {
+                              delete newErrors[cityErrorKey]
+                            }
+                            return newErrors
+                          })
+                        }}
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona una comuna" />
+                        <SelectTrigger className={contactErrors[`contact-${index}-region`] ? 'border-red-500' : ''}>
+                          <SelectValue placeholder="Selecciona una región" />
                         </SelectTrigger>
                         <SelectContent>
-                          {comunas.map((comuna) => (
-                            <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
-                              {comuna.nombre_comuna}
+                          {regiones.map((region) => (
+                            <SelectItem key={region.id_region} value={region.nombre_region}>
+                              {region.nombre_region}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {contactErrors[`contact-${index}-region`] && (
+                        <p className="text-sm text-red-500">{contactErrors[`contact-${index}-region`]}</p>
+                      )}
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor={`edit-contact-city-${index}`}>Comuna *</Label>
+                      <Select
+                        value={contact.city || ""}
+                        onValueChange={(value) => updateContact(index, "city", value)}
+                        disabled={!contact.region}
+                      >
+                        <SelectTrigger className={contactErrors[`contact-${index}-city`] ? 'border-red-500' : ''}>
+                          <SelectValue placeholder={contact.region ? "Selecciona una comuna" : "Primero selecciona una región"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {comunas
+                            .filter(comuna => {
+                              const region = regiones.find(r => r.nombre_region === contact.region)
+                              return region ? comuna.id_region === region.id_region : false
+                            })
+                            .map((comuna) => (
+                              <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
+                                {comuna.nombre_comuna}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      {contactErrors[`contact-${index}-city`] && (
+                        <p className="text-sm text-red-500">{contactErrors[`contact-${index}-city`]}</p>
+                      )}
                     </div>
                     <div className="flex items-center space-x-2 pt-6">
                       <input

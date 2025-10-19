@@ -49,9 +49,27 @@ export const validationRules = {
     message
   }),
   
-  phone: (message = 'Ingrese un teléfono válido (mínimo 8 dígitos)'): ValidationRule => ({
-    pattern: /^[\+]?[0-9\s\-\(\)]{8,}$/,
-    message
+  phone: (message = 'Ingrese un teléfono válido (8 a 12 caracteres)'): ValidationRule => ({
+    custom: (value: string) => {
+      if (!value?.trim()) return null
+      
+      // Validar formato básico (números, espacios, guiones, paréntesis, signo +)
+      const phonePattern = /^[\+]?[0-9\s\-\(\)]+$/
+      if (!phonePattern.test(value.trim())) {
+        return message || 'Formato de teléfono inválido'
+      }
+      
+      // Validar longitud (8 a 12 caracteres)
+      const length = value.trim().length
+      if (length < 8) {
+        return 'El teléfono debe tener al menos 8 caracteres'
+      }
+      if (length > 12) {
+        return 'El teléfono no puede exceder 12 caracteres'
+      }
+      
+      return null
+    }
   }),
   
   rut: (message = 'Ingrese un RUT válido (ej: 12345678-9)'): ValidationRule => ({
@@ -115,6 +133,28 @@ export const validationSchemas = {
       ...validationRules.email('Ingrese un email válido (ej: candidato@ejemplo.com)')
     },
     rut_candidato: validationRules.rut()
+  },
+
+  // Validaciones para formulario de cliente
+  clientForm: {
+    name: validationRules.requiredTextLength(2, 100, 'El nombre de la empresa'),
+    contacts: validationRules.required('Debe agregar al menos un contacto')
+  },
+
+  // Validaciones para contactos de cliente
+  clientContactForm: {
+    name: validationRules.requiredTextLength(2, 50, 'El nombre del contacto es obligatorio'),
+    email: {
+      ...validationRules.required('El correo electrónico del contacto es obligatorio'),
+      ...validationRules.email('Ingrese un correo electrónico válido (ej: contacto@empresa.com)')
+    },
+    phone: {
+      ...validationRules.required('El teléfono del contacto es obligatorio'),
+      ...validationRules.phone('Ingrese un teléfono válido (mínimo 8 dígitos)')
+    },
+    position: validationRules.requiredTextLength(2, 50, 'El cargo del contacto es obligatorio'),
+    city: validationRules.required('Debe seleccionar una comuna para el contacto'),
+    region: validationRules.required('Debe seleccionar una región para el contacto')
   }
 }
 
@@ -127,17 +167,19 @@ export function useFormValidation(): UseFormValidationReturn {
     const rule = schema[field]
     if (!rule) return
 
-    const newErrors = { ...errors }
-    const errorMessage = validateSingleField(value, rule)
+    setErrors(prev => {
+      const newErrors = { ...prev }
+      const errorMessage = validateSingleField(value, rule)
 
-    if (errorMessage) {
-      newErrors[field] = errorMessage
-    } else {
-      delete newErrors[field]
-    }
+      if (errorMessage) {
+        newErrors[field] = errorMessage
+      } else {
+        delete newErrors[field]
+      }
 
-    setErrors(newErrors)
-  }, [errors])
+      return newErrors
+    })
+  }, [])
 
   const validateAllFields = useCallback((data: any, schema: ValidationSchema): boolean => {
     const newErrors: ValidationErrors = {}
@@ -245,6 +287,41 @@ export function validateCandidates(candidates: any[]): { hasErrors: boolean; err
 
       if (candidateHasErrors) {
         errors[index] = candidateErrors
+        hasErrors = true
+      }
+    })
+  }
+
+  return { hasErrors, errors }
+}
+
+// Función helper para validar contactos de cliente específicamente
+export function validateClientContacts(contacts: any[]): { hasErrors: boolean; errors: ValidationErrors } {
+  const errors: ValidationErrors = {}
+  let hasErrors = false
+
+  if (contacts.length === 0) {
+    errors.general = 'Un cliente debe tener al menos un contacto para poder ser creado'
+    hasErrors = true
+  } else {
+    contacts.forEach((contact, index) => {
+      const contactErrors: ValidationErrors = {}
+      let contactHasErrors = false
+
+      // Validar cada campo del contacto
+      Object.keys(validationSchemas.clientContactForm).forEach(field => {
+        const rule = validationSchemas.clientContactForm[field as keyof typeof validationSchemas.clientContactForm]
+        const value = contact[field as keyof typeof contact]
+        const errorMessage = validateSingleField(value, rule)
+
+        if (errorMessage) {
+          contactErrors[field] = errorMessage
+          contactHasErrors = true
+        }
+      })
+
+      if (contactHasErrors) {
+        errors[index] = contactErrors
         hasErrors = true
       }
     })

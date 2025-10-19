@@ -1196,12 +1196,12 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor={`telefono_${index}`}>Teléfono *</Label>
+                        <Label htmlFor={`telefono_${index}`}>Teléfono * (8-12 caracteres)</Label>
                   <Input
                           id={`telefono_${index}`}
                           value={candidato.telefono_candidato}
                           onChange={(e) => updateCandidato(index, 'telefono_candidato', e.target.value)}
-                          placeholder="+56 9 1234 5678"
+                          placeholder="+56912345678"
                     className={getCandidateError(index, 'telefono_candidato') ? "border-red-500" : ""}
                   />
                   {getCandidateError(index, 'telefono_candidato') && (

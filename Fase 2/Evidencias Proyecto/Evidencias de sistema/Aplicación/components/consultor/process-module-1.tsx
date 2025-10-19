@@ -971,12 +971,12 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="phone">Teléfono (8-12 caracteres) <span className="text-red-500">*</span></Label>
                   <Input
                     id="phone"
                     value={personalData.phone}
                     onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
-                    placeholder="+56 9 1234 5678"
+                    placeholder="+56912345678"
                   />
                 </div>
                 <div className="space-y-2">

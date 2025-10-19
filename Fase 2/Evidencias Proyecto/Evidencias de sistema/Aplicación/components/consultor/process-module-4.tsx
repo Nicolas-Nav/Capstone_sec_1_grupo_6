@@ -847,12 +847,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Teléfono (Opcional)</Label>
+                    <Label htmlFor="phone">Teléfono (8-12 caracteres, Opcional)</Label>
                     <Input
                       id="phone"
                       value={newReference.phone}
                       onChange={(e) => setNewReference({ ...newReference, phone: e.target.value })}
-                      placeholder="+56 9 1234 5678"
+                      placeholder="+56912345678"
                     />
                   </div>
                   <div className="space-y-2">

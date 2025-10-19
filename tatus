@@ -1,0 +1,298 @@
+import type {
+  User,
+  Client,
+  Process,
+  Candidate,
+  Publication,
+  Hito,
+  PsychologicalEvaluation,
+  Notification,
+  ServiceType,
+  ProcessStatus,
+  CandidateStatus,
+  HitoStatus,
+  ConsultantDocument,
+} from "./types"
+
+// Mock Users
+export const mockUsers: User[] = [
+  {
+    id: "1",
+    name: "Ana García",
+    email: "admin@llconsulting.com", // Keeping consistent email domain
+    role: "admin",
+    status: "habilitado",
+    created_at: "2023-01-15T10:00:00Z",
+    last_login: "2024-02-07T09:30:00Z",
+  },
+  {
+    id: "2",
+    name: "Carlos Rodríguez",
+    email: "carlos@llconsulting.com", // Keeping consistent email domain
+    role: "consultor",
+    status: "habilitado",
+    created_at: "2023-02-20T14:30:00Z",
+    last_login: "2024-02-06T16:45:00Z",
+    documents: [
+      {
+        id: "doc-1",
+        name: "CV_Carlos_Rodriguez_2024.pdf",
+        file_path: "/documents/carlos/CV_Carlos_Rodriguez_2024.pdf",
+        file_size: 1024000,
+        uploaded_at: "2024-01-15T10:00:00Z",
+        description: "CV actualizado con experiencia reciente",
+      },
+      {
+        id: "doc-2",
+        name: "Certificacion_Coaching_Ejecutivo.pdf",
+        file_path: "/documents/carlos/Certificacion_Coaching_Ejecutivo.pdf",
+        file_size: 2048000,
+        uploaded_at: "2024-01-20T14:30:00Z",
+        description: "Certificación en coaching ejecutivo",
+      },
+      {
+        id: "doc-3",
+        name: "Portfolio_Casos_Exito.pdf",
+        file_path: "/documents/carlos/Portfolio_Casos_Exito.pdf",
+        file_size: 5120000,
+        uploaded_at: "2024-02-01T09:15:00Z",
+        description: "Portfolio con casos de éxito en reclutamiento",
+      },
+    ],
+  },
+  {
+    id: "3",
+    name: "María López",
+    email: "maria@llconsulting.com", // Keeping consistent email domain
+    role: "consultor",
+    status: "habilitado",
+    created_at: "2023-03-10T11:15:00Z",
+    last_login: "2024-02-05T13:20:00Z",
+    documents: [
+      {
+        id: "doc-4",
+        name: "CV_Maria_Lopez_2024.pdf",
+        file_path: "/documents/maria/CV_Maria_Lopez_2024.pdf",
+        file_size: 896000,
+        uploaded_at: "2024-01-10T11:00:00Z",
+        description: "CV actualizado",
+      },
+      {
+        id: "doc-5",
+        name: "Certificacion_Psicologia_Laboral.pdf",
+        file_path: "/documents/maria/Certificacion_Psicologia_Laboral.pdf",
+        file_size: 1536000,
+        uploaded_at: "2024-01-25T16:45:00Z",
+        description: "Certificación en psicología laboral",
+      },
+    ],
+  },
+  {
+    id: "4",
+    name: "Pedro Martínez",
+    email: "pedro@llconsulting.com", // Keeping consistent email domain
+    role: "consultor",
+    status: "inhabilitado",
+    created_at: "2023-04-05T16:00:00Z",
+    last_login: "2024-01-28T10:15:00Z",
+    documents: [
+      {
+        id: "doc-6",
+        name: "CV_Pedro_Martinez.pdf",
+        file_path: "/documents/pedro/CV_Pedro_Martinez.pdf",
+        file_size: 1200000,
+        uploaded_at: "2023-12-15T14:20:00Z",
+        description: "CV profesional",
+      },
+    ],
+  },
+  {
+    id: "5",
+    name: "Laura Fernández",
+    email: "laura@llconsulting.com", // Keeping consistent email domain
+    role: "consultor",
+    status: "habilitado",
+    created_at: "2023-05-12T09:45:00Z",
+    last_login: "2024-02-04T14:30:00Z",
+    documents: [
+      {
+        id: "doc-7",
+        name: "CV_Laura_Fernandez_2024.pdf",
+        file_path: "/documents/laura/CV_Laura_Fernandez_2024.pdf",
+        file_size: 1100000,
+        uploaded_at: "2024-01-30T10:30:00Z",
+        description: "CV actualizado 2024",
+      },
+      {
+        id: "doc-8",
+        name: "Certificacion_Headhunting.pdf",
+        file_path: "/documents/laura/Certificacion_Headhunting.pdf",
+        file_size: 1800000,
+        uploaded_at: "2024-02-05T12:00:00Z",
+        description: "Certificación en técnicas de headhunting",
+      },
+      {
+        id: "doc-9",
+        name: "Contrato_Confidencialidad.pdf",
+        file_path: "/documents/laura/Contrato_Confidencialidad.pdf",
+        file_size: 512000,
+        uploaded_at: "2024-02-03T15:45:00Z",
+        description: "Contrato de confidencialidad firmado",
+      },
+    ],
+  },
+  {
+    id: "6",
+    name: "Diego Morales",
+    email: "diego@llconsulting.com", // Keeping consistent email domain
+    role: "consultor",
+    status: "inhabilitado",
+    created_at: "2023-06-18T12:20:00Z",
+    last_login: "2024-01-15T11:00:00Z",
+    documents: [
+      {
+        id: "doc-10",
+        name: "CV_Diego_Morales.pdf",
+        file_path: "/documents/diego/CV_Diego_Morales.pdf",
+        file_size: 950000,
+        uploaded_at: "2023-11-20T13:15:00Z",
+        description: "CV profesional",
+      },
+    ],
+  },
+]
+
+// Mock Clients
+export const mockClients: Client[] = [
+  {
+    id: "1",
+    name: "TechCorp S.A.",
+    contacts: [
+      {
+        id: "contact-1-1",
+        name: "Juan Pérez",
+        email: "juan.perez@techcorp.com",
+        phone: "+56 9 1234 5678",
+        position: "Gerente de RRHH",
+        city: "Santiago",
+        is_primary: true,
+      },
+      {
+        id: "contact-1-2",
+        name: "María González",
+        email: "maria.gonzalez@techcorp.com",
+        phone: "+56 9 8765 4321",
+        position: "Jefa de Desarrollo",
+        city: "Las Condes",
+        is_primary: false,
+      },
+    ],
+  },
+  {
+    id: "2",
+    name: "Innovación Digital Ltda.",
+    contacts: [
+      {
+        id: "contact-2-1",
+        name: "Carmen Silva",
+        email: "carmen.silva@innovacion.cl",
+        phone: "+56 9 8765 4321",
+        position: "Directora de Operaciones",
+        city: "Providencia",
+        is_primary: true,
+      },
+    ],
+  },
+  {
+    id: "3",
+    name: "Retail Solutions",
+    contacts: [
+      {
+        id: "contact-3-1",
+        name: "Roberto González",
+        email: "roberto@retailsolutions.cl",
+        phone: "+56 9 5555 1234",
+        position: "Gerente General",
+        city: "Viña del Mar",
+        is_primary: true,
+      },
+      {
+        id: "contact-3-2",
+        name: "Ana Torres",
+        email: "ana.torres@retailsolutions.cl",
+        phone: "+56 9 4444 5555",
+        position: "Gerente de Tiendas",
+        city: "Valparaíso",
+        is_primary: false,
+      },
+    ],
+  },
+  {
+    id: "4",
+    name: "Banco Nacional",
+    contacts: [
+      {
+        id: "contact-4-1",
+        name: "Patricia Morales",
+        email: "patricia.morales@banconacional.cl",
+        phone: "+56 9 9999 8888",
+        position: "Gerente de Sucursal",
+        city: "Santiago Centro",
+        is_primary: true,
+      },
+    ],
+  },
+  {
+    id: "5",
+    name: "Constructora del Sur",
+    contacts: [
+      {
+        id: "contact-5-1",
+        name: "Miguel Torres",
+        email: "miguel.torres@constructora.cl",
+        phone: "+56 9 7777 6666",
+        position: "Jefe de Proyectos",
+        city: "Temuco",
+        is_primary: true,
+      },
+      {
+        id: "contact-5-2",
+        name: "Claudia Ramírez",
+        email: "claudia.ramirez@constructora.cl",
+        phone: "+56 9 6666 7777",
+        position: "Gerente de RRHH",
+        city: "Concepción",
+        is_primary: false,
+      },
+    ],
+  },
+]
+
+// Mock Processes
+export const mockProcesses: Process[] = [
+  {
+    id: "1",
+    client_id: "1",
+    client: mockClients[0],
+    contact_id: "contact-1-1", // Juan Pérez
+    service_type: "proceso_completo",
+    position_title: "Desarrollador Full Stack Senior",
+    description:
+      "Buscamos un desarrollador con experiencia en React y Node.js para liderar proyectos de desarrollo web.",
+    requirements: "5+ años de experiencia, React, Node.js, TypeScript, bases de datos SQL",
+    vacancies: 1,
+    consultant_id: "2",
+    consultant: mockUsers[1],
+    status: "en_progreso",
+    created_at: "2024-01-15T10:00:00Z",
+    started_at: "2024-01-16T09:00:00Z",
+  },
+  {
+    id: "2",
+    client_id: "2",
+    client: mockClients[1],
+    contact_id: "contact-2-1", // Carmen Silva
+    service_type: "long_list",
+    position_title: "Diseñador UX/UI",
+    description: "Diseñador creativo para mejorar la experiencia de usuario en aplicaciones móviles.",
+    requirements: "3+ años de experiencia, Figma, Adobe Creative Suite, portfolio sóli

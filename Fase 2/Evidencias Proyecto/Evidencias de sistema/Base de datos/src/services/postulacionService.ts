@@ -29,7 +29,7 @@ import { CandidatoService } from './candidatoService';
 
 export class PostulacionService {
     /**
-     * Obtener postulaciones por solicitud
+     * Obtener postulaciones por solicitud (versión completa con todos los datos)
      */
     static async getPostulacionesBySolicitud(idSolicitud: number) {
         const postulaciones = await Postulacion.findAll({
@@ -111,6 +111,74 @@ export class PostulacionService {
             await this.fillInstitutionNamesForCandidato(transformedPostulaciones[i], candidato);
         }
         
+        return transformedPostulaciones;
+    }
+
+    /**
+     * Obtener postulaciones por solicitud (versión optimizada para módulo 4 - sin datos de formación académica)
+     */
+    static async getPostulacionesBySolicitudOptimized(idSolicitud: number) {
+        const postulaciones = await Postulacion.findAll({
+            where: { id_solicitud: idSolicitud },
+            include: [
+                {
+                    model: Candidato,
+                    as: 'candidato',
+                    include: [
+                        {
+                            model: Comuna,
+                            as: 'comuna',
+                            attributes: ['id_comuna', 'nombre_comuna'],
+                            include: [
+                                {
+                                    model: Region,
+                                    as: 'region',
+                                    attributes: ['id_region', 'nombre_region']
+                                }
+                            ]
+                        },
+                        {
+                            model: Nacionalidad,
+                            as: 'nacionalidad',
+                            attributes: ['id_nacionalidad', 'nombre_nacionalidad']
+                        },
+                        {
+                            model: Rubro,
+                            as: 'rubro',
+                            attributes: ['id_rubro', 'nombre_rubro']
+                        },
+                        {
+                            model: Experiencia,
+                            as: 'experiencias'
+                        }
+                        // NO incluir Profesion ni PostgradoCapacitacion para evitar consultas innecesarias
+                    ]
+                },
+                {
+                    model: EstadoCandidato,
+                    as: 'estadoCandidato'
+                },
+                {
+                    model: PortalPostulacion,
+                    as: 'portalPostulacion',
+                    attributes: ['id_portal_postulacion', 'nombre_portal_postulacion']
+                },
+                {
+                    model: EstadoClientePostulacion,
+                    as: 'estadosCliente',
+                    include: [
+                        {
+                            model: EstadoCliente,
+                            as: 'estadoCliente'
+                        }
+                    ]
+                }
+            ]
+        });
+
+        // Transformar datos para el frontend usando la misma lógica que el endpoint completo
+        const transformedPostulaciones = postulaciones.map(postulacion => this.transformPostulacion(postulacion));
+
         return transformedPostulaciones;
     }
 

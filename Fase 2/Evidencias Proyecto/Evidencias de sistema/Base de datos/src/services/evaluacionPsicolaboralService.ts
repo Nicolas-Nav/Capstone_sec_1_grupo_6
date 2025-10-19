@@ -285,7 +285,7 @@ export class EvaluacionPsicolaboralService {
     /**
      * Actualizar estado de informe
      */
-    static async actualizarEstadoInforme(id: number, estadoInforme: 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones') {
+    static async actualizarEstadoInforme(id: number, estadoInforme: 'Pendiente' | 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones') {
         const transaction: Transaction = await sequelize.transaction();
 
         try {

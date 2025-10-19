@@ -27,6 +27,22 @@ export class PostulacionController {
     }
 
     /**
+     * GET /api/postulaciones/solicitud/:idSolicitud/optimized
+     * Obtener postulaciones optimizadas (sin datos de formación académica)
+     */
+    static async getBySolicitudOptimized(req: Request, res: Response): Promise<Response> {
+        try {
+            const { idSolicitud } = req.params;
+            const candidatos = await PostulacionService.getPostulacionesBySolicitudOptimized(parseInt(idSolicitud));
+
+            return sendSuccess(res, candidatos, 'Candidatos obtenidos exitosamente (optimizado)');
+        } catch (error) {
+            Logger.error('Error al obtener candidatos optimizados:', error);
+            return sendError(res, 'Error al obtener candidatos', 500);
+        }
+    }
+
+    /**
      * POST /api/postulaciones
      * Crear nueva postulación con candidato
      */

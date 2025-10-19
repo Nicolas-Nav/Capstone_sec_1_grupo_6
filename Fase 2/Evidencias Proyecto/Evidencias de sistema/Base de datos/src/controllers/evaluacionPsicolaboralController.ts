@@ -166,7 +166,7 @@ export class EvaluacionPsicolaboralController {
             const { id } = req.params;
             const { estado_informe } = req.body;
             
-            if (!['Recomendable', 'No recomendable', 'Recomendable con observaciones'].includes(estado_informe)) {
+            if (!['Pendiente', 'Recomendable', 'No recomendable', 'Recomendable con observaciones'].includes(estado_informe)) {
                 return sendError(res, 'Estado de informe inválido', 400);
             }
             

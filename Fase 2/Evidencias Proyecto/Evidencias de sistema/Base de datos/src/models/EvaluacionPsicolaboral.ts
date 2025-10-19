@@ -128,8 +128,8 @@ EvaluacionPsicolaboral.init({
             notEmpty: true,
             len: [3, 100],
             isIn: {
-                args: [['Recomendable', 'No recomendable', 'Recomendable con observaciones']],
-                msg: 'Estado de informe inválido. Valores permitidos: Recomendable, No recomendable, Recomendable con observaciones'
+                args: [['Pendiente', 'Recomendable', 'No recomendable', 'Recomendable con observaciones']],
+                msg: 'Estado de informe inválido. Valores permitidos: Pendiente, Recomendable, No recomendable, Recomendable con observaciones'
             }
         }
     },

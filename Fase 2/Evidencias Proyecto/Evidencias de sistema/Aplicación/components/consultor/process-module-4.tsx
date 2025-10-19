@@ -19,8 +19,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { getCandidatesByProcess, getPsychologicalEvaluationByCandidate } from "@/lib/mock-data"
+import { getCandidatesByProcess } from "@/lib/mock-data"
+import { evaluacionPsicolaboralService } from "@/lib/api"
 import { formatDate, isProcessBlocked } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 import {
   Plus,
   ChevronDown,
@@ -64,6 +66,7 @@ interface ProcessModule4Props {
 }
 
 export function ProcessModule4({ process }: ProcessModule4Props) {
+  const { toast } = useToast()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   
@@ -73,18 +76,75 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
 
+  // Función para calcular días hábiles
+  const addBusinessDays = (date: Date, days: number): Date => {
+    const result = new Date(date)
+    let addedDays = 0
+    
+    while (addedDays < days) {
+      result.setDate(result.getDate() + 1)
+      // Excluir sábados (6) y domingos (0)
+      if (result.getDay() !== 0 && result.getDay() !== 6) {
+        addedDays++
+      }
+    }
+    
+    return result
+  }
+
+  // Función para obtener evaluación psicolaboral desde API real
+  const getEvaluationByCandidate = async (candidate: Candidate) => {
+    try {
+      const response = await evaluacionPsicolaboralService.getByPostulacion(Number(candidate.id_postulacion))
+      return response.data?.[0] || undefined
+    } catch (error) {
+      console.error('Error al obtener evaluación psicolaboral:', error)
+      return undefined
+    }
+  }
+
   // Cargar datos reales desde el backend
   useEffect(() => {
     const loadData = async () => {
       try {
         setIsLoading(true)
-        const allCandidates = await getCandidatesByProcess(process.id)
+        // Usar endpoint optimizado para evitar consultas innecesarias a institución
+        const { postulacionService } = await import('@/lib/api')
+        const response = await postulacionService.getBySolicitudOptimized(Number(process.id))
+        const allCandidates = response.data || []
+        
+        // Filtrar candidatos según el tipo de proceso
+        let candidatesToShow: Candidate[]
         if (process.service_type === "ES" || process.service_type === "TS") {
-          setCandidates(allCandidates)
+          candidatesToShow = allCandidates
         } else {
-          const filteredCandidates = allCandidates.filter((c: Candidate) => c.client_response === "aprobado")
-          setCandidates(filteredCandidates)
+          candidatesToShow = allCandidates.filter((c: Candidate) => c.client_response === "aprobado")
         }
+        setCandidates(candidatesToShow)
+
+        // Cargar evaluaciones psicolaborales para cada candidato filtrado
+        const evaluationsData: { [candidateId: string]: any } = {}
+        const interviewsData: { [candidateId: string]: any } = {}
+        
+        for (const candidate of candidatesToShow) {
+          try {
+            const evaluation = await getEvaluationByCandidate(candidate)
+            if (evaluation) {
+              evaluationsData[candidate.id] = evaluation
+              
+              // También actualizar candidateInterviews para la visualización
+              interviewsData[candidate.id] = {
+                interview_date: evaluation.fecha_evaluacion ? new Date(evaluation.fecha_evaluacion) : null,
+                interview_status: evaluation.estado_evaluacion,
+                report_due_date: evaluation.fecha_envio_informe ? new Date(evaluation.fecha_envio_informe) : null,
+              }
+            }
+          } catch (error) {
+            console.error(`Error al cargar evaluación para candidato ${candidate.id}:`, error)
+          }
+        }
+        setEvaluations(evaluationsData)
+        setCandidateInterviews(interviewsData)
       } catch (error) {
         console.error('Error al cargar candidatos:', error)
       } finally {
@@ -103,6 +163,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const [candidateConclusions, setCandidateConclusions] = useState<{ [key: string]: string }>({})
 
   const [candidateReports, setCandidateReports] = useState<{ [candidateId: string]: CandidateReport }>({})
+  const [evaluations, setEvaluations] = useState<{ [candidateId: string]: any }>({})
 
   const [workReferences, setWorkReferences] = useState<{ [candidateId: string]: WorkReference[] }>({})
   const [candidateTests, setCandidateTests] = useState<{ [candidateId: string]: any[] }>({})
@@ -149,13 +210,23 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const openInterviewDialog = (candidate: Candidate) => {
     setSelectedCandidate(candidate)
     
-    // Cargar datos existentes si los hay
-    const existingInterview = candidateInterviews[candidate.id]
-    if (existingInterview) {
+    // Cargar datos existentes desde evaluaciones de BD
+    const existingEvaluation = evaluations[candidate.id]
+    if (existingEvaluation) {
+      // Convertir estado de evaluación a formato del formulario
+      let statusValue: "programada" | "realizada" | "cancelada" = "programada"
+      if (existingEvaluation.estado_evaluacion === "Realizada") statusValue = "realizada"
+      else if (existingEvaluation.estado_evaluacion === "Cancelada") statusValue = "cancelada"
+      else statusValue = "programada" // Para "Sin programar" y "Programada"
+
       setInterviewForm({
-        interview_date: existingInterview.interview_date || "",
-        interview_status: existingInterview.interview_status || "programada",
-        report_due_date: existingInterview.report_due_date || "",
+        interview_date: existingEvaluation.fecha_evaluacion 
+          ? new Date(existingEvaluation.fecha_evaluacion).toISOString().slice(0, 16) 
+          : "",
+        interview_status: statusValue,
+        report_due_date: existingEvaluation.fecha_envio_informe 
+          ? new Date(existingEvaluation.fecha_envio_informe).toISOString().slice(0, 16) 
+          : "",
       })
     } else {
       setInterviewForm({
@@ -186,28 +257,102 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     setShowTestDialog(true)
   }
 
-  const handleSaveInterview = () => {
+  const handleSaveInterview = async () => {
     if (!selectedCandidate) return
     
-    console.log("Saving interview for candidate:", selectedCandidate.id, interviewForm)
-    
-    // Guardar en el estado
-    setCandidateInterviews({
-      ...candidateInterviews,
-      [selectedCandidate.id]: {
-        interview_date: interviewForm.interview_date,
-        interview_status: interviewForm.interview_status,
-        report_due_date: interviewForm.report_due_date,
+    try {
+      // Verificar si ya existe una evaluación para este candidato
+      const existingEvaluation = evaluations[selectedCandidate.id]
+      
+      if (existingEvaluation) {
+        // Actualizar evaluación existente
+        let fechaEnvioInforme = undefined
+        
+        // Para procesos PC, HS, TR: calcular fecha basada en client_feedback_date + 5 días hábiles
+        if (['PC', 'HS', 'TR'].includes(process.service_type) && selectedCandidate.client_feedback_date) {
+          const feedbackDate = new Date(selectedCandidate.client_feedback_date)
+          fechaEnvioInforme = addBusinessDays(feedbackDate, 5)
+        } else if (interviewForm.report_due_date) {
+          // Si se proporciona fecha manual, usarla
+          fechaEnvioInforme = new Date(interviewForm.report_due_date)
+        }
+
+        const updateData = {
+          fecha_evaluacion: interviewForm.interview_date ? new Date(interviewForm.interview_date) : undefined,
+          estado_evaluacion: interviewForm.interview_status === "programada" ? "Programada" : 
+                            interviewForm.interview_status === "realizada" ? "Realizada" :
+                            interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
+          fecha_envio_informe: fechaEnvioInforme,
+        }
+        
+        await evaluacionPsicolaboralService.update(existingEvaluation.id_evaluacion_psicolaboral, updateData)
+      } else {
+        // Crear nueva evaluación
+        let fechaEnvioInforme = new Date()
+        
+        // Para procesos PC, HS, TR: calcular fecha basada en client_feedback_date + 5 días hábiles
+        if (['PC', 'HS', 'TR'].includes(process.service_type) && selectedCandidate.client_feedback_date) {
+          const feedbackDate = new Date(selectedCandidate.client_feedback_date)
+          fechaEnvioInforme = addBusinessDays(feedbackDate, 5)
+        } else if (interviewForm.report_due_date) {
+          // Si se proporciona fecha manual, usarla
+          fechaEnvioInforme = new Date(interviewForm.report_due_date)
+        }
+
+        const createData = {
+          fecha_evaluacion: interviewForm.interview_date ? new Date(interviewForm.interview_date) : new Date(),
+          fecha_envio_informe: fechaEnvioInforme,
+          estado_evaluacion: interviewForm.interview_status === "programada" ? "Programada" : 
+                            interviewForm.interview_status === "realizada" ? "Realizada" :
+                            interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
+          estado_informe: "Pendiente",
+          conclusion_global: "Conclusión pendiente de completar en el informe final",
+          id_postulacion: Number(selectedCandidate.id_postulacion)
+        }
+        
+        await evaluacionPsicolaboralService.create(createData)
       }
-    })
-    
-    setShowInterviewDialog(false)
-    setInterviewForm({
-      interview_date: "",
-      interview_status: "programada",
-      report_due_date: "",
-    })
-    setSelectedCandidate(null)
+      
+      // Actualizar estado local con fechas convertidas a Date
+      setCandidateInterviews({
+        ...candidateInterviews,
+        [selectedCandidate.id]: {
+          interview_date: interviewForm.interview_date ? new Date(interviewForm.interview_date) : null,
+          interview_status: interviewForm.interview_status,
+          report_due_date: interviewForm.report_due_date ? new Date(interviewForm.report_due_date) : null,
+        }
+      })
+      
+      // Recargar evaluaciones
+      const updatedEvaluation = await getEvaluationByCandidate(selectedCandidate)
+      if (updatedEvaluation) {
+        setEvaluations({
+          ...evaluations,
+          [selectedCandidate.id]: updatedEvaluation
+        })
+      }
+      
+      setShowInterviewDialog(false)
+      setInterviewForm({
+        interview_date: "",
+        interview_status: "programada",
+        report_due_date: "",
+      })
+      setSelectedCandidate(null)
+      
+      toast({
+        title: "¡Éxito!",
+        description: "Estado de entrevista actualizado correctamente",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Error al guardar entrevista:", error)
+      toast({
+        title: "Error",
+        description: "Error al guardar el estado de entrevista",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleSaveTest = () => {
@@ -396,7 +541,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           {candidates.length > 0 ? (
             <div className="space-y-6">
               {candidates.map((candidate) => {
-                const evaluation = getPsychologicalEvaluationByCandidate(candidate.id)
+                const evaluation = evaluations[candidate.id]
                 const candidateReferences = workReferences[candidate.id] || []
                 const candidateReport = candidateReports[candidate.id]
                 const candidateInterview = candidateInterviews[candidate.id]
@@ -468,20 +613,20 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                               <p className="text-sm font-medium">Estado Entrevista</p>
                               <Badge
                                 variant={
-                                  candidateInterview?.interview_status === "realizada"
+                                  candidateInterview?.interview_status === "Realizada"
                                     ? "default"
-                                    : candidateInterview?.interview_status === "programada"
+                                    : candidateInterview?.interview_status === "Programada"
                                       ? "secondary"
-                                      : candidateInterview?.interview_status === "cancelada"
+                                      : candidateInterview?.interview_status === "Cancelada"
                                         ? "destructive"
                                         : "outline"
                                 }
                                 className="text-xs"
                               >
-                                {candidateInterview?.interview_status === "programada" && "Programada"}
-                                {candidateInterview?.interview_status === "realizada" && "Realizada"}
-                                {candidateInterview?.interview_status === "cancelada" && "Cancelada"}
-                                {!candidateInterview?.interview_status && "Sin programar"}
+                                {candidateInterview?.interview_status === "Programada" && "Programada"}
+                                {candidateInterview?.interview_status === "Realizada" && "Realizada"}
+                                {candidateInterview?.interview_status === "Cancelada" && "Cancelada"}
+                                {(!candidateInterview?.interview_status || candidateInterview?.interview_status === "Sin programar") && "Sin programar"}
                               </Badge>
                             </div>
                           </div>
@@ -507,7 +652,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                     "Con Observaciones"}
                                 </Badge>
                               ) : (
-                                <p className="text-sm text-muted-foreground">Sin definir</p>
+                                <p className="text-sm text-muted-foreground">Pendiente</p>
                               )}
                             </div>
                           </div>

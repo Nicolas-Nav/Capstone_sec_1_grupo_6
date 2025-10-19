@@ -77,6 +77,7 @@ export interface Process {
 
 export interface Candidate {
   id: string
+  id_postulacion: number
   process_id: string
   name: string
   email: string

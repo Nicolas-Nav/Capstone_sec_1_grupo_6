@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { getCandidatesByProcess, candidateStatusLabels, processStatusLabels } from "@/lib/mock-data"
 import { estadoClienteService, solicitudService } from "@/lib/api"
 import { getStatusColor, formatCurrency, isProcessBlocked } from "@/lib/utils"
-import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle } from "lucide-react"
+import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle, AlertCircle } from "lucide-react"
 import type { Process, Candidate, ProcessStatus } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { ProcessBlocked } from "./ProcessBlocked"
@@ -389,7 +389,15 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
   // Verificar tipo de servicio (código o nombre)
   const serviceType = (process.service_type as string)?.toLowerCase() || ""
-  const canAdvanceToModule4 = (serviceType === "proceso_completo" || serviceType === "pc") && hasApproved
+  
+  // Para procesos PC, HS, TR: verificar que candidatos aprobados tengan client_feedback_date
+  const approvedCandidates = candidates.filter((c) => c.client_response === "aprobado")
+  const hasApprovedWithoutFeedback = approvedCandidates.some((c) => !c.client_feedback_date)
+  
+  const canAdvanceToModule4 = (serviceType === "proceso_completo" || serviceType === "pc" || 
+                              serviceType === "headhunting" || serviceType === "hs" || 
+                              serviceType === "talent_retention" || serviceType === "tr") && 
+                              hasApproved && !hasApprovedWithoutFeedback
   const processEndsHere = serviceType === "long_list" || serviceType === "ll"
   
   // Debug: mostrar el tipo de servicio
@@ -397,7 +405,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     original: process.service_type,
     normalized: serviceType,
     processEndsHere,
-    canAdvanceToModule4
+    canAdvanceToModule4,
+    hasApproved,
+    hasApprovedWithoutFeedback,
+    approvedCandidatesCount: approvedCandidates.length
   })
 
   // Mostrar indicador de carga
@@ -482,6 +493,27 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
               >
                 Avanzar a Módulo 4
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {hasApproved && hasApprovedWithoutFeedback && (serviceType === "proceso_completo" || serviceType === "pc" || 
+       serviceType === "headhunting" || serviceType === "hs" || 
+       serviceType === "talent_retention" || serviceType === "tr") && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-orange-800">Falta información de feedback</h3>
+                <p className="text-sm text-orange-600">
+                  Hay candidatos aprobados sin fecha de feedback del cliente. 
+                  Completa esta información antes de avanzar al Módulo 4.
+                </p>
+              </div>
+              <div className="text-orange-600">
+                <AlertCircle className="h-5 w-5" />
+              </div>
             </div>
           </CardContent>
         </Card>

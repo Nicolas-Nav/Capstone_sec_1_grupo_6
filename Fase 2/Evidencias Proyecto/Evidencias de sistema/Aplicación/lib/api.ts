@@ -538,6 +538,11 @@ export const postulacionService = {
     return apiRequest(`/api/postulaciones/solicitud/${idSolicitud}`);
   },
 
+  // Obtener postulaciones optimizadas (sin datos de formación académica)
+  async getBySolicitudOptimized(idSolicitud: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/postulaciones/solicitud/${idSolicitud}/optimized`);
+  },
+
   // Crear postulación (con CV opcional)
   async create(data: {
     id_candidato: number;
@@ -808,6 +813,69 @@ export async function getCandidatesByProcess(processId: string): Promise<any[]> 
 // ===========================================
 // UTILIDADES
 // ===========================================
+
+// ===========================================
+// EVALUACIÓN PSICOLABORAL SERVICE
+// ===========================================
+
+export const evaluacionPsicolaboralService = {
+  // Obtener evaluación por postulación
+  async getByPostulacion(idPostulacion: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/postulacion/${idPostulacion}`, {
+      method: 'GET',
+    });
+  },
+
+  // Crear evaluación
+  async create(data: {
+    fecha_evaluacion: Date;
+    fecha_envio_informe: Date;
+    estado_evaluacion: string;
+    estado_informe: string;
+    conclusion_global: string;
+    id_postulacion: number;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/evaluaciones-psicolaborales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar evaluación
+  async update(id: number, data: Partial<{
+    fecha_evaluacion: Date;
+    fecha_envio_informe: Date;
+    estado_evaluacion: string;
+    estado_informe: string;
+    conclusion_global: string;
+  }>): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Agregar test a evaluación
+  async addTest(idEvaluacion: number, idTest: number, resultado: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${idEvaluacion}/tests`, {
+      method: 'POST',
+      body: JSON.stringify({
+        id_test: idTest,
+        resultado: resultado
+      }),
+    });
+  },
+
+  // Actualizar estado del informe
+  async updateEstadoInforme(id: number, estadoInforme: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${id}/estado-informe`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        estado_informe: estadoInforme
+      }),
+    });
+  }
+};
 
 export const apiUtils = {
   // Verificar si hay un token válido

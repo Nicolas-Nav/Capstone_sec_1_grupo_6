@@ -794,6 +794,47 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     }
   }
 
+  const handleAdvanceToModule4 = async () => {
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede avanzar un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const response = await solicitudService.avanzarAModulo4(parseInt(process.id))
+
+      if (response.success) {
+        toast({
+          title: "¡Éxito!",
+          description: "Proceso avanzado al Módulo 4 exitosamente",
+          variant: "default",
+        })
+        // Navegar al módulo 4 usando URL con parámetro
+        const currentUrl = new URL(window.location.href)
+        currentUrl.searchParams.set('tab', 'modulo-4')
+        window.location.href = currentUrl.toString()
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al avanzar al Módulo 4",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error al avanzar al Módulo 4:", error)
+      toast({
+        title: "Error",
+        description: "Error al avanzar al Módulo 4",
+        variant: "destructive",
+      })
+    }
+  }
+
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
 
@@ -817,8 +858,16 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
           <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
         </div>
-        {/* Ocultar botón si es ES, TS o AP (solo usan módulo 1 y 4) */}
-        {process.service_type !== 'ES' && process.service_type !== 'TS' && process.service_type !== 'AP' && (
+        {/* Mostrar botón según tipo de servicio */}
+        {(process.service_type === 'ES' || process.service_type === 'TS' || process.service_type === 'AP') ? (
+          <Button
+            onClick={handleAdvanceToModule4}
+            className="bg-primary hover:bg-primary/90"
+            disabled={isProcessBlocked(processStatus)}
+          >
+            Pasar a Módulo 4
+          </Button>
+        ) : (
           <Button
             onClick={handleAdvanceToModule2}
             className="bg-primary hover:bg-primary/90"

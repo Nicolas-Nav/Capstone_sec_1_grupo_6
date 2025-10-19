@@ -296,6 +296,48 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     handleMultipleCandidateDecision()
   }, [candidates.map((c) => c.client_response).join(",")])
 
+  // Función para avanzar al módulo 4
+  const handleAdvanceToModule4 = async () => {
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede avanzar un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const response = await solicitudService.avanzarAModulo4(parseInt(process.id))
+
+      if (response.success) {
+        toast({
+          title: "¡Éxito!",
+          description: "Proceso avanzado al Módulo 4 exitosamente",
+          variant: "default",
+        })
+        // Navegar al módulo 4 usando URL con parámetro
+        const currentUrl = new URL(window.location.href)
+        currentUrl.searchParams.set('tab', 'modulo-4')
+        window.location.href = currentUrl.toString()
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al avanzar al Módulo 4",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error al avanzar al Módulo 4:", error)
+      toast({
+        title: "Error",
+        description: "Error al avanzar al Módulo 4",
+        variant: "destructive",
+      })
+    }
+  }
+
   // Función para cambiar estado de la solicitud (finalizar)
   const handleStatusChange = async (estadoId: string) => {
     // Validar que el proceso no esté bloqueado
@@ -311,8 +353,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     try {
       const response = await solicitudService.cambiarEstado(
         parseInt(process.id), 
-        parseInt(estadoId), 
-        statusChangeReason.trim() || undefined
+        parseInt(estadoId)
       )
 
       if (response.success) {
@@ -434,7 +475,13 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                   Estados sincronizados. Puedes avanzar al Módulo 4 para evaluación psicolaboral.
                 </p>
               </div>
-              <Button className="bg-blue-600 hover:bg-blue-700">Avanzar a Módulo 4</Button>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleAdvanceToModule4}
+                disabled={isBlocked}
+              >
+                Avanzar a Módulo 4
+              </Button>
             </div>
           </CardContent>
         </Card>

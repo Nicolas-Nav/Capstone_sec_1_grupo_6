@@ -307,6 +307,13 @@ export const solicitudService = {
     });
   },
 
+  // Avanzar al módulo 4
+  async avanzarAModulo4(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/avanzar-modulo4`, {
+      method: 'PUT',
+    });
+  },
+
   // Obtener etapas disponibles
   async getEtapas(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/solicitudes/etapas/disponibles');

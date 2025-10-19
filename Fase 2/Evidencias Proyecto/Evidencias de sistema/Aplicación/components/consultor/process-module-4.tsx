@@ -57,7 +57,6 @@ interface CandidateReport {
   report_status: "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | null
   report_observations?: string
   report_sent_date?: string
-  psychological_report_file?: File | null
 }
 
 interface ProcessModule4Props {
@@ -80,7 +79,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       try {
         setIsLoading(true)
         const allCandidates = await getCandidatesByProcess(process.id)
-        if (process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral") {
+        if (process.service_type === "ES" || process.service_type === "TS") {
           setCandidates(allCandidates)
         } else {
           const filteredCandidates = allCandidates.filter((c: Candidate) => c.client_response === "aprobado")
@@ -96,7 +95,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   }, [process.id, process.service_type])
 
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
-  const [showEvaluationDialog, setShowEvaluationDialog] = useState(false)
+  const [showInterviewDialog, setShowInterviewDialog] = useState(false)
+  const [showTestDialog, setShowTestDialog] = useState(false)
   const [showReferencesDialog, setShowReferencesDialog] = useState(false)
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
@@ -105,6 +105,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const [candidateReports, setCandidateReports] = useState<{ [candidateId: string]: CandidateReport }>({})
 
   const [workReferences, setWorkReferences] = useState<{ [candidateId: string]: WorkReference[] }>({})
+  const [candidateTests, setCandidateTests] = useState<{ [candidateId: string]: any[] }>({})
+  const [candidateInterviews, setCandidateInterviews] = useState<{ [candidateId: string]: any }>({})
   const [newReference, setNewReference] = useState({
     reference_name: "",
     reference_position: "",
@@ -115,10 +117,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     notes: "",
   })
 
-  const [evaluationForm, setEvaluationForm] = useState({
+  const [interviewForm, setInterviewForm] = useState({
     interview_date: "",
     interview_status: "programada" as "programada" | "realizada" | "cancelada",
     report_due_date: "",
+  })
+
+  const [testForm, setTestForm] = useState({
     tests: [{ test_name: "", result: "" }],
   })
 
@@ -126,36 +131,101 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     report_status: "" as "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | "",
     report_observations: "",
     report_sent_date: "",
-    psychological_report_file: null as File | null,
   })
 
   const handleAddTest = () => {
-    setEvaluationForm({
-      ...evaluationForm,
-      tests: [...evaluationForm.tests, { test_name: "", result: "" }],
+    setTestForm({
+      ...testForm,
+      tests: [...testForm.tests, { test_name: "", result: "" }],
     })
   }
 
   const handleTestChange = (index: number, field: "test_name" | "result", value: string) => {
-    const updatedTests = evaluationForm.tests.map((test, i) => (i === index ? { ...test, [field]: value } : test))
-    setEvaluationForm({ ...evaluationForm, tests: updatedTests })
+    const updatedTests = testForm.tests.map((test, i) => (i === index ? { ...test, [field]: value } : test))
+    setTestForm({ ...testForm, tests: updatedTests })
   }
 
-  const handleSaveEvaluation = () => {
-    console.log("Saving evaluation for candidate:", selectedCandidate?.id, evaluationForm)
-    setShowEvaluationDialog(false)
-    setEvaluationForm({
+
+  const openInterviewDialog = (candidate: Candidate) => {
+    setSelectedCandidate(candidate)
+    
+    // Cargar datos existentes si los hay
+    const existingInterview = candidateInterviews[candidate.id]
+    if (existingInterview) {
+      setInterviewForm({
+        interview_date: existingInterview.interview_date || "",
+        interview_status: existingInterview.interview_status || "programada",
+        report_due_date: existingInterview.report_due_date || "",
+      })
+    } else {
+      setInterviewForm({
+        interview_date: "",
+        interview_status: "programada",
+        report_due_date: "",
+      })
+    }
+    
+    setShowInterviewDialog(true)
+  }
+
+  const openTestDialog = (candidate: Candidate) => {
+    setSelectedCandidate(candidate)
+    
+    // Cargar tests existentes si los hay
+    const existingTests = candidateTests[candidate.id]
+    if (existingTests && existingTests.length > 0) {
+      setTestForm({
+        tests: existingTests
+      })
+    } else {
+      setTestForm({
+        tests: [{ test_name: "", result: "" }],
+      })
+    }
+    
+    setShowTestDialog(true)
+  }
+
+  const handleSaveInterview = () => {
+    if (!selectedCandidate) return
+    
+    console.log("Saving interview for candidate:", selectedCandidate.id, interviewForm)
+    
+    // Guardar en el estado
+    setCandidateInterviews({
+      ...candidateInterviews,
+      [selectedCandidate.id]: {
+        interview_date: interviewForm.interview_date,
+        interview_status: interviewForm.interview_status,
+        report_due_date: interviewForm.report_due_date,
+      }
+    })
+    
+    setShowInterviewDialog(false)
+    setInterviewForm({
       interview_date: "",
       interview_status: "programada",
       report_due_date: "",
-      tests: [{ test_name: "", result: "" }],
     })
     setSelectedCandidate(null)
   }
 
-  const openEvaluationDialog = (candidate: Candidate) => {
-    setSelectedCandidate(candidate)
-    setShowEvaluationDialog(true)
+  const handleSaveTest = () => {
+    if (!selectedCandidate) return
+    
+    console.log("Saving test for candidate:", selectedCandidate.id, testForm)
+    
+    // Guardar en el estado
+    setCandidateTests({
+      ...candidateTests,
+      [selectedCandidate.id]: testForm.tests.filter(test => test.test_name && test.result)
+    })
+    
+    setShowTestDialog(false)
+    setTestForm({
+      tests: [{ test_name: "", result: "" }],
+    })
+    setSelectedCandidate(null)
   }
 
   const openReferencesDialog = (candidate: Candidate) => {
@@ -171,7 +241,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         report_status: existingReport.report_status || "",
         report_observations: existingReport.report_observations || "",
         report_sent_date: existingReport.report_sent_date || "",
-        psychological_report_file: existingReport.psychological_report_file || null,
       })
     }
     setShowReportDialog(true)
@@ -190,7 +259,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           | "recomendable_con_observaciones",
         report_observations: reportForm.report_observations,
         report_sent_date: reportForm.report_sent_date,
-        psychological_report_file: reportForm.psychological_report_file,
       },
     })
 
@@ -199,17 +267,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       report_status: "",
       report_observations: "",
       report_sent_date: "",
-      psychological_report_file: null,
     })
     setSelectedCandidate(null)
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setReportForm({ ...reportForm, psychological_report_file: file })
-    }
-  }
 
   const handleAddReference = () => {
     if (!selectedCandidate) return
@@ -246,7 +307,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   }
 
   const isEvaluationProcess =
-    process.service_type === "evaluacion_psicolaboral" || process.service_type === "test_psicolaboral"
+    process.service_type === "ES" || process.service_type === "TS"
 
   // Mostrar indicador de carga
   if (isLoading) {
@@ -311,7 +372,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Tipo</p>
                 <Badge variant="outline">
-                  {process.service_type === "evaluacion_psicolaboral" ? "Evaluación Psicolaboral" : "Test Psicolaboral"}
+                  {process.service_type === "ES" ? "Evaluación Psicolaboral" : "Test Psicolaboral"}
                 </Badge>
               </div>
             </div>
@@ -338,11 +399,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                 const evaluation = getPsychologicalEvaluationByCandidate(candidate.id)
                 const candidateReferences = workReferences[candidate.id] || []
                 const candidateReport = candidateReports[candidate.id]
+                const candidateInterview = candidateInterviews[candidate.id]
+                const candidateTestsList = candidateTests[candidate.id] || []
                 return (
                   <Card key={candidate.id} className="border-l-4 border-l-primary">
                     <CardContent className="pt-6">
                       <div className="space-y-6">
-                        {/* Candidate Basic Info */}
+                        {/* Candidate Basic Info - Always Visible */}
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                           <div className="flex-1">
                             <h3 className="font-semibold text-xl mb-2">{candidate.name}</h3>
@@ -373,23 +436,29 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                 Enviado {formatDate(candidateReport.report_sent_date)}
                               </Badge>
                             )}
-                            {candidateReport?.psychological_report_file && (
-                              <Badge variant="outline" className="text-xs">
-                                <FileText className="mr-1 h-3 w-3" />
-                                Informe adjunto
-                              </Badge>
-                            )}
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                           <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
                             <Calendar className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium">Fecha Entrevista</p>
-                              <p className="text-sm text-muted-foreground truncate">
-                                {evaluation?.interview_date ? formatDate(evaluation.interview_date) : "No programada"}
-                              </p>
+                              {candidateInterview?.interview_date ? (
+                                <div className="text-xs text-muted-foreground">
+                                  <p className="font-medium">{new Date(candidateInterview.interview_date).toLocaleDateString('es-CL', { 
+                                    day: '2-digit', 
+                                    month: '2-digit', 
+                                    year: 'numeric' 
+                                  })}</p>
+                                  <p className="text-xs opacity-75">{new Date(candidateInterview.interview_date).toLocaleTimeString('es-CL', { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}</p>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground">No programada</p>
+                              )}
                             </div>
                           </div>
 
@@ -399,20 +468,20 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                               <p className="text-sm font-medium">Estado Entrevista</p>
                               <Badge
                                 variant={
-                                  evaluation?.interview_status === "realizada"
+                                  candidateInterview?.interview_status === "realizada"
                                     ? "default"
-                                    : evaluation?.interview_status === "programada"
+                                    : candidateInterview?.interview_status === "programada"
                                       ? "secondary"
-                                      : evaluation?.interview_status === "cancelada"
+                                      : candidateInterview?.interview_status === "cancelada"
                                         ? "destructive"
                                         : "outline"
                                 }
                                 className="text-xs"
                               >
-                                {evaluation?.interview_status === "programada" && "Programada"}
-                                {evaluation?.interview_status === "realizada" && "Realizada"}
-                                {evaluation?.interview_status === "cancelada" && "Cancelada"}
-                                {!evaluation?.interview_status && "Sin programar"}
+                                {candidateInterview?.interview_status === "programada" && "Programada"}
+                                {candidateInterview?.interview_status === "realizada" && "Realizada"}
+                                {candidateInterview?.interview_status === "cancelada" && "Cancelada"}
+                                {!candidateInterview?.interview_status && "Sin programar"}
                               </Badge>
                             </div>
                           </div>
@@ -443,6 +512,15 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             </div>
                           </div>
 
+
+                          <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                            <CheckCircle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">Tests</p>
+                              <p className="text-sm text-muted-foreground">{candidateTestsList.length} realizados</p>
+                            </div>
+                          </div>
+
                           <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
                             <Building className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                             <div className="min-w-0">
@@ -452,7 +530,27 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                           </div>
                         </div>
 
-                        {candidateReport && (candidateReport.report_status || candidateReport.report_sent_date) && (
+                        {/* Acordeón para información detallada */}
+                        <Collapsible>
+                          <CollapsibleTrigger
+                            className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors w-full"
+                            onClick={() =>
+                              setExpandedCandidate(
+                                expandedCandidate === `${candidate.id}-details`
+                                  ? null
+                                  : `${candidate.id}-details`
+                              )
+                            }
+                          >
+                            {expandedCandidate === `${candidate.id}-details` ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                            Ver información detallada
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="mt-4 space-y-6">
+                            {candidateReport && (candidateReport.report_status || candidateReport.report_sent_date) && (
                           <div className="bg-muted/20 rounded-lg p-4 border-l-4 border-l-primary">
                             <h4 className="font-medium mb-3 flex items-center gap-2">
                               <FileText className="h-4 w-4" />
@@ -503,21 +601,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             )}
                           </div>
                         )}
-
-                        <div className="flex flex-wrap gap-3">
-                          <Button onClick={() => openEvaluationDialog(candidate)} size="sm">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Tests y Fechas
-                          </Button>
-                          <Button variant="outline" onClick={() => openReferencesDialog(candidate)} size="sm">
-                            <Building className="mr-2 h-4 w-4" />
-                            Referencias
-                          </Button>
-                          <Button variant="outline" onClick={() => openReportDialog(candidate)} size="sm">
-                            <FileText className="mr-2 h-4 w-4" />
-                            Estado del Informe
-                          </Button>
-                        </div>
 
                         {candidateReferences.length > 0 && (
                           <Collapsible>
@@ -581,67 +664,71 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                           </Collapsible>
                         )}
 
-                        {evaluation && evaluation.tests.length > 0 && (
+                        {/* Tests Realizados */}
+                        {candidateTestsList.length > 0 && (
                           <Collapsible>
                             <CollapsibleTrigger
                               className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors"
                               onClick={() =>
-                                setExpandedCandidate(expandedCandidate === candidate.id ? null : candidate.id)
+                                setExpandedCandidate(
+                                  expandedCandidate === `${candidate.id}-tests`
+                                    ? null
+                                    : `${candidate.id}-tests`
+                                )
                               }
                             >
-                              {expandedCandidate === candidate.id ? (
+                              {expandedCandidate === `${candidate.id}-tests` ? (
                                 <ChevronDown className="h-4 w-4" />
                               ) : (
                                 <ChevronRight className="h-4 w-4" />
                               )}
-                              Ver Tests Aplicados ({evaluation.tests.length})
+                              Ver Tests Realizados ({candidateTestsList.length})
                             </CollapsibleTrigger>
                             <CollapsibleContent className="mt-4">
-                              <div className="bg-muted/30 rounded-lg p-4 space-y-4">
-                                <div>
-                                  <h4 className="font-medium mb-3">Tests Aplicados</h4>
-                                  <div className="space-y-3">
-                                    {evaluation.tests.map((test, index) => (
-                                      <div
-                                        key={index}
-                                        className="flex items-start justify-between p-4 bg-background rounded-lg border"
-                                      >
-                                        <div className="flex-1">
-                                          <span className="font-medium">{test.test_name}</span>
-                                          {test.result && test.result.trim() !== "" && (
-                                            <p className="text-sm text-muted-foreground mt-2">
-                                              <strong>Resultado:</strong> {test.result}
-                                            </p>
-                                          )}
-                                          {(!test.result || test.result.trim() === "") && (
-                                            <p className="text-sm text-muted-foreground mt-2 italic">
-                                              Sin resultado registrado
-                                            </p>
-                                          )}
+                              <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+                                {candidateTestsList.map((test, index) => (
+                                  <Card key={index} className="bg-background">
+                                    <CardContent className="pt-4">
+                                      <div className="space-y-2">
+                                        <div>
+                                          <p className="font-medium">{test.test_name}</p>
                                         </div>
-                                        <Badge variant="default">Aplicado</Badge>
+                                        <div>
+                                          <p className="text-sm text-muted-foreground">
+                                            <strong>Resultado:</strong> {test.result}
+                                          </p>
+                                        </div>
                                       </div>
-                                    ))}
-                                  </div>
-                                </div>
-                                <div className="border-t pt-4">
-                                  <h4 className="font-medium mb-3">Conclusión del Candidato</h4>
-                                  <Textarea
-                                    className="min-h-[100px] resize-none"
-                                    placeholder="Ingresa una conclusión específica para este candidato..."
-                                    defaultValue={candidateConclusions[candidate.id] || ""}
-                                    onChange={(e) =>
-                                      setCandidateConclusions({
-                                        ...candidateConclusions,
-                                        [candidate.id]: e.target.value,
-                                      })
-                                    }
-                                  />
-                                </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
                               </div>
                             </CollapsibleContent>
                           </Collapsible>
                         )}
+                          </CollapsibleContent>
+                        </Collapsible>
+
+                        {/* Botones de acción - Siempre visibles */}
+                        <div className="flex flex-wrap gap-3 pt-4 border-t">
+                          <Button onClick={() => openInterviewDialog(candidate)} size="sm">
+                            <Calendar className="mr-2 h-4 w-4" />
+                            Editar Estado de Entrevista
+                          </Button>
+                          <Button onClick={() => openTestDialog(candidate)} size="sm">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Agregar Test
+                          </Button>
+                          <Button variant="outline" onClick={() => openReferencesDialog(candidate)} size="sm">
+                            <Building className="mr-2 h-4 w-4" />
+                            Agregar Referencias
+                          </Button>
+                          <Button variant="outline" onClick={() => openReportDialog(candidate)} size="sm">
+                            <FileText className="mr-2 h-4 w-4" />
+                            Gestionar Estado del Informe
+                          </Button>
+                        </div>
+
                       </div>
                     </CardContent>
                   </Card>
@@ -664,11 +751,11 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         </CardContent>
       </Card>
 
-      {/* Evaluation Dialog */}
-      <Dialog open={showEvaluationDialog} onOpenChange={setShowEvaluationDialog}>
+      {/* Interview Dialog */}
+      <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Registrar Test y Fecha de Evaluación</DialogTitle>
+            <DialogTitle>Editar Estado de Entrevista</DialogTitle>
             <DialogDescription>
               {selectedCandidate && (
                 <>
@@ -691,16 +778,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                 <Input
                   id="interview_date"
                   type="datetime-local"
-                  value={evaluationForm.interview_date}
-                  onChange={(e) => setEvaluationForm({ ...evaluationForm, interview_date: e.target.value })}
+                  value={interviewForm.interview_date}
+                  onChange={(e) => setInterviewForm({ ...interviewForm, interview_date: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="interview_status">Estado de la Entrevista</Label>
                 <Select
-                  value={evaluationForm.interview_status}
+                  value={interviewForm.interview_status}
                   onValueChange={(value: "programada" | "realizada" | "cancelada") =>
-                    setEvaluationForm({ ...evaluationForm, interview_status: value })
+                    setInterviewForm({ ...interviewForm, interview_status: value })
                   }
                 >
                   <SelectTrigger>
@@ -720,11 +807,42 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               <Input
                 id="report_due_date"
                 type="date"
-                value={evaluationForm.report_due_date}
-                onChange={(e) => setEvaluationForm({ ...evaluationForm, report_due_date: e.target.value })}
+                value={interviewForm.report_due_date}
+                onChange={(e) => setInterviewForm({ ...interviewForm, report_due_date: e.target.value })}
               />
             </div>
+          </div>
 
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInterviewDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveInterview}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Test Dialog */}
+      <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Agregar Test</DialogTitle>
+            <DialogDescription>
+              {selectedCandidate && (
+                <>
+                  Candidato: <strong>{selectedCandidate.name}</strong>
+                  {selectedCandidate.rut && (
+                    <>
+                      {" "}
+                      - RUT: <strong>{selectedCandidate.rut}</strong>
+                    </>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>Lista de Test/Pruebas</Label>
@@ -734,7 +852,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                 </Button>
               </div>
 
-              {evaluationForm.tests.map((test, index) => (
+              {testForm.tests.map((test, index) => (
                 <div key={index} className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
                   <div className="space-y-2">
                     <Label htmlFor={`test_name_${index}`}>Nombre del Test</Label>
@@ -775,10 +893,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEvaluationDialog(false)}>
+            <Button variant="outline" onClick={() => setShowTestDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveEvaluation}>Guardar</Button>
+            <Button onClick={handleSaveTest}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1043,24 +1161,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                 <Label htmlFor="psychological_report">Informe Psicológico</Label>
                 <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
                   <div className="text-center">
-                    <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Adjuntar Informe Psicológico</p>
-                      <p className="text-xs text-muted-foreground">PDF, DOC, DOCX hasta 10MB</p>
-                    </div>
-                    <Input
-                      id="psychological_report"
-                      type="file"
-                      accept=".pdf,.doc,.docx"
-                      onChange={handleFileUpload}
-                      className="mt-4"
-                    />
-                    {reportForm.psychological_report_file && (
-                      <div className="mt-3 p-3 bg-muted/50 rounded-md">
-                        <p className="text-sm font-medium">Archivo seleccionado:</p>
-                        <p className="text-sm text-muted-foreground">{reportForm.psychological_report_file.name}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

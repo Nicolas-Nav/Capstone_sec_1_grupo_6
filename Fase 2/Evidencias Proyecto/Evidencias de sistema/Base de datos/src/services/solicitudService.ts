@@ -717,6 +717,55 @@ export class SolicitudService {
     }
 
     /**
+     * Avanzar al Módulo 4 (Evaluación Psicolaboral)
+     */
+    static async avanzarAModulo4(id: number) {
+        const transaction = await sequelize.transaction();
+
+        try {
+            const solicitud = await Solicitud.findByPk(id);
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            // Buscar la etapa "Módulo 4: Evaluación Psicolaboral"
+            console.log('🔍 Buscando etapa Módulo 4...');
+            const etapaModulo4 = await EtapaSolicitud.findOne({
+                where: { nombre_etapa: 'Módulo 4: Evaluación Psicolaboral' }
+            });
+
+            console.log('📋 Etapa encontrada:', etapaModulo4);
+
+            if (!etapaModulo4) {
+                // Intentar buscar todas las etapas para debug
+                const todasLasEtapas = await EtapaSolicitud.findAll();
+                console.log('📋 Todas las etapas disponibles:', todasLasEtapas.map(e => ({ id: e.id_etapa_solicitud, nombre: e.nombre_etapa })));
+                throw new Error('Etapa Módulo 4 no encontrada');
+            }
+
+            // Actualizar la solicitud
+            await solicitud.update({
+                id_etapa_solicitud: etapaModulo4.id_etapa_solicitud 
+            }, { transaction });
+
+            await transaction.commit();
+
+            console.log('✅ Proceso avanzado al Módulo 4 exitosamente');
+            console.log('📋 Nueva etapa:', etapaModulo4.nombre_etapa);
+
+            return { 
+                success: true, 
+                message: 'Proceso avanzado al Módulo 4 exitosamente',
+                etapa: etapaModulo4.nombre_etapa
+            };
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error al avanzar al Módulo 4:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Obtener todas las etapas disponibles
      */
     static async getEtapas() {

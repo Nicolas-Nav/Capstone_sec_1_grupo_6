@@ -828,7 +828,7 @@ export const evaluacionPsicolaboralService = {
 
   // Crear evaluación
   async create(data: {
-    fecha_evaluacion: Date;
+    fecha_evaluacion?: Date | null;
     fecha_envio_informe: Date;
     estado_evaluacion: string;
     estado_informe: string;
@@ -843,7 +843,7 @@ export const evaluacionPsicolaboralService = {
 
   // Actualizar evaluación
   async update(id: number, data: Partial<{
-    fecha_evaluacion: Date;
+    fecha_evaluacion: Date | null;
     fecha_envio_informe: Date;
     estado_evaluacion: string;
     estado_informe: string;
@@ -880,6 +880,28 @@ export const evaluacionPsicolaboralService = {
   async deleteTest(idEvaluacion: number, idTest: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/evaluaciones-psicolaborales/${idEvaluacion}/tests/${idTest}`, {
       method: 'DELETE',
+    });
+  },
+
+  // Actualizar conclusión global del informe
+  async updateConclusionGlobal(id: number, conclusionGlobal: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${id}/conclusion-global`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        conclusion_global: conclusionGlobal
+      }),
+    });
+  },
+
+  // Actualizar informe completo (estado + conclusión + fecha de envío)
+  async updateInformeCompleto(id: number, estadoInforme: string, conclusionGlobal: string, fechaEnvioInforme?: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${id}/informe-completo`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        estado_informe: estadoInforme,
+        conclusion_global: conclusionGlobal,
+        fecha_envio_informe: fechaEnvioInforme
+      }),
     });
   }
 };

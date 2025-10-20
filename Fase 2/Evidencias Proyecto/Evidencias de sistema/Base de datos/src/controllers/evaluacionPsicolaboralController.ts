@@ -179,6 +179,53 @@ export class EvaluacionPsicolaboralController {
     }
 
     /**
+     * PUT /api/evaluaciones-psicolaborales/:id/conclusion-global
+     * Actualizar conclusión global del informe
+     */
+    static async actualizarConclusionGlobal(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const { conclusion_global } = req.body;
+            
+            if (!conclusion_global || conclusion_global.trim().length < 10) {
+                return sendError(res, 'La conclusión global debe tener al menos 10 caracteres', 400);
+            }
+            
+            const evaluacion = await EvaluacionPsicolaboralService.actualizarConclusionGlobal(parseInt(id), conclusion_global);
+            return sendSuccess(res, evaluacion, 'Conclusión global actualizada');
+        } catch (error) {
+            Logger.error('Error al actualizar conclusión global:', error);
+            return sendError(res, (error as Error).message || 'Error al actualizar conclusión global', 500);
+        }
+    }
+
+    /**
+     * PUT /api/evaluaciones-psicolaborales/:id/informe-completo
+     * Actualizar estado del informe y conclusión global
+     */
+    static async actualizarInformeCompleto(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const { estado_informe, conclusion_global, fecha_envio_informe } = req.body;
+            
+            if (!['Pendiente', 'Recomendable', 'No recomendable', 'Recomendable con observaciones'].includes(estado_informe)) {
+                return sendError(res, 'Estado de informe inválido', 400);
+            }
+            
+            if (!conclusion_global || conclusion_global.trim().length < 10) {
+                return sendError(res, 'La conclusión global debe tener al menos 10 caracteres', 400);
+            }
+            
+            const fechaEnvio = fecha_envio_informe ? new Date(fecha_envio_informe) : undefined;
+            const evaluacion = await EvaluacionPsicolaboralService.actualizarInformeCompleto(parseInt(id), estado_informe, conclusion_global, fechaEnvio);
+            return sendSuccess(res, evaluacion, 'Informe actualizado completamente');
+        } catch (error) {
+            Logger.error('Error al actualizar informe completo:', error);
+            return sendError(res, (error as Error).message || 'Error al actualizar informe completo', 500);
+        }
+    }
+
+    /**
      * DELETE /api/evaluaciones-psicolaborales/:id
      * Eliminar evaluación
      */

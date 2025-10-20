@@ -154,7 +154,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               interviewsData[candidate.id] = {
                 interview_date: evaluation.fecha_evaluacion ? new Date(evaluation.fecha_evaluacion) : null,
                 interview_status: evaluation.estado_evaluacion,
-                report_due_date: evaluation.fecha_envio_informe ? new Date(evaluation.fecha_envio_informe) : null,
               }
               
               // Cargar tests de la evaluación
@@ -207,6 +206,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const [candidateTests, setCandidateTests] = useState<{ [candidateId: string]: any[] }>({})
   const [candidateInterviews, setCandidateInterviews] = useState<{ [candidateId: string]: any }>({})
   const [availableTests, setAvailableTests] = useState<any[]>([])
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: 'test' | 'reference' | null;
+    candidateId?: string;
+    testIndex?: number;
+    referenceId?: string;
+    testName?: string;
+    referenceName?: string;
+  }>({ type: null })
   const [newReference, setNewReference] = useState({
     nombre_referencia: "",
     cargo_referencia: "",
@@ -220,7 +227,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const [interviewForm, setInterviewForm] = useState({
     interview_date: "",
     interview_status: "programada" as "programada" | "realizada" | "cancelada",
-    report_due_date: "",
   })
 
   const [testForm, setTestForm] = useState({
@@ -264,15 +270,11 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           ? new Date(existingEvaluation.fecha_evaluacion).toISOString().slice(0, 16) 
           : "",
         interview_status: statusValue,
-        report_due_date: existingEvaluation.fecha_envio_informe 
-          ? new Date(existingEvaluation.fecha_envio_informe).toISOString().slice(0, 16) 
-          : "",
       })
     } else {
       setInterviewForm({
         interview_date: "",
         interview_status: "programada",
-        report_due_date: "",
       })
     }
     
@@ -305,9 +307,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         if (['PC', 'HS', 'TR'].includes(process.service_type) && selectedCandidate.client_feedback_date) {
           const feedbackDate = new Date(selectedCandidate.client_feedback_date)
           fechaEnvioInforme = addBusinessDays(feedbackDate, 5)
-        } else if (interviewForm.report_due_date) {
-          // Si se proporciona fecha manual, usarla
-          fechaEnvioInforme = new Date(interviewForm.report_due_date)
         }
 
         const updateData = {
@@ -327,9 +326,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         if (['PC', 'HS', 'TR'].includes(process.service_type) && selectedCandidate.client_feedback_date) {
           const feedbackDate = new Date(selectedCandidate.client_feedback_date)
           fechaEnvioInforme = addBusinessDays(feedbackDate, 5)
-        } else if (interviewForm.report_due_date) {
-          // Si se proporciona fecha manual, usarla
-          fechaEnvioInforme = new Date(interviewForm.report_due_date)
         }
 
         const createData = {
@@ -339,7 +335,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             interviewForm.interview_status === "realizada" ? "Realizada" :
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
           estado_informe: "Pendiente",
-          conclusion_global: "Conclusión pendiente de completar en el informe final",
+          conclusion_global: "",
           id_postulacion: Number(selectedCandidate.id_postulacion)
         }
         
@@ -352,7 +348,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         [selectedCandidate.id]: {
           interview_date: interviewForm.interview_date ? new Date(interviewForm.interview_date) : null,
           interview_status: interviewForm.interview_status,
-          report_due_date: interviewForm.report_due_date ? new Date(interviewForm.report_due_date) : null,
         }
       })
       
@@ -369,7 +364,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       setInterviewForm({
         interview_date: "",
         interview_status: "programada",
-        report_due_date: "",
       })
       setSelectedCandidate(null)
       
@@ -469,16 +463,23 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     setShowEditTestDialog(true)
   }
 
-  const handleDeleteTest = async (candidate: Candidate, test: any, index: number) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este test?')) {
-      return
-    }
+  const handleDeleteTest = (candidate: Candidate, test: any, index: number) => {
+    setDeleteConfirm({
+      type: 'test',
+      candidateId: candidate.id,
+      testIndex: index,
+      testName: test.test_name
+    })
+  }
+
+  const confirmDeleteTest = async () => {
+    if (!deleteConfirm.candidateId || deleteConfirm.testIndex === undefined) return
 
     try {
       const { evaluacionPsicolaboralService } = await import('@/lib/api')
       
       // Obtener la evaluación psicolaboral del candidato
-      const evaluation = evaluations[candidate.id]
+      const evaluation = evaluations[deleteConfirm.candidateId]
       if (!evaluation) {
         toast({
           title: "Error",
@@ -489,7 +490,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       }
 
       // Encontrar el ID del test
-      const testInfo = availableTests.find(t => t.nombre_test_psicolaboral === test.test_name)
+      const testInfo = availableTests.find(t => t.nombre_test_psicolaboral === deleteConfirm.testName)
       if (!testInfo) {
         toast({
           title: "Error",
@@ -506,11 +507,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       )
 
       // Actualizar estado local
-      const updatedTests = candidateTests[candidate.id].filter((_, i) => i !== index)
+      const updatedTests = candidateTests[deleteConfirm.candidateId].filter((_, i) => i !== deleteConfirm.testIndex)
       setCandidateTests({
         ...candidateTests,
-        [candidate.id]: updatedTests
+        [deleteConfirm.candidateId]: updatedTests
       })
+
+      // Limpiar confirmación
+      setDeleteConfirm({ type: null })
 
       toast({
         title: "Éxito",
@@ -524,6 +528,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         variant: "destructive",
       })
     }
+  }
+
+  const cancelDelete = () => {
+    setDeleteConfirm({ type: null })
   }
 
   const handleSaveEditTest = async () => {
@@ -601,40 +609,113 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
   const openReportDialog = (candidate: Candidate) => {
     setSelectedCandidate(candidate)
-    const existingReport = candidateReports[candidate.id]
-    if (existingReport) {
+    
+    // Buscar la evaluación existente para este candidato
+    const existingEvaluation = evaluations[candidate.id]
+    
+    if (existingEvaluation) {
+      // Mapear los valores del backend al frontend
+      let reportStatus = ""
+      if (existingEvaluation.estado_informe === "Recomendable") {
+        reportStatus = "recomendable"
+      } else if (existingEvaluation.estado_informe === "No recomendable") {
+        reportStatus = "no_recomendable"
+      } else if (existingEvaluation.estado_informe === "Recomendable con observaciones") {
+        reportStatus = "recomendable_con_observaciones"
+      }
+      
       setReportForm({
-        report_status: existingReport.report_status || "",
-        report_observations: existingReport.report_observations || "",
-        report_sent_date: existingReport.report_sent_date || "",
+        report_status: reportStatus as "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | "",
+        report_observations: existingEvaluation.conclusion_global || "",
+        report_sent_date: existingEvaluation.fecha_envio_informe ? new Date(existingEvaluation.fecha_envio_informe).toISOString().split('T')[0] : "",
+      })
+    } else {
+      // Si no existe evaluación, limpiar el formulario
+      setReportForm({
+        report_status: "",
+        report_observations: "",
+        report_sent_date: "",
       })
     }
     setShowReportDialog(true)
   }
 
-  const handleSaveReport = () => {
+  const handleSaveReport = async () => {
     if (!selectedCandidate) return
 
-    setCandidateReports({
-      ...candidateReports,
-      [selectedCandidate.id]: {
-        candidate_id: selectedCandidate.id,
-        report_status: reportForm.report_status as
-          | "recomendable"
-          | "no_recomendable"
-          | "recomendable_con_observaciones",
-        report_observations: reportForm.report_observations,
-        report_sent_date: reportForm.report_sent_date,
-      },
-    })
+    try {
+      // Buscar la evaluación existente para este candidato
+      const existingEvaluation = evaluations[selectedCandidate.id]
+      
+      if (!existingEvaluation) {
+        toast({
+          title: "Error",
+          description: "No se encontró una evaluación para este candidato",
+          variant: "destructive",
+        })
+        return
+      }
 
-    setShowReportDialog(false)
-    setReportForm({
-      report_status: "",
-      report_observations: "",
-      report_sent_date: "",
-    })
-    setSelectedCandidate(null)
+      // Mapear los valores del frontend al backend
+      let estadoInforme = ""
+      if (reportForm.report_status === "recomendable") {
+        estadoInforme = "Recomendable"
+      } else if (reportForm.report_status === "no_recomendable") {
+        estadoInforme = "No recomendable"
+      } else if (reportForm.report_status === "recomendable_con_observaciones") {
+        estadoInforme = "Recomendable con observaciones"
+      }
+
+      // Actualizar el informe completo (estado + conclusión + fecha de envío)
+      const response = await evaluacionPsicolaboralService.updateInformeCompleto(
+        existingEvaluation.id_evaluacion_psicolaboral,
+        estadoInforme,
+        reportForm.report_observations,
+        reportForm.report_sent_date
+      )
+
+      if (response.success) {
+        toast({
+          title: "Éxito",
+          description: "Estado del informe actualizado correctamente",
+        })
+
+        // Recargar las evaluaciones para mostrar los cambios
+        const evaluation = await getEvaluationByCandidate(selectedCandidate)
+        if (evaluation) {
+          setEvaluations(prev => ({
+            ...prev,
+            [selectedCandidate.id]: evaluation
+          }))
+          
+          // También actualizar candidateInterviews para la visualización
+          setCandidateInterviews(prev => ({
+            ...prev,
+            [selectedCandidate.id]: {
+              interview_date: evaluation.fecha_evaluacion ? new Date(evaluation.fecha_evaluacion) : null,
+              interview_status: evaluation.estado_evaluacion,
+            }
+          }))
+        }
+
+        setShowReportDialog(false)
+        setReportForm({
+          report_status: "",
+          report_observations: "",
+          report_sent_date: "",
+        })
+        setSelectedCandidate(null)
+      } else {
+        throw new Error(response.message || "Error al actualizar el informe")
+      }
+    } catch (error) {
+      console.error("Error al guardar informe:", error)
+      toast({
+        title: "Error",
+        description: `Error al guardar informe: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        variant: "destructive",
+      })
+    }
   }
 
 
@@ -685,17 +766,28 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
   }
 
-  const handleDeleteReference = async (candidateId: string, referenceId: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta referencia?')) {
-      return
-    }
+  const handleDeleteReference = (candidateId: string, referenceId: string) => {
+    const reference = workReferences[candidateId]?.find(r => r.id === referenceId)
+    setDeleteConfirm({
+      type: 'reference',
+      candidateId,
+      referenceId,
+      referenceName: reference?.nombre_referencia || 'esta referencia'
+    })
+  }
+
+  const confirmDeleteReference = async () => {
+    if (!deleteConfirm.candidateId || !deleteConfirm.referenceId) return
 
     try {
-      const response = await referenciaLaboralService.delete(Number(referenceId))
+      const response = await referenciaLaboralService.delete(Number(deleteConfirm.referenceId))
       
       if (response.success) {
         // Recargar las referencias del candidato
-        await loadReferencesForCandidate(Number(candidateId))
+        await loadReferencesForCandidate(Number(deleteConfirm.candidateId))
+        
+        // Limpiar confirmación
+        setDeleteConfirm({ type: null })
         
         toast({
           title: "Referencia eliminada",
@@ -836,12 +928,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                 {candidateReport.report_status === "no_recomendable" && "✗ No Recomendable"}
                                 {candidateReport.report_status === "recomendable_con_observaciones" &&
                                   "⚠ Recomendable con Observaciones"}
-                              </Badge>
-                            )}
-                            {candidateReport?.report_sent_date && (
-                              <Badge variant="outline" className="text-xs">
-                                <Send className="mr-1 h-3 w-3" />
-                                Enviado {formatDate(candidateReport.report_sent_date)}
                               </Badge>
                             )}
                           </div>
@@ -1268,15 +1354,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="report_due_date">Plazo de Envío del Informe</Label>
-              <Input
-                id="report_due_date"
-                type="date"
-                value={interviewForm.report_due_date}
-                onChange={(e) => setInterviewForm({ ...interviewForm, report_due_date: e.target.value })}
-              />
-            </div>
           </div>
 
           <DialogFooter>
@@ -1671,26 +1748,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                 </Select>
               </div>
 
-              {(reportForm.report_status === "no_recomendable" ||
-                reportForm.report_status === "recomendable_con_observaciones") && (
-                <div className="space-y-2">
-                  <Label htmlFor="report_observations">
-                    {reportForm.report_status === "no_recomendable" ? "Motivos del rechazo" : "Observaciones"}
-                  </Label>
-                  <Textarea
-                    id="report_observations"
-                    value={reportForm.report_observations}
-                    onChange={(e) => setReportForm({ ...reportForm, report_observations: e.target.value })}
-                    placeholder={
-                      reportForm.report_status === "no_recomendable"
-                        ? "Describe los motivos por los cuales no se recomienda al candidato..."
-                        : "Describe las observaciones o consideraciones especiales..."
-                    }
-                    rows={4}
-                  />
-                </div>
-              )}
-
               <div className="space-y-2">
                 <Label htmlFor="report_sent_date">Fecha de Envío del Informe al Cliente</Label>
                 <Input
@@ -1702,12 +1759,20 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="psychological_report">Informe Psicológico</Label>
-                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
-                  <div className="text-center">
-                  </div>
-                </div>
+                <Label htmlFor="report_observations">Conclusión Global del Informe</Label>
+                <Textarea
+                  id="report_observations"
+                  value={reportForm.report_observations}
+                  onChange={(e) => setReportForm({ ...reportForm, report_observations: e.target.value })}
+                  placeholder="Escribe la conclusión global del informe psicolaboral..."
+                  rows={6}
+                  className="min-h-[120px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Mínimo 10 caracteres. Describe la evaluación completa del candidato.
+                </p>
               </div>
+
             </div>
           </div>
 
@@ -1715,8 +1780,43 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             <Button variant="outline" onClick={() => setShowReportDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveReport} disabled={!reportForm.report_status}>
+            <Button 
+              onClick={handleSaveReport} 
+              disabled={!reportForm.report_status || !reportForm.report_observations.trim() || reportForm.report_observations.trim().length < 10}
+            >
               Guardar Estado del Informe
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de confirmación de eliminación */}
+      <Dialog open={deleteConfirm.type !== null} onOpenChange={cancelDelete}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Confirmar eliminación
+            </DialogTitle>
+            <DialogDescription>
+              {deleteConfirm.type === 'test' && (
+                <>¿Estás seguro de que quieres eliminar el test <strong>"{deleteConfirm.testName}"</strong>?</>
+              )}
+              {deleteConfirm.type === 'reference' && (
+                <>¿Estás seguro de que quieres eliminar la referencia de <strong>"{deleteConfirm.referenceName}"</strong>?</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={cancelDelete}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={deleteConfirm.type === 'test' ? confirmDeleteTest : confirmDeleteReference}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>

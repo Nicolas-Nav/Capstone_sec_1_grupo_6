@@ -335,7 +335,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             interviewForm.interview_status === "realizada" ? "Realizada" :
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
           estado_informe: "Pendiente",
-          conclusion_global: "",
+          conclusion_global: "Evaluación en proceso - Conclusión pendiente de completar en el informe final",
           id_postulacion: Number(selectedCandidate.id_postulacion)
         }
         
@@ -347,7 +347,9 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         ...candidateInterviews,
         [selectedCandidate.id]: {
           interview_date: interviewForm.interview_date ? new Date(interviewForm.interview_date) : null,
-          interview_status: interviewForm.interview_status,
+          interview_status: interviewForm.interview_status === "programada" ? "Programada" : 
+                            interviewForm.interview_status === "realizada" ? "Realizada" :
+                            interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
         }
       })
       

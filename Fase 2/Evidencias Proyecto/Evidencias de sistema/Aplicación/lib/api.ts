@@ -874,6 +874,30 @@ export const evaluacionPsicolaboralService = {
         estado_informe: estadoInforme
       }),
     });
+  },
+
+  // Eliminar test de evaluación
+  async deleteTest(idEvaluacion: number, idTest: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${idEvaluacion}/tests/${idTest}`, {
+      method: 'DELETE',
+    });
+  }
+};
+
+// Servicio para Tests Psicolaborales
+export const testPsicolaboralService = {
+  // Obtener todos los tests disponibles
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/tests-psicolaborales', {
+      method: 'GET',
+    });
+  },
+
+  // Obtener un test por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/tests-psicolaborales/${id}`, {
+      method: 'GET',
+    });
   }
 };
 

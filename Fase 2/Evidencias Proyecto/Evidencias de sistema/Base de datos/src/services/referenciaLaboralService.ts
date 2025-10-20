@@ -58,12 +58,14 @@ export class ReferenciaLaboralService {
      * Crear una nueva referencia laboral
      */
     static async createReferencia(data: {
-        nombre_jefe_referencia: string;
-        cargo_jefe_referencia: string;
+        nombre_referencia: string;
+        cargo_referencia: string;
         empresa_referencia: string;
         telefono_referencia: string;
         email_referencia: string;
         id_candidato: number;
+        relacion_postulante_referencia: string;
+        comentario_referencia?: string;
     }) {
         const transaction: Transaction = await sequelize.transaction();
 
@@ -88,11 +90,13 @@ export class ReferenciaLaboralService {
      * Actualizar una referencia laboral
      */
     static async updateReferencia(id: number, data: Partial<{
-        nombre_jefe_referencia: string;
-        cargo_jefe_referencia: string;
+        nombre_referencia: string;
+        cargo_referencia: string;
         empresa_referencia: string;
         telefono_referencia: string;
         email_referencia: string;
+        relacion_postulante_referencia: string;
+        comentario_referencia: string;
     }>) {
         const transaction: Transaction = await sequelize.transaction();
 
@@ -138,11 +142,13 @@ export class ReferenciaLaboralService {
      * Crear múltiples referencias para un candidato
      */
     static async createMultiplesReferencias(idCandidato: number, referencias: Array<{
-        nombre_jefe_referencia: string;
-        cargo_jefe_referencia: string;
+        nombre_referencia: string;
+        cargo_referencia: string;
         empresa_referencia: string;
         telefono_referencia: string;
         email_referencia: string;
+        relacion_postulante_referencia: string;
+        comentario_referencia?: string;
     }>) {
         const transaction: Transaction = await sequelize.transaction();
 

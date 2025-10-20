@@ -36,7 +36,7 @@ import {
 
 } from "@/components/ui/dialog"
 
-import { getPublicationsByProcess, getCandidatesByProcess } from "@/lib/mock-data"
+import { getCandidatesByProcess } from "@/lib/api"
 
 import { formatDate, isProcessBlocked } from "@/lib/utils"
 

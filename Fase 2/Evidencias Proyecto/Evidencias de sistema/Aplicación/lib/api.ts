@@ -794,7 +794,7 @@ export const publicacionService = {
 };
 
 // ===========================================
-// FUNCIÓN PARA OBTENER CANDIDATOS POR PROCESO
+// FUNCIONES HELPER PARA OBTENER DATOS POR PROCESO
 // ===========================================
 
 export async function getCandidatesByProcess(processId: string): Promise<any[]> {
@@ -806,6 +806,19 @@ export async function getCandidatesByProcess(processId: string): Promise<any[]> 
     return [];
   } catch (error) {
     console.error('Error al obtener candidatos por proceso:', error);
+    return [];
+  }
+}
+
+export async function getPublicationsByProcess(processId: string): Promise<any[]> {
+  try {
+    const response = await publicacionService.getAll({ solicitud_id: parseInt(processId) });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return [];
+  } catch (error) {
+    console.error('Error al obtener publicaciones por proceso:', error);
     return [];
   }
 }

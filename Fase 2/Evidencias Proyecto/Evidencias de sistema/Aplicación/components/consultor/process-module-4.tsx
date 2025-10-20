@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { getCandidatesByProcess } from "@/lib/mock-data"
+import { getCandidatesByProcess } from "@/lib/api"
 import { evaluacionPsicolaboralService, referenciaLaboralService } from "@/lib/api"
 import { formatDate, isProcessBlocked } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"

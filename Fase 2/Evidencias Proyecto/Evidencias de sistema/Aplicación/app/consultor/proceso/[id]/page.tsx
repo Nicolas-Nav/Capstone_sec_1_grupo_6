@@ -17,20 +17,7 @@ import { ProcessModule5 } from "@/components/consultor/process-module-5"
 import { notFound } from "next/navigation"
 import { toast } from "sonner"
 
-const serviceTypeLabels: Record<string, string> = {
-  PC: "Proceso Completo",
-  LL: "Long List",
-  HH: "Head Hunting",
-  TS: "Test Psicolaboral",
-  ES: "Evaluación Psicolaboral"
-}
-
-const processStatusLabels: Record<string, string> = {
-  creado: "Creado",
-  en_progreso: "En Progreso",
-  cerrado: "Cerrado",
-  congelado: "Congelado"
-}
+import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
 interface ProcessPageProps {
   params: {

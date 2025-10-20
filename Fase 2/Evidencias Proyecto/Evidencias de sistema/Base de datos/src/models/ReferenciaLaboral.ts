@@ -10,14 +10,14 @@ interface ReferenciaLaboralAttributes {
     nombre_referencia: string;
     cargo_referencia: string;
     empresa_referencia: string;
-    telefono_referencia: string;
-    email_referencia: string;
+    telefono_referencia?: string;
+    email_referencia?: string;
     id_candidato: number;
     relacion_postulante_referencia: string;
     comentario_referencia?: string;
 }
 
-interface ReferenciaLaboralCreationAttributes extends Optional<ReferenciaLaboralAttributes, 'id_referencia_laboral' | 'comentario_referencia'> { }
+interface ReferenciaLaboralCreationAttributes extends Optional<ReferenciaLaboralAttributes, 'id_referencia_laboral' | 'telefono_referencia' | 'email_referencia' | 'comentario_referencia'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -28,8 +28,8 @@ class ReferenciaLaboral extends Model<ReferenciaLaboralAttributes, ReferenciaLab
     public nombre_referencia!: string;
     public cargo_referencia!: string;
     public empresa_referencia!: string;
-    public telefono_referencia!: string;
-    public email_referencia!: string;
+    public telefono_referencia?: string;
+    public email_referencia?: string;
     public id_candidato!: number;
     public relacion_postulante_referencia!: string;
     public comentario_referencia?: string;
@@ -83,18 +83,29 @@ ReferenciaLaboral.init({
     },
     telefono_referencia: {
         type: DataTypes.STRING(12),
-        allowNull: false,
+        allowNull: true,
         validate: {
-            notEmpty: true,
-            len: [8, 12]
+            isValidPhone(value: string) {
+                if (value && value.trim() !== '') {
+                    if (value.length < 8 || value.length > 12) {
+                        throw new Error('El teléfono debe tener entre 8 y 12 caracteres');
+                    }
+                }
+            }
         }
     },
     email_referencia: {
         type: DataTypes.STRING(256),
-        allowNull: false,
+        allowNull: true,
         validate: {
-            isEmail: true,
-            notEmpty: true
+            isValidEmail(value: string) {
+                if (value && value.trim() !== '') {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailRegex.test(value)) {
+                        throw new Error('Debe ser un email válido');
+                    }
+                }
+            }
         }
     },
     id_candidato: {

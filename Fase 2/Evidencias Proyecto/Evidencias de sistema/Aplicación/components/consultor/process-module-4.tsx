@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { getCandidatesByProcess } from "@/lib/mock-data"
-import { evaluacionPsicolaboralService } from "@/lib/api"
+import { evaluacionPsicolaboralService, referenciaLaboralService } from "@/lib/api"
 import { formatDate, isProcessBlocked } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -34,6 +34,7 @@ import {
   CheckCircle,
   Building,
   Phone,
+  Mail,
   Trash2,
   Upload,
   Send,
@@ -105,6 +106,20 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
   }
 
+  const loadReferencesForCandidate = async (candidateId: number) => {
+    try {
+      const response = await referenciaLaboralService.getByCandidato(candidateId)
+      if (response.success && response.data) {
+        setWorkReferences(prev => ({
+          ...prev,
+          [candidateId]: response.data
+        }))
+      }
+    } catch (error) {
+      console.error(`Error al cargar referencias para candidato ${candidateId}:`, error)
+    }
+  }
+
   // Cargar datos reales desde el backend
   useEffect(() => {
     const loadData = async () => {
@@ -162,6 +177,11 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         const { testPsicolaboralService } = await import('@/lib/api')
         const testsResponse = await testPsicolaboralService.getAll()
         setAvailableTests(testsResponse.data || [])
+
+        // Cargar referencias laborales para cada candidato
+        for (const candidate of candidatesToShow) {
+          await loadReferencesForCandidate(Number(candidate.id))
+        }
       } catch (error) {
         console.error('Error al cargar candidatos:', error)
       } finally {
@@ -618,38 +638,80 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   }
 
 
-  const handleAddReference = () => {
+  const handleAddReference = async () => {
     if (!selectedCandidate) return
 
-    const reference: WorkReference = {
-      id: Date.now().toString(),
-      candidate_id: selectedCandidate.id,
-      ...newReference,
+    try {
+      const response = await referenciaLaboralService.create({
+        nombre_referencia: newReference.nombre_referencia,
+        cargo_referencia: newReference.cargo_referencia,
+        empresa_referencia: newReference.empresa_referencia,
+        telefono_referencia: newReference.telefono_referencia,
+        email_referencia: newReference.email_referencia,
+        id_candidato: Number(selectedCandidate.id),
+        relacion_postulante_referencia: newReference.relacion_postulante_referencia,
+        comentario_referencia: newReference.comentario_referencia,
+      })
+
+      if (response.success) {
+        // Recargar las referencias del candidato
+        await loadReferencesForCandidate(Number(selectedCandidate.id))
+        
+        // Limpiar el formulario
+        setNewReference({
+          nombre_referencia: "",
+          cargo_referencia: "",
+          relacion_postulante_referencia: "",
+          empresa_referencia: "",
+          telefono_referencia: "",
+          email_referencia: "",
+          comentario_referencia: "",
+        })
+
+        toast({
+          title: "Referencia guardada",
+          description: "La referencia laboral se ha guardado exitosamente.",
+        })
+      } else {
+        throw new Error(response.message || 'Error al guardar la referencia')
+      }
+    } catch (error) {
+      console.error('Error al guardar referencia:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al guardar la referencia",
+        variant: "destructive",
+      })
     }
-
-    const candidateReferences = workReferences[selectedCandidate.id] || []
-    setWorkReferences({
-      ...workReferences,
-      [selectedCandidate.id]: [...candidateReferences, reference],
-    })
-
-    setNewReference({
-      nombre_referencia: "",
-      cargo_referencia: "",
-      relacion_postulante_referencia: "",
-      empresa_referencia: "",
-      telefono_referencia: "",
-      email_referencia: "",
-      comentario_referencia: "",
-    })
   }
 
-  const handleDeleteReference = (candidateId: string, referenceId: string) => {
-    const candidateReferences = workReferences[candidateId] || []
-    setWorkReferences({
-      ...workReferences,
-      [candidateId]: candidateReferences.filter((ref) => ref.id !== referenceId),
-    })
+  const handleDeleteReference = async (candidateId: string, referenceId: string) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar esta referencia?')) {
+      return
+    }
+
+    try {
+      const response = await referenciaLaboralService.delete(Number(referenceId))
+      
+      if (response.success) {
+        // Recargar las referencias del candidato
+        await loadReferencesForCandidate(Number(candidateId))
+        
+        toast({
+          title: "Referencia eliminada",
+          description: "La referencia laboral se ha eliminado exitosamente.",
+        })
+      } else {
+        throw new Error(response.message || 'Error al eliminar la referencia')
+      }
+    } catch (error) {
+      console.error('Error al eliminar referencia:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al eliminar la referencia",
+        variant: "destructive",
+      })
+    }
   }
 
   const isEvaluationProcess =
@@ -975,46 +1037,60 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                 {candidateReferences.map((reference) => (
                                   <Card key={reference.id} className="bg-background">
                                     <CardContent className="pt-4">
-                                      <div className="space-y-3">
-                                        <div>
-                                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre de la referencia</p>
-                                          <p className="text-sm font-medium">{reference.nombre_referencia}</p>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <div className="space-y-2">
-                                            <div>
-                                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cargo</p>
-                                              <p className="text-sm">{reference.cargo_referencia}</p>
-                                            </div>
-                                            <div>
-                                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Relación con el postulante</p>
-                                              <p className="text-sm">{reference.relacion_postulante_referencia}</p>
-                                            </div>
+                                      <div className="space-y-4">
+                                        {/* Información principal - alineada horizontalmente */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                          <div>
+                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre de la referencia</p>
+                                            <p className="text-sm font-medium">{reference.nombre_referencia}</p>
                                           </div>
-                                          <div className="space-y-2">
-                                            <div>
-                                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Empresa</p>
-                                              <p className="text-sm">{reference.empresa_referencia}</p>
-                                            </div>
-                                            {reference.telefono_referencia && (
-                                              <div>
-                                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Teléfono</p>
-                                                <div className="flex items-center gap-2">
-                                                  <Phone className="h-3 w-3 text-muted-foreground" />
-                                                  <p className="text-sm">{reference.telefono_referencia}</p>
+                                          <div>
+                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Relación con el postulante</p>
+                                            <p className="text-sm">{reference.relacion_postulante_referencia}</p>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Información secundaria - alineada horizontalmente */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                          <div>
+                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cargo</p>
+                                            <p className="text-sm">{reference.cargo_referencia}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Empresa</p>
+                                            <p className="text-sm">{reference.empresa_referencia}</p>
+                                          </div>
+                                        </div>
+
+                                        {/* Campos opcionales - solo si tienen valor */}
+                                        {(reference.telefono_referencia || reference.email_referencia) && (
+                                          <div className="pt-3 border-t border-muted/50">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                              {reference.telefono_referencia && (
+                                                <div>
+                                                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Teléfono</p>
+                                                  <div className="flex items-center gap-2">
+                                                    <Phone className="h-3 w-3 text-muted-foreground" />
+                                                    <p className="text-sm">{reference.telefono_referencia}</p>
+                                                  </div>
                                                 </div>
-                                              </div>
-                                            )}
-                                            {reference.email_referencia && (
-                                              <div>
-                                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</p>
-                                                <p className="text-sm">{reference.email_referencia}</p>
-                                              </div>
-                                            )}
+                                              )}
+                                              {reference.email_referencia && (
+                                                <div>
+                                                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</p>
+                                                  <div className="flex items-center gap-2">
+                                                    <Mail className="h-3 w-3 text-muted-foreground" />
+                                                    <p className="text-sm">{reference.email_referencia}</p>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
-                                        </div>
+                                        )}
+
+                                        {/* Comentarios - al final si existen */}
                                         {reference.comentario_referencia && (
-                                          <div className="pt-3 border-t">
+                                          <div className="pt-3 border-t border-muted/50">
                                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Comentarios</p>
                                             <p className="text-sm text-muted-foreground mt-1">
                                               {reference.comentario_referencia}

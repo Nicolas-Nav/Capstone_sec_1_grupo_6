@@ -924,3 +924,49 @@ export const apiUtils = {
     return 'Ha ocurrido un error inesperado';
   },
 };
+
+// Referencias Laborales Service
+export const referenciaLaboralService = {
+  async getByCandidato(idCandidato: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/referencias-laborales/candidato/${idCandidato}`, {
+      method: 'GET',
+    });
+  },
+
+  async create(data: {
+    nombre_referencia: string;
+    cargo_referencia: string;
+    empresa_referencia: string;
+    telefono_referencia: string;
+    email_referencia: string;
+    id_candidato: number;
+    relacion_postulante_referencia: string;
+    comentario_referencia?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/referencias-laborales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(id: number, data: Partial<{
+    nombre_referencia: string;
+    cargo_referencia: string;
+    empresa_referencia: string;
+    telefono_referencia: string;
+    email_referencia: string;
+    relacion_postulante_referencia: string;
+    comentario_referencia: string;
+  }>): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/referencias-laborales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/referencias-laborales/${id}`, {
+      method: 'DELETE',
+    });
+  }
+};

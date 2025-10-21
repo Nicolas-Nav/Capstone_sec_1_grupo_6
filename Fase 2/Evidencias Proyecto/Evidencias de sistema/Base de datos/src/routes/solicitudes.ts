@@ -36,6 +36,9 @@ router.put('/:id/avanzar-modulo2', SolicitudController.avanzarAModulo2);
 // Avanzar al módulo 3
 router.put('/:id/avanzar-modulo3', SolicitudController.avanzarAModulo3);
 
+// Avanzar al módulo 4
+router.put('/:id/avanzar-modulo4', SolicitudController.avanzarAModulo4);
+
 // Obtener etapas disponibles
 router.get('/etapas/disponibles', SolicitudController.getEtapas);
 

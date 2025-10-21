@@ -32,12 +32,12 @@ const sequelize = new Sequelize({
     timestamps: false,
     underscored: true
   },
-  dialectOptions: {
+  dialectOptions: DB_HOST !== 'localhost' && DB_HOST !== '127.0.0.1' ? {
     ssl: {
       require: true,
-      rejectUnauthorized: false // permite certificados autofirmados
+      rejectUnauthorized: false
     }
-  }
+  } : {}
 });
 
 // Función para probar la conexión

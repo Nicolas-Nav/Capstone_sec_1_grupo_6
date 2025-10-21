@@ -26,6 +26,12 @@ router.put('/:id/marcar-realizada', EvaluacionPsicolaboralController.marcarReali
 // Actualizar estado del informe
 router.put('/:id/estado-informe', EvaluacionPsicolaboralController.actualizarEstadoInforme);
 
+// Actualizar conclusión global del informe
+router.put('/:id/conclusion-global', EvaluacionPsicolaboralController.actualizarConclusionGlobal);
+
+// Actualizar informe completo (estado + conclusión)
+router.put('/:id/informe-completo', EvaluacionPsicolaboralController.actualizarInformeCompleto);
+
 // Obtener todas las evaluaciones
 router.get('/', EvaluacionPsicolaboralController.getAll);
 

@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getCandidatesByProcess } from "@/lib/mock-data"
+import { getCandidatesByProcess } from "@/lib/api"
 import { formatDate, isProcessBlocked } from "@/lib/utils"
 import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"

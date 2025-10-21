@@ -13,6 +13,9 @@ const router = Router();
 // Obtener postulaciones por solicitud
 router.get('/solicitud/:idSolicitud', PostulacionController.getBySolicitud);
 
+// Obtener postulaciones optimizadas (sin datos de formación académica)
+router.get('/solicitud/:idSolicitud/optimized', PostulacionController.getBySolicitudOptimized);
+
 // Crear nueva postulación (con CV opcional)
 router.post('/', uploadCV.single('cv_file'), PostulacionController.create);
 

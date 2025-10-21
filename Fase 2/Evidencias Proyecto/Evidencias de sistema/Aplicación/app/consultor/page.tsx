@@ -26,22 +26,7 @@ const getStatusColor = (status: string) => {
   return colors[status] || "bg-gray-100 text-gray-800"
 }
 
-const serviceTypeLabels: Record<string, string> = {
-  PC: "Proceso Completo",
-  LL: "Long List",
-  HH: "Head Hunting",
-  TS: "Test Psicolaboral",
-  ES: "Evaluación y Seguimiento"
-}
-
-const processStatusLabels: Record<string, string> = {
-  creado: "Creado",
-  en_progreso: "En Progreso",
-  cerrado: "Cerrado",
-  congelado: "Congelado",
-  cancelado: "Cancelado",
-  cierre_extraordinario: "Cierre Extraordinario"
-}
+import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
 export default function ConsultorPage() {
   const { user } = useAuth()

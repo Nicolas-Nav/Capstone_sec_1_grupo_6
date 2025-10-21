@@ -100,7 +100,7 @@ export class EvaluacionPsicolaboralService {
      * Crear una nueva evaluación psicolaboral
      */
     static async createEvaluacion(data: {
-        fecha_evaluacion: Date;
+        fecha_evaluacion?: Date | null;
         fecha_envio_informe: Date;
         estado_evaluacion: string;
         estado_informe: string;
@@ -161,7 +161,7 @@ export class EvaluacionPsicolaboralService {
      * Actualizar una evaluación psicolaboral
      */
     static async updateEvaluacion(id: number, data: Partial<{
-        fecha_evaluacion: Date;
+        fecha_evaluacion: Date | null;
         fecha_envio_informe: Date;
         estado_evaluacion: string;
         estado_informe: string;
@@ -285,7 +285,7 @@ export class EvaluacionPsicolaboralService {
     /**
      * Actualizar estado de informe
      */
-    static async actualizarEstadoInforme(id: number, estadoInforme: 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones') {
+    static async actualizarEstadoInforme(id: number, estadoInforme: 'Pendiente' | 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones') {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
@@ -297,6 +297,56 @@ export class EvaluacionPsicolaboralService {
             await evaluacion.update({
                 estado_informe: estadoInforme,
                 fecha_envio_informe: new Date()
+            }, { transaction });
+
+            await transaction.commit();
+            return evaluacion;
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+
+    /**
+     * Actualizar conclusión global del informe
+     */
+    static async actualizarConclusionGlobal(id: number, conclusionGlobal: string) {
+        const transaction: Transaction = await sequelize.transaction();
+
+        try {
+            const evaluacion = await EvaluacionPsicolaboral.findByPk(id);
+            if (!evaluacion) {
+                throw new Error('Evaluación no encontrada');
+            }
+
+            await evaluacion.update({
+                conclusion_global: conclusionGlobal
+            }, { transaction });
+
+            await transaction.commit();
+            return evaluacion;
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+
+    /**
+     * Actualizar estado del informe y conclusión global
+     */
+    static async actualizarInformeCompleto(id: number, estadoInforme: 'Pendiente' | 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones', conclusionGlobal: string, fechaEnvioInforme?: Date) {
+        const transaction: Transaction = await sequelize.transaction();
+
+        try {
+            const evaluacion = await EvaluacionPsicolaboral.findByPk(id);
+            if (!evaluacion) {
+                throw new Error('Evaluación no encontrada');
+            }
+
+            await evaluacion.update({
+                estado_informe: estadoInforme,
+                conclusion_global: conclusionGlobal,
+                fecha_envio_informe: fechaEnvioInforme || new Date()
             }, { transaction });
 
             await transaction.commit();

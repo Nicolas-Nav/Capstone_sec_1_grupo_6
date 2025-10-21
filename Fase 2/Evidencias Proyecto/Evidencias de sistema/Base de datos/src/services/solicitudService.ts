@@ -402,10 +402,10 @@ export class SolicitudService {
                 }
             }
 
-            // Determinar la etapa inicial según el tipo de servicio
-            // TS y ES empiezan en Módulo 4: Evaluación Psicolaboral (id = 4)
-            // PC, LL, HH empiezan en Módulo 1: Registro y Gestión de Solicitudes (id = 1)
-            const idEtapaInicial = (service_type === 'TS' || service_type === 'ES') ? 4 : 1;
+            // Todos los procesos inician en Módulo 1
+            // ES, TS y AP usan módulos 1 y 4 (pero inician en 1)
+            // Los demás servicios usan los módulos según su configuración
+            const idEtapaInicial = 1;
 
             // Calcular plazo máximo
             const fechaIngreso = new Date();
@@ -712,6 +712,55 @@ export class SolicitudService {
             };
         } catch (error) {
             await transaction.rollback();
+            throw error;
+        }
+    }
+
+    /**
+     * Avanzar al Módulo 4 (Evaluación Psicolaboral)
+     */
+    static async avanzarAModulo4(id: number) {
+        const transaction = await sequelize.transaction();
+
+        try {
+            const solicitud = await Solicitud.findByPk(id);
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            // Buscar la etapa "Módulo 4: Evaluación Psicolaboral"
+            console.log('🔍 Buscando etapa Módulo 4...');
+            const etapaModulo4 = await EtapaSolicitud.findOne({
+                where: { nombre_etapa: 'Módulo 4: Evaluación Psicolaboral' }
+            });
+
+            console.log('📋 Etapa encontrada:', etapaModulo4);
+
+            if (!etapaModulo4) {
+                // Intentar buscar todas las etapas para debug
+                const todasLasEtapas = await EtapaSolicitud.findAll();
+                console.log('📋 Todas las etapas disponibles:', todasLasEtapas.map(e => ({ id: e.id_etapa_solicitud, nombre: e.nombre_etapa })));
+                throw new Error('Etapa Módulo 4 no encontrada');
+            }
+
+            // Actualizar la solicitud
+            await solicitud.update({
+                id_etapa_solicitud: etapaModulo4.id_etapa_solicitud 
+            }, { transaction });
+
+            await transaction.commit();
+
+            console.log('✅ Proceso avanzado al Módulo 4 exitosamente');
+            console.log('📋 Nueva etapa:', etapaModulo4.nombre_etapa);
+
+            return { 
+                success: true, 
+                message: 'Proceso avanzado al Módulo 4 exitosamente',
+                etapa: etapaModulo4.nombre_etapa
+            };
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error al avanzar al Módulo 4:', error);
             throw error;
         }
     }

@@ -8,8 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { serviceTypeLabels, processStatusLabels } from "@/lib/mock-data"
-import { getCandidatesByProcess } from "@/lib/mock-data"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
+import { getCandidatesByProcess } from "@/lib/api"
 import { formatDate, getStatusColor, isProcessBlocked } from "@/lib/utils"
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
@@ -19,10 +21,10 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet } from "lucide-react"
+import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet, Trash2, Plus, Pencil } from "lucide-react"
 import type { Process, ProcessStatus, Candidate, WorkExperience, Education } from "@/lib/types"
 import { useState, useEffect } from "react"
-import { descripcionCargoService, solicitudService, regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService } from "@/lib/api"
+import { descripcionCargoService, solicitudService, regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, institucionService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import CVViewerDialog from "./cv-viewer-dialog"
 import { ProcessBlocked } from "./ProcessBlocked"
@@ -45,8 +47,22 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     comuna: "",
     nacionalidad: "",
     rubro: "",
-    profession: "",
     has_disability_credential: false,
+    english_level: "",
+    software_tools: "",
+  })
+  
+  // Estados para profesiones múltiples
+  const [professions, setProfessions] = useState<Array<{
+    id: string
+    profession: string
+    institution: string
+    date: string
+  }>>([])
+  const [newProfession, setNewProfession] = useState({
+    profession: "",
+    institution: "",
+    date: "",
   })
 
   const [processStatus, setProcessStatus] = useState<ProcessStatus>((process.estado_solicitud || process.status) as ProcessStatus)
@@ -61,6 +77,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const [profesiones, setProfesiones] = useState<any[]>([])
   const [rubros, setRubros] = useState<any[]>([])
   const [nacionalidades, setNacionalidades] = useState<any[]>([])
+  const [instituciones, setInstituciones] = useState<any[]>([])
   const [loadingLists, setLoadingLists] = useState(false)
   const [savingCandidate, setSavingCandidate] = useState(false)
 
@@ -78,12 +95,9 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     exit_reason: "",
   })
   const [newEducation, setNewEducation] = useState({
-    type: "titulo" as "titulo" | "postgrado" | "capacitacion" | "curso",
     institution: "",
     title: "",
-    start_date: "",
     completion_date: "",
-    observations: "",
   })
   const [excelData, setExcelData] = useState<any>(null)
   const [loadingExcel, setLoadingExcel] = useState(false)
@@ -92,6 +106,18 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [selectedEstado, setSelectedEstado] = useState<string>("")
   const [showCVViewer, setShowCVViewer] = useState(false)
+  const [showFullFormForNonCV, setShowFullFormForNonCV] = useState(false)
+  const [showAddProfessionForm, setShowAddProfessionForm] = useState(false)
+  const [showAddEducationForm, setShowAddEducationForm] = useState(false)
+  const [showAddWorkExperienceForm, setShowAddWorkExperienceForm] = useState(false)
+  const [editingProfessionId, setEditingProfessionId] = useState<string | null>(null)
+  const [editingEducationId, setEditingEducationId] = useState<string | null>(null)
+  const [editingWorkExperienceId, setEditingWorkExperienceId] = useState<string | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; type: 'profession' | 'education' | 'workExperience' | null; id: string | null }>({
+    open: false,
+    type: null,
+    id: null
+  })
 
   const isEvaluationProcess =
     (process.service_type === "ES" || process.service_type === "TS")
@@ -169,36 +195,69 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     loadExcelData()
   }, [process.id_descripcion_cargo, process.id_descripcioncargo, process.datos_excel])
 
-  // For evaluation processes, find the candidate with CV
-  const candidateWithCV = candidates.find((c) => c.cv_file)
+  // For evaluation processes - track current candidate in accordion
+  const [currentCandidateId, setCurrentCandidateId] = useState<string | null>(null)
+  const currentCandidate = candidates.find(c => c.id === currentCandidateId)
 
 
-  // Pre-llenar datos del candidato cuando se carga el componente
+  // Pre-llenar datos del candidato cuando se selecciona en el acordeón
   useEffect(() => {
-    if (isEvaluationProcess && candidateWithCV) {
+    if (isEvaluationProcess && currentCandidate) {
+      console.log('🔄 Cargando datos del candidato:', currentCandidate)
+      
       setPersonalData({
-        name: candidateWithCV.name || "",
-        rut: candidateWithCV.rut || "",
-        email: candidateWithCV.email || "",
-        phone: candidateWithCV.phone || "",
-        birth_date: candidateWithCV.birth_date || "",
-        age: candidateWithCV.age || 0,
-        region: candidateWithCV.region || "",
-        comuna: candidateWithCV.comuna || "",
-        nacionalidad: candidateWithCV.nacionalidad || "",
-        rubro: candidateWithCV.rubro || "",
-        profession: candidateWithCV.profession || "",
-        has_disability_credential: candidateWithCV.has_disability_credential || false,
+        name: currentCandidate.name || "",
+        rut: currentCandidate.rut || "",
+        email: currentCandidate.email || "",
+        phone: currentCandidate.phone || "",
+        birth_date: currentCandidate.birth_date || "",
+        age: currentCandidate.age || 0,
+        region: currentCandidate.region || "",
+        comuna: currentCandidate.comuna || "",
+        nacionalidad: currentCandidate.nacionalidad || "",
+        rubro: currentCandidate.rubro || "",
+        has_disability_credential: currentCandidate.has_disability_credential || false,
+        english_level: currentCandidate.portal_responses?.english_level || "",
+        software_tools: currentCandidate.portal_responses?.software_tools || "",
       })
 
+      // Pre-llenar profesiones si existen
+      if (currentCandidate.professions && currentCandidate.professions.length > 0) {
+        console.log('📋 Profesiones encontradas:', currentCandidate.professions)
+        const professionsData = currentCandidate.professions.map((prof: any, index: number) => ({
+          id: `prof-${index}-${Date.now()}`,
+          profession: prof.profession || prof.nombre_profesion || "",
+          institution: prof.institution || "",
+          date: prof.date || prof.fecha_obtencion || "",
+        }))
+        setProfessions(professionsData)
+      } else {
+        console.log('❌ No hay profesiones para este candidato')
+        setProfessions([])
+      }
+
       // Pre-llenar experiencia laboral y educación
-      setWorkExperience(candidateWithCV.work_experience || [])
-      setEducation(candidateWithCV.education || [])
+      console.log('💼 Experiencias:', currentCandidate.work_experience?.length || 0)
+      console.log('🎓 Educación:', currentCandidate.education?.length || 0)
+      console.log('📚 Datos de educación completos:', currentCandidate.education)
+      
+      // Mapear educación para asegurar que tenga la estructura correcta
+      const educationData = currentCandidate.education?.map((edu: any) => ({
+        id: edu.id || `edu-${Date.now()}`,
+        institution: edu.institution || "",
+        title: edu.title || "",
+        completion_date: edu.completion_date || "",
+      })) || []
+      
+      console.log('📚 Educación mapeada:', educationData)
+      
+      setWorkExperience(currentCandidate.work_experience || [])
+      setEducation(educationData)
     }
-  }, [isEvaluationProcess, candidateWithCV])
+  }, [isEvaluationProcess, currentCandidate])
 
   const handlePersonalDataSubmit = async () => {
-    if (!candidateWithCV) {
+    if (!currentCandidate) {
       toast({
         title: "Error",
         description: "No se encontró información del candidato",
@@ -257,79 +316,20 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       return
     }
 
-    if (!personalData.rut?.trim()) {
-      toast({
-        title: "Campo obligatorio",
-        description: "El RUT del candidato es obligatorio",
-        variant: "destructive",
-      })
-      return
+    // Validar formato de RUT si se proporciona
+    if (personalData.rut?.trim()) {
+      const rutRegex = /^[0-9]+-[0-9kK]$/
+      if (!rutRegex.test(personalData.rut)) {
+        toast({
+          title: "Formato inválido",
+          description: "Ingresa un RUT válido (ej: 12345678-9)",
+          variant: "destructive",
+        })
+        return
+      }
     }
-
-    // Validar formato de RUT chileno
-    const rutRegex = /^[0-9]+-[0-9kK]$/
-    if (!rutRegex.test(personalData.rut)) {
-      toast({
-        title: "Campo obligatorio",
-        description: "Ingresa un RUT válido (ej: 12345678-9)",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.birth_date) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La fecha de nacimiento es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.region) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La región es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.comuna) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La comuna es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.nacionalidad) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La nacionalidad es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.rubro) {
-      toast({
-        title: "Campo obligatorio",
-        description: "El rubro es obligatorio",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!personalData.profession) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La profesión es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
+    
+    // Los demás campos son opcionales (rut, birth_date, region, comuna, nacionalidad, rubro)
 
     try {
       setSavingCandidate(true)
@@ -339,51 +339,65 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         name: personalData.name,
         email: personalData.email,
         phone: personalData.phone,
-        rut: personalData.rut,
-        birth_date: personalData.birth_date,
-        age: personalData.age,
-        region: personalData.region,
-        comuna: personalData.comuna,
-        nacionalidad: personalData.nacionalidad,
-        rubro: personalData.rubro,
-        profession: personalData.profession,
+        rut: personalData.rut || undefined,
+        birth_date: personalData.birth_date || undefined,
+        age: personalData.age || undefined,
+        region: personalData.region || undefined,
+        comuna: personalData.comuna || undefined,
+        nacionalidad: personalData.nacionalidad || undefined,
+        rubro: personalData.rubro || undefined,
         has_disability_credential: personalData.has_disability_credential,
+        english_level: personalData.english_level || undefined,
+        software_tools: personalData.software_tools || undefined,
+        // Profesiones múltiples
+        professions: professions.length > 0
+          ? professions.map(prof => ({
+            profession: prof.profession,
+            institution: prof.institution,
+            date: prof.date,
+          }))
+          : undefined,
         work_experience: workExperience.length > 0
           ? workExperience.map(exp => ({
             company: exp.company,
             position: exp.position,
             start_date: exp.start_date,
             end_date: exp.end_date,
+            is_current: exp.is_current,
             description: exp.description,
+            comments: exp.comments,
+            exit_reason: exp.exit_reason,
           }))
           : undefined,
         education: education.length > 0
           ? education.map(edu => ({
-            type: edu.type,
             institution: edu.institution,
             title: edu.title,
-            start_date: edu.start_date,
             completion_date: edu.completion_date,
-            observations: edu.observations,
           }))
           : undefined,
       }
 
+      console.log('📤 Datos a enviar al backend:', candidateData)
+      console.log('📋 Profesiones:', professions.length)
+      console.log('💼 Experiencias:', workExperience.length)
+      console.log('🎓 Educación:', education.length)
 
       // Actualizar el candidato
-      const response = await candidatoService.update(parseInt(candidateWithCV.id), candidateData)
+      const response = await candidatoService.update(parseInt(currentCandidate.id), candidateData)
+      
+      console.log('📥 Respuesta del backend:', response)
 
       if (response.success) {
         toast({
           title: "¡Éxito!",
-          description: "¡Datos del candidato guardados exitosamente! Redirigiendo al Módulo 4...",
+          description: "Datos del candidato guardados exitosamente",
           variant: "default",
         })
-
-        // Navegar al Módulo 4
-        const url = new URL(window.location.href)
-        url.searchParams.set('tab', 'modulo-4')
-        window.location.href = url.toString()
+        
+        // Recargar candidatos para actualizar la información
+        const candidatesData = await getCandidatesByProcess(process.id)
+        setCandidates(candidatesData)
       } else {
         toast({
           title: "Error",
@@ -404,13 +418,121 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     }
   }
 
+  // Funciones para manejar profesiones
+  const handleAddProfession = () => {
+    if (newProfession.profession && newProfession.institution) {
+      if (editingProfessionId) {
+        // Modo edición
+        setProfessions(professions.map(p => 
+          p.id === editingProfessionId ? { ...p, ...newProfession } : p
+        ))
+        setEditingProfessionId(null)
+        toast({
+          title: "Profesión actualizada",
+          description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+          variant: "default",
+        })
+      } else {
+        // Modo agregar
+        const profession = {
+          id: Date.now().toString(),
+          ...newProfession,
+        }
+        setProfessions([...professions, profession])
+        toast({
+          title: "Profesión agregada",
+          description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+          variant: "default",
+        })
+      }
+      setNewProfession({
+        profession: "",
+        institution: "",
+        date: "",
+      })
+      setShowAddProfessionForm(false)
+    }
+  }
+
+  const handleEditProfession = (id: string) => {
+    const profession = professions.find(p => p.id === id)
+    if (profession) {
+      setNewProfession({
+        profession: profession.profession,
+        institution: profession.institution,
+        date: profession.date,
+      })
+      setEditingProfessionId(id)
+      setShowAddProfessionForm(true)
+    }
+  }
+
+  const handleCancelEditProfession = () => {
+    setNewProfession({
+      profession: "",
+      institution: "",
+      date: "",
+    })
+    setEditingProfessionId(null)
+    setShowAddProfessionForm(false)
+  }
+
+  const handleRemoveProfession = (id: string) => {
+    setDeleteDialog({ open: true, type: 'profession', id })
+  }
+
+  const confirmDelete = () => {
+    if (deleteDialog.type === 'profession' && deleteDialog.id) {
+      setProfessions(professions.filter(p => p.id !== deleteDialog.id))
+      toast({
+        title: "Profesión eliminada",
+        description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+        variant: "default",
+      })
+    } else if (deleteDialog.type === 'education' && deleteDialog.id) {
+      setEducation(education.filter(e => e.id !== deleteDialog.id))
+      toast({
+        title: "Formación eliminada",
+        description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+        variant: "default",
+      })
+    } else if (deleteDialog.type === 'workExperience' && deleteDialog.id) {
+      setWorkExperience(workExperience.filter(e => e.id !== deleteDialog.id))
+      toast({
+        title: "Experiencia eliminada",
+        description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+        variant: "default",
+      })
+    }
+    setDeleteDialog({ open: false, type: null, id: null })
+  }
+
   const handleAddWorkExperience = () => {
     if (newWorkExperience.company && newWorkExperience.position) {
-      const experience: WorkExperience = {
-        id: Date.now().toString(),
-        ...newWorkExperience,
+      if (editingWorkExperienceId) {
+        // Modo edición
+        setWorkExperience(workExperience.map(exp => 
+          exp.id === editingWorkExperienceId ? { ...exp, ...newWorkExperience } : exp
+        ))
+        setEditingWorkExperienceId(null)
+        toast({
+          title: "Experiencia actualizada",
+          description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+          variant: "default",
+        })
+      } else {
+        // Modo agregar
+        const experience: WorkExperience = {
+          id: Date.now().toString(),
+          ...newWorkExperience,
+        }
+        setWorkExperience([...workExperience, experience])
+        toast({
+          title: "Experiencia agregada",
+          description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+          variant: "default",
+        })
       }
-      setWorkExperience([...workExperience, experience])
       setNewWorkExperience({
         company: "",
         position: "",
@@ -421,30 +543,114 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         comments: "",
         exit_reason: "",
       })
+      setShowAddWorkExperienceForm(false)
     }
   }
 
+  const handleEditWorkExperience = (id: string) => {
+    const experience = workExperience.find(exp => exp.id === id)
+    if (experience) {
+      setNewWorkExperience({
+        company: experience.company,
+        position: experience.position,
+        start_date: experience.start_date,
+        end_date: experience.end_date || "",
+        is_current: experience.is_current || false,
+        description: experience.description || "",
+        comments: experience.comments || "",
+        exit_reason: experience.exit_reason || "",
+      })
+      setEditingWorkExperienceId(id)
+      setShowAddWorkExperienceForm(true)
+    }
+  }
+
+  const handleCancelEditWorkExperience = () => {
+    setNewWorkExperience({
+      company: "",
+      position: "",
+      start_date: "",
+      end_date: "",
+      is_current: false,
+      description: "",
+      comments: "",
+      exit_reason: "",
+    })
+    setEditingWorkExperienceId(null)
+    setShowAddWorkExperienceForm(false)
+  }
+
+  const handleRemoveWorkExperience = (id: string) => {
+    setDeleteDialog({ open: true, type: 'workExperience', id })
+  }
+
   const handleAddEducation = () => {
-    if (newEducation.institution && newEducation.title) {
-      const educationItem: Education = {
-        id: Date.now().toString(),
-        type: newEducation.type as "titulo" | "postgrado" | "capacitacion" | "curso",
-        institution: newEducation.institution,
-        title: newEducation.title,
-        start_date: newEducation.start_date,
-        completion_date: newEducation.completion_date,
-        observations: newEducation.observations,
+    if (newEducation.institution && newEducation.title && newEducation.completion_date) {
+      if (editingEducationId) {
+        // Modo edición
+        setEducation(education.map(edu => 
+          edu.id === editingEducationId ? { 
+            ...edu, 
+            institution: newEducation.institution,
+            title: newEducation.title,
+            completion_date: newEducation.completion_date,
+          } : edu
+        ))
+        setEditingEducationId(null)
+        toast({
+          title: "Formación actualizada",
+          description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+          variant: "default",
+        })
+      } else {
+        // Modo agregar
+        const educationItem: Education = {
+          id: Date.now().toString(),
+          institution: newEducation.institution,
+          title: newEducation.title,
+          completion_date: newEducation.completion_date,
+        }
+        setEducation([...education, educationItem])
+        toast({
+          title: "Formación agregada",
+          description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
+          variant: "default",
+        })
       }
-      setEducation([...education, educationItem])
       setNewEducation({
-        type: "titulo" as "titulo" | "postgrado" | "capacitacion" | "curso",
         institution: "",
         title: "",
-        start_date: "",
         completion_date: "",
-        observations: "",
       })
+      setShowAddEducationForm(false)
     }
+  }
+
+  const handleEditEducation = (id: string) => {
+    const educationItem = education.find(edu => edu.id === id)
+    if (educationItem) {
+      setNewEducation({
+        institution: educationItem.institution,
+        title: educationItem.title,
+        completion_date: educationItem.completion_date || "",
+      })
+      setEditingEducationId(id)
+      setShowAddEducationForm(true)
+    }
+  }
+
+  const handleCancelEditEducation = () => {
+    setNewEducation({
+      institution: "",
+      title: "",
+      completion_date: "",
+    })
+    setEditingEducationId(null)
+    setShowAddEducationForm(false)
+  }
+
+  const handleRemoveEducation = (id: string) => {
+    setDeleteDialog({ open: true, type: 'education', id })
   }
 
   const calculateAge = (birthDate: string) => {
@@ -464,12 +670,13 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     const loadLists = async () => {
       try {
         setLoadingLists(true)
-        const [regionesRes, comunasRes, profesionesRes, rubrosRes, nacionalidadesRes] = await Promise.all([
+        const [regionesRes, comunasRes, profesionesRes, rubrosRes, nacionalidadesRes, institucionesRes] = await Promise.all([
           regionService.getAll(),
           comunaService.getAll(),
           profesionService.getAll(),
           rubroService.getAll(),
           nacionalidadService.getAll(),
+          institucionService.getAll(),
         ])
 
         setRegiones(regionesRes.data || [])
@@ -477,6 +684,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         setProfesiones(profesionesRes.data || [])
         setRubros(rubrosRes.data || [])
         setNacionalidades(nacionalidadesRes.data || [])
+        setInstituciones(institucionesRes.data || [])
       } catch (error) {
         console.error('Error loading lists:', error)
       } finally {
@@ -514,8 +722,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     try {
       const response = await solicitudService.cambiarEstado(
         parseInt(process.id), 
-        parseInt(estadoId), 
-        statusChangeReason.trim() || undefined
+        parseInt(estadoId)
       )
 
       if (response.success) {
@@ -587,6 +794,47 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
     }
   }
 
+  const handleAdvanceToModule4 = async () => {
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede avanzar un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const response = await solicitudService.avanzarAModulo4(parseInt(process.id))
+
+      if (response.success) {
+        toast({
+          title: "¡Éxito!",
+          description: "Proceso avanzado al Módulo 4 exitosamente",
+          variant: "default",
+        })
+        // Navegar al módulo 4 usando URL con parámetro
+        const currentUrl = new URL(window.location.href)
+        currentUrl.searchParams.set('tab', 'modulo-4')
+        window.location.href = currentUrl.toString()
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al avanzar al Módulo 4",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error al avanzar al Módulo 4:", error)
+      toast({
+        title: "Error",
+        description: "Error al avanzar al Módulo 4",
+        variant: "destructive",
+      })
+    }
+  }
+
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
 
@@ -610,13 +858,24 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
           <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
         </div>
-        <Button
-          onClick={handleAdvanceToModule2}
-          className="bg-primary hover:bg-primary/90"
-          disabled={isProcessBlocked(processStatus)}
-        >
-          Pasar a Módulo 2
-        </Button>
+        {/* Mostrar botón según tipo de servicio */}
+        {(process.service_type === 'ES' || process.service_type === 'TS' || process.service_type === 'AP') ? (
+          <Button
+            onClick={handleAdvanceToModule4}
+            className="bg-primary hover:bg-primary/90"
+            disabled={isProcessBlocked(processStatus)}
+          >
+            Pasar a Módulo 4
+          </Button>
+        ) : (
+          <Button
+            onClick={handleAdvanceToModule2}
+            className="bg-primary hover:bg-primary/90"
+            disabled={isProcessBlocked(processStatus)}
+          >
+            Pasar a Módulo 2
+          </Button>
+        )}
       </div>
 
       {/* Componente de bloqueo si el proceso está en estado final */}
@@ -903,43 +1162,69 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
 
       {/* Formulario de Datos del Candidato - Solo para procesos psicolaborales */}
-      {isEvaluationProcess && candidateWithCV && (
+      {isEvaluationProcess && candidates.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
-              Completar Datos del Candidato
+              Candidatos a Evaluar ({candidates.length})
             </CardTitle>
             <CardDescription>
-              Complete y edite los datos personales del candidato para proceder con la evaluación.
+              Expanda cada candidato para ver o completar sus datos personales y proceder con la evaluación.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* CV Viewer */}
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  <span className="font-medium">Curriculum Vitae</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowCVViewer(true)}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Ver CV
-                </Button>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <p><strong>Archivo:</strong> {candidateWithCV.cv_file || 'CV no disponible'}</p>
-                <p className="mt-1">Haz clic en "Ver CV" para visualizar el documento completo</p>
-              </div>
-            </div>
-
-            {/* Formulario de datos personales */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-lg">Datos Personales</h4>
+          <CardContent>
+            <div className="w-full space-y-3">
+            <Accordion 
+              type="single" 
+              collapsible 
+              value={currentCandidateId || undefined}
+              onValueChange={(value) => setCurrentCandidateId(value || null)}
+              className="w-full"
+            >
+              {candidates.map((candidate) => (
+                <div key={candidate.id} className="border border-border rounded-lg bg-card w-full mb-3">
+                <AccordionItem value={candidate.id} className="border-0">
+                  <AccordionTrigger className="hover:no-underline px-4 py-0 h-[52px] min-h-[52px] max-h-[52px] flex items-center">
+                    <div className="flex items-center justify-between w-full h-full">
+                      <span className="font-semibold text-[17px] leading-[1.2] text-left truncate mr-4">{candidate.name}</span>
+                      {candidate.cv_file ? (
+                        <Badge 
+                          variant="default" 
+                          className="shrink-0 text-sm h-[32px] px-4 flex items-center gap-1.5 cursor-pointer hover:bg-primary/90 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowCVViewer(true);
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                          Ver CV
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="shrink-0 text-sm h-[32px] px-4 flex items-center">
+                          Datos básicos
+                        </Badge>
+                      )}
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4 pt-0">
+                    <div className="space-y-4">
+            {/* Mostrar formulario completo solo si tiene CV */}
+            {candidate.cv_file ? (
+              <>
+              {/* Acordeón interno para organizar secciones */}
+              <Accordion type="multiple" defaultValue={["datos-personales"]} className="space-y-3">
+              
+              {/* Formulario de datos personales */}
+              <div className="bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <AccordionItem value="datos-personales" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Datos Personales
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4 pt-2">
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -949,15 +1234,17 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     value={personalData.name}
                     onChange={(e) => setPersonalData({ ...personalData, name: e.target.value })}
                     placeholder="Ingrese nombre completo"
+                    className="bg-white dark:bg-gray-950"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="rut">RUT <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="rut">RUT</Label>
                   <Input
                     id="rut"
                     value={personalData.rut}
                     onChange={(e) => setPersonalData({ ...personalData, rut: e.target.value })}
                     placeholder="12.345.678-9"
+                    className="bg-white dark:bg-gray-950"
                   />
                 </div>
                 <div className="space-y-2">
@@ -968,6 +1255,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     value={personalData.email}
                     onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
                     placeholder="correo@ejemplo.com"
+                    className="bg-white dark:bg-gray-950"
                   />
                 </div>
                 <div className="space-y-2">
@@ -980,7 +1268,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="birth_date">Fecha de Nacimiento <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
                   <DatePicker
                     selected={personalData.birth_date ? new Date(personalData.birth_date) : null}
                     onChange={(date) => {
@@ -1012,37 +1300,18 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     type="number"
                     value={personalData.age}
                     readOnly
-                    className="bg-muted"
+                    className="bg-white dark:bg-gray-950"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="profession">Profesión <span className="text-red-500">*</span></Label>
-                  <Select
-                    value={personalData.profession}
-                    onValueChange={(value) => setPersonalData({ ...personalData, profession: value })}
-                    disabled={loadingLists || isBlocked}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione profesión" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profesiones.map((prof) => (
-                        <SelectItem key={prof.id_profesion} value={prof.nombre_profesion}>
-                          {prof.nombre_profesion}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     id="has_disability_credential"
                     checked={personalData.has_disability_credential}
-                    onChange={(e) => setPersonalData({ ...personalData, has_disability_credential: e.target.checked })}
-                    disabled={isBlocked}
+                    readOnly
+                    disabled
                   />
-                  <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad</Label>
+                  <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad (registrado por administrador)</Label>
                 </div>
               </div>
 
@@ -1060,7 +1329,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       }}
                       disabled={loadingLists}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione región" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1079,7 +1348,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onValueChange={(value) => setPersonalData({ ...personalData, comuna: value })}
                       disabled={loadingLists || !personalData.region}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder={personalData.region ? "Seleccione comuna" : "Primero seleccione región"} />
                       </SelectTrigger>
                       <SelectContent>
@@ -1098,7 +1367,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onValueChange={(value) => setPersonalData({ ...personalData, nacionalidad: value })}
                       disabled={loadingLists}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione nacionalidad" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1117,7 +1386,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onValueChange={(value) => setPersonalData({ ...personalData, rubro: value })}
                       disabled={loadingLists}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione rubro" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1131,14 +1400,415 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   </div>
                 </div>
               </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              </div>
+
+              {/* Formación Académica con sub-acordeones */}
+              <div className="bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+              <AccordionItem value="formacion" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Formación Académica {(professions.length > 0 || education.length > 0) && <span className="text-muted-foreground">({professions.length + education.length})</span>}
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-3 pt-2">
+
+                  {/* Sub-acordeón 1: Profesión(es) */}
+                  <Accordion type="multiple" className="space-y-2">
+                    <div className="border rounded-lg bg-card">
+                      <AccordionItem value="profesiones" className="border-0">
+                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                          <span className="font-medium text-sm">
+                            Profesión(es) {professions.length > 0 ? <span className="text-muted-foreground">({professions.length})</span> : <span className="text-amber-600">- Sin registros</span>}
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <div className="space-y-3 pt-2">
+
+                            {/* Si tiene profesiones, mostrar lista primero */}
+                            {professions.length > 0 && (
+                              <div className="space-y-2">
+                                {[...professions].reverse().map((prof) => (
+                                  <div key={prof.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
+                                    <div>
+                                      <p className="font-medium">{prof.profession}</p>
+                                      <p className="text-sm text-muted-foreground">{prof.institution}</p>
+                                      {prof.date && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          {formatDate(prof.date)}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditProfession(prof.id)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveProfession(prof.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Si NO tiene profesiones, mostrar mensaje */}
+                            {professions.length === 0 && !showAddProfessionForm && (
+                              <p className="text-sm text-muted-foreground text-center py-2">
+                                No hay profesiones registradas. Completa el formulario:
+                              </p>
+                            )}
+
+                            {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
+                            {(professions.length === 0 || showAddProfessionForm) && (
+                              <div className="space-y-4 p-4 bg-muted rounded-lg">
+                  <h6 className="font-medium text-sm">{editingProfessionId ? "Editar Profesión" : "Agregar Profesión"}</h6>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Profesión</Label>
+                      <Input
+                        value={newProfession.profession}
+                        onChange={(e) => setNewProfession({ ...newProfession, profession: e.target.value })}
+                        placeholder="Ej: Ingeniero en Sistemas"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Institución</Label>
+                      <Select
+                        value={newProfession.institution}
+                        onValueChange={(value) => setNewProfession({ ...newProfession, institution: value })}
+                        disabled={loadingLists}
+                      >
+                        <SelectTrigger className="bg-white dark:bg-gray-950">
+                          <SelectValue placeholder={loadingLists ? "Cargando instituciones..." : "Seleccione institución"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {instituciones.length > 0 ? (
+                            instituciones.map((inst) => (
+                              <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
+                                {inst.nombre_institucion}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              No hay instituciones disponibles
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha de Obtención</Label>
+                    <DatePicker
+                      selected={newProfession.date ? new Date(newProfession.date) : null}
+                      onChange={(date) => {
+                        if (date) {
+                          setNewProfession({ ...newProfession, date: date.toISOString().split('T')[0] })
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      showYearDropdown
+                      showMonthDropdown
+                      dropdownMode="select"
+                      placeholderText="Selecciona fecha de obtención"
+                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      maxDate={new Date()}
+                      minDate={new Date("1900-01-01")}
+                      yearDropdownItemNumber={100}
+                      locale="es"
+                    />
+                  </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    onClick={handleAddProfession}
+                                    disabled={!newProfession.profession || !newProfession.institution}
+                                    className="flex-1"
+                                  >
+                                    {editingProfessionId ? "Guardar Cambios" : "Agregar Profesión"}
+                                  </Button>
+                                  {(professions.length > 0 || editingProfessionId) && (
+                                    <Button
+                                      variant="outline"
+                                      onClick={handleCancelEditProfession}
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Botón para agregar otra profesión (solo si ya hay profesiones Y el formulario está oculto) */}
+                            {professions.length > 0 && !showAddProfessionForm && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAddProfessionForm(true)}
+                                className="w-full"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Agregar otra profesión
+                              </Button>
+                            )}
+
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </div>
+                  </Accordion>
+
+                  {/* Sub-acordeón 2: Postgrados y Capacitaciones */}
+                  <Accordion type="multiple" className="space-y-2">
+                    <div className="border rounded-lg bg-card">
+                      <AccordionItem value="postgrados" className="border-0">
+                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                          <span className="font-medium text-sm">
+                            Postgrados y Capacitaciones {education.length > 0 ? <span className="text-muted-foreground">({education.length})</span> : <span className="text-amber-600">- Sin registros</span>}
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <div className="space-y-3 pt-2">
+
+                            {/* Si tiene educación, mostrar lista primero */}
+                            {education.length > 0 && (
+                              <div className="space-y-2">
+                                {[...education].reverse().map((edu) => (
+                                  <div key={edu.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
+                                    <div>
+                                      <p className="font-medium">{edu.title}</p>
+                                      <p className="text-sm text-muted-foreground">{edu.institution}</p>
+                                      {edu.completion_date && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          {formatDate(edu.completion_date)}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditEducation(edu.id)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveEducation(edu.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Si NO tiene educación, mostrar mensaje */}
+                            {education.length === 0 && !showAddEducationForm && (
+                              <p className="text-sm text-muted-foreground text-center py-2">
+                                No hay formación registrada. Completa el formulario:
+                              </p>
+                            )}
+
+                            {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
+                            {(education.length === 0 || showAddEducationForm) && (
+                              <div className="space-y-4 p-4 bg-muted rounded-lg">
+                  <h6 className="font-medium text-sm">{editingEducationId ? "Editar Formación" : "Agregar Formación"}</h6>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Título</Label>
+                      <Input
+                        value={newEducation.title}
+                        onChange={(e) => setNewEducation({ ...newEducation, title: e.target.value })}
+                        placeholder="Ej: Magister en Administración"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Institución</Label>
+                      <Input
+                        value={newEducation.institution}
+                        onChange={(e) => setNewEducation({ ...newEducation, institution: e.target.value })}
+                        placeholder="Nombre de la institución"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha de Obtención</Label>
+                    <DatePicker
+                      selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
+                      onChange={(date) => {
+                        if (date) {
+                          setNewEducation({ ...newEducation, completion_date: date.toISOString().split('T')[0] })
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      showYearDropdown
+                      showMonthDropdown
+                      dropdownMode="select"
+                      placeholderText="Selecciona fecha de obtención"
+                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      maxDate={new Date()}
+                      yearDropdownItemNumber={50}
+                      locale="es"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleAddEducation}
+                      disabled={!newEducation.institution || !newEducation.title || !newEducation.completion_date}
+                      className="flex-1"
+                    >
+                      {editingEducationId ? "Guardar Cambios" : "Agregar Formación"}
+                    </Button>
+                    {(education.length > 0 || editingEducationId) && (
+                      <Button
+                        variant="outline"
+                        onClick={handleCancelEditEducation}
+                      >
+                        Cancelar
+                      </Button>
+                    )}
+                  </div>
+                              </div>
+                            )}
+
+                            {/* Botón para agregar otra formación (solo si ya hay items Y el formulario está oculto) */}
+                            {education.length > 0 && !showAddEducationForm && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAddEducationForm(true)}
+                                className="w-full"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Agregar otra formación
+                              </Button>
+                            )}
+
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </div>
+                  </Accordion>
+
+                  {/* Sub-acordeón 3: Habilidades Adicionales */}
+                  <Accordion type="multiple" className="space-y-2">
+                    <div className="border rounded-lg bg-card">
+                      <AccordionItem value="habilidades" className="border-0">
+                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                          <span className="font-medium text-sm">
+                            Habilidades Adicionales {(personalData.english_level || personalData.software_tools) ? <span className="text-green-600">✓</span> : <span className="text-amber-600">- Sin completar</span>}
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <div className="space-y-3 pt-2">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="english_level">Nivel de Inglés</Label>
+                                <Input
+                                  id="english_level"
+                                  value={personalData.english_level}
+                                  onChange={(e) => setPersonalData({ ...personalData, english_level: e.target.value })}
+                                  placeholder="Ej: Intermedio, Avanzado, Nativo"
+                                  className="bg-white dark:bg-gray-950"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="software_tools">Software y Herramientas</Label>
+                                <Input
+                                  id="software_tools"
+                                  value={personalData.software_tools}
+                                  onChange={(e) => setPersonalData({ ...personalData, software_tools: e.target.value })}
+                                  placeholder="Ej: Excel, SAP, AutoCAD"
+                                  className="bg-white dark:bg-gray-950"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </div>
+                  </Accordion>
+
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              </div>
 
               {/* Experiencia Laboral */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium text-lg mb-4">Experiencia Laboral</h4>
+              <div className="bg-slate-50/50 dark:bg-slate-950/20 rounded-lg border border-slate-200 dark:border-slate-800">
+              <AccordionItem value="experiencia" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Experiencia Laboral {workExperience.length > 0 && <span className="text-muted-foreground">({workExperience.length})</span>}
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4 pt-2">
 
-                {/* Formulario para agregar experiencia */}
-                <div className="space-y-4 p-4 bg-muted rounded-lg">
-                  <h5 className="font-medium">Agregar Experiencia</h5>
+                    {/* Si tiene experiencias, mostrar lista primero */}
+                    {workExperience.length > 0 && (
+                      <div className="space-y-2">
+                        {[...workExperience].reverse().map((exp) => (
+                          <div key={exp.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
+                            <div>
+                              <p className="font-medium">{exp.position}</p>
+                              <p className="text-sm text-muted-foreground">{exp.company}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {exp.start_date && formatDate(exp.start_date)} - {exp.is_current ? 'Actual' : (exp.end_date ? formatDate(exp.end_date) : 'No especificada')}
+                              </p>
+                              {exp.description && (
+                                <p className="text-sm mt-1">{exp.description}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditWorkExperience(exp.id)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveWorkExperience(exp.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Si NO tiene experiencias, mostrar mensaje */}
+                    {workExperience.length === 0 && !showAddWorkExperienceForm && (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        No hay experiencias registradas. Completa el formulario:
+                      </p>
+                    )}
+
+                    {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
+                    {(workExperience.length === 0 || showAddWorkExperienceForm) && (
+                      <div className="space-y-4 p-4 bg-muted rounded-lg">
+                        <h5 className="font-medium text-sm">{editingWorkExperienceId ? "Editar Experiencia" : "Agregar Experiencia"}</h5>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Empresa</Label>
@@ -1146,6 +1816,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         value={newWorkExperience.company}
                         onChange={(e) => setNewWorkExperience({ ...newWorkExperience, company: e.target.value })}
                         placeholder="Nombre de la empresa"
+                        className="bg-white dark:bg-gray-950"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1154,6 +1825,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         value={newWorkExperience.position}
                         onChange={(e) => setNewWorkExperience({ ...newWorkExperience, position: e.target.value })}
                         placeholder="Título del cargo"
+                        className="bg-white dark:bg-gray-950"
                       />
                     </div>
                   </div>
@@ -1221,62 +1893,722 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onChange={(e) => setNewWorkExperience({ ...newWorkExperience, description: e.target.value })}
                       placeholder="Principales responsabilidades y logros"
                       rows={3}
+                      className="bg-white dark:bg-gray-950"
                     />
                   </div>
-                  <Button
-                    onClick={handleAddWorkExperience}
-                    disabled={!newWorkExperience.company || !newWorkExperience.position}
-                    size="sm"
-                  >
-                    Agregar Experiencia
-                  </Button>
-                </div>
-
-                {/* Lista de experiencias */}
-                {workExperience.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <h5 className="font-medium">Experiencias Registradas</h5>
-                    {workExperience.map((exp) => (
-                      <div key={exp.id} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">{exp.position} en {exp.company}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {exp.start_date} - {exp.is_current ? 'Actual' : exp.end_date}
-                            </p>
-                            {exp.description && (
-                              <p className="text-sm mt-1">{exp.description}</p>
-                            )}
-                          </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={handleAddWorkExperience}
+                            disabled={!newWorkExperience.company || !newWorkExperience.position}
+                            className="flex-1"
+                          >
+                            {editingWorkExperienceId ? "Guardar Cambios" : "Agregar Experiencia"}
+                          </Button>
+                          {(workExperience.length > 0 || editingWorkExperienceId) && (
+                            <Button
+                              variant="outline"
+                              onClick={handleCancelEditWorkExperience}
+                            >
+                              Cancelar
+                            </Button>
+                          )}
                         </div>
                       </div>
-                    ))}
+                    )}
+
+                    {/* Botón para agregar otra experiencia (solo si ya hay experiencias Y el formulario está oculto) */}
+                    {workExperience.length > 0 && !showAddWorkExperienceForm && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAddWorkExperienceForm(true)}
+                        className="w-full"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Agregar otra experiencia
+                      </Button>
+                    )}
+
                   </div>
-                )}
+                </AccordionContent>
+              </AccordionItem>
               </div>
 
-              {/* Formación Académica */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium text-lg mb-4">Formación Académica</h4>
+              </Accordion>
 
-                {/* Formulario para agregar formación */}
-                <div className="space-y-4 p-4 bg-muted rounded-lg">
-                  <h5 className="font-medium">Agregar Formación</h5>
+              {/* Botón guardar fuera de las secciones */}
+              <div className="flex justify-end pt-4">
+                <Button
+                  onClick={handlePersonalDataSubmit}
+                  disabled={savingCandidate}
+                >
+                  {savingCandidate ? "Guardando..." : "Guardar Datos del Candidato"}
+                </Button>
+              </div>
+              </>
+            ) : (
+              /* Vista simplificada sin CV - Solo datos básicos */
+              <div className="space-y-4">
+                <div className="p-4 bg-amber-50/50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <p className="text-sm text-amber-800 dark:text-amber-200 text-center font-medium">
+                    Este candidato no tiene CV adjunto
+                  </p>
+                </div>
+                
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-lg text-foreground">Datos Básicos Registrados</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Nombre Completo</Label>
+                      <p className="font-medium text-foreground">{candidate.name || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Email</Label>
+                      <p className="font-medium text-foreground">{candidate.email || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Teléfono</Label>
+                      <p className="font-medium text-foreground">{candidate.phone || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">RUT</Label>
+                      <p className="font-medium text-foreground">{candidate.rut || 'No especificado'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => setShowFullFormForNonCV(!showFullFormForNonCV)}
+                    >
+                      {showFullFormForNonCV ? "Ocultar formulario" : "+ Completar información adicional"}
+                    </Button>
+                  </div>
+                  
+                  {showFullFormForNonCV && (
+                    <div className="pt-4 border-t">
+                      {/* Formulario completo - igual que para candidatos con CV */}
+                      <>
+              {/* Acordeón interno para organizar secciones */}
+              <Accordion type="multiple" defaultValue={["datos-personales"]} className="space-y-3">
+              
+              {/* Formulario de datos personales */}
+              <div className="bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <AccordionItem value="datos-personales" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Datos Personales
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4 pt-2">
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nombre Completo <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="name"
+                    value={personalData.name}
+                    onChange={(e) => setPersonalData({ ...personalData, name: e.target.value })}
+                    placeholder="Ingrese nombre completo"
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rut">RUT</Label>
+                  <Input
+                    id="rut"
+                    value={personalData.rut}
+                    onChange={(e) => setPersonalData({ ...personalData, rut: e.target.value })}
+                    placeholder="12.345.678-9"
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={personalData.email}
+                    onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
+                    placeholder="correo@ejemplo.com"
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Teléfono <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="phone"
+                    value={personalData.phone}
+                    onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
+                    placeholder="+56 9 1234 5678"
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
+                  <DatePicker
+                    selected={personalData.birth_date ? new Date(personalData.birth_date) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        const age = calculateAge(date.toISOString().split('T')[0])
+                        setPersonalData({
+                          ...personalData,
+                          birth_date: date.toISOString().split('T')[0],
+                          age: age,
+                        })
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    showYearDropdown
+                    showMonthDropdown
+                    dropdownMode="select"
+                    placeholderText="Selecciona fecha de nacimiento"
+                    className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    maxDate={new Date()}
+                    minDate={new Date("1900-01-01")}
+                    yearDropdownItemNumber={100}
+                    locale="es"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="age">Edad</Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    value={personalData.age}
+                    readOnly
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="has_disability_credential"
+                    checked={personalData.has_disability_credential}
+                    readOnly
+                    disabled
+                  />
+                  <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad (registrado por administrador)</Label>
+                </div>
+              </div>
+
+
+              {/* Información adicional del candidato (editable) */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-lg mb-4">Información Adicional</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="region">Región</Label>
+                    <Select
+                      value={personalData.region}
+                      onValueChange={(value) => {
+                        setPersonalData({ ...personalData, region: value, comuna: "" })
+                      }}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
+                        <SelectValue placeholder="Seleccione región" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {regiones.map((region) => (
+                          <SelectItem key={region.id_region} value={region.nombre_region}>
+                            {region.nombre_region}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="comuna">Comuna</Label>
+                    <Select
+                      value={personalData.comuna}
+                      onValueChange={(value) => setPersonalData({ ...personalData, comuna: value })}
+                      disabled={loadingLists || !personalData.region}
+                    >
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
+                        <SelectValue placeholder={personalData.region ? "Seleccione comuna" : "Primero seleccione región"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {comunasFiltradas.map((comuna) => (
+                          <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
+                            {comuna.nombre_comuna}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nacionalidad">Nacionalidad</Label>
+                    <Select
+                      value={personalData.nacionalidad}
+                      onValueChange={(value) => setPersonalData({ ...personalData, nacionalidad: value })}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
+                        <SelectValue placeholder="Seleccione nacionalidad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {nacionalidades.map((nac) => (
+                          <SelectItem key={nac.id_nacionalidad} value={nac.nombre_nacionalidad}>
+                            {nac.nombre_nacionalidad}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rubro">Rubro</Label>
+                    <Select
+                      value={personalData.rubro}
+                      onValueChange={(value) => setPersonalData({ ...personalData, rubro: value })}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
+                        <SelectValue placeholder="Seleccione rubro" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {rubros.map((rubro) => (
+                          <SelectItem key={rubro.id_rubro} value={rubro.nombre_rubro}>
+                            {rubro.nombre_rubro}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              </div>
+
+              {/* Formación Académica con sub-acordeones */}
+              <div className="bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+              <AccordionItem value="formacion" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Formación Académica {(professions.length > 0 || education.length > 0) && <span className="text-muted-foreground">({professions.length + education.length})</span>}
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-3 pt-2">
+
+                  {/* Sub-acordeón 1: Profesión(es) */}
+                  <Accordion type="multiple" className="space-y-2">
+                    <div className="border rounded-lg bg-card">
+                      <AccordionItem value="profesiones" className="border-0">
+                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                          <span className="font-medium text-sm">
+                            Profesión(es) {professions.length > 0 ? <span className="text-muted-foreground">({professions.length})</span> : <span className="text-amber-600">- Sin registros</span>}
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <div className="space-y-3 pt-2">
+
+                            {/* Si tiene profesiones, mostrar lista primero */}
+                            {professions.length > 0 && (
+                              <div className="space-y-2">
+                                {[...professions].reverse().map((prof) => (
+                                  <div key={prof.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
+                                    <div>
+                                      <p className="font-medium">{prof.profession}</p>
+                                      <p className="text-sm text-muted-foreground">{prof.institution}</p>
+                                      {prof.date && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          {formatDate(prof.date)}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditProfession(prof.id)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveProfession(prof.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Si NO tiene profesiones, mostrar mensaje */}
+                            {professions.length === 0 && !showAddProfessionForm && (
+                              <p className="text-sm text-muted-foreground text-center py-2">
+                                No hay profesiones registradas. Completa el formulario:
+                              </p>
+                            )}
+
+                            {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
+                            {(professions.length === 0 || showAddProfessionForm) && (
+                              <div className="space-y-4 p-4 bg-muted rounded-lg">
+                  <h6 className="font-medium text-sm">{editingProfessionId ? "Editar Profesión" : "Agregar Profesión"}</h6>
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Profesión</Label>
+                      <Input
+                        value={newProfession.profession}
+                        onChange={(e) => setNewProfession({ ...newProfession, profession: e.target.value })}
+                        placeholder="Ej: Ingeniero en Sistemas"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Institución</Label>
+                      <Select
+                        value={newProfession.institution}
+                        onValueChange={(value) => setNewProfession({ ...newProfession, institution: value })}
+                        disabled={loadingLists}
+                      >
+                        <SelectTrigger className="bg-white dark:bg-gray-950">
+                          <SelectValue placeholder={loadingLists ? "Cargando instituciones..." : "Seleccione institución"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {instituciones.length > 0 ? (
+                            instituciones.map((inst) => (
+                              <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
+                                {inst.nombre_institucion}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              No hay instituciones disponibles
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha de Obtención</Label>
+                    <DatePicker
+                      selected={newProfession.date ? new Date(newProfession.date) : null}
+                      onChange={(date) => {
+                        if (date) {
+                          setNewProfession({ ...newProfession, date: date.toISOString().split('T')[0] })
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      showYearDropdown
+                      showMonthDropdown
+                      dropdownMode="select"
+                      placeholderText="Selecciona fecha de obtención"
+                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      maxDate={new Date()}
+                      minDate={new Date("1900-01-01")}
+                      yearDropdownItemNumber={100}
+                      locale="es"
+                    />
+                  </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    onClick={handleAddProfession}
+                                    disabled={!newProfession.profession || !newProfession.institution}
+                                    className="flex-1"
+                                  >
+                                    {editingProfessionId ? "Guardar Cambios" : "Agregar Profesión"}
+                                  </Button>
+                                  {(professions.length > 0 || editingProfessionId) && (
+                                    <Button
+                                      variant="outline"
+                                      onClick={handleCancelEditProfession}
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Botón para agregar otra profesión (solo si ya hay profesiones Y el formulario está oculto) */}
+                            {professions.length > 0 && !showAddProfessionForm && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAddProfessionForm(true)}
+                                className="w-full"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Agregar otra profesión
+                              </Button>
+                            )}
+
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </div>
+                  </Accordion>
+
+                  {/* Sub-acordeón 2: Postgrados y Capacitaciones */}
+                  <Accordion type="multiple" className="space-y-2">
+                    <div className="border rounded-lg bg-card">
+                      <AccordionItem value="postgrados" className="border-0">
+                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                          <span className="font-medium text-sm">
+                            Postgrados y Capacitaciones {education.length > 0 ? <span className="text-muted-foreground">({education.length})</span> : <span className="text-amber-600">- Sin registros</span>}
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <div className="space-y-3 pt-2">
+
+                            {/* Si tiene educación, mostrar lista primero */}
+                            {education.length > 0 && (
+                              <div className="space-y-2">
+                                {[...education].reverse().map((edu) => (
+                                  <div key={edu.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
+                                    <div>
+                                      <p className="font-medium">{edu.title}</p>
+                                      <p className="text-sm text-muted-foreground">{edu.institution}</p>
+                                      {edu.completion_date && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          {formatDate(edu.completion_date)}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditEducation(edu.id)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveEducation(edu.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Si NO tiene educación, mostrar mensaje */}
+                            {education.length === 0 && !showAddEducationForm && (
+                              <p className="text-sm text-muted-foreground text-center py-2">
+                                No hay formación registrada. Completa el formulario:
+                              </p>
+                            )}
+
+                            {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
+                            {(education.length === 0 || showAddEducationForm) && (
+                              <div className="space-y-4 p-4 bg-muted rounded-lg">
+                  <h6 className="font-medium text-sm">{editingEducationId ? "Editar Formación" : "Agregar Formación"}</h6>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Título</Label>
+                      <Input
+                        value={newEducation.title}
+                        onChange={(e) => setNewEducation({ ...newEducation, title: e.target.value })}
+                        placeholder="Ej: Magister en Administración"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label>Institución</Label>
                       <Input
                         value={newEducation.institution}
                         onChange={(e) => setNewEducation({ ...newEducation, institution: e.target.value })}
                         placeholder="Nombre de la institución"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha de Obtención</Label>
+                    <DatePicker
+                      selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
+                      onChange={(date) => {
+                        if (date) {
+                          setNewEducation({ ...newEducation, completion_date: date.toISOString().split('T')[0] })
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      showYearDropdown
+                      showMonthDropdown
+                      dropdownMode="select"
+                      placeholderText="Selecciona fecha de obtención"
+                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      maxDate={new Date()}
+                      yearDropdownItemNumber={50}
+                      locale="es"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleAddEducation}
+                      disabled={!newEducation.institution || !newEducation.title || !newEducation.completion_date}
+                      className="flex-1"
+                    >
+                      {editingEducationId ? "Guardar Cambios" : "Agregar Formación"}
+                    </Button>
+                    {(education.length > 0 || editingEducationId) && (
+                      <Button
+                        variant="outline"
+                        onClick={handleCancelEditEducation}
+                      >
+                        Cancelar
+                      </Button>
+                    )}
+                  </div>
+                              </div>
+                            )}
+
+                            {/* Botón para agregar otra formación (solo si ya hay items Y el formulario está oculto) */}
+                            {education.length > 0 && !showAddEducationForm && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAddEducationForm(true)}
+                                className="w-full"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Agregar otra formación
+                              </Button>
+                            )}
+
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </div>
+                  </Accordion>
+
+                  {/* Sub-acordeón 3: Habilidades Adicionales */}
+                  <Accordion type="multiple" className="space-y-2">
+                    <div className="border rounded-lg bg-card">
+                      <AccordionItem value="habilidades" className="border-0">
+                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                          <span className="font-medium text-sm">
+                            Habilidades Adicionales {(personalData.english_level || personalData.software_tools) ? <span className="text-green-600">✓</span> : <span className="text-amber-600">- Sin completar</span>}
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <div className="space-y-3 pt-2">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="english_level">Nivel de Inglés</Label>
+                                <Input
+                                  id="english_level"
+                                  value={personalData.english_level}
+                                  onChange={(e) => setPersonalData({ ...personalData, english_level: e.target.value })}
+                                  placeholder="Ej: Intermedio, Avanzado, Nativo"
+                                  className="bg-white dark:bg-gray-950"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="software_tools">Software y Herramientas</Label>
+                                <Input
+                                  id="software_tools"
+                                  value={personalData.software_tools}
+                                  onChange={(e) => setPersonalData({ ...personalData, software_tools: e.target.value })}
+                                  placeholder="Ej: Excel, SAP, AutoCAD"
+                                  className="bg-white dark:bg-gray-950"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </div>
+                  </Accordion>
+
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              </div>
+
+              {/* Experiencia Laboral */}
+              <div className="bg-slate-50/50 dark:bg-slate-950/20 rounded-lg border border-slate-200 dark:border-slate-800">
+              <AccordionItem value="experiencia" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Experiencia Laboral {workExperience.length > 0 && <span className="text-muted-foreground">({workExperience.length})</span>}
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4 pt-2">
+
+                    {/* Si tiene experiencias, mostrar lista primero */}
+                    {workExperience.length > 0 && (
+                      <div className="space-y-2">
+                        {[...workExperience].reverse().map((exp) => (
+                          <div key={exp.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
+                            <div>
+                              <p className="font-medium">{exp.position}</p>
+                              <p className="text-sm text-muted-foreground">{exp.company}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {exp.start_date && formatDate(exp.start_date)} - {exp.is_current ? 'Actual' : (exp.end_date ? formatDate(exp.end_date) : 'No especificada')}
+                              </p>
+                              {exp.description && (
+                                <p className="text-sm mt-1">{exp.description}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditWorkExperience(exp.id)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveWorkExperience(exp.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Si NO tiene experiencias, mostrar mensaje */}
+                    {workExperience.length === 0 && !showAddWorkExperienceForm && (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        No hay experiencias registradas. Completa el formulario:
+                      </p>
+                    )}
+
+                    {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
+                    {(workExperience.length === 0 || showAddWorkExperienceForm) && (
+                      <div className="space-y-4 p-4 bg-muted rounded-lg">
+                        <h5 className="font-medium text-sm">{editingWorkExperienceId ? "Editar Experiencia" : "Agregar Experiencia"}</h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Empresa</Label>
+                      <Input
+                        value={newWorkExperience.company}
+                        onChange={(e) => setNewWorkExperience({ ...newWorkExperience, company: e.target.value })}
+                        placeholder="Nombre de la empresa"
+                        className="bg-white dark:bg-gray-950"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Título</Label>
+                      <Label>Cargo</Label>
                       <Input
-                        value={newEducation.title}
-                        onChange={(e) => setNewEducation({ ...newEducation, title: e.target.value })}
-                        placeholder="Título obtenido"
+                        value={newWorkExperience.position}
+                        onChange={(e) => setNewWorkExperience({ ...newWorkExperience, position: e.target.value })}
+                        placeholder="Título del cargo"
+                        className="bg-white dark:bg-gray-950"
                       />
                     </div>
                   </div>
@@ -1284,10 +2616,10 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     <div className="space-y-2">
                       <Label>Fecha Inicio</Label>
                       <DatePicker
-                        selected={newEducation.start_date ? new Date(newEducation.start_date) : null}
+                        selected={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : null}
                         onChange={(date) => {
                           if (date) {
-                            setNewEducation({ ...newEducation, start_date: date.toISOString().split('T')[0] })
+                            setNewWorkExperience({ ...newWorkExperience, start_date: date.toISOString().split('T')[0] })
                           }
                         }}
                         dateFormat="dd/MM/yyyy"
@@ -1302,12 +2634,12 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Fecha Finalización</Label>
+                      <Label>Fecha Fin</Label>
                       <DatePicker
-                        selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
+                        selected={newWorkExperience.end_date ? new Date(newWorkExperience.end_date) : null}
                         onChange={(date) => {
                           if (date) {
-                            setNewEducation({ ...newEducation, completion_date: date.toISOString().split('T')[0] })
+                            setNewWorkExperience({ ...newWorkExperience, end_date: date.toISOString().split('T')[0] })
                           }
                         }}
                         dateFormat="dd/MM/yyyy"
@@ -1317,75 +2649,128 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         placeholderText="Selecciona fecha"
                         className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         maxDate={new Date()}
-                        minDate={newEducation.start_date ? new Date(newEducation.start_date) : undefined}
+                        minDate={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : undefined}
                         yearDropdownItemNumber={50}
+                        disabled={newWorkExperience.is_current}
                         locale="es"
                       />
                     </div>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="is_current"
+                      checked={newWorkExperience.is_current}
+                      onChange={(e) => setNewWorkExperience({
+                        ...newWorkExperience,
+                        is_current: e.target.checked,
+                        end_date: e.target.checked ? "" : newWorkExperience.end_date,
+                      })}
+                    />
+                    <Label htmlFor="is_current">Trabajo actual</Label>
+                  </div>
                   <div className="space-y-2">
-                    <Label>Observaciones</Label>
+                    <Label>Descripción de Funciones</Label>
                     <Textarea
-                      value={newEducation.observations}
-                      onChange={(e) => setNewEducation({ ...newEducation, observations: e.target.value })}
-                      placeholder="Observaciones adicionales"
-                      rows={2}
+                      value={newWorkExperience.description}
+                      onChange={(e) => setNewWorkExperience({ ...newWorkExperience, description: e.target.value })}
+                      placeholder="Principales responsabilidades y logros"
+                      rows={3}
+                      className="bg-white dark:bg-gray-950"
                     />
                   </div>
-                  <Button
-                    onClick={handleAddEducation}
-                    disabled={!newEducation.institution || !newEducation.title}
-                    size="sm"
-                  >
-                    Agregar Formación
-                  </Button>
-                </div>
-
-                {/* Lista de formación */}
-                {education.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <h5 className="font-medium">Formación Registrada</h5>
-                    {education.map((edu) => (
-                      <div key={edu.id} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">{edu.title}</p>
-                            <p className="text-sm text-muted-foreground">{edu.institution}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {edu.start_date} - {edu.completion_date}
-                            </p>
-                            {edu.observations && (
-                              <p className="text-sm mt-1">{edu.observations}</p>
-                            )}
-                          </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={handleAddWorkExperience}
+                            disabled={!newWorkExperience.company || !newWorkExperience.position}
+                            className="flex-1"
+                          >
+                            {editingWorkExperienceId ? "Guardar Cambios" : "Agregar Experiencia"}
+                          </Button>
+                          {(workExperience.length > 0 || editingWorkExperienceId) && (
+                            <Button
+                              variant="outline"
+                              onClick={handleCancelEditWorkExperience}
+                            >
+                              Cancelar
+                            </Button>
+                          )}
                         </div>
                       </div>
-                    ))}
+                    )}
+
+                    {/* Botón para agregar otra experiencia (solo si ya hay experiencias Y el formulario está oculto) */}
+                    {workExperience.length > 0 && !showAddWorkExperienceForm && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAddWorkExperienceForm(true)}
+                        className="w-full"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Agregar otra experiencia
+                      </Button>
+                    )}
+
                   </div>
-                )}
+                </AccordionContent>
+              </AccordionItem>
               </div>
 
+              </Accordion>
+
+              {/* Botón guardar fuera de las secciones */}
               <div className="flex justify-end pt-4">
                 <Button
                   onClick={handlePersonalDataSubmit}
                   disabled={savingCandidate}
                 >
-                  {savingCandidate ? "Guardando..." : "Guardar y Continuar a Evaluación"}
+                  {savingCandidate ? "Guardando..." : "Guardar Datos del Candidato"}
                 </Button>
               </div>
+              </>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+                </div>
+              ))}
+            </Accordion>
             </div>
           </CardContent>
         </Card>
       )}
 
       {/* CV Viewer Dialog */}
-      {showCVViewer && candidateWithCV && (
+      {showCVViewer && currentCandidate && (
         <CVViewerDialog
-          candidate={candidateWithCV}
+          candidate={currentCandidate}
           isOpen={showCVViewer}
           onClose={() => setShowCVViewer(false)}
         />
       )}
+
+      {/* Diálogo de confirmación de eliminación */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, type: null, id: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDialog.type === 'profession' && 'Esta acción eliminará la profesión. Recuerda guardar los cambios al finalizar.'}
+              {deleteDialog.type === 'education' && 'Esta acción eliminará la formación académica. Recuerda guardar los cambios al finalizar.'}
+              {deleteDialog.type === 'workExperience' && 'Esta acción eliminará la experiencia laboral. Recuerda guardar los cambios al finalizar.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

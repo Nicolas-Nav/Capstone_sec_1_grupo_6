@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useAuth } from "@/hooks/auth"
-import { getNotificationsByUser, mockProcesses, mockUsers, serviceTypeLabels } from "@/lib/mock-data"
+import { getNotificationsByUser, mockProcesses, mockUsers } from "@/lib/mock-data"
+import { serviceTypeLabels } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"

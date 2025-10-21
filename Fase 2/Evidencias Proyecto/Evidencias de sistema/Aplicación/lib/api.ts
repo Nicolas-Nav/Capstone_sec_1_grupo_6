@@ -307,6 +307,13 @@ export const solicitudService = {
     });
   },
 
+  // Avanzar al módulo 4
+  async avanzarAModulo4(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/avanzar-modulo4`, {
+      method: 'PUT',
+    });
+  },
+
   // Obtener etapas disponibles
   async getEtapas(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/solicitudes/etapas/disponibles');
@@ -529,6 +536,11 @@ export const postulacionService = {
   // Obtener postulaciones por solicitud
   async getBySolicitud(idSolicitud: number): Promise<ApiResponse<any[]>> {
     return apiRequest(`/api/postulaciones/solicitud/${idSolicitud}`);
+  },
+
+  // Obtener postulaciones optimizadas (sin datos de formación académica)
+  async getBySolicitudOptimized(idSolicitud: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/postulaciones/solicitud/${idSolicitud}/optimized`);
   },
 
   // Crear postulación (con CV opcional)
@@ -782,7 +794,7 @@ export const publicacionService = {
 };
 
 // ===========================================
-// FUNCIÓN PARA OBTENER CANDIDATOS POR PROCESO
+// FUNCIONES HELPER PARA OBTENER DATOS POR PROCESO
 // ===========================================
 
 export async function getCandidatesByProcess(processId: string): Promise<any[]> {
@@ -798,9 +810,131 @@ export async function getCandidatesByProcess(processId: string): Promise<any[]> 
   }
 }
 
+export async function getPublicationsByProcess(processId: string): Promise<any[]> {
+  try {
+    const response = await publicacionService.getAll({ solicitud_id: parseInt(processId) });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return [];
+  } catch (error) {
+    console.error('Error al obtener publicaciones por proceso:', error);
+    return [];
+  }
+}
+
 // ===========================================
 // UTILIDADES
 // ===========================================
+
+// ===========================================
+// EVALUACIÓN PSICOLABORAL SERVICE
+// ===========================================
+
+export const evaluacionPsicolaboralService = {
+  // Obtener evaluación por postulación
+  async getByPostulacion(idPostulacion: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/postulacion/${idPostulacion}`, {
+      method: 'GET',
+    });
+  },
+
+  // Crear evaluación
+  async create(data: {
+    fecha_evaluacion?: Date | null;
+    fecha_envio_informe: Date;
+    estado_evaluacion: string;
+    estado_informe: string;
+    conclusion_global: string;
+    id_postulacion: number;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/evaluaciones-psicolaborales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar evaluación
+  async update(id: number, data: Partial<{
+    fecha_evaluacion: Date | null;
+    fecha_envio_informe: Date;
+    estado_evaluacion: string;
+    estado_informe: string;
+    conclusion_global: string;
+  }>): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Agregar test a evaluación
+  async addTest(idEvaluacion: number, idTest: number, resultado: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${idEvaluacion}/tests`, {
+      method: 'POST',
+      body: JSON.stringify({
+        id_test: idTest,
+        resultado: resultado
+      }),
+    });
+  },
+
+  // Actualizar estado del informe
+  async updateEstadoInforme(id: number, estadoInforme: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${id}/estado-informe`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        estado_informe: estadoInforme
+      }),
+    });
+  },
+
+  // Eliminar test de evaluación
+  async deleteTest(idEvaluacion: number, idTest: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${idEvaluacion}/tests/${idTest}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Actualizar conclusión global del informe
+  async updateConclusionGlobal(id: number, conclusionGlobal: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${id}/conclusion-global`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        conclusion_global: conclusionGlobal
+      }),
+    });
+  },
+
+  // Actualizar informe completo (estado + conclusión + fecha de envío)
+  async updateInformeCompleto(id: number, estadoInforme: string, conclusionGlobal: string, fechaEnvioInforme?: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/evaluaciones-psicolaborales/${id}/informe-completo`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        estado_informe: estadoInforme,
+        conclusion_global: conclusionGlobal,
+        fecha_envio_informe: fechaEnvioInforme
+      }),
+    });
+  }
+};
+
+// Servicio para Tests Psicolaborales
+export const testPsicolaboralService = {
+  // Obtener todos los tests disponibles
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/tests-psicolaborales', {
+      method: 'GET',
+    });
+  },
+
+  // Obtener un test por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/tests-psicolaborales/${id}`, {
+      method: 'GET',
+    });
+  }
+};
 
 export const apiUtils = {
   // Verificar si hay un token válido
@@ -824,4 +958,50 @@ export const apiUtils = {
     }
     return 'Ha ocurrido un error inesperado';
   },
+};
+
+// Referencias Laborales Service
+export const referenciaLaboralService = {
+  async getByCandidato(idCandidato: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/referencias-laborales/candidato/${idCandidato}`, {
+      method: 'GET',
+    });
+  },
+
+  async create(data: {
+    nombre_referencia: string;
+    cargo_referencia: string;
+    empresa_referencia: string;
+    telefono_referencia: string;
+    email_referencia: string;
+    id_candidato: number;
+    relacion_postulante_referencia: string;
+    comentario_referencia?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/referencias-laborales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(id: number, data: Partial<{
+    nombre_referencia: string;
+    cargo_referencia: string;
+    empresa_referencia: string;
+    telefono_referencia: string;
+    email_referencia: string;
+    relacion_postulante_referencia: string;
+    comentario_referencia: string;
+  }>): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/referencias-laborales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/referencias-laborales/${id}`, {
+      method: 'DELETE',
+    });
+  }
 };

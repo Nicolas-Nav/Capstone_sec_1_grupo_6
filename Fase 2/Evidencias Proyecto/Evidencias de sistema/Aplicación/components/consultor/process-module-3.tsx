@@ -11,10 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { getCandidatesByProcess, candidateStatusLabels, processStatusLabels } from "@/lib/mock-data"
+import { getCandidatesByProcess } from "@/lib/api"
+import { candidateStatusLabels, processStatusLabels } from "@/lib/utils"
 import { estadoClienteService, solicitudService } from "@/lib/api"
 import { getStatusColor, formatCurrency, isProcessBlocked } from "@/lib/utils"
-import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle } from "lucide-react"
+import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle, AlertCircle } from "lucide-react"
 import type { Process, Candidate, ProcessStatus } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { ProcessBlocked } from "./ProcessBlocked"
@@ -296,6 +297,48 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     handleMultipleCandidateDecision()
   }, [candidates.map((c) => c.client_response).join(",")])
 
+  // Función para avanzar al módulo 4
+  const handleAdvanceToModule4 = async () => {
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede avanzar un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const response = await solicitudService.avanzarAModulo4(parseInt(process.id))
+
+      if (response.success) {
+        toast({
+          title: "¡Éxito!",
+          description: "Proceso avanzado al Módulo 4 exitosamente",
+          variant: "default",
+        })
+        // Navegar al módulo 4 usando URL con parámetro
+        const currentUrl = new URL(window.location.href)
+        currentUrl.searchParams.set('tab', 'modulo-4')
+        window.location.href = currentUrl.toString()
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al avanzar al Módulo 4",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error al avanzar al Módulo 4:", error)
+      toast({
+        title: "Error",
+        description: "Error al avanzar al Módulo 4",
+        variant: "destructive",
+      })
+    }
+  }
+
   // Función para cambiar estado de la solicitud (finalizar)
   const handleStatusChange = async (estadoId: string) => {
     // Validar que el proceso no esté bloqueado
@@ -311,8 +354,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     try {
       const response = await solicitudService.cambiarEstado(
         parseInt(process.id), 
-        parseInt(estadoId), 
-        statusChangeReason.trim() || undefined
+        parseInt(estadoId)
       )
 
       if (response.success) {
@@ -348,7 +390,15 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
   // Verificar tipo de servicio (código o nombre)
   const serviceType = (process.service_type as string)?.toLowerCase() || ""
-  const canAdvanceToModule4 = (serviceType === "proceso_completo" || serviceType === "pc") && hasApproved
+  
+  // Para procesos PC, HS, TR: verificar que candidatos aprobados tengan client_feedback_date
+  const approvedCandidates = candidates.filter((c) => c.client_response === "aprobado")
+  const hasApprovedWithoutFeedback = approvedCandidates.some((c) => !c.client_feedback_date)
+  
+  const canAdvanceToModule4 = (serviceType === "proceso_completo" || serviceType === "pc" || 
+                              serviceType === "headhunting" || serviceType === "hs" || 
+                              serviceType === "talent_retention" || serviceType === "tr") && 
+                              hasApproved && !hasApprovedWithoutFeedback
   const processEndsHere = serviceType === "long_list" || serviceType === "ll"
   
   // Debug: mostrar el tipo de servicio
@@ -356,7 +406,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     original: process.service_type,
     normalized: serviceType,
     processEndsHere,
-    canAdvanceToModule4
+    canAdvanceToModule4,
+    hasApproved,
+    hasApprovedWithoutFeedback,
+    approvedCandidatesCount: approvedCandidates.length
   })
 
   // Mostrar indicador de carga
@@ -434,7 +487,34 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                   Estados sincronizados. Puedes avanzar al Módulo 4 para evaluación psicolaboral.
                 </p>
               </div>
-              <Button className="bg-blue-600 hover:bg-blue-700">Avanzar a Módulo 4</Button>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleAdvanceToModule4}
+                disabled={isBlocked}
+              >
+                Avanzar a Módulo 4
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {hasApproved && hasApprovedWithoutFeedback && (serviceType === "proceso_completo" || serviceType === "pc" || 
+       serviceType === "headhunting" || serviceType === "hs" || 
+       serviceType === "talent_retention" || serviceType === "tr") && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-orange-800">Falta información de feedback</h3>
+                <p className="text-sm text-orange-600">
+                  Hay candidatos aprobados sin fecha de feedback del cliente. 
+                  Completa esta información antes de avanzar al Módulo 4.
+                </p>
+              </div>
+              <div className="text-orange-600">
+                <AlertCircle className="h-5 w-5" />
+              </div>
             </div>
           </CardContent>
         </Card>

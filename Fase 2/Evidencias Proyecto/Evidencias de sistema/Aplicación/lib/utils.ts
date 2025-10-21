@@ -141,3 +141,46 @@ export function getFinalStateDescription(processStatus: string): string {
   if (status.includes('cierre extraordinario')) return 'El proceso ha sido cerrado de manera extraordinaria'
   return 'El proceso está en estado final'
 }
+
+// ===========================================
+// LABELS DE INTERFAZ DE USUARIO
+// ===========================================
+
+// Service Type Labels
+export const serviceTypeLabels: Record<string, string> = {
+  proceso_completo: "Proceso Completo",
+  long_list: "Long List",
+  targeted_recruitment: "Targeted Recruitment",
+  evaluacion_psicolaboral: "Evaluación Psicolaboral",
+  test_psicolaboral: "Test Psicolaboral",
+}
+
+// Process Status Labels
+export const processStatusLabels: Record<string, string> = {
+  creado: "Creado",
+  iniciado: "Iniciado",
+  en_progreso: "En Progreso",
+  completado: "Completado",
+  cancelado: "Cancelado",
+  congelado: "Congelado",
+  cerrado: "Cerrado",
+  "cierre extraordinario": "Cierre Extraordinario",
+}
+
+// Candidate Status Labels
+export const candidateStatusLabels: Record<string, string> = {
+  postulado: "Postulado",
+  filtrado: "Filtrado",
+  presentado: "Presentado",
+  aprobado: "Aprobado",
+  rechazado: "Rechazado",
+  contratado: "Contratado",
+}
+
+// Hito Status Labels
+export const hitoStatusLabels: Record<string, string> = {
+  pendiente: "Pendiente",
+  en_progreso: "En Progreso",
+  completado: "Completado",
+  vencido: "Vencido",
+}

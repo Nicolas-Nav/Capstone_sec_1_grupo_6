@@ -863,41 +863,8 @@ export const mockNotifications: Notification[] = [
   },
 ]
 
-// Service Type Labels
-export const serviceTypeLabels: Record<ServiceType, string> = {
-  proceso_completo: "Proceso Completo",
-  long_list: "Long List",
-  targeted_recruitment: "Targeted Recruitment",
-  evaluacion_psicolaboral: "Evaluación Psicolaboral",
-  test_psicolaboral: "Test Psicolaboral",
-}
-
-// Process Status Labels
-export const processStatusLabels: Record<ProcessStatus, string> = {
-  creado: "Creado",
-  iniciado: "Iniciado",
-  en_progreso: "En Progreso",
-  completado: "Completado",
-  cancelado: "Cancelado",
-  congelado: "Congelado",
-}
-
-// Candidate Status Labels
-export const candidateStatusLabels: Record<CandidateStatus, string> = {
-  postulado: "Postulado",
-  presentado: "Presentado",
-  aprobado: "Aprobado",
-  rechazado: "Rechazado",
-  contratado: "Contratado",
-}
-
-// Hito Status Labels
-export const hitoStatusLabels: Record<HitoStatus, string> = {
-  pendiente: "Pendiente",
-  en_progreso: "En Progreso",
-  completado: "Completado",
-  vencido: "Vencido",
-}
+// NOTA: Los labels de interfaz de usuario han sido movidos a utils.ts
+// Usa: import { serviceTypeLabels, processStatusLabels, candidateStatusLabels, hitoStatusLabels } from '@/lib/utils'
 
 // Helper functions
 export function getProcessesByConsultant(consultantId: string): Process[] {
@@ -915,24 +882,12 @@ export function getPublicationsByProcess(processId: string): Publication[] {
 */
 
 // ===========================================
-// FUNCIONES QUE USAN API REAL
+// FUNCIONES QUE USAN API REAL - MOVIDAS A api.ts
 // ===========================================
 
-// NOTA: Estas funciones ahora son async y debes usarlas con await
-// Ejemplo: const candidates = await getCandidatesByProcess(processId)
-
-export async function getCandidatesByProcess(processId: string) {
-  // Importar dinámicamente para evitar problemas de orden
-  const { postulacionService } = await import('./api')
-  const response = await postulacionService.getBySolicitud(Number(processId))
-  return response.data || []
-}
-
-export async function getPublicationsByProcess(processId: string) {
-  const { publicacionService } = await import('./api')
-  const response = await publicacionService.getBySolicitud(Number(processId))
-  return response.data || []
-}
+// NOTA: Las funciones getCandidatesByProcess y getPublicationsByProcess 
+// han sido movidas a api.ts para mantener la separación de responsabilidades.
+// Usa: import { getCandidatesByProcess, getPublicationsByProcess } from '@/lib/api'
 
 export function getHitosByProcess(processId: string): Hito[] {
   return mockHitos.filter((hito) => hito.process_id === processId)

@@ -7,15 +7,17 @@ import sequelize from '@/config/database';
 
 interface ReferenciaLaboralAttributes {
     id_referencia_laboral: number;
-    nombre_jefe_referencia: string;
-    cargo_jefe_referencia: string;
+    nombre_referencia: string;
+    cargo_referencia: string;
     empresa_referencia: string;
-    telefono_referencia: string;
-    email_referencia: string;
+    telefono_referencia?: string;
+    email_referencia?: string;
     id_candidato: number;
+    relacion_postulante_referencia: string;
+    comentario_referencia?: string;
 }
 
-interface ReferenciaLaboralCreationAttributes extends Optional<ReferenciaLaboralAttributes, 'id_referencia_laboral'> { }
+interface ReferenciaLaboralCreationAttributes extends Optional<ReferenciaLaboralAttributes, 'id_referencia_laboral' | 'telefono_referencia' | 'email_referencia' | 'comentario_referencia'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -23,12 +25,14 @@ interface ReferenciaLaboralCreationAttributes extends Optional<ReferenciaLaboral
 
 class ReferenciaLaboral extends Model<ReferenciaLaboralAttributes, ReferenciaLaboralCreationAttributes> implements ReferenciaLaboralAttributes {
     public id_referencia_laboral!: number;
-    public nombre_jefe_referencia!: string;
-    public cargo_jefe_referencia!: string;
+    public nombre_referencia!: string;
+    public cargo_referencia!: string;
     public empresa_referencia!: string;
-    public telefono_referencia!: string;
-    public email_referencia!: string;
+    public telefono_referencia?: string;
+    public email_referencia?: string;
     public id_candidato!: number;
+    public relacion_postulante_referencia!: string;
+    public comentario_referencia?: string;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -38,7 +42,7 @@ class ReferenciaLaboral extends Model<ReferenciaLaboralAttributes, ReferenciaLab
      * Obtiene el nombre completo de la referencia
      */
     public getReferenciaCompleta(): string {
-        return `${this.nombre_jefe_referencia} - ${this.cargo_jefe_referencia} en ${this.empresa_referencia}`;
+        return `${this.nombre_referencia} - ${this.cargo_referencia} en ${this.empresa_referencia}`;
     }
 }
 
@@ -53,7 +57,7 @@ ReferenciaLaboral.init({
         autoIncrement: true,
         allowNull: false
     },
-    nombre_jefe_referencia: {
+    nombre_referencia: {
         type: DataTypes.STRING(100),
         allowNull: false,
         validate: {
@@ -61,7 +65,7 @@ ReferenciaLaboral.init({
             len: [2, 100]
         }
     },
-    cargo_jefe_referencia: {
+    cargo_referencia: {
         type: DataTypes.STRING(100),
         allowNull: false,
         validate: {
@@ -79,18 +83,29 @@ ReferenciaLaboral.init({
     },
     telefono_referencia: {
         type: DataTypes.STRING(12),
-        allowNull: false,
+        allowNull: true,
         validate: {
-            notEmpty: true,
-            len: [8, 12]
+            isValidPhone(value: string) {
+                if (value && value.trim() !== '') {
+                    if (value.length < 8 || value.length > 12) {
+                        throw new Error('El teléfono debe tener entre 8 y 12 caracteres');
+                    }
+                }
+            }
         }
     },
     email_referencia: {
         type: DataTypes.STRING(256),
-        allowNull: false,
+        allowNull: true,
         validate: {
-            isEmail: true,
-            notEmpty: true
+            isValidEmail(value: string) {
+                if (value && value.trim() !== '') {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailRegex.test(value)) {
+                        throw new Error('Debe ser un email válido');
+                    }
+                }
+            }
         }
     },
     id_candidato: {
@@ -100,6 +115,18 @@ ReferenciaLaboral.init({
             model: 'candidato',
             key: 'id_candidato'
         }
+    },
+    relacion_postulante_referencia: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        validate: {
+            notEmpty: true,
+            len: [2, 100]
+        }
+    },
+    comentario_referencia: {
+        type: DataTypes.TEXT,
+        allowNull: true
     }
 }, {
     sequelize,

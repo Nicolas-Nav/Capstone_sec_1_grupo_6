@@ -13,6 +13,7 @@ import type {
   HitoStatus,
   ConsultantDocument,
 } from "./types"
+import { serviceTypeLabels, processStatusLabels } from "./utils"
 
 // Mock Users
 export const mockUsers: User[] = [

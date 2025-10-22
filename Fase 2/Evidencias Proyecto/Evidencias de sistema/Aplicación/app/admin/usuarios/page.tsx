@@ -53,6 +53,7 @@ export default function UsuariosPage() {
     nextPage,
     prevPage,
     handlePageSizeChange,
+    clearEditingUser,
   } = useUsuarios()
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -215,14 +216,20 @@ export default function UsuariosPage() {
           <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
           <p className="text-muted-foreground">Administra los consultores y usuarios del sistema</p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+          setIsCreateDialogOpen(open)
+          if (!open) {
+            clearEditingUser()
+            setConfirmPassword("")
+          }
+        }}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
+              Nuevo Usuario
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingUser ? "Editar Usuario" : "Crear Nuevo Usuario"}</DialogTitle>
               <DialogDescription>Ingresa los datos del usuario</DialogDescription>
@@ -328,6 +335,7 @@ export default function UsuariosPage() {
                 onClick={() => {
                   setIsCreateDialogOpen(false)
                   setConfirmPassword("")
+                  clearEditingUser()
                 }}
               >
                 Cancelar

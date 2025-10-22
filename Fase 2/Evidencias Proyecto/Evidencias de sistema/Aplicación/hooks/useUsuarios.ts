@@ -260,6 +260,11 @@ export function useUsuarios() {
     setCurrentPage(1) // Reset to first page when changing page size
   }
 
+  const clearEditingUser = () => {
+    setEditingUser(null)
+    setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
+  }
+
   return {
     users,
     filteredUsers,
@@ -290,5 +295,6 @@ export function useUsuarios() {
     nextPage,
     prevPage,
     handlePageSizeChange,
+    clearEditingUser,
   }
 }

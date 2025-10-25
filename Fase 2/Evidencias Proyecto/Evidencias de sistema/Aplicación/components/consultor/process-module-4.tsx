@@ -21,7 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { getCandidatesByProcess } from "@/lib/api"
 import { evaluacionPsicolaboralService, referenciaLaboralService } from "@/lib/api"
-import { formatDate, isProcessBlocked } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import {
   Plus,
@@ -43,7 +43,6 @@ import {
   Save,
 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
-import { ProcessBlocked } from "./ProcessBlocked"
 
 interface WorkReference {
   id: string
@@ -72,12 +71,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const { toast } = useToast()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  
-  // Estado del proceso para verificar bloqueo
-  const [processStatus, setProcessStatus] = useState<string>((process.estado_solicitud || process.status) as string)
-  
-  // Verificar si el proceso está bloqueado (estado final)
-  const isBlocked = isProcessBlocked(processStatus)
 
   // Función para calcular días hábiles
   const addBusinessDays = (date: Date, days: number): Date => {
@@ -845,12 +838,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             : "Realiza evaluaciones psicolaborales a candidatos aprobados por el cliente"}
         </p>
       </div>
-
-      {/* Componente de bloqueo si el proceso está en estado final */}
-      <ProcessBlocked 
-        processStatus={processStatus} 
-        moduleName="Módulo 4" 
-      />
 
       {/* Process Header for Evaluation Processes */}
       {isEvaluationProcess && (

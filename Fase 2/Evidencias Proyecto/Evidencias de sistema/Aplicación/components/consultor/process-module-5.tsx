@@ -18,10 +18,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { getCandidatesByProcess } from "@/lib/api"
-import { formatDate, isProcessBlocked } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
-import { ProcessBlocked } from "./ProcessBlocked"
 
 interface ProcessModule5Props {
   process: Process
@@ -52,12 +51,6 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   // Incluir candidatos que pasaron el módulo 4 (aprobados por el consultor) o que fueron aprobados por el cliente
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  
-  // Estado del proceso para verificar bloqueo
-  const [processStatus, setProcessStatus] = useState<string>((process.estado_solicitud || process.status) as string)
-  
-  // Verificar si el proceso está bloqueado (estado final)
-  const isBlocked = isProcessBlocked(processStatus)
 
   // Cargar datos reales desde el backend
   useEffect(() => {
@@ -309,12 +302,6 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         <h2 className="text-2xl font-bold mb-2">Módulo 5 - Seguimiento y Control</h2>
         <p className="text-muted-foreground">Gestiona la contratación final y seguimiento de candidatos</p>
       </div>
-
-      {/* Componente de bloqueo si el proceso está en estado final */}
-      <ProcessBlocked 
-        processStatus={processStatus} 
-        moduleName="Módulo 5" 
-      />
 
       {canReturnToModule2 && (
         <Card className="border-cyan-200 bg-cyan-50">

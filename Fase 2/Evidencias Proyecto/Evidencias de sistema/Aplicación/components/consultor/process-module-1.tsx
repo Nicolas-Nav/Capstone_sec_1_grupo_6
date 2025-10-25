@@ -318,15 +318,15 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
     // Validar formato de RUT si se proporciona
     if (personalData.rut?.trim()) {
-      const rutRegex = /^[0-9]+-[0-9kK]$/
-      if (!rutRegex.test(personalData.rut)) {
-        toast({
+    const rutRegex = /^[0-9]+-[0-9kK]$/
+    if (!rutRegex.test(personalData.rut)) {
+      toast({
           title: "Formato inválido",
-          description: "Ingresa un RUT válido (ej: 12345678-9)",
-          variant: "destructive",
-        })
-        return
-      }
+        description: "Ingresa un RUT válido (ej: 12345678-9)",
+        variant: "destructive",
+      })
+      return
+    }
     }
     
     // Los demás campos son opcionales (rut, birth_date, region, comuna, nacionalidad, rubro)
@@ -394,7 +394,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           description: "Datos del candidato guardados exitosamente",
           variant: "default",
         })
-        
+
         // Recargar candidatos para actualizar la información
         const candidatesData = await getCandidatesByProcess(process.id)
         setCandidates(candidatesData)
@@ -522,11 +522,11 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         })
       } else {
         // Modo agregar
-        const experience: WorkExperience = {
-          id: Date.now().toString(),
-          ...newWorkExperience,
-        }
-        setWorkExperience([...workExperience, experience])
+      const experience: WorkExperience = {
+        id: Date.now().toString(),
+        ...newWorkExperience,
+      }
+      setWorkExperience([...workExperience, experience])
         toast({
           title: "Experiencia agregada",
           description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
@@ -604,13 +604,13 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         })
       } else {
         // Modo agregar
-        const educationItem: Education = {
-          id: Date.now().toString(),
-          institution: newEducation.institution,
-          title: newEducation.title,
-          completion_date: newEducation.completion_date,
-        }
-        setEducation([...education, educationItem])
+      const educationItem: Education = {
+        id: Date.now().toString(),
+        institution: newEducation.institution,
+        title: newEducation.title,
+        completion_date: newEducation.completion_date,
+      }
+      setEducation([...education, educationItem])
         toast({
           title: "Formación agregada",
           description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
@@ -868,13 +868,13 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
             Pasar a Módulo 4
           </Button>
         ) : (
-          <Button
-            onClick={handleAdvanceToModule2}
-            className="bg-primary hover:bg-primary/90"
-            disabled={isProcessBlocked(processStatus)}
-          >
-            Pasar a Módulo 2
-          </Button>
+        <Button
+          onClick={handleAdvanceToModule2}
+          className="bg-primary hover:bg-primary/90"
+          disabled={isProcessBlocked(processStatus)}
+        >
+          Pasar a Módulo 2
+        </Button>
         )}
       </div>
 
@@ -1198,14 +1198,14 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                           }}
                         >
                           <Download className="h-4 w-4" />
-                          Ver CV
+                  Ver CV
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="shrink-0 text-sm h-[32px] px-4 flex items-center">
                           Datos básicos
                         </Badge>
                       )}
-                    </div>
+              </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4 pt-0">
                     <div className="space-y-4">
@@ -1214,8 +1214,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               <>
               {/* Acordeón interno para organizar secciones */}
               <Accordion type="multiple" defaultValue={["datos-personales"]} className="space-y-3">
-              
-              {/* Formulario de datos personales */}
+
+            {/* Formulario de datos personales */}
               <div className="bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <AccordionItem value="datos-personales" className="border-0">
                 <AccordionTrigger className="px-4 py-3 hover:no-underline">
@@ -1808,7 +1808,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
                     {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
                     {(workExperience.length === 0 || showAddWorkExperienceForm) && (
-                      <div className="space-y-4 p-4 bg-muted rounded-lg">
+                <div className="space-y-4 p-4 bg-muted rounded-lg">
                         <h5 className="font-medium text-sm">{editingWorkExperienceId ? "Editar Experiencia" : "Agregar Experiencia"}</h5>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -1898,9 +1898,9 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     />
                   </div>
                         <div className="flex gap-2">
-                          <Button
-                            onClick={handleAddWorkExperience}
-                            disabled={!newWorkExperience.company || !newWorkExperience.position}
+                  <Button
+                    onClick={handleAddWorkExperience}
+                    disabled={!newWorkExperience.company || !newWorkExperience.position}
                             className="flex-1"
                           >
                             {editingWorkExperienceId ? "Guardar Cambios" : "Agregar Experiencia"}
@@ -1921,19 +1921,19 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     {workExperience.length > 0 && !showAddWorkExperienceForm && (
                       <Button
                         variant="outline"
-                        size="sm"
+                    size="sm"
                         onClick={() => setShowAddWorkExperienceForm(true)}
                         className="w-full"
-                      >
+                  >
                         <Plus className="h-4 w-4 mr-2" />
                         Agregar otra experiencia
-                      </Button>
+                  </Button>
                     )}
 
                   </div>
                 </AccordionContent>
               </AccordionItem>
-              </div>
+                </div>
 
               </Accordion>
 
@@ -2217,15 +2217,15 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                               <div className="space-y-2">
                                 {[...professions].reverse().map((prof) => (
                                   <div key={prof.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
-                                    <div>
+                          <div>
                                       <p className="font-medium">{prof.profession}</p>
                                       <p className="text-sm text-muted-foreground">{prof.institution}</p>
                                       {prof.date && (
                                         <p className="text-xs text-muted-foreground mt-1">
                                           {formatDate(prof.date)}
                                         </p>
-                                      )}
-                                    </div>
+                            )}
+                          </div>
                                     <div className="flex gap-1">
                                       <Button
                                         variant="ghost"
@@ -2241,11 +2241,11 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                                       >
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                             {/* Si NO tiene profesiones, mostrar mensaje */}
                             {professions.length === 0 && !showAddProfessionForm && (
@@ -2267,7 +2267,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         placeholder="Ej: Ingeniero en Sistemas"
                         className="bg-white dark:bg-gray-950"
                       />
-                    </div>
+              </div>
                     <div className="space-y-2">
                       <Label>Institución</Label>
                       <Select
@@ -2410,7 +2410,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
                             {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
                             {(education.length === 0 || showAddEducationForm) && (
-                              <div className="space-y-4 p-4 bg-muted rounded-lg">
+                <div className="space-y-4 p-4 bg-muted rounded-lg">
                   <h6 className="font-medium text-sm">{editingEducationId ? "Editar Formación" : "Agregar Formación"}</h6>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -2431,8 +2431,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         className="bg-white dark:bg-gray-950"
                       />
                     </div>
-                  </div>
-                  <div className="space-y-2">
+                    </div>
+                    <div className="space-y-2">
                     <Label>Fecha de Obtención</Label>
                     <DatePicker
                       selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
@@ -2505,14 +2505,14 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor="english_level">Nivel de Inglés</Label>
-                                <Input
+                      <Input
                                   id="english_level"
                                   value={personalData.english_level}
                                   onChange={(e) => setPersonalData({ ...personalData, english_level: e.target.value })}
                                   placeholder="Ej: Intermedio, Avanzado, Nativo"
                                   className="bg-white dark:bg-gray-950"
-                                />
-                              </div>
+                      />
+                    </div>
                               <div className="space-y-2">
                                 <Label htmlFor="software_tools">Software y Herramientas</Label>
                                 <Input
@@ -2681,13 +2681,13 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     />
                   </div>
                         <div className="flex gap-2">
-                          <Button
+                  <Button
                             onClick={handleAddWorkExperience}
                             disabled={!newWorkExperience.company || !newWorkExperience.position}
                             className="flex-1"
                           >
                             {editingWorkExperienceId ? "Guardar Cambios" : "Agregar Experiencia"}
-                          </Button>
+                  </Button>
                           {(workExperience.length > 0 || editingWorkExperienceId) && (
                             <Button
                               variant="outline"
@@ -2695,10 +2695,10 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                             >
                               Cancelar
                             </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                            )}
+                          </div>
+                  </div>
+                )}
 
                     {/* Botón para agregar otra experiencia (solo si ya hay experiencias Y el formulario está oculto) */}
                     {workExperience.length > 0 && !showAddWorkExperienceForm && (

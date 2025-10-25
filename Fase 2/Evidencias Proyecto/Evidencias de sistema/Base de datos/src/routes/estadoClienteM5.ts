@@ -24,4 +24,7 @@ router.get('/postulacion/:id_postulacion/ultimo', EstadoClienteM5Controller.getU
 // Obtener candidatos que están en el módulo 5
 router.get('/proceso/:id_proceso/candidatos', EstadoClienteM5Controller.getCandidatosEnModulo5);
 
+// Actualizar información completa del candidato en módulo 5
+router.put('/postulacion/:id_postulacion/actualizar', EstadoClienteM5Controller.actualizarCandidatoModulo5);
+
 export default router;

@@ -21,6 +21,7 @@ import { getCandidatesByProcess, estadoClienteM5Service } from "@/lib/api"
 import { formatDate } from "@/lib/utils"
 import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
+import { toast } from "sonner"
 
 interface ProcessModule5Props {
   process: Process
@@ -41,7 +42,7 @@ interface ContractedCandidate {
   name: string
   hiring_status: HiringStatus
   contract_date?: string
-  client_response_date?: string  // Fecha de respuesta del cliente
+  client_response_date?: string | null  // Fecha de respuesta del cliente
   continues: boolean
   observations?: string
   satisfaction_survey_pending: boolean
@@ -52,26 +53,76 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
+  // Función para cargar datos desde el backend
+  const loadData = async () => {
+    try {
+      setIsLoading(true)
+      // Obtener candidatos que están en el módulo 5 (avanzados desde módulo 4)
+      const response = await estadoClienteM5Service.getCandidatosEnModulo5(Number(process.id))
+      if (response.success && response.data) {
+        setCandidates(response.data)
+        
+        // Cargar estados guardados en contractedCandidates
+        const contractedData = response.data
+          .filter((candidate: any) => candidate.hiring_status && candidate.hiring_status !== 'en_espera_feedback')
+          .map((candidate: any) => ({
+            id: candidate.id,
+            name: candidate.name,
+            hiring_status: candidate.hiring_status,
+            contract_date: candidate.contract_date || '',
+            client_response_date: candidate.client_response_date || '',
+            continues: true,
+            observations: candidate.observations || '',
+            satisfaction_survey_pending: candidate.hiring_status === "contratado",
+          }))
+        
+        setContractedCandidates(contractedData)
+      } else {
+        console.error('Error al cargar candidatos del módulo 5:', response.message)
+        setCandidates([])
+      }
+    } catch (error) {
+      console.error('Error al cargar candidatos:', error)
+      setCandidates([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Función para recargar datos (sin mostrar loading)
+  const reloadData = async () => {
+    try {
+      // Obtener candidatos que están en el módulo 5 (avanzados desde módulo 4)
+      const response = await estadoClienteM5Service.getCandidatosEnModulo5(Number(process.id))
+      if (response.success && response.data) {
+        console.log('[DEBUG FRONTEND] Datos recibidos del backend:', response.data)
+        setCandidates(response.data)
+        
+        // Cargar estados guardados en contractedCandidates
+        const contractedData = response.data
+          .filter((candidate: any) => candidate.hiring_status && candidate.hiring_status !== 'en_espera_feedback')
+          .map((candidate: any) => ({
+            id: candidate.id,
+            name: candidate.name,
+            hiring_status: candidate.hiring_status,
+            contract_date: candidate.contract_date || '',
+            client_response_date: candidate.client_response_date || '',
+            continues: true,
+            observations: candidate.observations || '',
+            satisfaction_survey_pending: candidate.hiring_status === "contratado",
+          }))
+        
+        setContractedCandidates(contractedData)
+      } else {
+        console.error('Error al recargar candidatos del módulo 5:', response.message)
+      }
+    } catch (error) {
+      console.error('Error al recargar candidatos:', error)
+    }
+  }
+
   // Cargar datos reales desde el backend
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true)
-        // Obtener candidatos que están en el módulo 5 (avanzados desde módulo 4)
-        const response = await estadoClienteM5Service.getCandidatosEnModulo5(process.id)
-        if (response.success && response.data) {
-          setCandidates(response.data)
-        } else {
-          console.error('Error al cargar candidatos del módulo 5:', response.message)
-          setCandidates([])
-        }
-      } catch (error) {
-        console.error('Error al cargar candidatos:', error)
-        setCandidates([])
-      } finally {
-        setIsLoading(false)
-      }
-    }
     loadData()
   }, [process.id])
 
@@ -81,38 +132,39 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const [showClosureDialog, setShowClosureDialog] = useState(false)
   const [closureReason, setClosureReason] = useState("")
 
-  const handleContractSubmit = () => {
+  const handleContractSubmit = async () => {
     if (!selectedCandidate) return
 
-    const contractedCandidate: ContractedCandidate = {
-      id: selectedCandidate.id,
-      name: selectedCandidate.name,
-      hiring_status: contractForm.hiring_status,
-      contract_date: contractForm.contract_date,
-      client_response_date: contractForm.client_response_date,
-      continues: contractForm.continues,
-      observations: contractForm.observations,
-      satisfaction_survey_pending: contractForm.hiring_status === "contratado",
-    }
+    try {
+      // Llamar al API para actualizar el candidato en el backend
+      const response = await estadoClienteM5Service.actualizarCandidatoModulo5(
+        selectedCandidate.id_postulacion,
+        {
+          hiring_status: contractForm.hiring_status,
+          client_response_date: contractForm.client_response_date || undefined,
+          observations: contractForm.observations
+        }
+      )
 
-    // Verificar si ya existe un candidato contratado con este ID
-    const existingIndex = contractedCandidates.findIndex((cc) => cc.id === selectedCandidate.id)
-    
-    if (existingIndex >= 0) {
-      // Actualizar candidato existente
-      const updatedContracted = [...contractedCandidates]
-      updatedContracted[existingIndex] = contractedCandidate
-      setContractedCandidates(updatedContracted)
-    } else {
-      // Agregar nuevo candidato
-      setContractedCandidates([...contractedCandidates, contractedCandidate])
+      if (response.success) {
+        // Mostrar mensaje de éxito
+        toast.success("Estado del candidato actualizado exitosamente")
+        
+        // Recargar datos desde el backend para obtener la información actualizada
+        await reloadData()
+      } else {
+        toast.error(response.message || "Error al actualizar el estado del candidato")
+      }
+    } catch (error) {
+      console.error('Error al actualizar candidato:', error)
+      toast.error("Error al actualizar el estado del candidato")
     }
 
     setShowContractDialog(false)
     setContractForm({
       hiring_status: "en_espera_feedback",
       contract_date: "",
-      client_response_date: "",
+      client_response_date: null,
       continues: true,
       observations: "",
     })
@@ -121,6 +173,33 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
 
   const openContractDialog = (candidate: Candidate) => {
     setSelectedCandidate(candidate)
+    
+    // Cargar datos existentes si el candidato ya tiene información guardada
+    const existingData = contractedCandidates.find(c => c.id === candidate.id)
+    if (existingData) {
+      console.log('[DEBUG FRONTEND] Datos existentes del candidato:', existingData)
+      console.log('[DEBUG FRONTEND] client_response_date:', existingData.client_response_date)
+      setContractForm({
+        hiring_status: existingData.hiring_status,
+        contract_date: existingData.contract_date || "",
+        client_response_date: existingData.client_response_date || null,
+        continues: existingData.continues,
+        observations: existingData.observations || "",
+      })
+    } else {
+      // Si no hay datos, usar los datos del candidato si están disponibles
+      const candidateData = candidate as any
+      console.log('[DEBUG FRONTEND] Datos del candidato directo:', candidateData)
+      console.log('[DEBUG FRONTEND] client_response_date del candidato:', candidateData.client_response_date)
+      setContractForm({
+        hiring_status: candidateData.hiring_status || "en_espera_feedback",
+        contract_date: candidateData.contract_date || "",
+        client_response_date: candidateData.client_response_date || null,
+        continues: true,
+        observations: candidateData.observations || "",
+      })
+    }
+    
     setShowContractDialog(true)
   }
 
@@ -136,7 +215,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       setContractForm({
         hiring_status: contractedCandidate.hiring_status,
         contract_date: contractedCandidate.contract_date ?? "",
-        client_response_date: contractedCandidate.client_response_date ?? "",
+        client_response_date: contractedCandidate.client_response_date ?? null,
         continues: contractedCandidate.continues,
         observations: contractedCandidate.observations ?? "",
       })
@@ -144,7 +223,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       setContractForm({
         hiring_status: "en_espera_feedback",
         contract_date: "",
-        client_response_date: "",
+        client_response_date: null,
         continues: true,
         observations: "",
       })
@@ -197,7 +276,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const [contractForm, setContractForm] = useState({
     hiring_status: "en_espera_feedback" as HiringStatus,
     contract_date: "",
-    client_response_date: "",
+    client_response_date: null as string | null,
     continues: true,
     observations: "",
   })
@@ -672,8 +751,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
               <Input
                 id="client_response_date"
                 type="date"
-                value={contractForm.client_response_date}
-                onChange={(e) => setContractForm({ ...contractForm, client_response_date: e.target.value })}
+                value={contractForm.client_response_date || ''}
+                onChange={(e) => setContractForm({ ...contractForm, client_response_date: e.target.value || null })}
               />
             </div>
 

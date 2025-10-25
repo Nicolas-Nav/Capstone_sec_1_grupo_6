@@ -156,7 +156,42 @@ export default class EstadoClienteM5Controller {
             return sendSuccess(res, candidatos, 'Candidatos del Módulo 5 obtenidos exitosamente');
         } catch (error) {
             Logger.error('Error al obtener candidatos del Módulo 5:', error);
-            return sendError(res, 'Error al obtener candidatos del Módulo 5', 500);
-        }
+        return sendError(res, 'Error al obtener candidatos del Módulo 5', 500);
     }
+}
+
+/**
+ * PUT /api/estado-cliente-m5/postulacion/:id_postulacion/actualizar
+ * Actualizar información completa del candidato en módulo 5
+ */
+static async actualizarCandidatoModulo5(req: Request, res: Response): Promise<Response> {
+    try {
+        const { id_postulacion } = req.params;
+        const { hiring_status, client_response_date, observations } = req.body;
+
+        if (!hiring_status) {
+            return sendError(res, 'El estado de contratación es requerido', 400);
+        }
+
+        const result = await EstadoClienteM5Service.actualizarCandidatoModulo5(
+            parseInt(id_postulacion),
+            {
+                hiring_status,
+                client_response_date,
+                observations
+            }
+        );
+
+        Logger.info(`Candidato del módulo 5 actualizado - Postulación: ${id_postulacion}, Estado: ${hiring_status}`);
+        return sendSuccess(res, result, 'Candidato del módulo 5 actualizado exitosamente');
+    } catch (error: any) {
+        Logger.error('Error al actualizar candidato del módulo 5:', error);
+        
+        if (error.message.includes('no válido')) {
+            return sendError(res, error.message, 400);
+        }
+        
+        return sendError(res, 'Error al actualizar candidato del módulo 5', 500);
+    }
+}
 }

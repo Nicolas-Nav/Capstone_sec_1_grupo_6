@@ -413,6 +413,18 @@ export const estadoClienteM5Service = {
   async getCandidatosEnModulo5(id_proceso: number): Promise<ApiResponse<any[]>> {
     return apiRequest(`/api/estado-cliente-m5/proceso/${id_proceso}/candidatos`);
   },
+
+  // Actualizar información completa del candidato en módulo 5
+  async actualizarCandidatoModulo5(id_postulacion: number, data: {
+    hiring_status: string;
+    client_response_date?: string;
+    observations?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/actualizar`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // ===========================================

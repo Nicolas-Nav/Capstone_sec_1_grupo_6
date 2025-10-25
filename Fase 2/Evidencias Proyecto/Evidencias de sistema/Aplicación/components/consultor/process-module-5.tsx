@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getCandidatesByProcess } from "@/lib/api"
+import { getCandidatesByProcess, estadoClienteM5Service } from "@/lib/api"
 import { formatDate } from "@/lib/utils"
 import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
@@ -57,13 +57,17 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     const loadData = async () => {
       try {
         setIsLoading(true)
-        const allCandidates = await getCandidatesByProcess(process.id)
-        const filteredCandidates = allCandidates.filter((c: Candidate) => 
-          c.status === "aprobado" || c.client_response === "aprobado"
-        )
-        setCandidates(filteredCandidates)
+        // Obtener candidatos que están en el módulo 5 (avanzados desde módulo 4)
+        const response = await estadoClienteM5Service.getCandidatosEnModulo5(process.id)
+        if (response.success && response.data) {
+          setCandidates(response.data)
+        } else {
+          console.error('Error al cargar candidatos del módulo 5:', response.message)
+          setCandidates([])
+        }
       } catch (error) {
         console.error('Error al cargar candidatos:', error)
+        setCandidates([])
       } finally {
         setIsLoading(false)
       }

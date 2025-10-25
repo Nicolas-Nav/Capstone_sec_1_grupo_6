@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { getCandidatesByProcess } from "@/lib/api"
-import { evaluacionPsicolaboralService, referenciaLaboralService } from "@/lib/api"
+import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service } from "@/lib/api"
 import { formatDate } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -197,6 +197,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
   const [workReferences, setWorkReferences] = useState<{ [candidateId: string]: WorkReference[] }>({})
   const [candidateTests, setCandidateTests] = useState<{ [candidateId: string]: any[] }>({})
+  
+  // Estados para el módulo 5
+  const [canAdvanceToModule5, setCanAdvanceToModule5] = useState(false)
+  const [candidatesWithRealizedInterview, setCandidatesWithRealizedInterview] = useState<Candidate[]>([])
   const [candidateInterviews, setCandidateInterviews] = useState<{ [candidateId: string]: any }>({})
   const [availableTests, setAvailableTests] = useState<any[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -232,6 +236,25 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     report_observations: "",
     report_sent_date: "",
   })
+
+  // Determinar si es proceso de evaluación
+  const isEvaluationProcess = process.service_type === "ES" || process.service_type === "TS"
+
+  // Detectar candidatos con entrevista realizada para habilitar botón de módulo 5
+  useEffect(() => {
+    if (!isEvaluationProcess && candidates.length > 0) {
+      const realizedCandidates = candidates.filter(candidate => {
+        const interview = candidateInterviews[candidate.id]
+        return interview?.interview_status === "Realizada"
+      })
+      
+      setCandidatesWithRealizedInterview(realizedCandidates)
+      setCanAdvanceToModule5(realizedCandidates.length > 0)
+    } else {
+      setCandidatesWithRealizedInterview([])
+      setCanAdvanceToModule5(false)
+    }
+  }, [candidates, candidateInterviews, isEvaluationProcess])
 
   const handleAddTest = () => {
     setTestForm({
@@ -801,8 +824,80 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
   }
 
-  const isEvaluationProcess =
-    process.service_type === "ES" || process.service_type === "TS"
+  // Función para avanzar candidatos al módulo 5
+  const handleAdvanceToModule5 = async () => {
+    if (candidatesWithRealizedInterview.length === 0) {
+      toast({
+        title: "Error",
+        description: "No hay candidatos con entrevista realizada para avanzar",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      // Avanzar cada candidato con entrevista realizada
+      const promises = candidatesWithRealizedInterview.map(async (candidate) => {
+        try {
+          const response = await estadoClienteM5Service.avanzarAlModulo5(
+            Number(candidate.id_postulacion),
+            "Candidato avanzado al módulo 5 - En espera de feedback del cliente"
+          )
+          
+          if (!response.success) {
+            throw new Error(response.message || 'Error al cambiar estado')
+          }
+          
+          return { candidate, success: true }
+        } catch (error) {
+          console.error(`Error al avanzar candidato ${candidate.id}:`, error)
+          return { candidate, success: false, error: error instanceof Error ? error.message : 'Error desconocido' }
+        }
+      })
+
+      const results = await Promise.all(promises)
+      const successful = results.filter(r => r.success)
+      const failed = results.filter(r => !r.success)
+
+      if (successful.length > 0) {
+        toast({
+          title: "Candidatos avanzados",
+          description: `${successful.length} candidato(s) avanzado(s) al módulo 5 exitosamente`,
+        })
+        
+        // Navegar automáticamente al módulo 5 después de 2 segundos
+        setTimeout(() => {
+          window.location.href = `/consultor/proceso/${process.id}?tab=modulo-5`
+        }, 2000)
+      }
+
+      if (failed.length > 0) {
+        toast({
+          title: "Algunos candidatos no pudieron avanzar",
+          description: `${failed.length} candidato(s) no pudieron avanzar: ${failed.map(f => f.error).join(', ')}`,
+          variant: "destructive",
+        })
+      }
+
+      // Actualizar estado local para reflejar los cambios
+      setCandidatesWithRealizedInterview([])
+      setCanAdvanceToModule5(false)
+      
+      // Recargar candidatos para obtener datos actualizados
+      const updatedCandidates = await getCandidatesByProcess(process.id)
+      if (Array.isArray(updatedCandidates)) {
+        setCandidates(updatedCandidates)
+      }
+
+    } catch (error) {
+      console.error('Error al avanzar candidatos al módulo 5:', error)
+      toast({
+        title: "Error",
+        description: "Error al avanzar candidatos al módulo 5",
+        variant: "destructive",
+      })
+    }
+  }
 
   // Mostrar indicador de carga
   if (isLoading) {
@@ -884,6 +979,32 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         <CardContent>
           {candidates.length > 0 ? (
             <div className="space-y-6">
+              {/* Botón para avanzar al Módulo 5 */}
+              {!isEvaluationProcess && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-900">Avanzar al Módulo 5</h3>
+                      <p className="text-sm text-blue-700">
+                        Los candidatos con entrevista realizada pueden avanzar al módulo de feedback del cliente
+                      </p>
+                      {candidatesWithRealizedInterview.length > 0 && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          {candidatesWithRealizedInterview.length} candidato(s) listo(s) para avanzar
+                        </p>
+                      )}
+                    </div>
+                    <Button 
+                      onClick={handleAdvanceToModule5}
+                      disabled={!canAdvanceToModule5}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      Avanzar al Módulo 5
+                    </Button>
+                  </div>
+                </div>
+              )}
               {candidates.map((candidate) => {
                 const evaluation = evaluations[candidate.id]
                 const candidateReferences = workReferences[candidate.id] || []

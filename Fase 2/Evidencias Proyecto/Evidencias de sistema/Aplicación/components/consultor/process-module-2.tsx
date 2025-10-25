@@ -2389,7 +2389,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                         <div className="space-y-2">
 
-                          <Label htmlFor="candidate_phone">Teléfono <span className="text-red-500">*</span></Label>
+                          <Label htmlFor="candidate_phone">Teléfono (8-12 caracteres) <span className="text-red-500">*</span></Label>
                           <Input
 
                             id="candidate_phone"
@@ -2398,7 +2398,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                             onChange={(e) => setNewCandidate({ ...newCandidate, phone: e.target.value })}
 
-                            placeholder="+56 9 1234 5678"
+                            placeholder="+56912345678"
 
                           />
 
@@ -4229,7 +4229,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
 
-                    <Label htmlFor="edit_candidate_phone">Teléfono</Label>
+                    <Label htmlFor="edit_candidate_phone">Teléfono (8-12 caracteres)</Label>
 
                     <Input
 
@@ -4239,7 +4239,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       onChange={(e) => setEditingCandidate({ ...editingCandidate, phone: e.target.value })}
 
-                      placeholder="+56 9 1234 5678"
+                      placeholder="+56912345678"
                     />
 
                   </div>

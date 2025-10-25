@@ -42,6 +42,7 @@ export interface ClientContact {
   phone: string
   position: string // Cargo del contacto
   city: string // comuna/Comuna del contacto
+  region: string // región del contacto
   is_primary?: boolean
 }
 

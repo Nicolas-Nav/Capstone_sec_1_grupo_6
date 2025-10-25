@@ -78,19 +78,19 @@ DescripcionCargo.init({
         allowNull: false
     },
     descripcion_cargo: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(500),
         allowNull: false,
         validate: {
             notEmpty: true,
-            len: [10, 100]
+            len: [10, 500]
         }
     },
     requisitos_y_condiciones: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(500),
         allowNull: false,
         validate: {
             notEmpty: true,
-            len: [10, 100]
+            len: [10, 500]
         }
     },
     num_vacante: {

@@ -101,7 +101,7 @@ export class ClienteController {
                 return sendError(res, 'Ya existe un registro con esos datos', 400);
             }
             
-            return sendError(res, error.message || 'Error al crear cliente', 400);
+            return sendError(res, error.message || 'Error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente.', 400);
         }
     }
 
@@ -149,7 +149,7 @@ export class ClienteController {
                 return sendError(res, error.message, 404);
             }
             
-            return sendError(res, error.message || 'Error al actualizar cliente', 400);
+            return sendError(res, error.message || 'Error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente.', 400);
         }
     }
 

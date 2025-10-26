@@ -177,11 +177,11 @@ export function useClientes() {
         })
         return { success: true, message: data?.message }
       } else {
-        return { success: false, message: data?.message || "Error creando cliente" }
+        return { success: false, message: data?.message || "Ha ocurrido un error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente." }
       }
-    } catch (err) {
-      console.error(err)
-      return { success: false, message: "Error creando cliente" }
+    } catch (err: any) {
+      console.error('Error creating client:', err)
+      return { success: false, message: "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde." }
     }
   }
 
@@ -236,11 +236,11 @@ export function useClientes() {
         })
         return { success: true, message: data?.message }
       } else {
-        return { success: false, message: data?.message || "Error actualizando cliente" }
+        return { success: false, message: data?.message || "Ha ocurrido un error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente." }
       }
-    } catch (err) {
-      console.error(err)
-      return { success: false, message: "Error actualizando cliente" }
+    } catch (err: any) {
+      console.error('Error updating client:', err)
+      return { success: false, message: "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde." }
     }
   }
 
@@ -260,11 +260,11 @@ export function useClientes() {
         setClients(clients.filter((client) => client.id !== clientId))
         return { success: true, message: data?.message }
       } else {
-        return { success: false, message: data?.message || "Error eliminando cliente" }
+        return { success: false, message: data?.message || "Ha ocurrido un error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente." }
       }
-    } catch (err) {
-      console.error(err)
-      return { success: false, message: "Error eliminando cliente" }
+    } catch (err: any) {
+      console.error('Error deleting client:', err)
+      return { success: false, message: "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde." }
     }
   }
 

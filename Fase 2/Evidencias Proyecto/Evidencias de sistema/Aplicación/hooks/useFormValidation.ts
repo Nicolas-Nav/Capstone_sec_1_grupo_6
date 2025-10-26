@@ -24,6 +24,7 @@ export interface UseFormValidationReturn {
   validateAllFields: (data: any, schema: ValidationSchema) => boolean
   clearError: (field: string) => void
   clearAllErrors: () => void
+  setFieldError: (field: string, message: string) => void
   hasErrors: () => boolean
 }
 
@@ -155,6 +156,32 @@ export const validationSchemas = {
     position: validationRules.requiredTextLength(2, 50, 'El cargo del contacto es obligatorio'),
     city: validationRules.required('Debe seleccionar una comuna para el contacto'),
     region: validationRules.required('Debe seleccionar una región para el contacto')
+  },
+
+  // Validaciones para formulario de usuario
+  userForm: {
+    rut: {
+      required: true,
+      custom: (value: string) => {
+        if (!value?.trim()) {
+          return 'El RUT es obligatorio'
+        }
+        return validateRut(value) ? null : 'Ingrese un RUT válido (ej: 12345678-9)'
+      }
+    },
+    nombre: validationRules.requiredTextLength(2, 50, 'El nombre'),
+    apellido: validationRules.requiredTextLength(2, 50, 'El apellido'),
+    email: {
+      ...validationRules.required('El correo electrónico es obligatorio'),
+      ...validationRules.email('Ingrese un correo electrónico válido (ej: usuario@llconsulting.com)')
+    },
+    password: {
+      required: true,
+      minLength: 6,
+      message: 'La contraseña debe tener al menos 6 caracteres'
+    },
+    role: validationRules.required('Debe seleccionar un rol'),
+    status: validationRules.required('Debe seleccionar un estado')
   }
 }
 
@@ -212,6 +239,13 @@ export function useFormValidation(): UseFormValidationReturn {
     setErrors({})
   }, [])
 
+  const setFieldError = useCallback((field: string, message: string) => {
+    setErrors(prev => ({
+      ...prev,
+      [field]: message
+    }))
+  }, [])
+
   const hasErrors = useCallback(() => {
     return Object.keys(errors).length > 0
   }, [errors])
@@ -222,6 +256,7 @@ export function useFormValidation(): UseFormValidationReturn {
     validateAllFields,
     clearError,
     clearAllErrors,
+    setFieldError,
     hasErrors
   }
 }

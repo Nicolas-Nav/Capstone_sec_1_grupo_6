@@ -15,6 +15,7 @@ import { solicitudService } from "@/lib/api"
 import { useSolicitudes } from "@/hooks/useSolicitudes"
 import { Label } from "@/components/ui/label"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
+import { toast } from "sonner"
 
 interface Solicitud {
   id: number
@@ -65,10 +66,6 @@ export default function SolicitudesPage() {
   // Estados para las alertas
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [solicitudToDelete, setSolicitudToDelete] = useState<string | null>(null)
-  const [alertOpen, setAlertOpen] = useState(false)
-  const [alertType, setAlertType] = useState<"success" | "error">("success")
-  const [alertTitle, setAlertTitle] = useState("")
-  const [alertDescription, setAlertDescription] = useState("")
 
   const handleDelete = (id: string) => {
     setSolicitudToDelete(id)
@@ -85,23 +82,15 @@ export default function SolicitudesPage() {
       setSolicitudToDelete(null)
       
       if (result.success) {
-        setAlertType("success")
-        setAlertTitle("Solicitud eliminada")
-        setAlertDescription(result.message || 'La solicitud ha sido eliminada exitosamente')
+        toast.success(result.message || 'La solicitud ha sido eliminada exitosamente')
       } else {
-        setAlertType("error")
-        setAlertTitle("Error al eliminar")
-        setAlertDescription(result.message || 'Hubo un error al eliminar la solicitud')
+        toast.error(result.message || 'Hubo un error al eliminar la solicitud')
       }
-      setAlertOpen(true)
     } catch (error: any) {
       console.error('Error deleting solicitud:', error)
       setIsDeleteConfirmOpen(false)
       setSolicitudToDelete(null)
-      setAlertType("error")
-      setAlertTitle("Error al eliminar")
-      setAlertDescription(error.message || 'Hubo un error al eliminar la solicitud')
-      setAlertOpen(true)
+      toast.error(error.message || 'Hubo un error al eliminar la solicitud')
     }
   }
 
@@ -386,15 +375,6 @@ export default function SolicitudesPage() {
           descripcionCargoId={selectedDescripcionCargoId}
         />
       )}
-
-      {/* Alert para resultados de operaciones */}
-      <CustomAlertDialog
-        open={alertOpen}
-        onOpenChange={setAlertOpen}
-        type={alertType}
-        title={alertTitle}
-        description={alertDescription}
-      />
 
       {/* Alert de confirmación para eliminar */}
       <CustomAlertDialog

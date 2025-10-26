@@ -58,9 +58,6 @@ export default function ClientesPage() {
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isResultOpen, setIsResultOpen] = useState(false)
-  const [resultSuccess, setResultSuccess] = useState<boolean>(false)
-  const [resultMessage, setResultMessage] = useState<string>("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comunas, setComunas] = useState<Comuna[]>([])
   const [regiones, setRegiones] = useState<Region[]>([])
@@ -220,12 +217,12 @@ export default function ClientesPage() {
   const validateForm = () => {
     let isValid = true
     
-    // Validar nombre de empresa manualmente
+    // Validar nombre de empresa usando validateField para que el error se muestre
+    validateField('name', newClient.name, validationSchemas.clientForm)
     const nameRule = validationSchemas.clientForm.name
     const nameError = validateSingleFieldHelper(newClient.name, nameRule)
     
     if (nameError) {
-      toast.error(nameError)
       isValid = false
     }
     
@@ -270,19 +267,14 @@ export default function ClientesPage() {
       const result = await createClient()
       
       if (result.success) {
-        setResultSuccess(true)
-        setResultMessage(result.message || 'Cliente creado exitosamente')
+        toast.success(result.message || 'Cliente creado exitosamente')
         setIsCreateDialogOpen(false)
       } else {
-        setResultSuccess(false)
-        setResultMessage(result.message || 'Error al crear el cliente')
+        toast.error(result.message || 'Error al crear el cliente')
       }
-      setIsResultOpen(true)
     } catch (error) {
       console.error('Error creating client:', error)
-      setResultSuccess(false)
-      setResultMessage('Error al crear el cliente')
-      setIsResultOpen(true)
+      toast.error('Error al crear el cliente')
     } finally {
       setIsSubmitting(false)
     }
@@ -316,19 +308,14 @@ export default function ClientesPage() {
       const result = await updateClient()
       
       if (result.success) {
-        setResultSuccess(true)
-        setResultMessage(result.message || 'Cliente actualizado exitosamente')
+        toast.success(result.message || 'Cliente actualizado exitosamente')
         setIsEditDialogOpen(false)
       } else {
-        setResultSuccess(false)
-        setResultMessage(result.message || 'Error al actualizar el cliente')
+        toast.error(result.message || 'Error al actualizar el cliente')
       }
-      setIsResultOpen(true)
     } catch (error) {
       console.error('Error updating client:', error)
-      setResultSuccess(false)
-      setResultMessage('Error al actualizar el cliente')
-      setIsResultOpen(true)
+      toast.error('Error al actualizar el cliente')
     } finally {
       setIsSubmitting(false)
     }
@@ -346,18 +333,13 @@ export default function ClientesPage() {
       const result = await deleteClient(clientToDelete)
       
       if (result.success) {
-        setResultSuccess(true)
-        setResultMessage(result.message || 'Cliente eliminado exitosamente')
+        toast.success(result.message || 'Cliente eliminado exitosamente')
       } else {
-        setResultSuccess(false)
-        setResultMessage(result.message || 'Error al eliminar el cliente')
+        toast.error(result.message || 'Error al eliminar el cliente')
       }
-      setIsResultOpen(true)
     } catch (error) {
       console.error('Error deleting client:', error)
-      setResultSuccess(false)
-      setResultMessage('Error al eliminar el cliente')
-      setIsResultOpen(true)
+      toast.error('Error al eliminar el cliente')
     } finally {
       setClientToDelete(null)
     }
@@ -419,7 +401,10 @@ export default function ClientesPage() {
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
           setIsCreateDialogOpen(open)
-          if (!open) {
+          if (open) {
+            // Limpiar formulario cuando se abre el diálogo de crear
+            resetForm()
+          } else {
             // Limpiar errores al cerrar
             clearAllErrors()
             setContactErrors({})
@@ -1121,16 +1106,6 @@ export default function ClientesPage() {
       </Dialog>
 
       {/* Alertas */}
-      
-      {/* Resultado de operaciones (crear/editar/eliminar) */}
-      <CustomAlertDialog
-        open={isResultOpen}
-        onOpenChange={setIsResultOpen}
-        type={resultSuccess ? "success" : "error"}
-        title={resultSuccess ? "Operación exitosa" : "Error en la operación"}
-        description={resultMessage}
-        confirmText="Aceptar"
-      />
 
       {/* Confirmación de eliminación */}
       <CustomAlertDialog

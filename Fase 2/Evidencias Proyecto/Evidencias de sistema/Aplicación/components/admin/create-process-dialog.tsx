@@ -19,7 +19,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 import { validateRut } from "@/lib/utils"
-import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import type { ServiceType } from "@/lib/types"
 import { descripcionCargoService, solicitudService, regionService, comunaService, candidatoService, postulacionService } from "@/lib/api"
 import * as XLSX from 'xlsx'
@@ -107,11 +106,6 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
   const [loadingRegionComuna, setLoadingRegionComuna] = useState(true)
   const [loadingSolicitudData, setLoadingSolicitudData] = useState(false)
   
-  // Estados para alertas
-  const [alertOpen, setAlertOpen] = useState(false)
-  const [alertType, setAlertType] = useState<"success" | "error" | "confirm">("success")
-  const [alertTitle, setAlertTitle] = useState("")
-  const [alertDescription, setAlertDescription] = useState("")
 
   // Hook de validación
   const { errors: validationErrors, validateField, validateAllFields, clearAllErrors } = useFormValidation()
@@ -560,10 +554,8 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
             }
             
             // Si todo salió bien, mostrar éxito
-            setAlertType("success")
-            setAlertTitle("¡Proceso completado exitosamente!")
-            setAlertDescription(`Se creó la solicitud con ${candidatos.length} candidato(s) y sus respectivas postulaciones.`)
-            setAlertOpen(true)
+            toast.success(`Se creó la solicitud con ${candidatos.length} candidato(s) y sus respectivas postulaciones.`)
+            onOpenChange(false)
             
           } catch (error: any) {
             console.error('Error creating candidatos/postulaciones:', error)
@@ -583,17 +575,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
               // Eliminar la solicitud creada
               await fetch(`/api/solicitudes/${solicitudId}`, { method: 'DELETE' })
               
-              setAlertType("error")
-              setAlertTitle("Error en el proceso")
-              setAlertDescription(`Hubo un error al crear los candidatos/postulaciones. Se realizó rollback completo: ${error.message}`)
-              setAlertOpen(true)
+              toast.error(`Hubo un error al crear los candidatos/postulaciones. Se realizó rollback completo: ${error.message}`)
               
             } catch (rollbackError: any) {
               console.error('Error during rollback:', rollbackError)
-              setAlertType("error")
-              setAlertTitle("Error crítico")
-              setAlertDescription(`Error al crear candidatos/postulaciones y falló el rollback. Contacte al administrador. Error: ${error.message}`)
-              setAlertOpen(true)
+              toast.error(`Error al crear candidatos/postulaciones y falló el rollback. Contacte al administrador. Error: ${error.message}`)
             }
           }
         } else {
@@ -610,29 +596,19 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                 const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
                 
                 if (excelResponse.success) {
-                  setAlertType("success")
-                  setAlertTitle("¡Proceso completado exitosamente!")
-                  setAlertDescription(isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente')
-                  setAlertOpen(true)
+                  toast.success(isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente')
+                  onOpenChange(false)
                 } else {
-                  setAlertType("error")
-                  setAlertTitle("Error parcial")
-                  setAlertDescription(isEditMode ? 'Solicitud actualizada, pero hubo un error al guardar los datos del Excel' : 'Solicitud creada, pero hubo un error al guardar los datos del Excel')
-                  setAlertOpen(true)
+                  toast.error(isEditMode ? 'Solicitud actualizada, pero hubo un error al guardar los datos del Excel' : 'Solicitud creada, pero hubo un error al guardar los datos del Excel')
                 }
               }
             } catch (excelError: any) {
               console.error('Error processing Excel:', excelError)
-              setAlertType("error")
-              setAlertTitle("Error al procesar Excel")
-              setAlertDescription((isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + excelError.message)
-              setAlertOpen(true)
+              toast.error((isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + excelError.message)
             }
           } else {
-            setAlertType("success")
-            setAlertTitle("¡Proceso completado exitosamente!")
-            setAlertDescription(isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente')
-            setAlertOpen(true)
+            toast.success(isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente')
+            onOpenChange(false)
           }
         }
         
@@ -672,19 +648,13 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           cv_file: null
         }])
         
-        // No cerrar automáticamente, las alertas manejarán el cierre
+        // No cerrar automáticamente si hay errores
       } else {
-        setAlertType("error")
-        setAlertTitle("Error en la operación")
-        setAlertDescription(response.message || 'Error al crear la solicitud')
-        setAlertOpen(true)
+        toast.error(response.message || 'Error al crear la solicitud')
       }
     } catch (error: any) {
       console.error('Error creating request:', error)
-      setAlertType("error")
-      setAlertTitle("Error en la operación")
-      setAlertDescription(error.message || 'Error al crear la solicitud')
-      setAlertOpen(true)
+      toast.error(error.message || 'Error al crear la solicitud')
     } finally {
       setIsSubmitting(false)
     }
@@ -852,15 +822,6 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     return null
   }
 
-  // Función para manejar el cierre de alertas
-  const handleAlertClose = () => {
-    setAlertOpen(false)
-    // Si fue exitoso, cerrar el diálogo y recargar
-    if (alertType === "success") {
-      onOpenChange(false)
-      window.location.reload()
-    }
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1492,17 +1453,6 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           </DialogFooter>
         </form>
       </DialogContent>
-      
-      {/* CustomAlertDialog para mostrar resultados */}
-      <CustomAlertDialog
-        open={alertOpen}
-        onOpenChange={handleAlertClose}
-        type={alertType}
-        title={alertTitle}
-        description={alertDescription}
-        confirmText="Aceptar"
-        onConfirm={handleAlertClose}
-      />
     </Dialog>
   )
 }

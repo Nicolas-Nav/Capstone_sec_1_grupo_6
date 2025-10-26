@@ -133,7 +133,7 @@ export class SolicitudController {
             return sendSuccess(res, nuevaSolicitud, 'Solicitud creada exitosamente', 201);
         } catch (error: any) {
             Logger.error('Error al crear solicitud:', error);
-            return sendError(res, error.message || 'Error al crear solicitud', 400);
+            return sendError(res, error.message || 'Error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente.', 400);
         }
     }
 
@@ -168,7 +168,7 @@ export class SolicitudController {
                 return sendError(res, error.message, 400);
             }
             
-            return sendError(res, 'Error al actualizar estado', 500);
+            return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
         }
     }
 
@@ -192,7 +192,7 @@ export class SolicitudController {
                 return sendError(res, error.message, 404);
             }
             
-            return sendError(res, 'Error al cambiar etapa', 500);
+            return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
         }
     }
 
@@ -214,7 +214,7 @@ export class SolicitudController {
                 return sendError(res, error.message, 404);
             }
             
-            return sendError(res, 'Error al eliminar solicitud', 500);
+            return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
         }
     }
 
@@ -258,7 +258,7 @@ export class SolicitudController {
                 return sendError(res, error.message, 404);
             }
 
-            return sendError(res, error.message || 'Error al actualizar solicitud', 400);
+            return sendError(res, error.message || 'Error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente.', 400);
         }
     }
     /**
@@ -288,7 +288,7 @@ export class SolicitudController {
                 return sendError(res, error.message, 404);
             }
             
-            return sendError(res, 'Error al avanzar al módulo 2', 500);
+            return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
         }
     }
 
@@ -319,7 +319,7 @@ export class SolicitudController {
                 return sendError(res, error.message, 404);
             }
             
-            return sendError(res, 'Error al avanzar al módulo 3', 500);
+            return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
         }
     }
 
@@ -350,7 +350,7 @@ export class SolicitudController {
                 return sendError(res, error.message, 404);
             }
             
-            return sendError(res, 'Error al avanzar al módulo 4', 500);
+            return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
         }
     }
 
@@ -365,7 +365,7 @@ export class SolicitudController {
             return sendSuccess(res, etapas, 'Etapas obtenidas exitosamente');
         } catch (error: any) {
             Logger.error('Error al obtener etapas:', error);
-            return sendError(res, 'Error al obtener etapas', 500);
+            return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
         }
     }
 
@@ -380,7 +380,7 @@ export class SolicitudController {
             return sendSuccess(res, estados, 'Estados obtenidos exitosamente');
         } catch (error: any) {
             Logger.error('Error al obtener estados de solicitud:', error);
-            return sendError(res, 'Error al obtener estados de solicitud', 500);
+            return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
         }
     }
 

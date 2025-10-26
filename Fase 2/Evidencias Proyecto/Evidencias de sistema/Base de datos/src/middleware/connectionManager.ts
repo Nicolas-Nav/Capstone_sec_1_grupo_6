@@ -20,34 +20,23 @@ export const connectionManager = (req: Request, res: Response, next: NextFunctio
         }
     }
 
-    // Agregar listener para cuando la respuesta termine
-    res.on('finish', () => {
-        // Forzar liberación de conexiones inactivas
-        try {
-            const pool = (sequelize as any).connectionManager.pool;
-            if (pool) {
-                pool.clear();
-            }
-        } catch (error) {
-            // Ignorar errores de limpieza
-        }
-    });
-
     next();
 };
 
 /**
  * Función para limpiar conexiones inactivas
+ * Nota: Sequelize maneja automáticamente el pool de conexiones
  */
 export const cleanupConnections = async () => {
     try {
+        // Sequelize maneja automáticamente las conexiones inactivas
+        // No necesitamos limpiar manualmente el pool
         const pool = (sequelize as any).connectionManager.pool;
-        if (pool && pool.size > 0) {
-            Logger.info(`Limpiando ${pool.size} conexiones inactivas`);
-            await pool.clear();
+        if (pool) {
+            Logger.debug(`Pool stats: ${pool.size}/${pool.max} conexiones activas`);
         }
     } catch (error) {
-        Logger.error('Error limpiando conexiones:', error);
+        Logger.error('Error obteniendo estadísticas del pool:', error);
     }
 };
 

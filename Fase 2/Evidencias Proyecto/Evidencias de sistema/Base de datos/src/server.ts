@@ -3,7 +3,7 @@ import { config } from '@/config';
 import { testConnection, syncDatabase } from '@/config/database';
 import sequelize from '@/config/database';
 import { Logger } from '@/utils/logger';
-import { cleanupConnections } from '@/middleware/connectionManager';
+import { getPoolStats } from '@/middleware/connectionManager';
 // Importar modelos para que Sequelize los reconozca
 import '@/models';
 
@@ -31,14 +31,17 @@ const startServer = async (): Promise<void> => {
             Logger.info(`API disponible en: http://localhost:${config.server.port}/api`);
         });
 
-        // Limpieza periódica de conexiones cada 15 minutos (menos frecuente para Aiven)
-        const cleanupInterval = setInterval(async () => {
-            await cleanupConnections();
+        // Log de estadísticas del pool cada 15 minutos (el pool se gestiona automáticamente)
+        const poolStatsInterval = setInterval(async () => {
+            const stats = getPoolStats();
+            if (stats) {
+                Logger.info(`Pool stats: ${stats.used}/${stats.max} conexiones activas`);
+            }
         }, 15 * 60 * 1000); // 15 minutos
 
         // Limpiar el intervalo cuando el servidor se cierre
         server.on('close', () => {
-            clearInterval(cleanupInterval);
+            clearInterval(poolStatsInterval);
         });
 
         // Manejo de cierre graceful

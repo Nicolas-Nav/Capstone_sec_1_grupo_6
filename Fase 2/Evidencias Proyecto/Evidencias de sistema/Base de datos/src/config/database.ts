@@ -22,10 +22,10 @@ const sequelize = new Sequelize({
   dialect: 'postgres',
   logging: NODE_ENV === 'development' ? console.log : false,
   pool: {
-    max: 20,
-    min: 2,
+    max: 10, // Reducido de 20 a 10 para evitar exceder límites
+    min: 1,  // Reducido de 2 a 1 para conservar conexiones
     acquire: 30000,
-    idle: 10000,
+    idle: 5000,  // Reducido de 10000 a 5000 para liberar conexiones más rápido
     evict: 1000
   },
   define: {

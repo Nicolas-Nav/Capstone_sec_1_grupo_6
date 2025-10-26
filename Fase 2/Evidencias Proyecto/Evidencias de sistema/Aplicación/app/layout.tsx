@@ -17,9 +17,9 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "LLConsulting - Plataforma de Reclutamiento", // Keeping title for SEO but logo will replace visual text
+  title: "LLConsulting - Plataforma de Reclutamiento",
   description: "Sistema de gestión de procesos de reclutamiento",
-    generator: 'v0.app'
+  generator: 'v0.app',
 }
 
 export default function RootLayout({

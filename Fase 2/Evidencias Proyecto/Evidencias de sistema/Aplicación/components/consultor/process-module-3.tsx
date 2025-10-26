@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Fragment } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -633,9 +633,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {candidates.map((candidate) => (
-                    <>
-                      <TableRow key={candidate.id}>
+                  {candidates.map((candidate) => {
+                    return (
+                      <Fragment key={candidate.id}>
+                        <TableRow key={`row-${candidate.id}`}>
                         <TableCell>
                           <Collapsible>
                             <CollapsibleTrigger
@@ -719,7 +720,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                         </TableCell>
                       </TableRow>
                       {expandedCandidate === candidate.id && (
-                        <TableRow>
+                        <TableRow key={`expanded-${candidate.id}`}>
                           <TableCell colSpan={7} className="bg-muted/30">
                             <Collapsible open={expandedCandidate === candidate.id}>
                               <CollapsibleContent>
@@ -840,8 +841,9 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
-                  ))}
+                      </Fragment>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>

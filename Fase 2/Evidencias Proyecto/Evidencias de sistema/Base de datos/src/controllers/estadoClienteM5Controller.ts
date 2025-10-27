@@ -52,15 +52,14 @@ export default class EstadoClienteM5Controller {
                 return sendError(res, 'El estado del cliente es requerido', 400);
             }
 
-            if (!fecha_cambio_estado_cliente_m5) {
-                return sendError(res, 'La fecha de cambio de estado es requerida', 400);
-            }
+            // La fecha ya no es requerida, puede ser null
+            // Se validará automáticamente en el servicio
 
             const result = await EstadoClienteM5Service.cambiarEstado(
                 parseInt(id_postulacion),
                 {
                     id_estado_cliente_postulacion_m5,
-                    fecha_cambio_estado_cliente_m5: new Date(fecha_cambio_estado_cliente_m5),
+                    fecha_cambio_estado_cliente_m5: fecha_cambio_estado_cliente_m5 || null,
                     comentario_modulo5_cliente
                 }
             );

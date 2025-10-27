@@ -71,7 +71,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const { toast } = useToast()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
-
+  
   // Función para calcular días hábiles
   const addBusinessDays = (date: Date, days: number): Date => {
     const result = new Date(date)
@@ -289,8 +289,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       })
     } else {
       setInterviewForm({
-        interview_date: "",
-        interview_status: "programada",
+      interview_date: "",
+      interview_status: "programada",
       })
     }
     
@@ -382,8 +382,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       setInterviewForm({
         interview_date: "",
         interview_status: "programada",
-      })
-      setSelectedCandidate(null)
+    })
+    setSelectedCandidate(null)
       
       toast({
         title: "¡Éxito!",
@@ -716,13 +716,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           }))
         }
 
-        setShowReportDialog(false)
-        setReportForm({
-          report_status: "",
-          report_observations: "",
-          report_sent_date: "",
-        })
-        setSelectedCandidate(null)
+    setShowReportDialog(false)
+    setReportForm({
+      report_status: "",
+      report_observations: "",
+      report_sent_date: "",
+    })
+    setSelectedCandidate(null)
       } else {
         throw new Error(response.message || "Error al actualizar el informe")
       }
@@ -757,7 +757,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         await loadReferencesForCandidate(Number(selectedCandidate.id))
         
         // Limpiar el formulario
-        setNewReference({
+    setNewReference({
           nombre_referencia: "",
           cargo_referencia: "",
           relacion_postulante_referencia: "",
@@ -1154,7 +1154,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             Ver información detallada
                           </CollapsibleTrigger>
                           <CollapsibleContent className="mt-4 space-y-6">
-                            {candidateReport && (candidateReport.report_status || candidateReport.report_sent_date) && (
+                        {candidateReport && (candidateReport.report_status || candidateReport.report_sent_date) && (
                           <div className="bg-muted/20 rounded-lg p-4 border-l-4 border-l-primary">
                             <h4 className="font-medium mb-3 flex items-center gap-2">
                               <FileText className="h-4 w-4" />
@@ -1209,25 +1209,25 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                         {/* Referencias Laborales - Dentro de información detallada */}
                         {candidateReferences.length > 0 && (
                           <div className="ml-4 border-l-2 border-muted pl-4">
-                            <Collapsible>
-                              <CollapsibleTrigger
-                                className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors"
-                                onClick={() =>
-                                  setExpandedCandidate(
-                                    expandedCandidate === `${candidate.id}-references`
-                                      ? null
+                          <Collapsible>
+                            <CollapsibleTrigger
+                              className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors"
+                              onClick={() =>
+                                setExpandedCandidate(
+                                  expandedCandidate === `${candidate.id}-references`
+                                    ? null
                                       : `${candidate.id}-references`
-                                  )
-                                }
-                              >
-                                {expandedCandidate === `${candidate.id}-references` ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
+                                )
+                              }
+                            >
+                              {expandedCandidate === `${candidate.id}-references` ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
                                 <Building className="h-4 w-4" />
                                 Referencias Laborales ({candidateReferences.length})
-                              </CollapsibleTrigger>
+                            </CollapsibleTrigger>
                             <CollapsibleContent className="mt-4">
                               <div className="bg-muted/30 rounded-lg p-4 space-y-3">
                                 {candidateReferences.map((reference) => (
@@ -1236,11 +1236,11 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                       <div className="space-y-4">
                                         {/* Información principal - alineada horizontalmente */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                          <div>
+                                        <div>
                                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre de la referencia</p>
                                             <p className="text-sm font-medium">{reference.nombre_referencia}</p>
-                                          </div>
-                                          <div>
+                                        </div>
+                                        <div>
                                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Relación con el postulante</p>
                                             <p className="text-sm">{reference.relacion_postulante_referencia}</p>
                                           </div>
@@ -1279,9 +1279,9 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                                     <p className="text-sm">{reference.email_referencia}</p>
                                                   </div>
                                                 </div>
-                                              )}
-                                            </div>
-                                          </div>
+                                          )}
+                                        </div>
+                                      </div>
                                         )}
 
                                         {/* Comentarios - al final si existen */}
@@ -1290,26 +1290,26 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Comentarios</p>
                                             <p className="text-sm text-muted-foreground mt-1">
                                               {reference.comentario_referencia}
-                                            </p>
-                                          </div>
-                                        )}
+                                          </p>
+                                        </div>
+                                      )}
                                       </div>
                                     </CardContent>
                                   </Card>
                                 ))}
                               </div>
                             </CollapsibleContent>
-                            </Collapsible>
+                          </Collapsible>
                           </div>
                         )}
 
                         {/* Tests Realizados - Dentro de información detallada */}
                         {candidateTestsList.length > 0 && (
                           <div className="ml-4 border-l-2 border-muted pl-4">
-                            <Collapsible>
-                              <CollapsibleTrigger
-                                className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors"
-                                onClick={() =>
+                          <Collapsible>
+                            <CollapsibleTrigger
+                              className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors"
+                              onClick={() =>
                                   setExpandedCandidate(
                                     expandedCandidate === `${candidate.id}-tests`
                                       ? null
@@ -1318,30 +1318,30 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                 }
                               >
                                 {expandedCandidate === `${candidate.id}-tests` ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
                                 <FileText className="h-4 w-4" />
                                 Tests Realizados ({candidateTestsList.length})
-                              </CollapsibleTrigger>
+                            </CollapsibleTrigger>
                             <CollapsibleContent className="mt-4">
                               <div className="bg-muted/30 rounded-lg p-4 space-y-3">
                                 {candidateTestsList.map((test, index) => (
                                   <Card key={index} className="bg-background">
                                     <CardContent className="pt-4">
-                                      <div className="space-y-3">
+                                  <div className="space-y-3">
                                         <div className="flex justify-between items-start">
                                           <div className="flex-1 space-y-2">
                                             <div>
                                               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre del test</p>
                                               <p className="text-sm font-medium">{test.test_name}</p>
-                                            </div>
+                                        </div>
                                             <div>
                                               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Resultado</p>
                                               <p className="text-sm">{test.result}</p>
-                                            </div>
-                                          </div>
+                                      </div>
+                                  </div>
                                           <div className="flex gap-2 ml-4">
                                             <Button
                                               variant="outline"
@@ -1357,15 +1357,15 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                             >
                                               <Trash2 className="h-4 w-4" />
                                             </Button>
-                                          </div>
-                                        </div>
+                                </div>
+                                </div>
                                       </div>
                                     </CardContent>
                                   </Card>
                                 ))}
                               </div>
                             </CollapsibleContent>
-                            </Collapsible>
+                          </Collapsible>
                           </div>
                         )}
                           </CollapsibleContent>
@@ -1464,7 +1464,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               </div>
             </div>
 
-          </div>
+            </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowInterviewDialog(false)}>
@@ -1520,7 +1520,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                         {availableTests.map((test) => (
                           <SelectItem key={test.id_test_psicolaboral} value={test.id_test_psicolaboral.toString()}>
                             {test.nombre_test_psicolaboral}
-                          </SelectItem>
+                        </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1633,7 +1633,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Agregar Nueva Referencia</CardTitle>
+                <CardTitle className="text-lg">Agregar Nueva Referencia</CardTitle>
                   <Button type="button" variant="outline" size="sm" onClick={() => {
                     // Agregar nueva referencia vacía
                     setNewReference({
@@ -1881,7 +1881,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                 <p className="text-xs text-muted-foreground">
                   Mínimo 10 caracteres. Describe la evaluación completa del candidato.
                 </p>
-              </div>
+                      </div>
 
             </div>
           </div>

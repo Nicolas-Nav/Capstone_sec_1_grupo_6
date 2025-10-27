@@ -30,7 +30,7 @@ export default class EstadoClienteM5Service {
         id_postulacion: number, 
         data: {
             id_estado_cliente_postulacion_m5: number;
-            fecha_cambio_estado_cliente_m5: Date | null;
+            fecha_cambio_estado_cliente_m5: string | null; // Cambiado a string para evitar problemas de zona horaria
             comentario_modulo5_cliente?: string;
         }
     ) {
@@ -40,6 +40,7 @@ export default class EstadoClienteM5Service {
             const { id_estado_cliente_postulacion_m5, fecha_cambio_estado_cliente_m5, comentario_modulo5_cliente } = data;
 
             console.log(`[DEBUG] Cambiando estado módulo 5 - Postulación: ${id_postulacion}, Estado: ${id_estado_cliente_postulacion_m5}`);
+            console.log(`[DEBUG] Fecha recibida: ${fecha_cambio_estado_cliente_m5}`);
 
             // Verificar que la postulación existe
             const postulacion = await Postulacion.findByPk(id_postulacion);
@@ -64,7 +65,7 @@ export default class EstadoClienteM5Service {
             // Verificar si el estado realmente cambió
             const ultimoEstado = await EstadoClientePostulacionM5.findOne({
                 where: { id_postulacion },
-                order: [['fecha_cambio_estado_cliente_m5', 'DESC']]
+                order: [['fecha_cambio_estado_cliente_m5', 'DESC'], ['id_estado_cliente_postulacion_m5', 'DESC']]
             });
 
             console.log(`[DEBUG] Último estado encontrado:`, ultimoEstado ? {
@@ -85,8 +86,24 @@ export default class EstadoClienteM5Service {
                     order: [['fecha_cambio_estado_cliente_m5', 'ASC']]
                 });
                 
-                // Si ya existe una fecha registrada, usar esa; si no, usar la proporcionada (o null)
-                const fechaAUsar = primerFecha?.fecha_cambio_estado_cliente_m5 || fecha_cambio_estado_cliente_m5;
+                // LÓGICA ACTUALIZADA: 
+                // 1. Si el usuario proporciona una nueva fecha, usarla (permitir actualización)
+                // 2. Si no hay fecha nueva pero existe una fecha previa, mantener la fecha previa
+                // 3. Si no hay ninguna fecha, dejar en null
+                let fechaAUsar: string | null = null;
+                
+                if (fecha_cambio_estado_cliente_m5) {
+                    // El usuario proporciona una fecha nueva, usarla
+                    fechaAUsar = fecha_cambio_estado_cliente_m5;
+                    console.log(`[DEBUG] Usando fecha proporcionada por el usuario: ${fechaAUsar}`);
+                } else if (primerFecha?.fecha_cambio_estado_cliente_m5) {
+                    // No hay fecha nueva, pero existe una fecha previa, mantenerla
+                    fechaAUsar = primerFecha.fecha_cambio_estado_cliente_m5.toISOString().split('T')[0];
+                    console.log(`[DEBUG] Manteniendo fecha existente del historial: ${fechaAUsar}`);
+                } else {
+                    // No hay fecha nueva ni fecha previa
+                    console.log(`[DEBUG] No hay fecha disponible, usando NULL`);
+                }
                 
                 // Verificar si ya existe un registro con esta combinación estado+postulación
                 const registroExistente = await EstadoClientePostulacionM5.findOne({
@@ -99,8 +116,7 @@ export default class EstadoClienteM5Service {
                 if (!registroExistente) {
                     console.log(`[DEBUG] Creando nuevo registro de cambio de estado`);
                     console.log(`[DEBUG] Estado anterior: ${ultimoEstado?.id_estado_cliente_postulacion_m5 || 'Ninguno'}, Nuevo estado: ${id_estado_cliente_postulacion_m5}`);
-                    console.log(`[DEBUG] Fecha original en historial: ${primerFecha?.fecha_cambio_estado_cliente_m5?.toISOString() || 'No existe'}`);
-                    console.log(`[DEBUG] Fecha a usar: ${fechaAUsar ? fechaAUsar.toISOString() : 'NULL'}`);
+                    console.log(`[DEBUG] Fecha a usar: ${fechaAUsar || 'NULL'}`);
                     
                     await EstadoClientePostulacionM5.create({
                         id_postulacion,
@@ -108,15 +124,35 @@ export default class EstadoClienteM5Service {
                         fecha_cambio_estado_cliente_m5: fechaAUsar as any
                     }, { transaction });
                 } else {
-                    console.log(`[DEBUG] Ya existe un registro con estado ${id_estado_cliente_postulacion_m5} para postulación ${id_postulacion}, no se crea duplicado`);
+                    console.log(`[DEBUG] Ya existe un registro con estado ${id_estado_cliente_postulacion_m5} para postulación ${id_postulacion}`);
+                    // Si el usuario proporciona una nueva fecha, actualizar el registro existente
+                    if (fecha_cambio_estado_cliente_m5) {
+                        console.log(`[DEBUG] Actualizando fecha del registro existente a: ${fecha_cambio_estado_cliente_m5}`);
+                        await registroExistente.update({
+                            fecha_cambio_estado_cliente_m5: fecha_cambio_estado_cliente_m5 as any
+                        }, { transaction });
+                    }
+                }
+            } else {
+                // El estado no cambió, pero puede que la fecha sí haya cambiado
+                if (fecha_cambio_estado_cliente_m5 && ultimoEstado) {
+                    const fechaActualStr = ultimoEstado.fecha_cambio_estado_cliente_m5?.toISOString().split('T')[0];
+                    if (fechaActualStr !== fecha_cambio_estado_cliente_m5) {
+                        console.log(`[DEBUG] Estado no cambió, pero actualizando fecha de ${fechaActualStr} a ${fecha_cambio_estado_cliente_m5}`);
+                        await ultimoEstado.update({
+                            fecha_cambio_estado_cliente_m5: fecha_cambio_estado_cliente_m5 as any
+                        }, { transaction });
+                    }
                 }
             }
 
-            // Actualizar comentario del módulo 5 en la postulación
-            if (comentario_modulo5_cliente) {
+            // Actualizar comentario del módulo 5 en la postulación (siempre que haya comentario)
+            if (comentario_modulo5_cliente !== undefined) {
+                const comentarioValue = comentario_modulo5_cliente?.trim() ? comentario_modulo5_cliente : undefined;
                 await postulacion.update({
-                    comentario_modulo5_cliente
+                    comentario_modulo5_cliente: comentarioValue
                 }, { transaction });
+                console.log(`[DEBUG] Comentario actualizado: "${comentario_modulo5_cliente}"`);
             }
 
             await transaction.commit();
@@ -349,7 +385,9 @@ export default class EstadoClienteM5Service {
             'No seleccionado': 'no_seleccionado',
             'Envío de carta oferta': 'envio_carta_oferta',
             'Aceptación carta oferta': 'aceptacion_carta_oferta',
-            'Rechazo carta oferta': 'rechazo_carta_oferta'
+            'Rechazo carta oferta': 'rechazo_carta_oferta',
+            'Contratado': 'contratado',
+            'No contratado': 'no_contratado'
         };
         
         return estadosMap[nombreEstado] || 'en_espera_feedback';
@@ -363,29 +401,36 @@ export default class EstadoClienteM5Service {
         id_postulacion: number,
         data: {
             hiring_status: string; // Estado de contratación del frontend
-            client_response_date?: string; // Fecha de respuesta del cliente
+            client_response_date?: string; // Fecha de respuesta del cliente en formato YYYY-MM-DD
             observations?: string; // Comentarios/observaciones
         }
     ) {
         const transaction: Transaction = await sequelize.transaction();
         try {
+            Logger.info(`[DEBUG] actualizarCandidatoModulo5 - Postulación: ${id_postulacion}`);
+            Logger.info(`[DEBUG] Datos recibidos:`, JSON.stringify(data, null, 2));
+            
             // Mapear estados del frontend a IDs de la base de datos
             const estadosMap: { [key: string]: number } = {
                 'en_espera_feedback': 1,
                 'no_seleccionado': 2,
                 'envio_carta_oferta': 3,
                 'aceptacion_carta_oferta': 4,
-                'rechazo_carta_oferta': 5
+                'rechazo_carta_oferta': 5,
+                'contratado': 6,
+                'no_contratado': 7
             };
 
             const id_estado_cliente_postulacion_m5 = estadosMap[data.hiring_status];
             if (!id_estado_cliente_postulacion_m5) {
-                throw new Error(`Estado de contratación no válido: ${data.hiring_status}`);
+                throw new Error(`Estado de contratación no válido: ${data.hiring_status}. Estados válidos: ${Object.keys(estadosMap).join(', ')}`);
             }
 
-            // Cambiar estado usando el método existente
-            // Solo usar la fecha si el usuario la proporcionó, de lo contrario null
-            const fechaCambio = data.client_response_date ? new Date(data.client_response_date) : null;
+            // IMPORTANTE: NO convertir la fecha a Date object para evitar problemas de zona horaria
+            // Pasarla directamente como string en formato YYYY-MM-DD
+            const fechaCambio = data.client_response_date || null;
+            
+            Logger.info(`[DEBUG] Estado mapeado: ${id_estado_cliente_postulacion_m5}, Fecha: ${fechaCambio}`);
             
             await this.cambiarEstado(id_postulacion, {
                 id_estado_cliente_postulacion_m5,

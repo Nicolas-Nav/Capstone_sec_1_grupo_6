@@ -339,7 +339,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       contratado: {
         label: "Contratado",
         variant: "default" as const,
-        className: "bg-green-100 text-green-800 border-green-300",
+        className: "bg-emerald-100 text-emerald-800 border-emerald-300",
         icon: <CheckCircle className="mr-1 h-3 w-3" />
       },
       no_contratado: {
@@ -741,6 +741,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   <SelectItem value="envio_carta_oferta">Envío de carta oferta</SelectItem>
                   <SelectItem value="aceptacion_carta_oferta">Aceptación de carta oferta</SelectItem>
                   <SelectItem value="rechazo_carta_oferta">Rechazo de carta oferta</SelectItem>
+                  <SelectItem value="contratado">Contratado</SelectItem>
+                  <SelectItem value="no_contratado">No contratado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -780,19 +782,19 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   "El cliente ha rechazado al candidato después de revisar su perfil."
                 }
                 {contractForm.hiring_status === "envio_carta_oferta" && 
-                  "El cliente aprobó al candidato y se ha enviado la carta oferta formal. Desde este estado puedes avanzar a 'Contratado' o 'No contratado' según la respuesta del candidato."
+                  "El cliente aprobó al candidato y se ha enviado la carta oferta formal. Ahora puedes cambiar al estado 'Aceptación de carta oferta' o 'Rechazo de carta oferta' según la respuesta del candidato."
                 }
                 {contractForm.hiring_status === "aceptacion_carta_oferta" && 
-                  "El candidato ha aceptado la oferta y está listo para ser contratado."
+                  "El candidato ha aceptado la oferta y está listo para ser contratado. Cambia a 'Contratado' cuando se formalice la contratación."
                 }
                 {contractForm.hiring_status === "rechazo_carta_oferta" && 
                   "El candidato rechazó la oferta laboral."
                 }
                 {contractForm.hiring_status === "contratado" && 
-                  "El candidato ha sido contratado y está trabajando en la empresa. Este estado solo está disponible desde 'Envío de carta oferta'."
+                  "El candidato ha sido contratado oficialmente y está trabajando en la empresa."
                 }
                 {contractForm.hiring_status === "no_contratado" && 
-                  "El candidato no fue contratado por alguna razón específica. Este estado solo está disponible desde 'Envío de carta oferta'."
+                  "El candidato no fue contratado a pesar de haber avanzado en el proceso."
                 }
               </p>
             </div>

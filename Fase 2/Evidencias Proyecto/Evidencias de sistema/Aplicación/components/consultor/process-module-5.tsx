@@ -19,9 +19,9 @@ import {
 } from "@/components/ui/dialog"
 import { getCandidatesByProcess, estadoClienteM5Service } from "@/lib/api"
 import { formatDate } from "@/lib/utils"
-import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle } from "lucide-react"
+import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle, Pencil } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 
 interface ProcessModule5Props {
   process: Process
@@ -46,9 +46,11 @@ interface ContractedCandidate {
   continues: boolean
   observations?: string
   satisfaction_survey_pending: boolean
+  contratacion_status?: 'contratado' | 'no_contratado' | null
 }
 
 export function ProcessModule5({ process }: ProcessModule5Props) {
+  const { toast } = useToast()
   // Incluir candidatos que pasaron el módulo 4 (aprobados por el consultor) o que fueron aprobados por el cliente
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -74,6 +76,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             continues: true,
             observations: candidate.observations || '',
             satisfaction_survey_pending: candidate.hiring_status === "contratado",
+            contratacion_status: candidate.contratacion_status
           }))
         
         setContractedCandidates(contractedData)
@@ -110,6 +113,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             continues: true,
             observations: candidate.observations || '',
             satisfaction_survey_pending: candidate.hiring_status === "contratado",
+            contratacion_status: candidate.contratacion_status
           }))
         
         setContractedCandidates(contractedData)
@@ -131,6 +135,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [showClosureDialog, setShowClosureDialog] = useState(false)
   const [closureReason, setClosureReason] = useState("")
+  const [showContratacionDialog, setShowContratacionDialog] = useState(false)
+  const [contratacionForm, setContratacionForm] = useState({
+    fecha_ingreso_contratacion: "",
+    observaciones_contratacion: "",
+  })
+  const [contratacionAction, setContratacionAction] = useState<"contratado" | "no_contratado">("contratado")
+  const [isSavingContratacion, setIsSavingContratacion] = useState(false)
 
   const handleContractSubmit = async () => {
     if (!selectedCandidate) return
@@ -142,22 +153,33 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         {
           hiring_status: contractForm.hiring_status,
           client_response_date: contractForm.client_response_date || undefined,
-          observations: contractForm.observations
+          observations: contractForm.observations,
         }
       )
 
       if (response.success) {
         // Mostrar mensaje de éxito
-        toast.success("Estado del candidato actualizado exitosamente")
+        toast({
+          title: "Éxito",
+          description: "Estado del candidato actualizado exitosamente",
+        })
         
         // Recargar datos desde el backend para obtener la información actualizada
         await reloadData()
       } else {
-        toast.error(response.message || "Error al actualizar el estado del candidato")
+        toast({
+          title: "Error",
+          description: response.message || "Error al actualizar el estado del candidato",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error('Error al actualizar candidato:', error)
-      toast.error("Error al actualizar el estado del candidato")
+      toast({
+        title: "Error",
+        description: "Error al actualizar el estado del candidato",
+        variant: "destructive",
+      })
     }
 
     setShowContractDialog(false)
@@ -241,6 +263,91 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     setClosureReason("")
 
     alert(`Proceso cerrado ${closureType === "completo" ? "completamente" : "parcialmente"}`)
+  }
+
+  // Función para abrir el dialog de contratación
+  const handleOpenContratacionDialog = (candidate: Candidate | ContractedCandidate, action: "contratado" | "no_contratado") => {
+    setSelectedCandidate(candidate as Candidate)
+    setContratacionAction(action)
+    
+    // Si el candidato ya tiene información de contratación, pre-cargar los datos
+    const contratacionStatus = (candidate as ContractedCandidate).contratacion_status
+    if (contratacionStatus === "contratado" || contratacionStatus === "no_contratado") {
+      setContratacionForm({
+        fecha_ingreso_contratacion: candidate.contract_date || "",
+        observaciones_contratacion: candidate.observations || "",
+      })
+    } else {
+      // Si es nuevo, limpiar el formulario
+      setContratacionForm({
+        fecha_ingreso_contratacion: "",
+        observaciones_contratacion: "",
+      })
+    }
+    
+    setShowContratacionDialog(true)
+  }
+
+  // Función para guardar la contratación
+  const handleSaveContratacion = async () => {
+    if (!selectedCandidate) return
+
+    setIsSavingContratacion(true)
+
+    try {
+      console.log('[DEBUG] Guardando contratación:', {
+        id_postulacion: selectedCandidate.id_postulacion,
+        hiring_status: contratacionAction,
+        fecha_ingreso_contratacion: contratacionForm.fecha_ingreso_contratacion,
+        observaciones_contratacion: contratacionForm.observaciones_contratacion
+      })
+
+      const response = await estadoClienteM5Service.actualizarCandidatoModulo5(
+        selectedCandidate.id_postulacion,
+        {
+          hiring_status: contratacionAction,
+          fecha_ingreso_contratacion: contratacionForm.fecha_ingreso_contratacion || undefined,
+          observaciones_contratacion: contratacionForm.observaciones_contratacion || undefined
+        }
+      )
+
+      console.log('[DEBUG] Respuesta del backend:', response)
+
+      if (response.success) {
+        const mensajeExito = contratacionAction === "contratado" 
+          ? "Candidato registrado como contratado exitosamente"
+          : "Candidato registrado como no contratado exitosamente"
+        
+        toast({
+          title: "Éxito",
+          description: mensajeExito,
+        })
+        
+        setShowContratacionDialog(false)
+        setContratacionForm({
+          fecha_ingreso_contratacion: "",
+          observaciones_contratacion: "",
+        })
+        setSelectedCandidate(null)
+        
+        await reloadData()
+      } else {
+        toast({
+          title: "Error",
+          description: response.message || "Error al actualizar el estado del candidato",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('[ERROR] Error al guardar contratación:', error)
+      toast({
+        title: "Error",
+        description: "Error al guardar la contratación",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingContratacion(false)
+    }
   }
 
   // Variables de conteo
@@ -542,11 +649,16 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold">{candidate.name}</h3>
-                      <div className="flex items-center gap-4 mt-1">
+                      <div className="flex items-center gap-2 mt-1">
                         {getHiringStatusBadge(candidate.hiring_status)}
-                        {candidate.hiring_status === "contratado" && (
-                          <Badge variant={candidate.continues ? "default" : "destructive"}>
-                            {candidate.continues ? "Continúa" : "No Continúa"}
+                        {candidate.contratacion_status && (
+                          <Badge 
+                            variant={candidate.contratacion_status === "contratado" ? "default" : "destructive"}
+                            className={candidate.contratacion_status === "contratado" 
+                              ? "bg-green-100 text-green-800 border-green-300" 
+                              : "bg-orange-100 text-orange-800 border-orange-300"}
+                          >
+                            {candidate.contratacion_status === "contratado" ? "Contratado" : "No Contratado"}
                           </Badge>
                         )}
                       </div>
@@ -590,7 +702,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   </div>
 
                   {/* Sección de gestión de contratación para candidatos con "aceptacion_carta_oferta" */}
-                  {candidate.hiring_status === "aceptacion_carta_oferta" && (
+                  {candidate.hiring_status === "aceptacion_carta_oferta" && !candidate.contratacion_status && (
                     <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg space-y-4">
                       <h4 className="font-medium text-green-800">Gestión de Contratación</h4>
                       <p className="text-sm text-green-600">El candidato ha aceptado la oferta. Define el estado final de contratación.</p>
@@ -601,12 +713,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                           variant="outline"
                           className="border-green-300 text-green-700 hover:bg-green-100"
                           onClick={() => {
-                            const updatedCandidates = contractedCandidates.map(cc => 
-                              cc.id === candidate.id 
-                                ? { ...cc, hiring_status: "contratado" as HiringStatus }
-                                : cc
-                            )
-                            setContractedCandidates(updatedCandidates)
+                            const fullCandidate = candidates.find(c => c.id === candidate.id)
+                            if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "contratado")
                           }}
                         >
                           <CheckCircle className="mr-2 h-4 w-4" />
@@ -618,12 +726,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                           variant="outline"
                           className="border-red-300 text-red-700 hover:bg-red-100"
                           onClick={() => {
-                            const updatedCandidates = contractedCandidates.map(cc => 
-                              cc.id === candidate.id 
-                                ? { ...cc, hiring_status: "no_contratado" as HiringStatus }
-                                : cc
-                            )
-                            setContractedCandidates(updatedCandidates)
+                            const fullCandidate = candidates.find(c => c.id === candidate.id)
+                            if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "no_contratado")
                           }}
                         >
                           <XCircle className="mr-2 h-4 w-4" />
@@ -633,76 +737,83 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                     </div>
                   )}
 
-                  {/* Sección de gestión para candidatos contratados */}
-                  {candidate.hiring_status === "contratado" && (
-                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
-                      <h4 className="font-medium text-blue-800">Gestión de Candidato Contratado</h4>
-                      <p className="text-sm text-blue-600">El candidato ha sido contratado. Completa la información de seguimiento.</p>
+                  {/* Sección de información de candidato contratado */}
+                  {candidate.contratacion_status === "contratado" && (
+                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <h4 className="font-medium text-green-800">Candidato Contratado</h4>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-green-700 hover:text-green-800 hover:bg-green-100"
+                          onClick={() => {
+                            const fullCandidate = candidates.find(c => c.id === candidate.id)
+                            if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "contratado")
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-green-600">El candidato ha sido contratado exitosamente.</p>
                       
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label htmlFor={`contract_date_${candidate.id}`} className="text-sm font-medium">Fecha de Contratación</Label>
-                          <Input
-                            id={`contract_date_${candidate.id}`}
-                            type="date"
-                            value={candidate.contract_date || ""}
-                            onChange={(e) => {
-                              const updatedCandidates = contractedCandidates.map(cc => 
-                                cc.id === candidate.id 
-                                  ? { ...cc, contract_date: e.target.value }
-                                  : cc
-                              )
-                              setContractedCandidates(updatedCandidates)
-                            }}
-                            className="w-full"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">¿Continúa en la empresa?</Label>
-                          <Select
-                            value={candidate.continues.toString()}
-                            onValueChange={(value) => {
-                              const updatedCandidates = contractedCandidates.map(cc => 
-                                cc.id === candidate.id 
-                                  ? { ...cc, continues: value === "true" }
-                                  : cc
-                              )
-                              setContractedCandidates(updatedCandidates)
-                            }}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="true">Sí, continúa</SelectItem>
-                              <SelectItem value="false">No continúa</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {candidate.satisfaction_survey_pending && (
-                          <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <Star className="h-4 w-4 text-yellow-600" />
-                            <span className="text-sm text-yellow-800">Encuesta de satisfacción pendiente</span>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="ml-auto border-yellow-300 text-yellow-700 hover:bg-yellow-100"
-                              onClick={() => {
-                                const updatedCandidates = contractedCandidates.map(cc => 
-                                  cc.id === candidate.id 
-                                    ? { ...cc, satisfaction_survey_pending: false }
-                                    : cc
-                                )
-                                setContractedCandidates(updatedCandidates)
-                              }}
-                            >
-                              Completar
-                            </Button>
+                      <div className="grid grid-cols-1 gap-4 mt-4">
+                        {candidate.contract_date && (
+                          <div className="flex items-start gap-2">
+                            <Calendar className="h-4 w-4 text-green-600 mt-1" />
+                            <div>
+                              <p className="text-sm font-medium text-gray-700">Fecha de Ingreso</p>
+                              <p className="text-sm text-gray-600">{formatDate(candidate.contract_date)}</p>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {candidate.observations && (
+                          <div className="flex items-start gap-2">
+                            <MessageSquare className="h-4 w-4 text-green-600 mt-1" />
+                            <div>
+                              <p className="text-sm font-medium text-gray-700">Observaciones</p>
+                              <p className="text-sm text-gray-600">{candidate.observations}</p>
+                            </div>
                           </div>
                         )}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Sección de información de candidato no contratado */}
+                  {candidate.contratacion_status === "no_contratado" && (
+                    <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <XCircle className="h-5 w-5 text-orange-600" />
+                          <h4 className="font-medium text-orange-800">Candidato No Contratado</h4>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-orange-700 hover:text-orange-800 hover:bg-orange-100"
+                          onClick={() => {
+                            const fullCandidate = candidates.find(c => c.id === candidate.id)
+                            if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "no_contratado")
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-orange-600">El candidato no fue contratado.</p>
+                      
+                      {candidate.observations && (
+                        <div className="flex items-start gap-2 mt-4">
+                          <MessageSquare className="h-4 w-4 text-orange-600 mt-1" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Razón</p>
+                            <p className="text-sm text-gray-600">{candidate.observations}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -741,8 +852,6 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   <SelectItem value="envio_carta_oferta">Envío de carta oferta</SelectItem>
                   <SelectItem value="aceptacion_carta_oferta">Aceptación de carta oferta</SelectItem>
                   <SelectItem value="rechazo_carta_oferta">Rechazo de carta oferta</SelectItem>
-                  <SelectItem value="contratado">Contratado</SelectItem>
-                  <SelectItem value="no_contratado">No contratado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -760,16 +869,15 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
 
 
             <div className="space-y-2">
-              <Label htmlFor="observations">Observaciones</Label>
+              <Label htmlFor="observations">Observaciones del Módulo 5</Label>
               <Textarea
                 id="observations"
                 value={contractForm.observations}
                 onChange={(e) => setContractForm({ ...contractForm, observations: e.target.value })}
-                placeholder="Comentarios adicionales sobre el proceso de contratación..."
+                placeholder="Comentarios adicionales sobre el proceso..."
                 rows={3}
               />
             </div>
-
 
             {/* Información contextual según el estado */}
             <div className="p-4 bg-muted rounded-lg">
@@ -785,16 +893,10 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   "El cliente aprobó al candidato y se ha enviado la carta oferta formal. Ahora puedes cambiar al estado 'Aceptación de carta oferta' o 'Rechazo de carta oferta' según la respuesta del candidato."
                 }
                 {contractForm.hiring_status === "aceptacion_carta_oferta" && 
-                  "El candidato ha aceptado la oferta y está listo para ser contratado. Cambia a 'Contratado' cuando se formalice la contratación."
+                  "El candidato ha aceptado la oferta. Utiliza los botones de 'Gestión de Contratación' (abajo) para registrarlo como Contratado o No Contratado."
                 }
                 {contractForm.hiring_status === "rechazo_carta_oferta" && 
                   "El candidato rechazó la oferta laboral."
-                }
-                {contractForm.hiring_status === "contratado" && 
-                  "El candidato ha sido contratado oficialmente y está trabajando en la empresa."
-                }
-                {contractForm.hiring_status === "no_contratado" && 
-                  "El candidato no fue contratado a pesar de haber avanzado en el proceso."
                 }
               </p>
             </div>
@@ -877,6 +979,112 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
               disabled={!allVacanciesFilled && !closureReason.trim()}
             >
               {allVacanciesFilled ? "Cerrar Proceso" : "Cierre Parcial"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Contratación */}
+      <Dialog open={showContratacionDialog} onOpenChange={setShowContratacionDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {(selectedCandidate as any)?.contratacion_status ? (
+                // Modo edición
+                contratacionAction === "contratado" ? "Editar Información de Contratación" : "Editar Información de No Contratado"
+              ) : (
+                // Modo crear nuevo
+                contratacionAction === "contratado" ? "Registrar Contratación" : "Registrar Candidato No Contratado"
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedCandidate && (
+                <>
+                  Candidato: <strong>{selectedCandidate.name}</strong>
+                  {contratacionAction === "no_contratado" && !(selectedCandidate as any)?.contratacion_status && (
+                    <span className="block mt-2 text-orange-600">
+                      Complete la información del candidato que no fue contratado
+                    </span>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {contratacionAction === "contratado" ? (
+              // Formulario para CONTRATADO
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="fecha_ingreso_contratacion_dialog">
+                    Fecha de Ingreso
+                  </Label>
+                  <Input
+                    id="fecha_ingreso_contratacion_dialog"
+                    type="date"
+                    value={contratacionForm.fecha_ingreso_contratacion}
+                    onChange={(e) => setContratacionForm({ ...contratacionForm, fecha_ingreso_contratacion: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="observaciones_contratacion_dialog">
+                    Observaciones <span className="text-muted-foreground">(Opcional)</span>
+                  </Label>
+                  <Textarea
+                    id="observaciones_contratacion_dialog"
+                    value={contratacionForm.observaciones_contratacion}
+                    onChange={(e) => setContratacionForm({ ...contratacionForm, observaciones_contratacion: e.target.value })}
+                    placeholder="Ej: Cargo asignado, área de trabajo, condiciones especiales..."
+                    rows={4}
+                  />
+                </div>
+              </>
+            ) : (
+              // Formulario para NO CONTRATADO
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="observaciones_contratacion_dialog">
+                    Razón por la que no fue contratado <span className="text-muted-foreground">(Opcional)</span>
+                  </Label>
+                  <Textarea
+                    id="observaciones_contratacion_dialog"
+                    value={contratacionForm.observaciones_contratacion}
+                    onChange={(e) => setContratacionForm({ ...contratacionForm, observaciones_contratacion: e.target.value })}
+                    placeholder="Ej: No cumplió con las expectativas del cargo, rechazó la oferta final, se encontró un candidato más adecuado..."
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowContratacionDialog(false)}
+              disabled={isSavingContratacion}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveContratacion}
+              disabled={isSavingContratacion}
+              className={contratacionAction === "no_contratado" ? "bg-orange-600 hover:bg-orange-700" : ""}
+            >
+              {isSavingContratacion ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
+                  Guardando...
+                </>
+              ) : (
+                (selectedCandidate as any)?.contratacion_status ? (
+                  "Actualizar Información"
+                ) : (
+                  contratacionAction === "contratado" ? "Registrar Contratación" : "Confirmar No Contratado"
+                )
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -8,14 +8,13 @@ import sequelize from '@/config/database';
 interface ContratacionAttributes {
     id_contratacion: number;
     fecha_ingreso_contratacion?: Date;
-    observaciones_contratacion: string;
+    observaciones_contratacion?: string;
     encuesta_satisfaccion?: string;
-    fecha_respuesta_cliente?: Date;
     id_postulacion: number;
     id_estado_contratacion: number;
 }
 
-interface ContratacionCreationAttributes extends Optional<ContratacionAttributes, 'id_contratacion' | 'fecha_ingreso_contratacion' | 'encuesta_satisfaccion' | 'fecha_respuesta_cliente'> { }
+interface ContratacionCreationAttributes extends Optional<ContratacionAttributes, 'id_contratacion' | 'fecha_ingreso_contratacion' | 'observaciones_contratacion' | 'encuesta_satisfaccion'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -24,9 +23,8 @@ interface ContratacionCreationAttributes extends Optional<ContratacionAttributes
 class Contratacion extends Model<ContratacionAttributes, ContratacionCreationAttributes> implements ContratacionAttributes {
     public id_contratacion!: number;
     public fecha_ingreso_contratacion?: Date;
-    public observaciones_contratacion!: string;
+    public observaciones_contratacion?: string;
     public encuesta_satisfaccion?: string;
-    public fecha_respuesta_cliente?: Date;
     public id_postulacion!: number;
     public id_estado_contratacion!: number;
 
@@ -69,10 +67,9 @@ Contratacion.init({
     },
     observaciones_contratacion: {
         type: DataTypes.STRING(500),
-        allowNull: false,
+        allowNull: true,
         validate: {
-            notEmpty: true,
-            len: [5, 500]
+            len: [0, 500]
         }
     },
     encuesta_satisfaccion: {
@@ -80,13 +77,6 @@ Contratacion.init({
         allowNull: true,
         validate: {
             len: [0, 300]
-        }
-    },
-    fecha_respuesta_cliente: {
-        type: DataTypes.DATE,
-        allowNull: true,
-        validate: {
-            isDate: true
         }
     },
     id_postulacion: {

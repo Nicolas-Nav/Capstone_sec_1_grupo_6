@@ -166,7 +166,13 @@ export default class EstadoClienteM5Controller {
 static async actualizarCandidatoModulo5(req: Request, res: Response): Promise<Response> {
     try {
         const { id_postulacion } = req.params;
-        const { hiring_status, client_response_date, observations } = req.body;
+        const { 
+            hiring_status, 
+            client_response_date, 
+            observations,
+            fecha_ingreso_contratacion,
+            observaciones_contratacion
+        } = req.body;
 
         if (!hiring_status) {
             return sendError(res, 'El estado de contratación es requerido', 400);
@@ -177,7 +183,9 @@ static async actualizarCandidatoModulo5(req: Request, res: Response): Promise<Re
             {
                 hiring_status,
                 client_response_date,
-                observations
+                observations,
+                fecha_ingreso_contratacion,
+                observaciones_contratacion
             }
         );
 

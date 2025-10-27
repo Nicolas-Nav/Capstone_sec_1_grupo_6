@@ -419,6 +419,8 @@ export const estadoClienteM5Service = {
     hiring_status: string;
     client_response_date?: string;
     observations?: string;
+    fecha_ingreso_contratacion?: string;
+    observaciones_contratacion?: string;
   }): Promise<ApiResponse<any>> {
     return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/actualizar`, {
       method: 'PUT',

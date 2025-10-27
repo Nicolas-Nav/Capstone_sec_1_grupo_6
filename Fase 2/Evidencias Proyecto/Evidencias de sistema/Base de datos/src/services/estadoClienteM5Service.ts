@@ -3,6 +3,7 @@ import sequelize from '@/config/database';
 import EstadoClienteM5 from '@/models/EstadoClienteM5';
 import EstadoClientePostulacionM5 from '@/models/EstadoClientePostulacionM5';
 import Postulacion from '@/models/Postulacion';
+import Contratacion from '@/models/Contratacion';
 import { Logger } from '@/utils/logger';
 
 export default class EstadoClienteM5Service {
@@ -292,6 +293,15 @@ export default class EstadoClienteM5Service {
         // Procesar cada registro (ya debería ser único por postulación)
         const candidatosUnicos = new Map();
         
+        // Obtener información de contratación para postulaciones que tienen registro
+        const contrataciones = await Contratacion.findAll({
+            where: { id_postulacion: idsPostulaciones }
+        });
+        
+        const contratacionMap = new Map(
+            contrataciones.map(c => [c.id_postulacion, c])
+        );
+        
         // Obtener historial completo de estados para calcular fecha de feedback
         const historiales = await EstadoClientePostulacionM5.findAll({
             where: { id_postulacion: idsPostulaciones },
@@ -358,15 +368,29 @@ export default class EstadoClienteM5Service {
                 id_postulacion: estado.id_postulacion,
                 ultimo_estado_m5: estadoData.estadoClienteM5?.nombre_estado,
                 fecha_ultimo_cambio_m5: estado.fecha_cambio_estado_cliente_m5,
-                // Mapear estado para compatibilidad con frontend
+                // Mapear estado del módulo 5 (SIEMPRE desde estado_cliente_m5, no desde Contratacion)
                 hiring_status: this.mapEstadoToFrontend(estadoData.estadoClienteM5?.nombre_estado),
+                // Estado final de contratación (si existe registro en Contratacion)
+                contratacion_status: (() => {
+                    const contratacion = contratacionMap.get(estadoData.id_postulacion);
+                    if (contratacion) {
+                        // id_estado_contratacion: 1 = Contratado, 2 = No contratado
+                        return contratacion.id_estado_contratacion === 1 ? 'contratado' : 'no_contratado';
+                    }
+                    return null;
+                })(),
                 // Mapear fecha de respuesta del cliente (fecha de feedback real calculada)
                 client_response_date: fechaFeedback ? 
                     fechaFeedback.toISOString().split('T')[0] : null,
-                // Fecha de contrato (por ahora vacía, se puede agregar después si es necesario)
-                contract_date: null,
-                // Obtener comentarios de la postulación
-                observations: estadoData.postulacion?.comentario_modulo5_cliente || ''
+                // Fecha de contrato desde la tabla Contratacion (solo si existe)
+                contract_date: (() => {
+                    const contratacion = contratacionMap.get(estadoData.id_postulacion);
+                    return contratacion?.fecha_ingreso_contratacion ? 
+                        contratacion.fecha_ingreso_contratacion.toISOString().split('T')[0] : null;
+                })(),
+                // Obtener comentarios: si hay contratación, usar las observaciones de contratación; si no, usar comentarios del módulo 5
+                observations: contratacionMap.get(estadoData.id_postulacion)?.observaciones_contratacion || 
+                    estadoData.postulacion?.comentario_modulo5_cliente || ''
             };
         });
         
@@ -396,13 +420,16 @@ export default class EstadoClienteM5Service {
     /**
      * Actualizar información completa del candidato en módulo 5
      * Incluye estado, fecha de respuesta del cliente y comentarios
+     * Si el estado es "contratado" o "no_contratado", crea registro en tabla Contratacion
      */
     static async actualizarCandidatoModulo5(
         id_postulacion: number,
         data: {
             hiring_status: string; // Estado de contratación del frontend
             client_response_date?: string; // Fecha de respuesta del cliente en formato YYYY-MM-DD
-            observations?: string; // Comentarios/observaciones
+            observations?: string; // Comentarios/observaciones del módulo 5
+            fecha_ingreso_contratacion?: string; // Fecha de ingreso del candidato (opcional)
+            observaciones_contratacion?: string; // Observaciones específicas de contratación (opcional)
         }
     ) {
         const transaction: Transaction = await sequelize.transaction();
@@ -410,20 +437,63 @@ export default class EstadoClienteM5Service {
             Logger.info(`[DEBUG] actualizarCandidatoModulo5 - Postulación: ${id_postulacion}`);
             Logger.info(`[DEBUG] Datos recibidos:`, JSON.stringify(data, null, 2));
             
-            // Mapear estados del frontend a IDs de la base de datos
+            // Los estados "contratado" y "no_contratado" NO están en estado_cliente_m5
+            // Solo crean registros en la tabla Contratacion
+            if (data.hiring_status === 'contratado' || data.hiring_status === 'no_contratado') {
+                Logger.info(`[DEBUG] Estado final de contratación: ${data.hiring_status}`);
+                Logger.info(`[DEBUG] Creando/actualizando registro de contratación para postulación ${id_postulacion}`);
+                
+                // Mapear estado de contratación: 1 = Contratado, 2 = No contratado
+                const id_estado_contratacion = data.hiring_status === 'contratado' ? 1 : 2;
+                
+                // Verificar si ya existe un registro de contratación para esta postulación
+                const contratacionExistente = await Contratacion.findOne({
+                    where: { id_postulacion },
+                    transaction
+                });
+
+                if (contratacionExistente) {
+                    // Actualizar registro existente
+                    Logger.info(`[DEBUG] Actualizando registro de contratación existente`);
+                    await contratacionExistente.update({
+                        fecha_ingreso_contratacion: data.fecha_ingreso_contratacion ? new Date(data.fecha_ingreso_contratacion) : undefined,
+                        observaciones_contratacion: data.observaciones_contratacion || undefined,
+                        id_estado_contratacion
+                    }, { transaction });
+                } else {
+                    // Crear nuevo registro
+                    Logger.info(`[DEBUG] Creando nuevo registro de contratación`);
+                    const nuevoRegistro = await Contratacion.create({
+                        id_postulacion,
+                        fecha_ingreso_contratacion: data.fecha_ingreso_contratacion ? new Date(data.fecha_ingreso_contratacion) : undefined,
+                        observaciones_contratacion: data.observaciones_contratacion || undefined,
+                        encuesta_satisfaccion: undefined,
+                        id_estado_contratacion
+                    }, { transaction });
+                    
+                    Logger.info(`[DEBUG] Registro de contratación creado con ID: ${nuevoRegistro.id_contratacion}`);
+                }
+                
+                await transaction.commit();
+                return {
+                    success: true,
+                    message: `Candidato registrado como ${data.hiring_status === 'contratado' ? 'Contratado' : 'No Contratado'} exitosamente`
+                };
+            }
+            
+            // Para los demás estados (en_espera_feedback, no_seleccionado, etc.)
+            // Mapear estados del frontend a IDs de la base de datos (módulo 5)
             const estadosMap: { [key: string]: number } = {
                 'en_espera_feedback': 1,
                 'no_seleccionado': 2,
                 'envio_carta_oferta': 3,
                 'aceptacion_carta_oferta': 4,
-                'rechazo_carta_oferta': 5,
-                'contratado': 6,
-                'no_contratado': 7
+                'rechazo_carta_oferta': 5
             };
 
             const id_estado_cliente_postulacion_m5 = estadosMap[data.hiring_status];
             if (!id_estado_cliente_postulacion_m5) {
-                throw new Error(`Estado de contratación no válido: ${data.hiring_status}. Estados válidos: ${Object.keys(estadosMap).join(', ')}`);
+                throw new Error(`Estado de contratación no válido: ${data.hiring_status}. Estados válidos: ${Object.keys(estadosMap).join(', ')}, contratado, no_contratado`);
             }
 
             // IMPORTANTE: NO convertir la fecha a Date object para evitar problemas de zona horaria
@@ -432,6 +502,7 @@ export default class EstadoClienteM5Service {
             
             Logger.info(`[DEBUG] Estado mapeado: ${id_estado_cliente_postulacion_m5}, Fecha: ${fechaCambio}`);
             
+            // Actualizar estado en módulo 5
             await this.cambiarEstado(id_postulacion, {
                 id_estado_cliente_postulacion_m5,
                 fecha_cambio_estado_cliente_m5: fechaCambio,

@@ -443,7 +443,6 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
               <TableBody>
                 {candidates.map((candidate) => {
                   const contractedCandidate = contractedCandidates.find((cc) => cc.id === candidate.id)
-                  const currentStatus = contractedCandidate?.hiring_status || "en_espera_feedback"
                   
                   return (
                     <TableRow key={candidate.id}>
@@ -457,13 +456,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {getHiringStatusBadge(currentStatus)}
+                        {getHiringStatusBadge((candidate.hiring_status || "en_espera_feedback") as HiringStatus)}
                       </TableCell>
                       <TableCell>
-                        {contractedCandidate?.client_response_date ? (
+                        {candidate.client_response_date ? (
                           <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Calendar className="h-3 w-3" />
-                            {formatDate(contractedCandidate.client_response_date)}
+                            {formatDate(candidate.client_response_date)}
                           </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">-</span>

@@ -65,8 +65,14 @@ export class EstadoClienteService {
             // Solo crear registro en estado_cliente_postulacion si el estado cambió
             let fechaCambio: Date | null = null;
             if (!ultimoEstadoCliente || ultimoEstadoCliente.id_estado_cliente !== id_estado_cliente) {
-                // El estado cambió o es el primer estado, crear registro
-                fechaCambio = new Date();
+                // El estado cambió o es el primer estado
+                // Usar fecha_feedback_cliente del frontend si se proporciona, sino usar fecha actual
+                if (fecha_feedback_cliente) {
+                    fechaCambio = new Date(fecha_feedback_cliente);
+                } else {
+                    fechaCambio = new Date();
+                }
+                
                 await EstadoClientePostulacion.create({
                     id_postulacion,
                     id_estado_cliente,
@@ -90,9 +96,7 @@ export class EstadoClienteService {
                 updateData.fecha_envio = new Date(fecha_presentacion);
             }
 
-            if (fecha_feedback_cliente) {
-                updateData.fecha_feedback_cliente = new Date(fecha_feedback_cliente);
-            }
+            // fecha_feedback_cliente ya no se guarda en postulacion, se guarda en estado_cliente_postulacion
 
             // Actualizar la postulación con los nuevos datos
             if (Object.keys(updateData).length > 0) {

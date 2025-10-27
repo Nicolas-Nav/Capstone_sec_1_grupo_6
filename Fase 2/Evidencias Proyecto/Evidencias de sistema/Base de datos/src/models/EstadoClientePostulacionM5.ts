@@ -8,7 +8,7 @@ import sequelize from '@/config/database';
 interface EstadoClientePostulacionM5Attributes {
     id_estado_cliente_postulacion_m5: number;
     id_postulacion: number;
-    fecha_cambio_estado_cliente_m5: Date;
+    fecha_cambio_estado_cliente_m5: Date | null;
 }
 
 interface EstadoClientePostulacionM5CreationAttributes extends Optional<EstadoClientePostulacionM5Attributes, never> { }
@@ -20,7 +20,7 @@ interface EstadoClientePostulacionM5CreationAttributes extends Optional<EstadoCl
 class EstadoClientePostulacionM5 extends Model<EstadoClientePostulacionM5Attributes, EstadoClientePostulacionM5CreationAttributes> implements EstadoClientePostulacionM5Attributes {
     public id_estado_cliente_postulacion_m5!: number;
     public id_postulacion!: number;
-    public fecha_cambio_estado_cliente_m5!: Date;
+    public fecha_cambio_estado_cliente_m5!: Date | null;
 }
 
 // ===========================================
@@ -48,8 +48,7 @@ EstadoClientePostulacionM5.init({
     },
     fecha_cambio_estado_cliente_m5: {
         type: DataTypes.DATE,
-        allowNull: false,
-        primaryKey: true,
+        allowNull: true,
         validate: {
             isDate: true
         }

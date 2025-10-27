@@ -1,4 +1,4 @@
-import { Transaction, Op } from 'sequelize';
+import { Transaction, Op, QueryTypes } from 'sequelize';
 import sequelize from '@/config/database';
 import EstadoClienteM5 from '@/models/EstadoClienteM5';
 import EstadoClientePostulacionM5 from '@/models/EstadoClientePostulacionM5';
@@ -72,36 +72,43 @@ export default class EstadoClienteM5Service {
                 fecha: ultimoEstado.fecha_cambio_estado_cliente_m5
             } : 'No existe');
 
-            // Si no hay fecha, solo actualizar comentarios sin crear registro de estado
-            if (!fecha_cambio_estado_cliente_m5) {
-                console.log(`[DEBUG] No hay fecha proporcionada, solo se actualizarán los comentarios`);
-            } else {
-                // Verificar si ya existe exactamente el mismo registro
+            // Si el estado cambió, crear un nuevo registro
+            const estadoCambio = !ultimoEstado || ultimoEstado.id_estado_cliente_postulacion_m5 !== id_estado_cliente_postulacion_m5;
+            
+            if (estadoCambio) {
+                // Buscar la primera fecha no-null en el historial (la fecha de feedback original)
+                const primerFecha = await EstadoClientePostulacionM5.findOne({
+                    where: { 
+                        id_postulacion,
+                        fecha_cambio_estado_cliente_m5: { [Op.ne]: null as any }
+                    },
+                    order: [['fecha_cambio_estado_cliente_m5', 'ASC']]
+                });
+                
+                // Si ya existe una fecha registrada, usar esa; si no, usar la proporcionada (o null)
+                const fechaAUsar = primerFecha?.fecha_cambio_estado_cliente_m5 || fecha_cambio_estado_cliente_m5;
+                
+                // Verificar si ya existe un registro con esta combinación estado+postulación
                 const registroExistente = await EstadoClientePostulacionM5.findOne({
                     where: {
                         id_postulacion,
-                        id_estado_cliente_postulacion_m5,
-                        fecha_cambio_estado_cliente_m5
+                        id_estado_cliente_postulacion_m5
                     }
                 });
 
-                console.log(`[DEBUG] Registro exacto existente:`, registroExistente ? 'SÍ EXISTE' : 'No existe');
-
-                if (registroExistente) {
-                    console.log(`[DEBUG] El registro exacto ya existe, solo se actualizarán los comentarios`);
-                } else {
-                    console.log(`[DEBUG] Creando nuevo registro porque no existe exactamente igual`);
-                    console.log(`[DEBUG] Nuevo estado: ${id_estado_cliente_postulacion_m5}, Nueva fecha: ${fecha_cambio_estado_cliente_m5}`);
+                if (!registroExistente) {
+                    console.log(`[DEBUG] Creando nuevo registro de cambio de estado`);
+                    console.log(`[DEBUG] Estado anterior: ${ultimoEstado?.id_estado_cliente_postulacion_m5 || 'Ninguno'}, Nuevo estado: ${id_estado_cliente_postulacion_m5}`);
+                    console.log(`[DEBUG] Fecha original en historial: ${primerFecha?.fecha_cambio_estado_cliente_m5?.toISOString() || 'No existe'}`);
+                    console.log(`[DEBUG] Fecha a usar: ${fechaAUsar ? fechaAUsar.toISOString() : 'NULL'}`);
                     
-                    const createData = {
+                    await EstadoClientePostulacionM5.create({
                         id_postulacion,
                         id_estado_cliente_postulacion_m5,
-                        fecha_cambio_estado_cliente_m5
-                    };
-                    
-                    console.log(`[DEBUG] Datos a crear:`, createData);
-                    await EstadoClientePostulacionM5.create(createData, { transaction });
-                    console.log(`[DEBUG] Registro creado exitosamente`);
+                        fecha_cambio_estado_cliente_m5: fechaAUsar as any
+                    }, { transaction });
+                } else {
+                    console.log(`[DEBUG] Ya existe un registro con estado ${id_estado_cliente_postulacion_m5} para postulación ${id_postulacion}, no se crea duplicado`);
                 }
             }
 
@@ -137,8 +144,8 @@ export default class EstadoClienteM5Service {
         
         return await this.cambiarEstado(id_postulacion, {
             id_estado_cliente_postulacion_m5: estadoEsperaFeedback,
-            fecha_cambio_estado_cliente_m5: new Date(),
-            comentario_modulo5_cliente: comentario || "Candidato avanzado al módulo 5 - En espera de feedback del cliente"
+            fecha_cambio_estado_cliente_m5: null, // Fecha NULL, se ingresa manualmente después
+            comentario_modulo5_cliente: comentario || ""
         });
     }
 
@@ -210,17 +217,18 @@ export default class EstadoClienteM5Service {
             return [];
         }
 
-        // Obtener el último estado de cada postulación usando una subconsulta
+        // Obtener el último estado de cada postulación (el más reciente con fecha no nula)
         const candidatosConEstadoM5 = await EstadoClientePostulacionM5.findAll({
             where: {
                 id_postulacion: idsPostulaciones,
-                // Subconsulta para obtener solo el registro más reciente de cada postulación
                 [Op.and]: sequelize.literal(`
-                    (id_postulacion, fecha_cambio_estado_cliente_m5) IN (
-                        SELECT id_postulacion, MAX(fecha_cambio_estado_cliente_m5)
-                        FROM estado_cliente_postulacion_m5 
-                        WHERE id_postulacion IN (${idsPostulaciones.join(',')})
-                        GROUP BY id_postulacion
+                    ("EstadoClientePostulacionM5".id_postulacion, "EstadoClientePostulacionM5".id_estado_cliente_postulacion_m5) IN (
+                        SELECT DISTINCT ON (ecm5.id_postulacion) ecm5.id_postulacion, ecm5.id_estado_cliente_postulacion_m5
+                        FROM estado_cliente_postulacion_m5 ecm5
+                        WHERE ecm5.id_postulacion IN (${idsPostulaciones.join(',')})
+                        ORDER BY ecm5.id_postulacion, 
+                                 ecm5.fecha_cambio_estado_cliente_m5 DESC NULLS LAST,
+                                 ecm5.id_estado_cliente_postulacion_m5 DESC
                     )
                 `)
             },
@@ -246,12 +254,47 @@ export default class EstadoClienteM5Service {
         Logger.info(`[DEBUG] Encontrados ${candidatosConEstadoM5.length} registros en estado_cliente_postulacion_m5`);
 
         // Procesar cada registro (ya debería ser único por postulación)
-        const resultado = candidatosConEstadoM5.map(estado => {
+        const candidatosUnicos = new Map();
+        
+        // Obtener historial completo de estados para calcular fecha de feedback
+        const historiales = await EstadoClientePostulacionM5.findAll({
+            where: { id_postulacion: idsPostulaciones },
+            order: [['fecha_cambio_estado_cliente_m5', 'ASC']]
+        });
+
+        // Agrupar historial por postulación
+        const historialPorPostulacion = new Map<number, any[]>();
+        historiales.forEach(estado => {
+            if (!historialPorPostulacion.has(estado.id_postulacion)) {
+                historialPorPostulacion.set(estado.id_postulacion, []);
+            }
+            historialPorPostulacion.get(estado.id_postulacion)!.push(estado);
+        });
+
+        // Agrupar por id_postulacion y tomar solo el primero (más reciente)
+        candidatosConEstadoM5.forEach(estado => {
+            if (!candidatosUnicos.has(estado.id_postulacion)) {
+                candidatosUnicos.set(estado.id_postulacion, estado);
+            }
+        });
+
+        const resultado = Array.from(candidatosUnicos.values()).map(estado => {
             const estadoData = estado as any; // Type assertion para acceder a las relaciones
+            
+            // Obtener la primera fecha no-null del historial (la fecha de feedback original)
+            const historial = historialPorPostulacion.get(estado.id_postulacion) || [];
+            let fechaFeedback = null;
+            
+            // Buscar la primera fecha no-null en el historial
+            const primerRegistroConFecha = historial.find(h => h.fecha_cambio_estado_cliente_m5 !== null);
+            if (primerRegistroConFecha) {
+                fechaFeedback = primerRegistroConFecha.fecha_cambio_estado_cliente_m5;
+            }
+            
             Logger.info(`[DEBUG] Procesando candidato postulación ${estado.id_postulacion}, estado: ${estadoData.estadoClienteM5?.nombre_estado}`);
             Logger.info(`[DEBUG] Fecha cambio estado M5:`, estado.fecha_cambio_estado_cliente_m5);
-            Logger.info(`[DEBUG] Fecha formateada:`, estado.fecha_cambio_estado_cliente_m5 ? 
-                estado.fecha_cambio_estado_cliente_m5.toISOString().split('T')[0] : null);
+            Logger.info(`[DEBUG] Fecha feedback calculada:`, fechaFeedback);
+            Logger.info(`[DEBUG] Fecha formateada:`, fechaFeedback ? fechaFeedback.toISOString().split('T')[0] : null);
             
             const candidatoData = estadoData.postulacion?.candidato;
             const candidatoInfo = candidatoData ? {
@@ -281,9 +324,9 @@ export default class EstadoClienteM5Service {
                 fecha_ultimo_cambio_m5: estado.fecha_cambio_estado_cliente_m5,
                 // Mapear estado para compatibilidad con frontend
                 hiring_status: this.mapEstadoToFrontend(estadoData.estadoClienteM5?.nombre_estado),
-                // Mapear fecha de respuesta del cliente (fecha manual ingresada por el usuario)
-                client_response_date: estado.fecha_cambio_estado_cliente_m5 ? 
-                    estado.fecha_cambio_estado_cliente_m5.toISOString().split('T')[0] : null,
+                // Mapear fecha de respuesta del cliente (fecha de feedback real calculada)
+                client_response_date: fechaFeedback ? 
+                    fechaFeedback.toISOString().split('T')[0] : null,
                 // Fecha de contrato (por ahora vacía, se puede agregar después si es necesario)
                 contract_date: null,
                 // Obtener comentarios de la postulación

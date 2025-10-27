@@ -355,24 +355,42 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const totalVacancies = process.vacancies || 1
   const hasContracted = contractedCandidates.some((c) => c.hiring_status === "contratado")
 
-  // Lógica para determinar si se puede volver al Módulo 2
-  const allCandidatesNotContracted = candidates.every((candidate) => {
-    const contractedCandidate = contractedCandidates.find((cc) => cc.id === candidate.id)
-    return !contractedCandidate || contractedCandidate.hiring_status === "no_contratado" || contractedCandidate.hiring_status === "no_seleccionado"
-  })
+  // 🎯 LÓGICA PARA "VOLVER A MÓDULO 2" - SOLO PARA FLUJO COMPLETO
+  // Verificar si el servicio es de flujo completo (PC, HS, TR)
+  const isFullFlowService = ["PC", "HS", "TR"].includes(process.service_type)
   
-  const allCandidatesRejected = candidates.every((candidate) => {
-    const contractedCandidate = contractedCandidates.find((cc) => cc.id === candidate.id)
-    return contractedCandidate?.hiring_status === "no_seleccionado"
-  })
+  // Candidatos que YA llenaron vacantes (contratados)
+  const candidatosContratados = contractedCandidates.filter(c => 
+    (c as any).contratacion_status === 'contratado'
+  ).length
   
-  // Verificar si hay vacantes sin llenar
-  const hasUnfilledVacancies = contractedCount < totalVacancies
+  // Candidatos que AÚN PUEDEN llenar vacantes (en proceso)
+  const candidatosEnProceso = contractedCandidates.filter(c => 
+    c.hiring_status === 'en_espera_feedback' ||
+    c.hiring_status === 'envio_carta_oferta' ||
+    c.hiring_status === 'aceptacion_carta_oferta'
+  ).length
   
-  // El botón se habilita si:
-  // 1. TODOS los candidatos están rechazados O no contratados
-  // 2. O si hay vacantes sin llenar (para continuar el proceso)
-  const canReturnToModule2 = allCandidatesRejected || (allCandidatesNotContracted && candidates.length > 0) || hasUnfilledVacancies
+  // Candidatos descartados (no pueden llenar vacantes)
+  const candidatosDescartados = contractedCandidates.filter(c => 
+    c.hiring_status === 'no_seleccionado' ||
+    c.hiring_status === 'rechazo_carta_oferta' ||
+    (c as any).contratacion_status === 'no_contratado'
+  ).length
+  
+  // Máximo de vacantes que PUEDO llenar con candidatos actuales
+  const maxVacantesQuePuedoLlenar = candidatosContratados + candidatosEnProceso
+  
+  // MOSTRAR BOTÓN si:
+  // 1. Es servicio de flujo completo (PC, HS, TR)
+  // 2. Y hay vacantes sin llenar (contractedCount < totalVacancies)
+  // 3. Y hay candidatos descartados
+  // 4. Y el número de candidatos en proceso es menor que las vacantes restantes
+  const canReturnToModule2 = isFullFlowService && 
+    contractedCount < totalVacancies && 
+    candidatosDescartados > 0 && 
+    candidatosEnProceso < (totalVacancies - contractedCount)
+  
   const allVacanciesFilled = contractedCount >= totalVacancies
   const canClose = contractedCandidates.length > 0
 
@@ -499,20 +517,12 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-cyan-800">
-                  {allCandidatesRejected 
-                    ? "Todos los candidatos fueron no seleccionados" 
-                    : hasUnfilledVacancies
-                    ? `Vacantes sin llenar: ${totalVacancies - contractedCount} de ${totalVacancies}`
-                    : "Proceso sin candidatos contratados"
-                  }
+                  Vacantes sin llenar: {totalVacancies - contractedCount} de {totalVacancies}
                 </h3>
                 <p className="text-sm text-cyan-600">
-                  {allCandidatesRejected 
-                    ? "Puedes volver al Módulo 2 para gestionar nuevos candidatos" 
-                    : hasUnfilledVacancies
-                    ? "Puedes volver al Módulo 2 para continuar con el proceso de selección y llenar las vacantes restantes"
-                    : "Puedes volver al Módulo 2 para continuar con el proceso de selección"
-                  }
+                  No hay suficientes candidatos disponibles para llenar las vacantes restantes. 
+                  {candidatosDescartados > 0 && ` Candidatos descartados: ${candidatosDescartados}.`}
+                  {' '}Puedes volver al Módulo 2 para gestionar nuevos candidatos.
                 </p>
               </div>
               <Button 
@@ -610,7 +620,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             <CardDescription>Estado detallado de todos los candidatos en proceso</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="mb-6 p-4 bg-muted rounded-lg">
+            <div className="mb-6 p-4 bg-white dark:bg-slate-800 rounded-lg shadow-md border border-border">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold mb-2">Estado del Proceso</h3>
@@ -645,7 +655,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
 
             <div className="space-y-4">
               {contractedCandidates.map((candidate) => (
-                <div key={candidate.id} className="border rounded-lg p-4">
+                <div key={candidate.id} className="border border-border rounded-lg p-4 bg-white dark:bg-slate-800 shadow-md">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold">{candidate.name}</h3>

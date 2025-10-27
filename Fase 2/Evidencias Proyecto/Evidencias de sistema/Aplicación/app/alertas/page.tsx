@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
 import { getNotificationsByUser, mockProcesses, mockUsers } from "@/lib/mock-data"
+import { getHitosAlertas, getHitosDashboard, convertHitosToNotifications, HitoAlert, HitosDashboard } from "@/lib/api-hitos"
 import { serviceTypeLabels } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +18,34 @@ export default function AlertasPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [consultantFilter, setConsultantFilter] = useState<string>("all")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
+  const [hitosAlertas, setHitosAlertas] = useState<HitoAlert[]>([])
+  const [dashboard, setDashboard] = useState<HitosDashboard | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (user) {
+      loadHitosData()
+    }
+  }, [user])
+
+  const loadHitosData = async () => {
+    if (!user) return
+    
+    setLoading(true)
+    try {
+      // Obtener alertas de hitos para el usuario actual
+      const alertas = await getHitosAlertas(user.id)
+      setHitosAlertas(alertas)
+      
+      // Obtener dashboard completo
+      const dashboardData = await getHitosDashboard(user.id)
+      setDashboard(dashboardData)
+    } catch (error) {
+      console.error('Error al cargar datos de hitos:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (!user) {
     return (
@@ -29,55 +58,14 @@ export default function AlertasPage() {
     )
   }
 
+  // Convertir hitos a notificaciones para compatibilidad
+  const hitosNotifications = convertHitosToNotifications(hitosAlertas, user.id)
   const userNotifications = getNotificationsByUser(user.id)
 
-  // Mock additional notifications for better demonstration
+  // Combinar notificaciones mock con hitos reales
   const allNotifications = [
     ...userNotifications,
-    {
-      id: "demo-1",
-      user_id: user.id,
-      process_id: "1",
-      hito_id: "4",
-      type: "proxima_vencer" as const,
-      title: "Evaluación Psicolaboral próxima a vencer",
-      message: "La evaluación psicolaboral para 'Desarrollador Full Stack Senior' vence en 1 día",
-      created_at: "2024-02-01T09:00:00Z",
-      read: false,
-    },
-    {
-      id: "demo-2",
-      user_id: user.id,
-      process_id: "2",
-      hito_id: "5",
-      type: "proxima_vencer" as const,
-      title: "Búsqueda de candidatos próxima a vencer",
-      message: "La búsqueda de candidatos para 'Diseñador UX/UI' vence en 2 días",
-      created_at: "2024-02-01T08:00:00Z",
-      read: false,
-    },
-    {
-      id: "demo-3",
-      user_id: user.id,
-      process_id: "6",
-      hito_id: "7",
-      type: "vencida" as const,
-      title: "Hito vencido",
-      message: "El hito 'Búsqueda de candidatos' para 'Analista de Datos' está vencido hace 2 días",
-      created_at: "2024-01-30T10:00:00Z",
-      read: false,
-    },
-    {
-      id: "demo-4",
-      user_id: user.id,
-      process_id: "3",
-      hito_id: "6",
-      type: "proxima_vencer" as const,
-      title: "Programar evaluación próxima a vencer",
-      message: "Debes programar la evaluación para 'Gerente de Ventas' en las próximas 24 horas",
-      created_at: "2024-02-01T14:00:00Z",
-      read: true,
-    },
+    ...hitosNotifications,
   ]
 
   const filteredNotifications = allNotifications.filter((notification) => {

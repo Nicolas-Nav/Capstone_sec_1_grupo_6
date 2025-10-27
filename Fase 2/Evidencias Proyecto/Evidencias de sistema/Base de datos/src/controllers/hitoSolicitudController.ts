@@ -181,6 +181,105 @@ export class HitoSolicitudController {
         }
     }
 
+    /**
+     * GET /api/hitos-solicitud/alertas
+     * Obtener hitos con alertas en tiempo real
+     */
+    static async getAlertas(req: Request, res: Response): Promise<Response> {
+        try {
+            const { consultor_id } = req.query;
+            
+            // Obtener hitos por vencer y vencidos
+            const [hitosPorVencer, hitosVencidos] = await Promise.all([
+                HitoSolicitudService.getHitosPorVencer(),
+                HitoSolicitudService.getHitosVencidos()
+            ]);
+
+            // Filtrar por consultor si se especifica
+            let hitosFiltrados = [...hitosPorVencer, ...hitosVencidos];
+            if (consultor_id) {
+                hitosFiltrados = hitosFiltrados.filter(hito => 
+                    hito.solicitud?.rut_usuario === consultor_id
+                );
+            }
+
+            // Agrupar por tipo de alerta
+            const alertas = {
+                por_vencer: hitosFiltrados.filter(h => h.estado === 'por_vencer'),
+                vencidos: hitosFiltrados.filter(h => h.estado === 'vencido'),
+                total: hitosFiltrados.length,
+                timestamp: new Date().toISOString()
+            };
+
+            return sendSuccess(res, alertas, 'Alertas obtenidas exitosamente');
+        } catch (error) {
+            Logger.error('Error al obtener alertas:', error);
+            return sendError(res, 'Error al obtener alertas', 500);
+        }
+    }
+
+    /**
+     * GET /api/hitos-solicitud/dashboard/:consultor_id
+     * Dashboard de hitos para consultores
+     */
+    static async getDashboard(req: Request, res: Response): Promise<Response> {
+        try {
+            const { consultor_id } = req.params;
+            
+            // Obtener todos los datos del dashboard en paralelo
+            const [
+                hitosPorVencer,
+                hitosVencidos,
+                hitosPendientes,
+                hitosCompletados,
+                estadisticas
+            ] = await Promise.all([
+                HitoSolicitudService.getHitosPorVencer(),
+                HitoSolicitudService.getHitosVencidos(),
+                HitoSolicitudService.getHitosPendientes(),
+                HitoSolicitudService.getHitosCompletados(),
+                HitoSolicitudService.getEstadisticas()
+            ]);
+
+            // Filtrar por consultor
+            const hitosFiltrados = {
+                por_vencer: hitosPorVencer.filter(h => h.solicitud?.rut_usuario === consultor_id),
+                vencidos: hitosVencidos.filter(h => h.solicitud?.rut_usuario === consultor_id),
+                pendientes: hitosPendientes.filter(h => h.solicitud?.rut_usuario === consultor_id),
+                completados: hitosCompletados.filter(h => h.solicitud?.rut_usuario === consultor_id)
+            };
+
+            // Calcular estadísticas del consultor
+            const totalHitosConsultor = Object.values(hitosFiltrados).reduce((total, hitos) => total + hitos.length, 0);
+            const hitosCompletadosConsultor = hitosFiltrados.completados.length;
+            const porcentajeCompletados = totalHitosConsultor > 0 ? 
+                Math.round((hitosCompletadosConsultor / totalHitosConsultor) * 100) : 0;
+
+            const dashboard = {
+                consultor_id,
+                resumen: {
+                    total: totalHitosConsultor,
+                    completados: hitosCompletadosConsultor,
+                    pendientes: hitosFiltrados.pendientes.length,
+                    por_vencer: hitosFiltrados.por_vencer.length,
+                    vencidos: hitosFiltrados.vencidos.length,
+                    porcentaje_completados: porcentajeCompletados
+                },
+                hitos: hitosFiltrados,
+                alertas_urgentes: [
+                    ...hitosFiltrados.vencidos,
+                    ...hitosFiltrados.por_vencer.filter(h => h.dias_restantes <= 1)
+                ],
+                timestamp: new Date().toISOString()
+            };
+
+            return sendSuccess(res, dashboard, 'Dashboard obtenido exitosamente');
+        } catch (error) {
+            Logger.error('Error al obtener dashboard:', error);
+            return sendError(res, 'Error al obtener dashboard', 500);
+        }
+    }
+
     // ===========================================
     // ACCIONES
     // ===========================================

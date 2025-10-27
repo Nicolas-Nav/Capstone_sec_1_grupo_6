@@ -9,8 +9,8 @@ interface HitoSolicitudAttributes {
     id_hito_solicitud: number;
     nombre_hito: string;
     tipo_ancla: string;
-    duracion_horas: number;
-    avisar_antes_horas: number;
+    duracion_dias: number;
+    avisar_antes_dias: number;
     descripcion: string;
     codigo_servicio: string;
     fecha_base?: Date;
@@ -29,8 +29,8 @@ class HitoSolicitud extends Model<HitoSolicitudAttributes, HitoSolicitudCreation
     public id_hito_solicitud!: number;
     public nombre_hito!: string;
     public tipo_ancla!: string;
-    public duracion_horas!: number;
-    public avisar_antes_horas!: number;
+    public duracion_dias!: number;
+    public avisar_antes_dias!: number;
     public descripcion!: string;
     public codigo_servicio!: string;
     public fecha_base?: Date;
@@ -73,13 +73,14 @@ class HitoSolicitud extends Model<HitoSolicitudAttributes, HitoSolicitudCreation
     }
 
     /**
-     * Calcula cuántas horas faltan para la fecha límite
+     * Calcula cuántos días hábiles faltan para la fecha límite
      */
-    public horasRestantes(): number | null {
+    public diasHabilesRestantes(): number | null {
         if (!this.estaActivo()) return null;
         const ahora = new Date();
         const diff = this.fecha_limite!.getTime() - ahora.getTime();
-        return Math.floor(diff / (1000 * 60 * 60));
+        const diasTotales = Math.floor(diff / (1000 * 60 * 60 * 24));
+        return Math.max(0, diasTotales);
     }
 
     /**
@@ -87,9 +88,9 @@ class HitoSolicitud extends Model<HitoSolicitudAttributes, HitoSolicitudCreation
      */
     public debeAvisar(): boolean {
         if (!this.estaActivo() || this.estaCompletado()) return false;
-        const horasRestantes = this.horasRestantes();
-        if (horasRestantes === null) return false;
-        return horasRestantes <= this.avisar_antes_horas && horasRestantes >= 0;
+        const diasRestantes = this.diasHabilesRestantes();
+        if (diasRestantes === null) return false;
+        return diasRestantes <= this.avisar_antes_dias && diasRestantes >= 0;
     }
 
     /**
@@ -132,14 +133,14 @@ HitoSolicitud.init({
             len: [3, 50]
         }
     },
-    duracion_horas: {
+    duracion_dias: {
         type: DataTypes.INTEGER,
         allowNull: false,
         validate: {
-            min: 1
+            min: 0
         }
     },
-    avisar_antes_horas: {
+    avisar_antes_dias: {
         type: DataTypes.INTEGER,
         allowNull: false,
         validate: {

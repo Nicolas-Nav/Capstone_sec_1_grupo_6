@@ -50,6 +50,12 @@ router.get('/completados', HitoSolicitudController.getCompletados);
 // Obtener estadísticas
 router.get('/estadisticas', HitoSolicitudController.getEstadisticas);
 
+// Obtener hitos con alertas en tiempo real
+router.get('/alertas', HitoSolicitudController.getAlertas);
+
+// Dashboard de hitos para consultores
+router.get('/dashboard/:consultor_id', HitoSolicitudController.getDashboard);
+
 // ===========================================
 // ACCIONES
 // ===========================================

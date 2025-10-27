@@ -453,6 +453,15 @@ export class SolicitudService {
             // Crear hitos automáticamente basados en las plantillas del servicio
             try {
                 await HitoSolicitudService.copiarPlantillasASolicitud(nuevaSolicitud.id_solicitud);
+                
+                // Activar hitos de "inicio_proceso" inmediatamente
+                await HitoSolicitudService.activarHitosPorEvento(
+                    nuevaSolicitud.id_solicitud,
+                    'inicio_proceso',
+                    new Date()
+                );
+                
+                console.log(`✅ Hitos creados y activados para solicitud ${nuevaSolicitud.id_solicitud}`);
             } catch (hitoError) {
                 // Log del error pero no fallar la creación de solicitud
                 console.warn(`⚠️  Advertencia: No se pudieron crear hitos para la solicitud ${nuevaSolicitud.id_solicitud}:`, hitoError);
@@ -653,6 +662,18 @@ export class SolicitudService {
 
             await transaction.commit();
 
+            // Activar hitos relacionados con la publicación (Módulo 2)
+            try {
+                await HitoSolicitudService.activarHitosPorEvento(
+                    id,
+                    'publicacion',
+                    new Date()
+                );
+                console.log(`✅ Hitos de publicación activados para solicitud ${id}`);
+            } catch (hitoError) {
+                console.warn(`⚠️  Advertencia: No se pudieron activar hitos de publicación para la solicitud ${id}:`, hitoError);
+            }
+
             return { 
                 success: true, 
                 message: 'Proceso avanzado al Módulo 2 exitosamente',
@@ -705,6 +726,18 @@ export class SolicitudService {
 
             await transaction.commit();
 
+            // Activar hitos relacionados con la primera presentación (Módulo 3)
+            try {
+                await HitoSolicitudService.activarHitosPorEvento(
+                    id,
+                    'primera_presentacion',
+                    new Date()
+                );
+                console.log(`✅ Hitos de primera presentación activados para solicitud ${id}`);
+            } catch (hitoError) {
+                console.warn(`⚠️  Advertencia: No se pudieron activar hitos de primera presentación para la solicitud ${id}:`, hitoError);
+            }
+
             return { 
                 success: true, 
                 message: 'Proceso avanzado al Módulo 3 exitosamente',
@@ -749,6 +782,18 @@ export class SolicitudService {
             }, { transaction });
 
             await transaction.commit();
+
+            // Activar hitos relacionados con la evaluación psicolaboral (Módulo 4)
+            try {
+                await HitoSolicitudService.activarHitosPorEvento(
+                    id,
+                    'evaluacion_psicolaboral',
+                    new Date()
+                );
+                console.log(`✅ Hitos de evaluación psicolaboral activados para solicitud ${id}`);
+            } catch (hitoError) {
+                console.warn(`⚠️  Advertencia: No se pudieron activar hitos de evaluación psicolaboral para la solicitud ${id}:`, hitoError);
+            }
 
             console.log('✅ Proceso avanzado al Módulo 4 exitosamente');
             console.log('📋 Nueva etapa:', etapaModulo4.nombre_etapa);

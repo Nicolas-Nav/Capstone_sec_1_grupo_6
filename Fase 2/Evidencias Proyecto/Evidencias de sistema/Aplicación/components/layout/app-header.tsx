@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/hooks/auth"
 import { getNotificationsByUser } from "@/lib/mock-data"
+import { getHitosAlertas, convertHitosToNotifications } from "@/lib/api-hitos"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,39 +17,43 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { formatDateTime } from "@/lib/utils"
 import Link from "next/link"
+import { useEffect, useState } from "react"
 
 export function AppHeader() {
   const { user } = useAuth()
+  const [hitosAlertas, setHitosAlertas] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (user) {
+      loadHitosAlertas()
+    }
+  }, [user])
+
+  const loadHitosAlertas = async () => {
+    if (!user) return
+    
+    try {
+      const alertas = await getHitosAlertas(user.id)
+      setHitosAlertas(alertas)
+    } catch (error) {
+      console.error('Error al cargar alertas de hitos:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (!user) return null
 
   const userNotifications = getNotificationsByUser(user.id)
-  const unreadCount = userNotifications.filter((n) => !n.read).length
+  const hitosNotifications = convertHitosToNotifications(hitosAlertas, user.id)
+  
+  // Combinar notificaciones
+  const allNotifications = [...userNotifications, ...hitosNotifications]
+  const unreadCount = allNotifications.filter((n) => !n.read).length
 
-  // Mock additional notifications for demo
-  const recentNotifications = [
-    {
-      id: "1",
-      title: "Evaluación próxima a vencer",
-      message: "Desarrollador Full Stack Senior - vence en 1 día",
-      created_at: "2024-02-01T09:00:00Z",
-      read: false,
-    },
-    {
-      id: "2",
-      title: "Hito vencido",
-      message: "Búsqueda de candidatos - vencido hace 2 días",
-      created_at: "2024-01-30T10:00:00Z",
-      read: false,
-    },
-    {
-      id: "3",
-      title: "Candidato presentado",
-      message: "Cliente respondió sobre Diseñador UX/UI",
-      created_at: "2024-01-29T15:30:00Z",
-      read: true,
-    },
-  ]
+  // Usar notificaciones reales en lugar de mock
+  const recentNotifications = allNotifications.slice(0, 3)
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

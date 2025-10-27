@@ -115,7 +115,44 @@ export const validationSchemas = {
     region: validationRules.required('Debe seleccionar una región'),
     ciudad: validationRules.required('Debe seleccionar una ciudad/comuna'),
     consultant_id: validationRules.required('Debe seleccionar un consultor'),
-    vacancies: validationRules.number(1, undefined, 'Debe ingresar al menos 1 vacante'),
+    vacancies: {
+      custom: (value: any) => {
+        // Si está vacío o es null
+        if (value === '' || value === null || value === undefined) {
+          return 'Debe ingresar el número de vacantes'
+        }
+        
+        // Permitir 0 y strings que representan números
+        if (value === 0 || value === '0') {
+          return 'El número de vacantes debe ser mayor o igual a 1'
+        }
+        
+        // Si está vacío después de trim (para strings)
+        if (typeof value === 'string' && value.trim() === '') {
+          return 'Debe ingresar el número de vacantes'
+        }
+        
+        // Convertir a número
+        const num = Number(value)
+        
+        // Si no es un número válido
+        if (isNaN(num)) {
+          return 'El número de vacantes debe ser un número válido'
+        }
+        
+        // Si es menor a 1 (excluyendo 0 que ya validamos)
+        if (num < 1) {
+          return 'El número de vacantes debe ser mayor o igual a 1'
+        }
+        
+        // Si es mayor a 1000
+        if (num > 1000) {
+          return 'El número de vacantes no puede exceder 1000'
+        }
+        
+        return null
+      }
+    },
     description: validationRules.requiredTextLength(10, 500, 'La descripción'),
     requirements: validationRules.requiredTextLength(10, 500, 'Los requisitos')
   },
@@ -182,6 +219,23 @@ export const validationSchemas = {
     },
     role: validationRules.required('Debe seleccionar un rol'),
     status: validationRules.required('Debe seleccionar un estado')
+  },
+
+  // Validaciones para cambio de contraseña
+  changePasswordForm: {
+    currentPassword: {
+      required: true,
+      message: 'La contraseña actual es requerida'
+    },
+    newPassword: {
+      required: true,
+      minLength: 6,
+      message: 'La nueva contraseña debe tener al menos 6 caracteres'
+    },
+    confirmPassword: {
+      required: true,
+      message: 'Debe confirmar la contraseña'
+    }
   }
 }
 
@@ -267,6 +321,11 @@ function validateSingleField(value: any, rule: ValidationRule): string | null {
     return rule.message || 'Este campo es requerido'
   }
 
+  // Validación personalizada (siempre se ejecuta si existe, maneja el caso vacío internamente)
+  if (rule.custom) {
+    return rule.custom(value)
+  }
+
   // Si el campo no es requerido y está vacío, no validar más
   if (!rule.required && (!value || (typeof value === 'string' && !value.trim()))) {
     return null
@@ -285,11 +344,6 @@ function validateSingleField(value: any, rule: ValidationRule): string | null {
   // Validación de patrón
   if (rule.pattern && typeof value === 'string' && !rule.pattern.test(value.trim())) {
     return rule.message || 'Formato inválido'
-  }
-
-  // Validación personalizada
-  if (rule.custom) {
-    return rule.custom(value)
   }
 
   return null

@@ -1311,11 +1311,19 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
               id="vacancies"
               label="Número de Vacantes"
               type="number"
-              value={formData.vacancies.toString()}
+              value={isNaN(formData.vacancies) ? '' : formData.vacancies.toString()}
               onChange={(value) => {
-                const numValue = parseInt(value)
-                setFormData({ ...formData, vacancies: numValue })
-                validateSpecificField('vacancies', numValue)
+                if (value === '') {
+                  setFormData({ ...formData, vacancies: 0 })
+                  validateSpecificField('vacancies', '')
+                  return
+                }
+                
+                const numValue = parseInt(value, 10)
+                if (!isNaN(numValue)) {
+                  setFormData({ ...formData, vacancies: numValue })
+                  validateSpecificField('vacancies', numValue)
+                }
               }}
               required
               error={typeof validationErrors.vacancies === 'string' ? validationErrors.vacancies : undefined}

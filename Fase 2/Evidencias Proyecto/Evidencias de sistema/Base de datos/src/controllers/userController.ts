@@ -60,6 +60,16 @@ export const changePasswordController = async (req: Request, res: Response) => {
     const result = await changePassword(rut_usuario, currentPassword, newPassword);
     return sendSuccess(res, result, result.message);
   } catch (error: any) {
-    return sendError(res, error.message || "Error al cambiar contraseña");
+    // Mensajes específicos para errores conocidos
+    if (error.message === "Usuario no encontrado") {
+      return sendError(res, error.message, 404);
+    }
+    
+    if (error.message === "Contraseña actual incorrecta") {
+      return sendError(res, error.message, 400);
+    }
+    
+    // Mensaje genérico para errores no contemplados
+    return sendError(res, error.message || "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.", 500);
   }
 };

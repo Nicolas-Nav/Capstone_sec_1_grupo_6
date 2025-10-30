@@ -79,8 +79,36 @@ class HitoSolicitud extends Model<HitoSolicitudAttributes, HitoSolicitudCreation
         if (!this.estaActivo()) return null;
         const ahora = new Date();
         const diff = this.fecha_limite!.getTime() - ahora.getTime();
-        const diasTotales = Math.floor(diff / (1000 * 60 * 60 * 24));
-        return Math.max(0, diasTotales);
+        
+        // Si ya pasó la fecha, retornar negativo
+        if (diff < 0) {
+            const diasAtrasados = Math.ceil(Math.abs(diff) / (1000 * 60 * 60 * 24));
+            return -diasAtrasados;
+        }
+        
+        // Calcular días hábiles restantes (aproximado)
+        const diasCalendario = Math.floor(diff / (1000 * 60 * 60 * 24));
+        
+        // Ajustar por fines de semana (simplificado)
+        let diasHabiles = diasCalendario;
+        const fechaActual = new Date(ahora);
+        
+        // Si la fecha límite es muy próxima, calcular exactamente
+        if (diasCalendario <= 14) {
+            let contador = 0;
+            while (fechaActual < this.fecha_limite!) {
+                const diaSemana = fechaActual.getDay();
+                if (diaSemana !== 0 && diaSemana !== 6) { // No es domingo ni sábado
+                    contador++;
+                }
+                fechaActual.setDate(fechaActual.getDate() + 1);
+            }
+            return contador;
+        }
+        
+        // Para fechas lejanas, estimar (restar aprox. 2 días por semana)
+        diasHabiles = Math.max(0, Math.floor(diasCalendario * 5 / 7));
+        return diasHabiles;
     }
 
     /**
@@ -90,7 +118,8 @@ class HitoSolicitud extends Model<HitoSolicitudAttributes, HitoSolicitudCreation
         if (!this.estaActivo() || this.estaCompletado()) return false;
         const diasRestantes = this.diasHabilesRestantes();
         if (diasRestantes === null) return false;
-        return diasRestantes <= this.avisar_antes_dias && diasRestantes >= 0;
+        // Debe avisar si está dentro del rango de aviso (por venir o vencido)
+        return Math.abs(diasRestantes) <= this.avisar_antes_dias;
     }
 
     /**

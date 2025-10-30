@@ -11,16 +11,31 @@ export class FechasLaborales {
      * @returns Nueva fecha con los días hábiles sumados
      */
     static sumarDiasHabiles(fechaBase: Date, diasHabiles: number): Date {
+        // Si duración es 0, retornar la fecha base (hito inmediato)
+        if (diasHabiles === 0) {
+            return new Date(fechaBase);
+        }
+        
         const fechaLimite = new Date(fechaBase);
         let diasAgregados = 0;
         
         while (diasAgregados < diasHabiles) {
+            // Avanzar al siguiente día
             fechaLimite.setDate(fechaLimite.getDate() + 1);
             
-            // Si no es sábado (6) ni domingo (0)
-            if (fechaLimite.getDay() !== 0 && fechaLimite.getDay() !== 6) {
+            // Verificar si es día hábil
+            const diaSemana = fechaLimite.getDay();
+            const esHabil = diaSemana !== 0 && diaSemana !== 6; // No es domingo ni sábado
+            
+            // Si es día hábil, incrementar el contador
+            if (esHabil) {
                 diasAgregados++;
             }
+        }
+        
+        // Asegurar que la fecha límite final no caiga en fin de semana
+        while (fechaLimite.getDay() === 0 || fechaLimite.getDay() === 6) {
+            fechaLimite.setDate(fechaLimite.getDate() + 1);
         }
         
         return fechaLimite;

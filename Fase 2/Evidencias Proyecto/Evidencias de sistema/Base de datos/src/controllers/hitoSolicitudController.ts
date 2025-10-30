@@ -189,20 +189,19 @@ export class HitoSolicitudController {
         try {
             const { consultor_id } = req.query;
             
-            // Obtener hitos por vencer y vencidos
+            Logger.info(`🔔 Obteniendo alertas para consultor_id: ${consultor_id}`);
+            
+            // Obtener hitos por vencer y vencidos (ya filtrados por consultor en el servicio)
             const [hitosPorVencer, hitosVencidos] = await Promise.all([
-                HitoSolicitudService.getHitosPorVencer(),
-                HitoSolicitudService.getHitosVencidos()
+                HitoSolicitudService.getHitosPorVencer(consultor_id as string | undefined),
+                HitoSolicitudService.getHitosVencidos(consultor_id as string | undefined)
             ]);
 
-            // Filtrar por consultor si se especifica
-            let hitosFiltrados = [...hitosPorVencer, ...hitosVencidos];
-            if (consultor_id) {
-                hitosFiltrados = hitosFiltrados.filter(hito => 
-                    hito.solicitud?.rut_usuario === consultor_id
-                );
-            }
+            Logger.info(`📊 Hitos por vencer: ${hitosPorVencer.length}, Vencidos: ${hitosVencidos.length}`);
 
+            // Combinar todos los hitos
+            const hitosFiltrados = [...hitosPorVencer, ...hitosVencidos];
+            
             // Agrupar por tipo de alerta
             const alertas = {
                 por_vencer: hitosFiltrados.filter(h => h.estado === 'por_vencer'),
@@ -210,6 +209,8 @@ export class HitoSolicitudController {
                 total: hitosFiltrados.length,
                 timestamp: new Date().toISOString()
             };
+
+            Logger.info(`✅ Retornando ${alertas.total} alertas (${alertas.por_vencer.length} por vencer, ${alertas.vencidos.length} vencidos)`);
 
             return sendSuccess(res, alertas, 'Alertas obtenidas exitosamente');
         } catch (error) {

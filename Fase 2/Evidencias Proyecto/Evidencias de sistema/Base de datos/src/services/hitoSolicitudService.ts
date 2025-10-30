@@ -1,6 +1,6 @@
 import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
-import { HitoSolicitud, Solicitud, DescripcionCargo, Contacto, Usuario } from '@/models';
+import { HitoSolicitud, Solicitud, DescripcionCargo, Contacto, Usuario, Cliente } from '@/models';
 import { FechasLaborales } from '@/utils/fechasLaborales';
 import { obtenerPlantillasPorServicio } from '@/data/plantillasHitos';
 
@@ -166,28 +166,46 @@ export class HitoSolicitudService {
     /**
      * Obtener hitos VENCIDOS (atrasados)
      */
-    static async getHitosVencidos() {
+    static async getHitosVencidos(consultor_id?: string) {
+        const where: any = {
+            id_solicitud: { [Op.not]: null } as any,
+            fecha_limite: { [Op.lt]: new Date() },
+            fecha_cumplimiento: { [Op.is]: null } as any
+        };
+
         const hitos = await HitoSolicitud.findAll({
-            where: {
-                id_solicitud: { [Op.not]: null } as any,
-                fecha_limite: { [Op.lt]: new Date() },
-                fecha_cumplimiento: { [Op.is]: null } as any
-            },
+            where,
             include: [
                 {
                     model: Solicitud,
                     as: 'solicitud',
+                    required: true,
                     include: [
                         { model: DescripcionCargo, as: 'descripcionCargo' },
-                        { model: Contacto, as: 'contacto' },
-                        { model: Usuario, as: 'usuario' }
+                        { 
+                            model: Contacto, 
+                            as: 'contacto',
+                            include: [
+                                { model: Cliente, as: 'cliente' }
+                            ]
+                        },
+                        { model: Usuario, as: 'usuario', required: true }
                     ]
                 }
             ],
             order: [['fecha_limite', 'ASC']]
         });
 
-        return hitos.map(h => {
+        // Filtrar por consultor si se especifica
+        let hitosFiltrados = hitos;
+        if (consultor_id) {
+            hitosFiltrados = hitos.filter(h => {
+                const hitoData = h.toJSON() as any;
+                return hitoData.solicitud?.rut_usuario === consultor_id;
+            });
+        }
+
+        return hitosFiltrados.map(h => {
             const hitoData = h.toJSON() as any;
             return {
                 ...hitoData,
@@ -201,7 +219,7 @@ export class HitoSolicitudService {
     /**
      * Obtener hitos POR VENCER (en período de aviso)
      */
-    static async getHitosPorVencer() {
+    static async getHitosPorVencer(consultor_id?: string) {
         const ahora = new Date();
         
         const hitos = await HitoSolicitud.findAll({
@@ -214,23 +232,42 @@ export class HitoSolicitudService {
                 {
                     model: Solicitud,
                     as: 'solicitud',
+                    required: true,
                     include: [
                         { model: DescripcionCargo, as: 'descripcionCargo' },
-                        { model: Contacto, as: 'contacto' },
-                        { model: Usuario, as: 'usuario' }
+                        { 
+                            model: Contacto, 
+                            as: 'contacto',
+                            include: [
+                                { model: Cliente, as: 'cliente' }
+                            ]
+                        },
+                        { model: Usuario, as: 'usuario', required: true }
                     ]
                 }
             ],
             order: [['fecha_limite', 'ASC']]
         });
 
-        return hitos.filter(h => h.debeAvisar()).map(h => {
+        // Filtrar por consultor si se especifica
+        let hitosFiltrados = hitos;
+        if (consultor_id) {
+            hitosFiltrados = hitos.filter(h => {
+                const hitoData = h.toJSON() as any;
+                return hitoData.solicitud?.rut_usuario === consultor_id;
+            });
+        }
+
+        return hitosFiltrados.map(h => {
             const hitoData = h.toJSON() as any;
+            const diasRestantes = h.diasHabilesRestantes();
+            const debeAvisar = h.debeAvisar();
+            
             return {
                 ...hitoData,
-                estado: 'por_vencer',
-                dias_restantes: h.diasHabilesRestantes(),
-                debe_avisar: h.debeAvisar(),
+                estado: diasRestantes && diasRestantes < 0 ? 'vencido' : 'por_vencer',
+                dias_restantes: diasRestantes,
+                debe_avisar: debeAvisar,
                 solicitud: hitoData.solicitud
             };
         });
@@ -257,7 +294,13 @@ export class HitoSolicitudService {
                     as: 'solicitud',
                     include: [
                         { model: DescripcionCargo, as: 'descripcionCargo' },
-                        { model: Contacto, as: 'contacto' },
+                        { 
+                            model: Contacto, 
+                            as: 'contacto',
+                            include: [
+                                { model: Cliente, as: 'cliente' }
+                            ]
+                        },
                         { model: Usuario, as: 'usuario' }
                     ]
                 }
@@ -298,7 +341,13 @@ export class HitoSolicitudService {
                     as: 'solicitud',
                     include: [
                         { model: DescripcionCargo, as: 'descripcionCargo' },
-                        { model: Contacto, as: 'contacto' },
+                        { 
+                            model: Contacto, 
+                            as: 'contacto',
+                            include: [
+                                { model: Cliente, as: 'cliente' }
+                            ]
+                        },
                         { model: Usuario, as: 'usuario' }
                     ]
                 }

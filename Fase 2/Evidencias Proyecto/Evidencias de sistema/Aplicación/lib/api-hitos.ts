@@ -9,18 +9,31 @@ export interface HitoAlert {
   id_hito_solicitud: number
   nombre_hito: string
   descripcion: string
-  fecha_limite: string
+  tipo_ancla: string
+  duracion_dias: number
+  avisar_antes_dias: number
+  codigo_servicio: string
+  fecha_base?: string
+  fecha_limite?: string
+  fecha_cumplimiento?: string
   dias_restantes: number
   estado: 'por_vencer' | 'vencido' | 'pendiente' | 'completado'
   debe_avisar: boolean
   solicitud?: {
     id_solicitud: number
-    position_title: string
-    client?: {
-      nombre_cliente: string
+    rut_usuario: string
+    descripcionCargo?: {
+      titulo_cargo: string
+    }
+    contacto?: {
+      nombre_contacto: string
+      cliente?: {
+        nombre_cliente: string
+      }
     }
     usuario?: {
       nombre_usuario: string
+      apellido_usuario: string
     }
   }
 }
@@ -193,8 +206,8 @@ function getNotificationTitle(hito: HitoAlert): string {
  * Generar mensaje de notificación basado en el hito
  */
 function getNotificationMessage(hito: HitoAlert): string {
-  const proceso = hito.solicitud?.position_title || 'Proceso'
-  const cliente = hito.solicitud?.client?.nombre_cliente || 'Cliente'
+  const proceso = hito.solicitud?.descripcionCargo?.titulo_cargo || 'Proceso'
+  const cliente = hito.solicitud?.contacto?.cliente?.nombre_cliente || 'Cliente'
   
   if (hito.estado === 'vencido') {
     return `El hito "${hito.nombre_hito}" para "${proceso}" de ${cliente} está vencido`

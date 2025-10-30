@@ -41,23 +41,7 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
             tipo_ancla: 'inicio_proceso',
             duracion_dias: 5,
             avisar_antes_dias: 2,
-            descripcion: "Faltan 2 días para la presentación de candidatos a cliente",
-            codigo_servicio: "PC"
-        },
-        {
-            nombre_hito: "Presentación candidatos",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 5,
-            avisar_antes_dias: 1,
-            descripcion: "Falta 1 día para la presentación de candidatos a cliente",
-            codigo_servicio: "PC"
-        },
-        {
-            nombre_hito: "Presentación candidatos",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 5,
-            avisar_antes_dias: 0,
-            descripcion: "Debe mandarse hoy la presentación de candidatos a cliente",
+            descripcion: "Presentación de candidatos a cliente",
             codigo_servicio: "PC"
         },
         {

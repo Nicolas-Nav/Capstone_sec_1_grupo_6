@@ -10,9 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDateTime } from "@/lib/utils"
-import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase, Table, Eye, Target, Building2 } from "lucide-react"
-import { Table as TableComponent, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
+import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase } from "lucide-react"
 
 export default function AlertasPage() {
   const { user } = useAuth()
@@ -21,7 +19,6 @@ export default function AlertasPage() {
   const [hitosAlertas, setHitosAlertas] = useState<HitoAlert[]>([])
   const [dashboard, setDashboard] = useState<HitosDashboard | null>(null)
   const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<"cards" | "table">("cards")
 
   useEffect(() => {
     if (user) {
@@ -72,16 +69,55 @@ export default function AlertasPage() {
   }
 
   // Filtrar hitos reales del backend
-  const filteredHitosAlertas = hitosAlertas.filter(hito => {
-    const matchesSearch = 
-      hito.nombre_hito.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      hito.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (hito.solicitud?.descripcionCargo?.titulo_cargo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (hito.solicitud?.contacto?.cliente?.nombre_cliente || '').toLowerCase().includes(searchTerm.toLowerCase())
+  // Función para obtener el hito más relevante de cada grupo
+  const getHitoMasRelevante = (hitos: any[]) => {
+    const grupos = new Map<string, any[]>();
     
-    const matchesService = serviceFilter === "all" || hito.codigo_servicio === serviceFilter
+    // Agrupar por nombre_hito + id_solicitud
+    hitos.forEach(hito => {
+      const key = `${hito.nombre_hito}-${hito.solicitud?.id_solicitud}`;
+      if (!grupos.has(key)) {
+        grupos.set(key, []);
+      }
+      grupos.get(key)!.push(hito);
+    });
+    
+    // Para cada grupo, seleccionar el más relevante
+    const hitosRelevantes: any[] = [];
+    grupos.forEach(grupo => {
+      if (grupo.length === 1) {
+        hitosRelevantes.push(grupo[0]);
+      } else {
+        // Si hay múltiples hitos del mismo tipo, seleccionar el más urgente
+        const masUrgente = grupo.reduce((prev, current) => {
+          const diasPrev = Math.abs(prev.dias_restantes || 0);
+          const diasCurrent = Math.abs(current.dias_restantes || 0);
+          return diasCurrent < diasPrev ? current : prev;
+        });
+        hitosRelevantes.push(masUrgente);
+      }
+    });
+    
+    return hitosRelevantes;
+  };
 
-    return matchesSearch && matchesService
+  const filteredHitosAlertas = getHitoMasRelevante(
+    hitosAlertas.filter(hito => {
+      const matchesSearch = 
+        hito.nombre_hito.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        hito.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (hito.solicitud?.descripcionCargo?.titulo_cargo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (hito.solicitud?.contacto?.cliente?.nombre_cliente || '').toLowerCase().includes(searchTerm.toLowerCase())
+      
+      const matchesService = serviceFilter === "all" || hito.codigo_servicio === serviceFilter
+
+      return matchesSearch && matchesService
+    })
+  ).sort((a, b) => {
+    // Ordenar por días restantes (menor a mayor)
+    const diasA = a.dias_restantes || 0
+    const diasB = b.dias_restantes || 0
+    return diasA - diasB
   })
 
   const proximasVencer = filteredHitosAlertas.filter((h) => h.estado === 'por_vencer')
@@ -227,7 +263,7 @@ export default function AlertasPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Filtros y Vista
+            Filtros
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -256,22 +292,6 @@ export default function AlertasPage() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode("cards")}
-                className={`p-2 rounded-md ${viewMode === "cards" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
-                title="Vista de tarjetas"
-              >
-                <Eye className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode("table")}
-                className={`p-2 rounded-md ${viewMode === "table" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
-                title="Vista de tabla"
-              >
-                <Table className="h-4 w-4" />
-              </button>
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -343,6 +363,9 @@ export default function AlertasPage() {
                                 </div>
                                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                   <div className="flex items-center gap-1">
+                                    <span className="font-semibold text-blue-600">Solicitud #{hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
                                     <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
                                   </div>
@@ -352,7 +375,7 @@ export default function AlertasPage() {
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
-                                    <span>{hito.dias_restantes} días {hito.estado === 'vencido' ? 'atrasado' : 'restantes'}</span>
+                                    <span>{hito.duracion_dias} días de duración</span>
                                   </div>
                                 </div>
                               </div>
@@ -405,7 +428,7 @@ export default function AlertasPage() {
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
-                                    <span>{hito.dias_restantes} días restantes</span>
+                                    <span>{hito.duracion_dias} días de duración</span>
                                   </div>
                                 </div>
                               </div>
@@ -449,6 +472,9 @@ export default function AlertasPage() {
                                 </div>
                                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                   <div className="flex items-center gap-1">
+                                    <span className="font-semibold text-blue-600">Solicitud #{hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
                                     <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
                                   </div>
@@ -458,7 +484,7 @@ export default function AlertasPage() {
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
-                                    <span>{Math.abs(hito.dias_restantes)} días atrasado</span>
+                                    <span>{hito.duracion_dias} días de duración</span>
                                   </div>
                                 </div>
                               </div>
@@ -480,205 +506,6 @@ export default function AlertasPage() {
         </CardContent>
       </Card>
 
-      {/* Tabla Completa de Hitos */}
-      {viewMode === "table" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Table className="h-5 w-5" />
-              Tabla Completa de Hitos
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Todos los campos de los hitos del consultor {user.id}
-            </p>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-muted-foreground">Cargando hitos...</p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Tabla de Hitos por Vencer */}
-                {proximasVencer.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Clock className="h-5 w-5 text-orange-600" />
-                        Hitos Próximos a Vencer ({proximasVencer.length})
-                      </CardTitle>
-                      <CardDescription>Hitos que requieren atención en los próximos días</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <TableComponent>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Hito</TableHead>
-                            <TableHead>Proceso</TableHead>
-                            <TableHead>Cliente</TableHead>
-                            <TableHead>Tipo de Servicio</TableHead>
-                            <TableHead>Fecha Límite</TableHead>
-                            <TableHead>Días Restantes</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {proximasVencer.map((hito) => (
-                            <TableRow key={hito.id_hito_solicitud}>
-                              <TableCell className="font-medium">
-                                <div>
-                                  <div className="font-semibold">{hito.nombre_hito}</div>
-                                  <div className="text-sm text-muted-foreground">{hito.descripcion}</div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Target className="h-3 w-3" />
-                                  {hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin título'}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Building2 className="h-3 w-3" />
-                                  {hito.solicitud?.contacto?.cliente?.nombre_cliente || 'Sin cliente'}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-xs">
-                                  {serviceTypeLabels[hito.codigo_servicio] || hito.codigo_servicio}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {hito.fecha_limite ? formatDateTime(hito.fecha_limite) : 'N/A'}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  <span className={hito.dias_restantes && hito.dias_restantes <= 1 ? 'text-red-600 font-semibold' : 'text-orange-600'}>
-                                    {hito.dias_restantes} días
-                                  </span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={hito.debe_avisar ? 'destructive' : 'secondary'}>
-                                  {hito.debe_avisar ? 'Urgente' : 'Normal'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Button size="sm" variant="outline">
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  Ver Detalles
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </TableComponent>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Tabla de Hitos Vencidos */}
-                {vencidas.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-red-600" />
-                        Hitos Vencidos ({vencidas.length})
-                      </CardTitle>
-                      <CardDescription>Hitos que han superado su fecha límite</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <TableComponent>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Hito</TableHead>
-                            <TableHead>Proceso</TableHead>
-                            <TableHead>Cliente</TableHead>
-                            <TableHead>Tipo de Servicio</TableHead>
-                            <TableHead>Fecha Límite</TableHead>
-                            <TableHead>Días Atrasados</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {vencidas.map((hito) => (
-                            <TableRow key={hito.id_hito_solicitud} className="bg-red-50/50">
-                              <TableCell className="font-medium">
-                                <div>
-                                  <div className="font-semibold text-red-700">{hito.nombre_hito}</div>
-                                  <div className="text-sm text-muted-foreground">{hito.descripcion}</div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Target className="h-3 w-3" />
-                                  {hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin título'}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Building2 className="h-3 w-3" />
-                                  {hito.solicitud?.contacto?.cliente?.nombre_cliente || 'Sin cliente'}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-xs">
-                                  {serviceTypeLabels[hito.codigo_servicio] || hito.codigo_servicio}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {hito.fecha_limite ? formatDateTime(hito.fecha_limite) : 'N/A'}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <AlertTriangle className="h-3 w-3 text-red-600" />
-                                  <span className="text-red-600 font-semibold">
-                                    {(hito as any).dias_atrasados || Math.abs(hito.dias_restantes || 0)} días
-                                  </span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="destructive">
-                                  Vencido
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Button size="sm" variant="destructive">
-                                  <AlertTriangle className="mr-2 h-4 w-4" />
-                                  Marcar Completado
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </TableComponent>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Mensaje cuando no hay hitos */}
-                {filteredHitosAlertas.length === 0 && (
-                  <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-12">
-                      <Bell className="h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">No hay alertas</h3>
-                      <p className="text-muted-foreground text-center">
-                        No tienes hitos próximos a vencer o vencidos en este momento.
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

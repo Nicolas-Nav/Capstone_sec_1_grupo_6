@@ -123,6 +123,36 @@ class HitoSolicitud extends Model<HitoSolicitudAttributes, HitoSolicitudCreation
     }
 
     /**
+     * Genera mensaje de alerta dinámico según los días restantes
+     */
+    public getMensajeAlerta(): string {
+        const diasRestantes = this.diasHabilesRestantes();
+        if (diasRestantes === null) return this.descripcion;
+        
+        if (diasRestantes < 0) {
+            // Hito vencido
+            const diasAtrasados = Math.abs(diasRestantes);
+            if (diasAtrasados === 1) {
+                return `Vencido hace 1 día: ${this.descripcion}`;
+            } else {
+                return `Vencido hace ${diasAtrasados} días: ${this.descripcion}`;
+            }
+        } else if (diasRestantes === 0) {
+            // Vence hoy
+            return `Debe completarse hoy: ${this.descripcion}`;
+        } else if (diasRestantes === 1) {
+            // Vence mañana
+            return `Falta 1 día: ${this.descripcion}`;
+        } else if (diasRestantes === 2) {
+            // Vence en 2 días
+            return `Faltan 2 días: ${this.descripcion}`;
+        } else {
+            // Vence en más días
+            return `Faltan ${diasRestantes} días: ${this.descripcion}`;
+        }
+    }
+
+    /**
      * Obtiene el estado del hito para el dashboard
      */
     public getEstado(): 'plantilla' | 'pendiente' | 'por_vencer' | 'vencido' | 'completado' {

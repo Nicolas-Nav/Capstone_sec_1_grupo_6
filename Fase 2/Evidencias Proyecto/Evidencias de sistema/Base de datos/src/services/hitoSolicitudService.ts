@@ -221,6 +221,7 @@ export class HitoSolicitudService {
                 ...hitoData,
                 estado: 'vencido',
                 dias_atrasados: Math.abs(h.diasHabilesRestantes() || 0),
+                descripcion: h.getMensajeAlerta(), // Usar mensaje dinámico
                 solicitud: hitoData.solicitud ? {
                     ...hitoData.solicitud,
                     descripcionCargo: hitoData.solicitud.descripcionCargo,
@@ -293,6 +294,7 @@ export class HitoSolicitudService {
                 estado: diasRestantes && diasRestantes < 0 ? 'vencido' : 'por_vencer',
                 dias_restantes: diasRestantes,
                 debe_avisar: debeAvisar,
+                descripcion: h.getMensajeAlerta(), // Usar mensaje dinámico
                 solicitud: hitoData.solicitud ? {
                     ...hitoData.solicitud,
                     descripcionCargo: hitoData.solicitud.descripcionCargo,

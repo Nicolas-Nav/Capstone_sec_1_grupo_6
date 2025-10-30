@@ -221,7 +221,12 @@ export class HitoSolicitudService {
                 ...hitoData,
                 estado: 'vencido',
                 dias_atrasados: Math.abs(h.diasHabilesRestantes() || 0),
-                solicitud: hitoData.solicitud
+                solicitud: hitoData.solicitud ? {
+                    ...hitoData.solicitud,
+                    descripcionCargo: hitoData.solicitud.descripcionCargo,
+                    contacto: hitoData.solicitud.contacto,
+                    usuario: hitoData.solicitud.usuario
+                } : null
             };
         });
     }
@@ -288,7 +293,12 @@ export class HitoSolicitudService {
                 estado: diasRestantes && diasRestantes < 0 ? 'vencido' : 'por_vencer',
                 dias_restantes: diasRestantes,
                 debe_avisar: debeAvisar,
-                solicitud: hitoData.solicitud
+                solicitud: hitoData.solicitud ? {
+                    ...hitoData.solicitud,
+                    descripcionCargo: hitoData.solicitud.descripcionCargo,
+                    contacto: hitoData.solicitud.contacto,
+                    usuario: hitoData.solicitud.usuario
+                } : null
             };
         });
     }

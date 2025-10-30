@@ -4,14 +4,15 @@ import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
 import { getHitosAlertas, getHitosDashboard, HitoAlert, HitosDashboard } from "@/lib/api-hitos"
 import { serviceTypeLabels } from "@/lib/utils"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDateTime } from "@/lib/utils"
-import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase, Table, Eye } from "lucide-react"
+import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase, Table, Eye, Target, Building2 } from "lucide-react"
 import { Table as TableComponent, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
 
 export default function AlertasPage() {
   const { user } = useAuth()
@@ -29,19 +30,27 @@ export default function AlertasPage() {
   }, [user])
 
   const loadHitosData = async () => {
-    if (!user) return
+      if (!user) {
+      console.log('❌ No hay usuario autenticado')
+      return
+    }
     
     setLoading(true)
     try {
       console.log('🔍 Cargando hitos para usuario:', user.id)
+      console.log('🔍 Usuario completo:', user)
+      
+      // Probar con el RUT específico que sabemos que funciona
+      const consultorId = user.id || '209942917'
+      console.log('🔍 Usando consultor_id:', consultorId)
       
       // Obtener alertas de hitos para el usuario actual
-      const alertas = await getHitosAlertas(user.id)
+      const alertas = await getHitosAlertas(consultorId)
       console.log('📊 Hitos cargados:', alertas.length, alertas)
       setHitosAlertas(alertas)
       
       // Obtener dashboard completo
-      const dashboardData = await getHitosDashboard(user.id)
+      const dashboardData = await getHitosDashboard(consultorId)
       console.log('📈 Dashboard cargado:', dashboardData)
       setDashboard(dashboardData)
     } catch (error) {
@@ -491,119 +500,180 @@ export default function AlertasPage() {
                   <p className="text-muted-foreground">Cargando hitos...</p>
                 </div>
               </div>
-            ) : filteredHitosAlertas.length > 0 ? (
-              <div className="overflow-x-auto">
-                <TableComponent>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ID Hito</TableHead>
-                      <TableHead>Nombre Hito</TableHead>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead>Tipo Ancla</TableHead>
-                      <TableHead>Duración (días)</TableHead>
-                      <TableHead>Avisar Antes (días)</TableHead>
-                      <TableHead>Código Servicio</TableHead>
-                      <TableHead>Fecha Base</TableHead>
-                      <TableHead>Fecha Límite</TableHead>
-                      <TableHead>Fecha Cumplimiento</TableHead>
-                      <TableHead>Días Restantes</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>ID Solicitud</TableHead>
-                      <TableHead>Título Cargo</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Contacto</TableHead>
-                      <TableHead>Consultor</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredHitosAlertas.map((hito) => (
-                      <TableRow key={hito.id_hito_solicitud}>
-                        <TableCell className="font-medium">
-                          {hito.id_hito_solicitud}
-                        </TableCell>
-                        <TableCell className="font-semibold">
-                          {hito.nombre_hito}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate" title={hito.descripcion}>
-                          {hito.descripcion}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{hito.tipo_ancla}</Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {hito.duracion_dias}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {hito.avisar_antes_dias}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{hito.codigo_servicio}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {hito.fecha_base ? formatDateTime(hito.fecha_base) : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {hito.fecha_limite ? formatDateTime(hito.fecha_limite) : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {hito.fecha_cumplimiento ? formatDateTime(hito.fecha_cumplimiento) : '-'}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className={`font-semibold ${
-                            hito.dias_restantes && hito.dias_restantes < 0 
-                              ? 'text-red-600' 
-                              : hito.dias_restantes && hito.dias_restantes <= 3 
-                                ? 'text-yellow-600' 
-                                : 'text-green-600'
-                          }`}>
-                            {hito.dias_restantes !== null ? hito.dias_restantes : '-'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {hito.estado === 'vencido' ? (
-                            <Badge variant="destructive">Vencido</Badge>
-                          ) : hito.estado === 'por_vencer' ? (
-                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                              Por Vencer
-                            </Badge>
-                          ) : hito.estado === 'completado' ? (
-                            <Badge variant="default" className="bg-green-100 text-green-800">
-                              Completado
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">Pendiente</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {hito.solicitud?.id_solicitud || '-'}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate" title={hito.solicitud?.descripcionCargo?.titulo_cargo}>
-                          {hito.solicitud?.descripcionCargo?.titulo_cargo || '-'}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate" title={hito.solicitud?.contacto?.cliente?.nombre_cliente}>
-                          {hito.solicitud?.contacto?.cliente?.nombre_cliente || '-'}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate" title={hito.solicitud?.contacto?.nombre_contacto}>
-                          {hito.solicitud?.contacto?.nombre_contacto || '-'}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {hito.solicitud?.usuario ? 
-                            `${hito.solicitud.usuario.nombre_usuario} ${hito.solicitud.usuario.apellido_usuario}` : 
-                            '-'
-                          }
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </TableComponent>
-              </div>
             ) : (
-              <div className="text-center py-12">
-                <Table className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No hay hitos</h3>
-                <p className="text-muted-foreground">
-                  No se encontraron hitos para el consultor {user.id} con los filtros aplicados.
-                </p>
+              <div className="space-y-6">
+                {/* Tabla de Hitos por Vencer */}
+                {proximasVencer.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-orange-600" />
+                        Hitos Próximos a Vencer ({proximasVencer.length})
+                      </CardTitle>
+                      <CardDescription>Hitos que requieren atención en los próximos días</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <TableComponent>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Hito</TableHead>
+                            <TableHead>Proceso</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Tipo de Servicio</TableHead>
+                            <TableHead>Fecha Límite</TableHead>
+                            <TableHead>Días Restantes</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Acciones</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {proximasVencer.map((hito) => (
+                            <TableRow key={hito.id_hito_solicitud}>
+                              <TableCell className="font-medium">
+                                <div>
+                                  <div className="font-semibold">{hito.nombre_hito}</div>
+                                  <div className="text-sm text-muted-foreground">{hito.descripcion}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Target className="h-3 w-3" />
+                                  {hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin título'}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Building2 className="h-3 w-3" />
+                                  {hito.solicitud?.contacto?.cliente?.nombre_cliente || 'Sin cliente'}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {serviceTypeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {hito.fecha_limite ? formatDateTime(hito.fecha_limite) : 'N/A'}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span className={hito.dias_restantes && hito.dias_restantes <= 1 ? 'text-red-600 font-semibold' : 'text-orange-600'}>
+                                    {hito.dias_restantes} días
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={hito.debe_avisar ? 'destructive' : 'secondary'}>
+                                  {hito.debe_avisar ? 'Urgente' : 'Normal'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button size="sm" variant="outline">
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  Ver Detalles
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </TableComponent>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Tabla de Hitos Vencidos */}
+                {vencidas.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-red-600" />
+                        Hitos Vencidos ({vencidas.length})
+                      </CardTitle>
+                      <CardDescription>Hitos que han superado su fecha límite</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <TableComponent>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Hito</TableHead>
+                            <TableHead>Proceso</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Tipo de Servicio</TableHead>
+                            <TableHead>Fecha Límite</TableHead>
+                            <TableHead>Días Atrasados</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Acciones</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {vencidas.map((hito) => (
+                            <TableRow key={hito.id_hito_solicitud} className="bg-red-50/50">
+                              <TableCell className="font-medium">
+                                <div>
+                                  <div className="font-semibold text-red-700">{hito.nombre_hito}</div>
+                                  <div className="text-sm text-muted-foreground">{hito.descripcion}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Target className="h-3 w-3" />
+                                  {hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin título'}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Building2 className="h-3 w-3" />
+                                  {hito.solicitud?.contacto?.cliente?.nombre_cliente || 'Sin cliente'}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {serviceTypeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {hito.fecha_limite ? formatDateTime(hito.fecha_limite) : 'N/A'}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3 text-red-600" />
+                                  <span className="text-red-600 font-semibold">
+                                    {(hito as any).dias_atrasados || Math.abs(hito.dias_restantes || 0)} días
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="destructive">
+                                  Vencido
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button size="sm" variant="destructive">
+                                  <AlertTriangle className="mr-2 h-4 w-4" />
+                                  Marcar Completado
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </TableComponent>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Mensaje cuando no hay hitos */}
+                {filteredHitosAlertas.length === 0 && (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <Bell className="h-12 w-12 text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">No hay alertas</h3>
+                      <p className="text-muted-foreground text-center">
+                        No tienes hitos próximos a vencer o vencidos en este momento.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
           </CardContent>

@@ -3,7 +3,7 @@
  * Usa los endpoints existentes de hitoSolicitudService
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export interface HitoAlert {
   id_hito_solicitud: number
@@ -17,6 +17,7 @@ export interface HitoAlert {
   fecha_limite?: string
   fecha_cumplimiento?: string
   dias_restantes: number
+  dias_atrasados?: number
   estado: 'por_vencer' | 'vencido' | 'pendiente' | 'completado'
   debe_avisar: boolean
   solicitud?: {
@@ -63,28 +64,39 @@ export interface HitosDashboard {
  */
 export async function getHitosAlertas(consultorId: string): Promise<HitoAlert[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/hitos-solicitud/alertas?consultor_id=${consultorId}`)
+    console.log(`🔍 [API-HITOS] Obteniendo alertas para consultor: ${consultorId}`)
+    console.log(`🔍 [API-HITOS] URL: ${API_BASE_URL}/api/hitos-solicitud/alertas?consultor_id=${consultorId}`)
+    
+    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/alertas?consultor_id=${consultorId}`)
+    
+    console.log(`🔍 [API-HITOS] Response status: ${response.status}`)
     
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`❌ [API-HITOS] Error response:`, errorText)
       throw new Error(`Error al obtener alertas: ${response.statusText}`)
     }
     
     const data = await response.json()
+    console.log(`✅ [API-HITOS] Data recibida:`, data)
     
     // Combinar hitos por vencer y vencidos
     const alertas: HitoAlert[] = []
     
     if (data.data?.por_vencer) {
+      console.log(`📊 [API-HITOS] Hitos por vencer: ${data.data.por_vencer.length}`)
       alertas.push(...data.data.por_vencer)
     }
     
     if (data.data?.vencidos) {
+      console.log(`📊 [API-HITOS] Hitos vencidos: ${data.data.vencidos.length}`)
       alertas.push(...data.data.vencidos)
     }
     
+    console.log(`📊 [API-HITOS] Total alertas: ${alertas.length}`)
     return alertas
   } catch (error) {
-    console.error('Error al obtener alertas de hitos:', error)
+    console.error('❌ [API-HITOS] Error al obtener alertas de hitos:', error)
     return []
   }
 }
@@ -94,7 +106,7 @@ export async function getHitosAlertas(consultorId: string): Promise<HitoAlert[]>
  */
 export async function getHitosDashboard(consultorId: string): Promise<HitosDashboard | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/hitos-solicitud/dashboard/${consultorId}`)
+    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/dashboard/${consultorId}`)
     
     if (!response.ok) {
       throw new Error(`Error al obtener dashboard: ${response.statusText}`)
@@ -113,7 +125,7 @@ export async function getHitosDashboard(consultorId: string): Promise<HitosDashb
  */
 export async function getHitosBySolicitud(solicitudId: number): Promise<HitoAlert[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/hitos-solicitud/solicitud/${solicitudId}`)
+    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/solicitud/${solicitudId}`)
     
     if (!response.ok) {
       throw new Error(`Error al obtener hitos: ${response.statusText}`)
@@ -132,7 +144,7 @@ export async function getHitosBySolicitud(solicitudId: number): Promise<HitoAler
  */
 export async function completarHito(hitoId: number, fechaCumplimiento?: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/hitos-solicitud/${hitoId}/completar`, {
+    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/${hitoId}/completar`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -158,7 +170,7 @@ export async function completarHito(hitoId: number, fechaCumplimiento?: string):
  */
 export async function getHitosEstadisticas() {
   try {
-    const response = await fetch(`${API_BASE_URL}/hitos-solicitud/estadisticas`)
+    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/estadisticas`)
     
     if (!response.ok) {
       throw new Error(`Error al obtener estadísticas: ${response.statusText}`)

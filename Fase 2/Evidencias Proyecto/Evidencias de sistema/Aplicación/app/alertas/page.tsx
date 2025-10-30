@@ -363,7 +363,7 @@ export default function AlertasPage() {
                                 </div>
                                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                   <div className="flex items-center gap-1">
-                                    <span className="font-semibold text-blue-600">Solicitud #{hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                    <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
@@ -472,7 +472,7 @@ export default function AlertasPage() {
                                 </div>
                                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                   <div className="flex items-center gap-1">
-                                    <span className="font-semibold text-blue-600">Solicitud #{hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                    <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />

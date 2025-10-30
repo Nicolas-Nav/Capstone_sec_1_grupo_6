@@ -263,6 +263,7 @@ export default function ConsultorPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Solicitud</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Tipo de Servicio</TableHead>
@@ -274,6 +275,7 @@ export default function ConsultorPage() {
               <TableBody>
                 {pendingProcesses.map((process) => (
                   <TableRow key={process.id}>
+                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
                     <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -328,6 +330,7 @@ export default function ConsultorPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Solicitud</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Tipo de Servicio</TableHead>
@@ -340,6 +343,7 @@ export default function ConsultorPage() {
               <TableBody>
                 {activeProcesses.map((process) => (
                   <TableRow key={process.id}>
+                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
                     <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -390,6 +394,7 @@ export default function ConsultorPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Solicitud</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Tipo de Servicio</TableHead>
@@ -401,6 +406,7 @@ export default function ConsultorPage() {
               <TableBody>
                 {completedProcesses.map((process) => (
                   <TableRow key={process.id}>
+                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
                     <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -444,6 +450,7 @@ export default function ConsultorPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Solicitud</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Tipo de Servicio</TableHead>
@@ -456,6 +463,7 @@ export default function ConsultorPage() {
               <TableBody>
                 {frozenProcesses.map((process) => (
                   <TableRow key={process.id}>
+                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
                     <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -504,6 +512,7 @@ export default function ConsultorPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Solicitud</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Tipo de Servicio</TableHead>
@@ -516,6 +525,7 @@ export default function ConsultorPage() {
               <TableBody>
                 {cancelledProcesses.map((process) => (
                   <TableRow key={process.id}>
+                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
                     <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -564,6 +574,7 @@ export default function ConsultorPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Solicitud</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Tipo de Servicio</TableHead>
@@ -576,6 +587,7 @@ export default function ConsultorPage() {
               <TableBody>
                 {extraordinaryClosureProcesses.map((process) => (
                   <TableRow key={process.id}>
+                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
                     <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">

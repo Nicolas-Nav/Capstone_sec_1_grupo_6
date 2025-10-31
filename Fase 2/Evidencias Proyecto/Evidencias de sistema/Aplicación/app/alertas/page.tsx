@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/hooks/auth"
+import { useNotifications } from "@/hooks/useNotifications"
 import { getHitosAlertas, getHitosDashboard, HitoAlert, HitosDashboard } from "@/lib/api-hitos"
 import { serviceTypeLabels } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -11,20 +12,73 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDateTime } from "@/lib/utils"
 import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase } from "lucide-react"
+import { toast } from "sonner"
 
 export default function AlertasPage() {
   const { user } = useAuth()
+  const { markAsRead, loadNotifications } = useNotifications(user?.id)
   const [searchTerm, setSearchTerm] = useState("")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
   const [hitosAlertas, setHitosAlertas] = useState<HitoAlert[]>([])
   const [dashboard, setDashboard] = useState<HitosDashboard | null>(null)
   const [loading, setLoading] = useState(true)
+  const hasShownToast = useRef(false)
+  const hasMarkedAsRead = useRef(false)
+
+  // Marcar como leídas al entrar a la página (solo una vez)
+  useEffect(() => {
+    if (user && !hasMarkedAsRead.current) {
+      console.log('🔔 [ALERTAS] Marcando notificaciones como leídas al entrar a la página')
+      markAsRead()
+      hasMarkedAsRead.current = true
+      // Recargar notificaciones después de marcarlas
+      setTimeout(() => {
+        loadNotifications()
+      }, 500)
+    }
+  }, [user, markAsRead, loadNotifications])
 
   useEffect(() => {
     if (user) {
       loadHitosData()
     }
   }, [user])
+
+  // Mostrar toast cuando se carguen las alertas por primera vez
+  useEffect(() => {
+    if (!loading && hitosAlertas.length > 0 && !hasShownToast.current) {
+      const vencidas = hitosAlertas.filter(h => h.estado === 'vencido').length
+      const porVencer = hitosAlertas.filter(h => h.estado === 'por_vencer').length
+      
+      if (vencidas > 0 && porVencer > 0) {
+        toast.warning(
+          `Tienes ${hitosAlertas.length} notificaciones nuevas`,
+          {
+            description: `${vencidas} vencida${vencidas !== 1 ? 's' : ''} y ${porVencer} por vencer. Revisa tus alertas.`,
+            duration: 5000,
+          }
+        )
+      } else if (vencidas > 0) {
+        toast.error(
+          `Tienes ${vencidas} notificación${vencidas !== 1 ? 'es' : ''} nueva${vencidas !== 1 ? 's' : ''}`,
+          {
+            description: `${vencidas} hito${vencidas !== 1 ? 's' : ''} vencido${vencidas !== 1 ? 's' : ''}. Revisa tus alertas urgentes.`,
+            duration: 5000,
+          }
+        )
+      } else if (porVencer > 0) {
+        toast.success(
+          `Tienes ${porVencer} notificación${porVencer !== 1 ? 'es' : ''} nueva${porVencer !== 1 ? 's' : ''}`,
+          {
+            description: `${porVencer} hito${porVencer !== 1 ? 's' : ''} próximo${porVencer !== 1 ? 's' : ''} a vencer. Revisa tus alertas.`,
+            duration: 5000,
+          }
+        )
+      }
+      
+      hasShownToast.current = true
+    }
+  }, [loading, hitosAlertas])
 
   const loadHitosData = async () => {
       if (!user) {

@@ -6,15 +6,7 @@ import { Bell, AlertTriangle, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { formatDateTime } from "@/lib/utils"
+import { formatDateOnly } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -41,51 +33,52 @@ export function AppHeader() {
     lastUnreadCount.current = 0
   }, [user?.id])
 
-  // Mostrar toast automático cuando hay notificaciones nuevas (no leídas)
+  // Mostrar toast automático cuando hay notificaciones nuevas (no leídas) al iniciar sesión
   useEffect(() => {
-    if (!loading && user && unreadCount > 0) {
-      // Solo mostrar toast si el número de no leídas aumentó (nuevas notificaciones)
-      if (unreadCount > lastUnreadCount.current && !hasShownLoginToast.current) {
-        const timer = setTimeout(() => {
-          const recentNotifications = getRecentNotifications(5)
-          const unreadNotifications = recentNotifications.filter(n => !n.read)
-          const vencidas = unreadNotifications.filter(n => n.hito.estado === 'vencido').length
-          const porVencer = unreadNotifications.filter(n => n.hito.estado === 'por_vencer').length
-          
-          if (vencidas > 0 && porVencer > 0) {
-            toast.warning(
-              `Tienes ${unreadCount} notificación${unreadCount !== 1 ? 'es' : ''} nueva${unreadCount !== 1 ? 's' : ''}`,
-              {
-                description: `${vencidas} vencida${vencidas !== 1 ? 's' : ''} y ${porVencer} por vencer. Haz click en la campana para ver.`,
-                duration: 6000,
-              }
-            )
-          } else if (vencidas > 0) {
-            toast.error(
-              `Tienes ${vencidas} notificación${vencidas !== 1 ? 'es' : ''} nueva${vencidas !== 1 ? 's' : ''}`,
-              {
-                description: `${vencidas} hito${vencidas !== 1 ? 's' : ''} vencido${vencidas !== 1 ? 's' : ''}. Haz click en la campana para ver.`,
-                duration: 6000,
-              }
-            )
-          } else if (porVencer > 0) {
-            toast.success(
-              `Tienes ${porVencer} notificación${porVencer !== 1 ? 'es' : ''} nueva${porVencer !== 1 ? 's' : ''}`,
-              {
-                description: `${porVencer} hito${porVencer !== 1 ? 's' : ''} próximo${porVencer !== 1 ? 's' : ''} a vencer. Haz click en la campana para ver.`,
-                duration: 6000,
-              }
-            )
-          }
-          
-          hasShownLoginToast.current = true
-          lastUnreadCount.current = unreadCount
-        }, 1500) // Esperar 1.5 segundos después de cargar
+    if (!loading && user && unreadCount > 0 && !hasShownLoginToast.current) {
+      const timer = setTimeout(() => {
+        const recentNotifications = getRecentNotifications(5)
+        const unreadNotifications = recentNotifications.filter(n => !n.read)
+        const vencidas = unreadNotifications.filter(n => n.hito.estado === 'vencido').length
+        const porVencer = unreadNotifications.filter(n => n.hito.estado === 'por_vencer').length
         
-        return () => clearTimeout(timer)
-      }
+        console.log('🔔 [HEADER] Mostrando toast de notificaciones:', { unreadCount, vencidas, porVencer })
+        
+        if (vencidas > 0 && porVencer > 0) {
+          toast.warning(
+            `Tienes ${unreadCount} notificación${unreadCount !== 1 ? 'es' : ''} nueva${unreadCount !== 1 ? 's' : ''}`,
+            {
+              description: `${vencidas} vencida${vencidas !== 1 ? 's' : ''} y ${porVencer} por vencer. Haz click en Alertas para ver.`,
+              duration: 6000,
+            }
+          )
+        } else if (vencidas > 0) {
+          toast.error(
+            `Tienes ${vencidas} notificación${vencidas !== 1 ? 'es' : ''} nueva${vencidas !== 1 ? 's' : ''}`,
+            {
+              description: `${vencidas} hito${vencidas !== 1 ? 's' : ''} vencido${vencidas !== 1 ? 's' : ''}. Haz click en Alertas para ver.`,
+              duration: 6000,
+            }
+          )
+        } else if (porVencer > 0) {
+          toast.success(
+            `Tienes ${porVencer} notificación${porVencer !== 1 ? 'es' : ''} nueva${porVencer !== 1 ? 's' : ''}`,
+            {
+              description: `${porVencer} hito${porVencer !== 1 ? 's' : ''} próximo${porVencer !== 1 ? 's' : ''} a vencer. Haz click en Alertas para ver.`,
+              duration: 6000,
+            }
+          )
+        }
+        
+        hasShownLoginToast.current = true
+        lastUnreadCount.current = unreadCount
+      }, 1500) // Esperar 1.5 segundos después de cargar
+      
+      return () => clearTimeout(timer)
     }
-    lastUnreadCount.current = unreadCount
+    if (!loading && unreadCount > 0) {
+      lastUnreadCount.current = unreadCount
+    }
   }, [loading, user, unreadCount, getRecentNotifications])
 
   if (!user) return null
@@ -93,30 +86,19 @@ export function AppHeader() {
   const recentNotifications = getRecentNotifications(5)
   const [popoverOpen, setPopoverOpen] = useState(false)
 
-  const handleDropdownOpen = (open: boolean) => {
-    console.log('🔔 [HEADER] Dropdown abierto:', open)
-    if (open && unreadCount > 0) {
-      // Marcar como leídas al abrir el dropdown
-      console.log('🔔 [HEADER] Marcando notificaciones como leídas')
-      markAsRead()
-      // Recargar notificaciones después de marcarlas
-      setTimeout(() => {
-        loadNotifications()
-      }, 300)
-    }
-  }
-
   const handleButtonClick = () => {
-    console.log('🔔 [HEADER] Botón de notificaciones clickeado')
-    setPopoverOpen(!popoverOpen)
-    if (!popoverOpen && unreadCount > 0) {
+    console.log('🔔 [HEADER] Botón de notificaciones clickeado, estado actual:', popoverOpen)
+    const newState = !popoverOpen
+    setPopoverOpen(newState)
+    if (newState && unreadCount > 0) {
       // Marcar como leídas al abrir
       console.log('🔔 [HEADER] Marcando notificaciones como leídas')
       markAsRead()
-      // Recargar notificaciones después de marcarlas
+      // Recargar notificaciones después de marcarlas para actualizar el contador
       setTimeout(() => {
+        console.log('🔔 [HEADER] Recargando notificaciones')
         loadNotifications()
-      }, 300)
+      }, 500)
     }
   }
 
@@ -154,93 +136,7 @@ export function AppHeader() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Dropdown Menu (intento principal) */}
-            <DropdownMenu onOpenChange={handleDropdownOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="relative">
-                  <Bell className="h-4 w-4" />
-                  {unreadCount > 0 && (
-                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </Badge>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 z-[100]" style={{ zIndex: 9999 }}>
-                <DropdownMenuLabel className="flex items-center justify-between">
-                  <span>Notificaciones</span>
-                  {unreadCount > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      {unreadCount} nueva{unreadCount !== 1 ? 's' : ''}
-                    </Badge>
-                  )}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {loading ? (
-                  <DropdownMenuItem disabled className="flex items-center justify-center p-4">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                    <span className="ml-2 text-sm text-muted-foreground">Cargando...</span>
-                  </DropdownMenuItem>
-                ) : recentNotifications.length > 0 ? (
-                  <>
-                    {recentNotifications.map((notification) => {
-                      const hito = notification.hito
-                      const isVencido = hito.estado === 'vencido'
-                      const isPorVencer = hito.estado === 'por_vencer'
-                      
-                      return (
-                        <DropdownMenuItem 
-                          key={notification.id} 
-                          className="flex flex-col items-start p-3 cursor-pointer hover:bg-accent"
-                          onClick={() => handleNotificationClick(hito.id_hito_solicitud)}
-                        >
-                          <div className="flex items-start justify-between w-full">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                {isVencido ? (
-                                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                                ) : (
-                                  <Clock className="h-4 w-4 text-orange-600" />
-                                )}
-                                <p className={`text-sm font-medium ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}>
-                                  {hito.nombre_hito}
-                                </p>
-                                {!notification.read && <div className="w-2 h-2 bg-primary rounded-full" />}
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                {hito.descripcion}
-                              </p>
-                              <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                                {hito.solicitud?.descripcionCargo?.titulo_cargo && (
-                                  <span className="truncate max-w-[120px]">
-                                    {hito.solicitud.descripcionCargo.titulo_cargo}
-                                  </span>
-                                )}
-                                {hito.fecha_limite && (
-                                  <span>• {formatDateTime(hito.fecha_limite)}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </DropdownMenuItem>
-                      )
-                    })}
-                    <DropdownMenuSeparator />
-                  </>
-                ) : (
-                  <DropdownMenuItem disabled className="flex items-center justify-center p-4">
-                    <span className="text-sm text-muted-foreground">No hay notificaciones</span>
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem asChild>
-                  <Link href="/alertas" className="w-full text-center text-sm font-medium">
-                    Ver todas las alertas
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Botón alternativo con div controlado (solución simple y confiable) */}
+            {/* Botón de notificaciones */}
             <div className="relative" data-notifications-container>
               <Button 
                 variant="outline" 
@@ -314,9 +210,12 @@ export function AppHeader() {
                                           {hito.solicitud.descripcionCargo.titulo_cargo}
                                         </span>
                                       )}
-                                      {hito.fecha_limite && (
-                                        <span>• {formatDateTime(hito.fecha_limite)}</span>
-                                      )}
+                                    {hito.solicitud?.id_solicitud && (
+                                      <span>• Solicitud {hito.solicitud.id_solicitud}</span>
+                                    )}
+                                    {hito.fecha_limite && (
+                                      <span>• {formatDateOnly(hito.fecha_limite)}</span>
+                                    )}
                                     </div>
                                   </div>
                                 </div>

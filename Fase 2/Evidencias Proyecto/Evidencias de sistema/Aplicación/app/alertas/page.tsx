@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatDateTime } from "@/lib/utils"
+import { formatDateOnly } from "@/lib/utils"
 import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase } from "lucide-react"
 import { toast } from "sonner"
 
@@ -27,16 +27,17 @@ export default function AlertasPage() {
 
   // Marcar como leídas al entrar a la página (solo una vez)
   useEffect(() => {
-    if (user && !hasMarkedAsRead.current) {
+    if (user && !hasMarkedAsRead.current && hitosAlertas.length > 0) {
       console.log('🔔 [ALERTAS] Marcando notificaciones como leídas al entrar a la página')
       markAsRead()
       hasMarkedAsRead.current = true
-      // Recargar notificaciones después de marcarlas
+      // Recargar notificaciones después de marcarlas para actualizar el contador en el header
       setTimeout(() => {
+        console.log('🔔 [ALERTAS] Recargando notificaciones después de marcar como leídas')
         loadNotifications()
       }, 500)
     }
-  }, [user, markAsRead, loadNotifications])
+  }, [user, markAsRead, loadNotifications, hitosAlertas.length])
 
   useEffect(() => {
     if (user) {
@@ -245,7 +246,7 @@ export default function AlertasPage() {
                 </div>
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  <span>{hito.fecha_limite ? formatDateTime(hito.fecha_limite) : 'Sin fecha'}</span>
+                  <span>{hito.fecha_limite ? formatDateOnly(hito.fecha_limite) : 'Sin fecha'}</span>
                 </div>
               </div>
             </div>
@@ -265,11 +266,6 @@ export default function AlertasPage() {
             <p className="text-muted-foreground">Gestiona hitos próximos a vencer y vencidos</p>
           </div>
         </div>
-        {unreadCount > 0 && (
-          <Badge variant="destructive" className="text-lg px-3 py-1">
-            {unreadCount} sin leer
-          </Badge>
-        )}
       </div>
 
       {/* Stats Cards */}
@@ -425,7 +421,7 @@ export default function AlertasPage() {
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
-                                    <span>{hito.fecha_limite ? formatDateTime(hito.fecha_limite) : 'Sin fecha'}</span>
+                                    <span>{hito.fecha_limite ? formatDateOnly(hito.fecha_limite) : 'Sin fecha'}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
@@ -473,12 +469,15 @@ export default function AlertasPage() {
                                 </div>
                                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                   <div className="flex items-center gap-1">
+                                    <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
                                     <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
-                                    <span>{hito.fecha_limite ? formatDateTime(hito.fecha_limite) : 'Sin fecha'}</span>
+                                    <span>{hito.fecha_limite ? formatDateOnly(hito.fecha_limite) : 'Sin fecha'}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
@@ -534,7 +533,7 @@ export default function AlertasPage() {
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
-                                    <span>{hito.fecha_limite ? formatDateTime(hito.fecha_limite) : 'Sin fecha'}</span>
+                                    <span>{hito.fecha_limite ? formatDateOnly(hito.fecha_limite) : 'Sin fecha'}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />

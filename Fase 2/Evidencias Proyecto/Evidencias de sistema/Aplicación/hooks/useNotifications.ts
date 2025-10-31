@@ -83,16 +83,26 @@ export const useNotifications = (userId: string | undefined) => {
   const markAsRead = useCallback(() => {
     if (!userId) return
     
+    console.log('🔔 [NOTIFICATIONS] markAsRead llamado, notificaciones actuales:', notifications.length)
+    
+    // Marcar todas las notificaciones actuales como leídas
     const readIds = new Set<string>()
-    notifications.forEach(n => readIds.add(n.id))
+    notifications.forEach(n => {
+      readIds.add(n.id)
+      console.log('🔔 [NOTIFICATIONS] Marcando como leída:', n.id)
+    })
     
     saveReadNotificationIds(readIds)
-    setNotifications(prev => 
-      prev.map(n => ({ ...n, read: true }))
-    )
+    
+    // Actualizar estado inmediatamente
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, read: true }))
+      console.log('🔔 [NOTIFICATIONS] Estado actualizado, todas marcadas como leídas')
+      return updated
+    })
     setUnreadCount(0)
     
-    console.log('🔔 [NOTIFICATIONS] Todas las notificaciones marcadas como leídas')
+    console.log('🔔 [NOTIFICATIONS] Todas las notificaciones marcadas como leídas, contador:', 0)
   }, [userId, notifications, saveReadNotificationIds])
 
   const markNotificationAsRead = useCallback((notificationId: string) => {

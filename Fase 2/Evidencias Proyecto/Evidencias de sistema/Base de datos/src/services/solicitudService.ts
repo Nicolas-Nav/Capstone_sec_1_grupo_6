@@ -14,7 +14,6 @@ import {
     Comuna
 } from '@/models';
 import { HitoSolicitudService } from './hitoSolicitudService';
-import { setCurrentUser } from '@/utils/databaseUser';
 
 /**
  * Servicio para gestión de Solicitudes
@@ -337,31 +336,21 @@ export class SolicitudService {
 
     /**
      * Crear nueva solicitud
-     * @param data Datos de la solicitud
-     * @param usuarioResponsable RUT del usuario que crea la solicitud (supervisor)
-     *                            Este será el que aparezca en el log de cambios
      */
-    static async createSolicitud(
-        data: {
-            contact_id: number;
-            service_type: string;
-            position_title: string;
-            ciudad?: string;
-            description?: string;
-            requirements?: string;
-            vacancies?: number;
-            consultant_id: string;
-            deadline_days?: number;
-        },
-        usuarioResponsable: string  // ⭐ RUT del supervisor que crea la solicitud
-    ) {
+    static async createSolicitud(data: {
+        contact_id: number;
+        service_type: string;
+        position_title: string;
+        ciudad?: string;
+        description?: string;
+        requirements?: string;
+        vacancies?: number;
+        consultant_id: string;
+        deadline_days?: number;
+    }) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // ⭐ CRÍTICO: Configurar el usuario ANTES de cualquier operación
-            // Debe hacerse inmediatamente después de crear la transacción
-            await setCurrentUser(usuarioResponsable, transaction);
-            
             const {
                 contact_id,
                 service_type,
@@ -490,34 +479,24 @@ export class SolicitudService {
     }
     /**
      * Actualizar solicitud y su descripción de cargo
-     * @param id ID de la solicitud
-     * @param data Datos a actualizar
-     * @param usuarioResponsable RUT del usuario que hace la actualización (consultor que gestiona)
      */
-    static async updateSolicitud(
-        id: number, 
-        data: {
-            contact_id?: number;
-            service_type?: string;
-            position_title?: string;
-            ciudad?: string;
-            description?: string;
-            requirements?: string;
-            vacancies?: number;
-            consultant_id?: string;
-            deadline_days?: number;
-        },
-        usuarioResponsable: string  // ⭐ RUT del consultor que actualiza
-    ) {
+    static async updateSolicitud(id: number, data: {
+        contact_id?: number;
+        service_type?: string;
+        position_title?: string;
+        ciudad?: string;
+        description?: string;
+        requirements?: string;
+        vacancies?: number;
+        consultant_id?: string;
+        deadline_days?: number;
+    }) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // ⭐ CRÍTICO: Configurar el usuario ANTES de cualquier operación
-            await setCurrentUser(usuarioResponsable, transaction);
-
             const solicitud = await Solicitud.findByPk(id, {
                 include: [{ model: DescripcionCargo, as: 'descripcionCargo' }],
-                transaction  // ⭐ Importante: usar la transacción
+                transaction
             });
 
             if (!solicitud) {
@@ -584,21 +563,11 @@ export class SolicitudService {
 
     /**
      * Actualizar estado de solicitud (Creado, En Progreso, Cerrado, Congelado)
-     * @param id ID de la solicitud
-     * @param data Datos del estado
-     * @param usuarioResponsable RUT del usuario que hace el cambio (consultor)
      */
-    static async updateEstado(
-        id: number, 
-        data: { status: string; reason?: string },
-        usuarioResponsable: string  // ⭐ RUT del consultor
-    ) {
+    static async updateEstado(id: number, data: { status: string; reason?: string }) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // ⭐ Configurar el RUT del CONSULTOR
-            await setCurrentUser(usuarioResponsable, transaction);
-
             const { status, reason } = data;
 
             const solicitud = await Solicitud.findByPk(id);
@@ -637,19 +606,10 @@ export class SolicitudService {
     /**
      * Cambiar etapa de solicitud (Módulo 1, 2, 3, 4, 5)
      */
-    /**
-     * Cambiar etapa de la solicitud
-     * @param id ID de la solicitud
-     * @param id_etapa ID de la nueva etapa
-     * @param usuarioResponsable RUT del consultor que hace el cambio
-     */
-    static async cambiarEtapa(id: number, id_etapa: number, usuarioResponsable: string) {
+    static async cambiarEtapa(id: number, id_etapa: number) {
         const transaction = await sequelize.transaction();
 
         try {
-            // ⭐ Configurar el RUT del CONSULTOR
-            await setCurrentUser(usuarioResponsable, transaction);
-
             const solicitud = await Solicitud.findByPk(id, { transaction });
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
@@ -672,16 +632,11 @@ export class SolicitudService {
 
     /**
      * Avanzar al módulo 2 (Publicación y Candidatos)
-     * @param id ID de la solicitud
-     * @param usuarioResponsable RUT del consultor que avanza el módulo
      */
-    static async avanzarAModulo2(id: number, usuarioResponsable: string) {
+    static async avanzarAModulo2(id: number) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // ⭐ Configurar el RUT del CONSULTOR
-            await setCurrentUser(usuarioResponsable, transaction);
-
             const solicitud = await Solicitud.findByPk(id);
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
@@ -741,16 +696,11 @@ export class SolicitudService {
 
     /**
      * Avanzar al módulo 3 (Presentación de Candidatos)
-     * @param id ID de la solicitud
-     * @param usuarioResponsable RUT del consultor que avanza el módulo
      */
-    static async avanzarAModulo3(id: number, usuarioResponsable: string) {
+    static async avanzarAModulo3(id: number) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // ⭐ Configurar el RUT del CONSULTOR
-            await setCurrentUser(usuarioResponsable, transaction);
-
             const solicitud = await Solicitud.findByPk(id);
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
@@ -810,15 +760,11 @@ export class SolicitudService {
 
     /**
      * Avanzar al Módulo 4 (Evaluación Psicolaboral)
-     * @param id ID de la solicitud
-     * @param usuarioResponsable RUT del consultor que avanza el módulo
      */
-    static async avanzarAModulo4(id: number, usuarioResponsable: string) {
+    static async avanzarAModulo4(id: number) {
         const transaction = await sequelize.transaction();
 
         try {
-            // ⭐ Configurar el RUT del CONSULTOR
-            await setCurrentUser(usuarioResponsable, transaction);
 
             const solicitud = await Solicitud.findByPk(id);
             if (!solicitud) {
@@ -930,22 +876,10 @@ export class SolicitudService {
     /**
      * Cambiar estado de solicitud por ID
      */
-    /**
-     * Cambiar estado de la solicitud
-     * @param id ID de la solicitud
-     * @param id_estado ID del nuevo estado
-     * @param reason Motivo del cambio (opcional)
-     * @param usuarioResponsable RUT del consultor que hace el cambio
-     */
-    static async cambiarEstado(id: number, id_estado: number, reason?: string, usuarioResponsable?: string) {
+    static async cambiarEstado(id: number, id_estado: number, reason?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // ⭐ Configurar el RUT del CONSULTOR si se proporciona
-            if (usuarioResponsable) {
-                await setCurrentUser(usuarioResponsable, transaction);
-            }
-
             const solicitud = await Solicitud.findByPk(id);
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
@@ -979,18 +913,11 @@ export class SolicitudService {
 
     /**
      * Eliminar solicitud
-     * @param id ID de la solicitud
-     * @param usuarioResponsable RUT del usuario que elimina (supervisor o consultor)
      */
-    static async deleteSolicitud(id: number, usuarioResponsable?: string) {
+    static async deleteSolicitud(id: number) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // ⭐ Configurar el RUT del usuario si se proporciona
-            if (usuarioResponsable) {
-                await setCurrentUser(usuarioResponsable, transaction);
-            }
-
             const solicitud = await Solicitud.findByPk(id);
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');

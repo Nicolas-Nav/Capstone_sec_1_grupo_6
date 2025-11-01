@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
 import { SolicitudService } from '@/services/solicitudService';
+import { getUserRutFromRequest } from '@/utils/databaseUser';
 
 /**
  * Controlador para gestión de Solicitudes (Process en frontend)
@@ -104,9 +105,16 @@ export class SolicitudController {
     /**
      * POST /api/solicitudes
      * Crear nueva solicitud con descripción de cargo
+     * El usuario autenticado (supervisor) es quien crea la solicitud
      */
     static async create(req: Request, res: Response): Promise<Response> {
         try {
+            // ⭐ Obtener RUT del supervisor que está creando la solicitud
+            const supervisorRut = getUserRutFromRequest(req);
+            if (!supervisorRut) {
+                return sendError(res, 'Usuario no identificado', 401);
+            }
+
             const {
                 contact_id,
                 service_type,
@@ -118,6 +126,7 @@ export class SolicitudController {
                 deadline_days
             } = req.body;
 
+            // ⭐ Pasar el RUT del supervisor para que el log registre quién creó la solicitud
             const nuevaSolicitud = await SolicitudService.createSolicitud({
                 contact_id: parseInt(contact_id),
                 service_type,
@@ -127,9 +136,9 @@ export class SolicitudController {
                 vacancies: vacancies ? parseInt(vacancies) : undefined,
                 consultant_id,
                 deadline_days: deadline_days ? parseInt(deadline_days) : undefined
-            });
+            }, supervisorRut); // ⭐ Pasar RUT del supervisor
 
-            Logger.info(`Solicitud creada: ${nuevaSolicitud.id}`);
+            Logger.info(`Solicitud creada: ${nuevaSolicitud.id} por supervisor ${supervisorRut}`);
             return sendSuccess(res, nuevaSolicitud, 'Solicitud creada exitosamente', 201);
         } catch (error: any) {
             Logger.error('Error al crear solicitud:', error);
@@ -143,17 +152,23 @@ export class SolicitudController {
      */
     static async updateEstado(req: Request, res: Response): Promise<Response> {
         try {
+            // ⭐ Obtener RUT del usuario autenticado (consultor que gestiona)
+            const usuarioRut = getUserRutFromRequest(req);
+            if (!usuarioRut) {
+                return sendError(res, 'Usuario no identificado', 401);
+            }
+
             const { id } = req.params;
             const { status, reason, id_estado } = req.body;
 
             // Si se envía id_estado, usar el método de cambio por ID
             if (id_estado) {
-                await SolicitudService.cambiarEstado(parseInt(id), parseInt(id_estado), reason);
-                Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado}${reason ? ` con motivo: ${reason}` : ''}`);
+                await SolicitudService.cambiarEstado(parseInt(id), parseInt(id_estado), reason, usuarioRut);
+                Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado} por consultor ${usuarioRut}`);
             } else {
                 // Mantener compatibilidad con el método anterior
-            await SolicitudService.updateEstado(parseInt(id), { status, reason });
-                Logger.info(`Estado actualizado para solicitud ${id}: ${status}`);
+                await SolicitudService.updateEstado(parseInt(id), { status, reason }, usuarioRut);
+                Logger.info(`Estado actualizado para solicitud ${id}: ${status} por consultor ${usuarioRut}`);
             }
 
             return sendSuccess(res, null, 'Estado actualizado exitosamente');
@@ -178,12 +193,18 @@ export class SolicitudController {
      */
     static async cambiarEtapa(req: Request, res: Response): Promise<Response> {
         try {
+            // ⭐ Obtener RUT del usuario autenticado (consultor)
+            const usuarioRut = getUserRutFromRequest(req);
+            if (!usuarioRut) {
+                return sendError(res, 'Usuario no identificado', 401);
+            }
+
             const { id } = req.params;
             const { id_etapa } = req.body;
 
-            const resultado = await SolicitudService.cambiarEtapa(parseInt(id), parseInt(id_etapa));
+            const resultado = await SolicitudService.cambiarEtapa(parseInt(id), parseInt(id_etapa), usuarioRut);
 
-            Logger.info(`Etapa actualizada para solicitud ${id}: ${resultado.etapa}`);
+            Logger.info(`Etapa actualizada para solicitud ${id} por consultor ${usuarioRut}: ${resultado.etapa}`);
             return sendSuccess(res, resultado, 'Etapa actualizada exitosamente');
         } catch (error: any) {
             Logger.error('Error al cambiar etapa:', error);
@@ -202,10 +223,16 @@ export class SolicitudController {
      */
     static async delete(req: Request, res: Response): Promise<Response> {
         try {
-            const { id } = req.params;
-            await SolicitudService.deleteSolicitud(parseInt(id));
+            // ⭐ Obtener RUT del usuario autenticado (supervisor o consultor)
+            const usuarioRut = getUserRutFromRequest(req);
+            if (!usuarioRut) {
+                return sendError(res, 'Usuario no identificado', 401);
+            }
 
-            Logger.info(`Solicitud eliminada: ${id}`);
+            const { id } = req.params;
+            await SolicitudService.deleteSolicitud(parseInt(id), usuarioRut);
+
+            Logger.info(`Solicitud eliminada: ${id} por usuario ${usuarioRut}`);
             return sendSuccess(res, null, 'Solicitud eliminada exitosamente');
         } catch (error: any) {
             Logger.error('Error al eliminar solicitud:', error);
@@ -224,6 +251,12 @@ export class SolicitudController {
      */
     static async update(req: Request, res: Response): Promise<Response> {
         try {
+            // ⭐ Obtener RUT del usuario autenticado (consultor que gestiona)
+            const usuarioRut = getUserRutFromRequest(req);
+            if (!usuarioRut) {
+                return sendError(res, 'Usuario no identificado', 401);
+            }
+
             const { id } = req.params;
             const {
                 contact_id,
@@ -247,9 +280,9 @@ export class SolicitudController {
                 vacancies: vacancies ? parseInt(vacancies) : undefined,
                 consultant_id,
                 deadline_days: deadline_days ? parseInt(deadline_days) : undefined
-            });
+            }, usuarioRut); // ⭐ Pasar RUT del consultor
 
-            Logger.info(`Solicitud actualizada: ${id}`);
+            Logger.info(`Solicitud actualizada: ${id} por consultor ${usuarioRut}`);
             return sendSuccess(res, solicitudActualizada, 'Solicitud actualizada exitosamente');
         } catch (error: any) {
             Logger.error('Error al actualizar solicitud:', error);
@@ -266,6 +299,12 @@ export class SolicitudController {
      */
     static async avanzarAModulo2(req: Request, res: Response): Promise<Response> {
         try {
+            // ⭐ Obtener RUT del usuario autenticado (consultor)
+            const usuarioRut = getUserRutFromRequest(req);
+            if (!usuarioRut) {
+                return sendError(res, 'Usuario no identificado', 401);
+            }
+
             const { id } = req.params;
             const solicitudId = parseInt(id);
 
@@ -273,9 +312,9 @@ export class SolicitudController {
                 return sendError(res, 'ID de solicitud inválido', 400);
             }
 
-            const result = await SolicitudService.avanzarAModulo2(solicitudId);
+            const result = await SolicitudService.avanzarAModulo2(solicitudId, usuarioRut);
             
-            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 2`);
+            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 2 por consultor ${usuarioRut}`);
             return sendSuccess(res, result, result.message);
         } catch (error: any) {
             Logger.error('Error al avanzar al módulo 2:', error);
@@ -297,6 +336,12 @@ export class SolicitudController {
      */
     static async avanzarAModulo3(req: Request, res: Response): Promise<Response> {
         try {
+            // ⭐ Obtener RUT del usuario autenticado (consultor)
+            const usuarioRut = getUserRutFromRequest(req);
+            if (!usuarioRut) {
+                return sendError(res, 'Usuario no identificado', 401);
+            }
+
             const { id } = req.params;
             const solicitudId = parseInt(id);
 
@@ -304,9 +349,9 @@ export class SolicitudController {
                 return sendError(res, 'ID de solicitud inválido', 400);
             }
 
-            const result = await SolicitudService.avanzarAModulo3(solicitudId);
+            const result = await SolicitudService.avanzarAModulo3(solicitudId, usuarioRut);
             
-            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 3`);
+            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 3 por consultor ${usuarioRut}`);
             return sendSuccess(res, result, result.message);
         } catch (error: any) {
             Logger.error('Error al avanzar al módulo 3:', error);
@@ -328,6 +373,12 @@ export class SolicitudController {
      */
     static async avanzarAModulo4(req: Request, res: Response): Promise<Response> {
         try {
+            // ⭐ Obtener RUT del usuario autenticado (consultor)
+            const usuarioRut = getUserRutFromRequest(req);
+            if (!usuarioRut) {
+                return sendError(res, 'Usuario no identificado', 401);
+            }
+
             const { id } = req.params;
             const solicitudId = parseInt(id);
 
@@ -335,9 +386,9 @@ export class SolicitudController {
                 return sendError(res, 'ID de solicitud inválido', 400);
             }
 
-            const result = await SolicitudService.avanzarAModulo4(solicitudId);
+            const result = await SolicitudService.avanzarAModulo4(solicitudId, usuarioRut);
             
-            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 4`);
+            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 4 por consultor ${usuarioRut}`);
             return sendSuccess(res, result, result.message);
         } catch (error: any) {
             Logger.error('Error al avanzar al módulo 4:', error);

@@ -49,8 +49,36 @@ export const useNotifications = (userId: string | undefined) => {
       
       const readIds = getReadNotificationIds()
       
-      // Convertir hitos a notificaciones
-      const newNotifications: Notification[] = hitos.map((hito) => {
+      // Aplicar la misma lógica de agrupación que en la página de alertas
+      // Agrupar por nombre_hito + id_solicitud y seleccionar el más relevante
+      const grupos = new Map<string, typeof hitos>()
+      
+      hitos.forEach(hito => {
+        const key = `${hito.nombre_hito}-${hito.solicitud?.id_solicitud}`
+        if (!grupos.has(key)) {
+          grupos.set(key, [])
+        }
+        grupos.get(key)!.push(hito)
+      })
+      
+      // Para cada grupo, seleccionar el hito más relevante (más urgente)
+      const hitosRelevantes: typeof hitos = []
+      grupos.forEach(grupo => {
+        if (grupo.length === 1) {
+          hitosRelevantes.push(grupo[0])
+        } else {
+          // Si hay múltiples hitos del mismo tipo, seleccionar el más urgente
+          const masUrgente = grupo.reduce((prev, current) => {
+            const diasPrev = Math.abs(prev.dias_restantes || 0)
+            const diasCurrent = Math.abs(current.dias_restantes || 0)
+            return diasCurrent < diasPrev ? current : prev
+          })
+          hitosRelevantes.push(masUrgente)
+        }
+      })
+      
+      // Convertir hitos relevantes a notificaciones
+      const newNotifications: Notification[] = hitosRelevantes.map((hito) => {
         const id = `hito-${hito.id_hito_solicitud}`
         return {
           id,
@@ -60,10 +88,16 @@ export const useNotifications = (userId: string | undefined) => {
         }
       })
 
-      // Ordenar por fecha (más recientes primero)
-      newNotifications.sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )
+      // Ordenar por días restantes (más urgentes primero), luego por fecha
+      newNotifications.sort((a, b) => {
+        const diasA = Math.abs(a.hito.dias_restantes || 0)
+        const diasB = Math.abs(b.hito.dias_restantes || 0)
+        if (diasA !== diasB) {
+          return diasA - diasB // Más urgente primero
+        }
+        // Si tienen la misma urgencia, ordenar por fecha
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
 
       const unread = newNotifications.filter(n => !n.read).length
       

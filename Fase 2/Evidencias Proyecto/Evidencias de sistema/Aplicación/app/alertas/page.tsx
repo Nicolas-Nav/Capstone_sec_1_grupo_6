@@ -16,7 +16,7 @@ import { toast } from "sonner"
 
 export default function AlertasPage() {
   const { user } = useAuth()
-  const { markAsRead, loadNotifications } = useNotifications(user?.id)
+  const { markAsRead, loadNotifications, unreadCount: notificationsUnreadCount } = useNotifications(user?.id)
   const [searchTerm, setSearchTerm] = useState("")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
   const [hitosAlertas, setHitosAlertas] = useState<HitoAlert[]>([])

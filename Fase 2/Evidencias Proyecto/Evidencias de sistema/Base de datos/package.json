@@ -13,7 +13,8 @@
     "migrate": "sequelize-cli db:migrate",
     "migrate:undo": "sequelize-cli db:migrate:undo",
     "seed": "sequelize-cli db:seed:all",
-    "seed:undo": "sequelize-cli db:seed:undo:all"
+    "seed:undo": "sequelize-cli db:seed:undo:all",
+    "install:triggers": "ts-node -r tsconfig-paths/register src/scripts/installLogTriggers.ts"
   },
   "keywords": [
     "nodejs",

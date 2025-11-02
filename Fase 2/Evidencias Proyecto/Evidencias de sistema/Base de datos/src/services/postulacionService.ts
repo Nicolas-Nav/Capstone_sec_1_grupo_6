@@ -97,7 +97,9 @@ export class PostulacionService {
                             model: EstadoCliente,
                             as: 'estadoCliente'
                         }
-                    ]
+                    ],
+                    separate: true,
+                    order: [['fecha_cambio_estado_cliente', 'DESC']]
                 }
             ],
             order: [['id_postulacion', 'DESC']]
@@ -171,7 +173,9 @@ export class PostulacionService {
                             model: EstadoCliente,
                             as: 'estadoCliente'
                         }
-                    ]
+                    ],
+                    separate: true,
+                    order: [['fecha_cambio_estado_cliente', 'DESC']]
                 }
             ]
         });
@@ -588,11 +592,33 @@ export class PostulacionService {
         const estadosCliente = postulacion.get('estadosCliente') as any[];
 
         // Obtener el último estado de cliente (más reciente)
-        const ultimoEstadoCliente = estadosCliente && estadosCliente.length > 0 
-            ? estadosCliente.sort((a: any, b: any) => 
-                new Date(b.fecha_cambio_estado_cliente).getTime() - new Date(a.fecha_cambio_estado_cliente).getTime()
-              )[0]
-            : null;
+        // Con separate: true y order, el primer elemento debería ser el más reciente
+        // Pero ordenamos por seguridad como respaldo
+        let ultimoEstadoCliente = null;
+        if (estadosCliente && estadosCliente.length > 0) {
+            // Log temporal para debuggear
+            console.log('[DEBUG postulacionService] Estados encontrados para postulación', postulacion.id_postulacion, ':', 
+                estadosCliente.map((e: any) => ({
+                    id_estado: e.id_estado_cliente,
+                    nombre: e.estadoCliente?.nombre_estado,
+                    fecha: e.fecha_cambio_estado_cliente
+                }))
+            );
+            
+            // Ordenar por fecha descendente para asegurar que el más reciente esté primero
+            const estadosOrdenados = estadosCliente.sort((a: any, b: any) => {
+                const fechaA = a.fecha_cambio_estado_cliente ? new Date(a.fecha_cambio_estado_cliente).getTime() : 0;
+                const fechaB = b.fecha_cambio_estado_cliente ? new Date(b.fecha_cambio_estado_cliente).getTime() : 0;
+                return fechaB - fechaA; // Orden descendente (más reciente primero)
+            });
+            ultimoEstadoCliente = estadosOrdenados[0];
+            
+            console.log('[DEBUG postulacionService] Estado seleccionado como último:', {
+                id_estado: ultimoEstadoCliente?.id_estado_cliente,
+                nombre: ultimoEstadoCliente?.estadoCliente?.nombre_estado,
+                fecha: ultimoEstadoCliente?.fecha_cambio_estado_cliente
+            });
+        }
 
         const estadoClienteNombre = ultimoEstadoCliente?.estadoCliente?.nombre_estado?.toLowerCase();
 

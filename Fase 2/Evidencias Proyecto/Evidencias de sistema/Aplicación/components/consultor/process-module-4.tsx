@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getCandidatesByProcess } from "@/lib/api"
 import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service } from "@/lib/api"
 import { formatDate } from "@/lib/utils"
@@ -136,6 +137,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         const evaluationsData: { [candidateId: string]: any } = {}
         const interviewsData: { [candidateId: string]: any } = {}
         const testsData: { [candidateId: string]: any[] } = {}
+        const reportsData: { [candidateId: string]: CandidateReport } = {}
         
         for (const candidate of candidatesToShow) {
           try {
@@ -147,6 +149,23 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               interviewsData[candidate.id] = {
                 interview_date: evaluation.fecha_evaluacion ? new Date(evaluation.fecha_evaluacion) : null,
                 interview_status: evaluation.estado_evaluacion,
+              }
+              
+              // Mapear estado_informe a report_status para candidateReports
+              let reportStatus: "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | null = null
+              if (evaluation.estado_informe === "Recomendable") {
+                reportStatus = "recomendable"
+              } else if (evaluation.estado_informe === "No recomendable") {
+                reportStatus = "no_recomendable"
+              } else if (evaluation.estado_informe === "Recomendable con observaciones") {
+                reportStatus = "recomendable_con_observaciones"
+              }
+              
+              reportsData[candidate.id] = {
+                candidate_id: candidate.id,
+                report_status: reportStatus,
+                report_observations: evaluation.conclusion_global || undefined,
+                report_sent_date: evaluation.fecha_envio_informe ? new Date(evaluation.fecha_envio_informe).toISOString().split('T')[0] : undefined
               }
               
               // Cargar tests de la evaluación
@@ -164,6 +183,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         setEvaluations(evaluationsData)
         setCandidateInterviews(interviewsData)
         setCandidateTests(testsData)
+        setCandidateReports(reportsData)
 
         // Cargar tests disponibles
         const { testPsicolaboralService } = await import('@/lib/api')
@@ -221,6 +241,37 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     comentario_referencia: "",
   })
 
+  // Función para convertir datetime-local a Date preservando la hora local exacta (sin conversión UTC)
+  const parseLocalDateTime = (dateTimeString: string): Date => {
+    // Formato: "YYYY-MM-DDTHH:mm"
+    const [datePart, timePart] = dateTimeString.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hour, minute] = (timePart || '00:00').split(':').map(Number);
+    // Crear Date usando constructor local (no UTC)
+    return new Date(year, month - 1, day, hour, minute);
+  }
+
+  // Función para convertir Date a formato datetime-local preservando hora local (sin conversión UTC)
+  const formatDateForInput = (date: Date | string | null | undefined): string => {
+    if (!date) return "";
+    
+    let dateObj: Date;
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+    
+    // Usar métodos locales (getFullYear, getMonth, etc.) para obtener componentes en hora local
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const hour = String(dateObj.getHours()).padStart(2, '0');
+    const minute = String(dateObj.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hour}:${minute}`;
+  }
+
   const [interviewForm, setInterviewForm] = useState({
     interview_date: "",
     interview_status: "programada" as "programada" | "realizada" | "cancelada",
@@ -240,21 +291,25 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   // Determinar si es proceso de evaluación
   const isEvaluationProcess = process.service_type === "ES" || process.service_type === "TS"
 
-  // Detectar candidatos con entrevista realizada para habilitar botón de módulo 5
+  // Detectar candidatos con estado de informe definido (no pendiente) para habilitar botón de módulo 5
   useEffect(() => {
     if (!isEvaluationProcess && candidates.length > 0) {
-      const realizedCandidates = candidates.filter(candidate => {
-        const interview = candidateInterviews[candidate.id]
-        return interview?.interview_status === "Realizada"
+      const candidatesWithReportStatus = candidates.filter(candidate => {
+        const evaluation = evaluations[candidate.id]
+        const estadoInforme = evaluation?.estado_informe
+        // Solo avanzan los que tienen estado: Recomendable, No recomendable, o Recomendable con observaciones
+        return estadoInforme === "Recomendable" || 
+               estadoInforme === "No recomendable" || 
+               estadoInforme === "Recomendable con observaciones"
       })
       
-      setCandidatesWithRealizedInterview(realizedCandidates)
-      setCanAdvanceToModule5(realizedCandidates.length > 0)
+      setCandidatesWithRealizedInterview(candidatesWithReportStatus)
+      setCanAdvanceToModule5(candidatesWithReportStatus.length > 0)
     } else {
       setCandidatesWithRealizedInterview([])
       setCanAdvanceToModule5(false)
     }
-  }, [candidates, candidateInterviews, isEvaluationProcess])
+  }, [candidates, evaluations, isEvaluationProcess])
 
   const handleAddTest = () => {
     setTestForm({
@@ -283,7 +338,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
       setInterviewForm({
         interview_date: existingEvaluation.fecha_evaluacion 
-          ? new Date(existingEvaluation.fecha_evaluacion).toISOString().slice(0, 16) 
+          ? formatDateForInput(existingEvaluation.fecha_evaluacion)
           : "",
         interview_status: statusValue,
       })
@@ -326,14 +381,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         }
 
         const updateData = {
-          fecha_evaluacion: interviewForm.interview_date ? new Date(interviewForm.interview_date) : undefined,
+          fecha_evaluacion: interviewForm.interview_date || undefined,
           estado_evaluacion: interviewForm.interview_status === "programada" ? "Programada" : 
                             interviewForm.interview_status === "realizada" ? "Realizada" :
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
           fecha_envio_informe: fechaEnvioInforme,
         }
         
-        await evaluacionPsicolaboralService.update(existingEvaluation.id_evaluacion_psicolaboral, updateData)
+        await evaluacionPsicolaboralService.update(existingEvaluation.id_evaluacion_psicolaboral, updateData as any)
       } else {
         // Crear nueva evaluación
         let fechaEnvioInforme = new Date()
@@ -345,17 +400,17 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         }
 
         const createData = {
-          fecha_evaluacion: interviewForm.interview_date ? new Date(interviewForm.interview_date) : new Date(),
+          fecha_evaluacion: interviewForm.interview_date || undefined,
           fecha_envio_informe: fechaEnvioInforme,
           estado_evaluacion: interviewForm.interview_status === "programada" ? "Programada" : 
                             interviewForm.interview_status === "realizada" ? "Realizada" :
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
           estado_informe: "Pendiente",
-          conclusion_global: "Evaluación en proceso - Conclusión pendiente de completar en el informe final",
+          conclusion_global: "",
           id_postulacion: Number(selectedCandidate.id_postulacion)
         }
         
-        await evaluacionPsicolaboralService.create(createData)
+        await evaluacionPsicolaboralService.create(createData as any)
       }
       
       // Actualizar estado local con fechas convertidas a Date
@@ -714,6 +769,26 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               interview_status: evaluation.estado_evaluacion,
             }
           }))
+          
+          // Actualizar candidateReports con el nuevo estado del informe
+          let reportStatus: "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | null = null
+          if (evaluation.estado_informe === "Recomendable") {
+            reportStatus = "recomendable"
+          } else if (evaluation.estado_informe === "No recomendable") {
+            reportStatus = "no_recomendable"
+          } else if (evaluation.estado_informe === "Recomendable con observaciones") {
+            reportStatus = "recomendable_con_observaciones"
+          }
+          
+          setCandidateReports(prev => ({
+            ...prev,
+            [selectedCandidate.id]: {
+              candidate_id: selectedCandidate.id,
+              report_status: reportStatus,
+              report_observations: evaluation.conclusion_global || undefined,
+              report_sent_date: evaluation.fecha_envio_informe ? new Date(evaluation.fecha_envio_informe).toISOString().split('T')[0] : undefined
+            }
+          }))
         }
 
     setShowReportDialog(false)
@@ -840,8 +915,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       const promises = candidatesWithRealizedInterview.map(async (candidate) => {
         try {
           const response = await estadoClienteM5Service.avanzarAlModulo5(
-            Number(candidate.id_postulacion),
-            "Candidato avanzado al módulo 5 - En espera de feedback del cliente"
+            Number(candidate.id_postulacion)
           )
           
           if (!response.success) {
@@ -986,7 +1060,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                     <div>
                       <h3 className="text-lg font-semibold text-blue-900">Avanzar al Módulo 5</h3>
                       <p className="text-sm text-blue-700">
-                        Los candidatos con entrevista realizada pueden avanzar al módulo de feedback del cliente
+                        Los candidatos con estado de informe definido pueden avanzar al módulo de feedback del cliente
                       </p>
                       {candidatesWithRealizedInterview.length > 0 && (
                         <p className="text-xs text-blue-600 mt-1">
@@ -1027,12 +1101,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                               <Badge
                                 variant={
                                   candidateReport.report_status === "recomendable"
-                                    ? "default"
+                                    ? "outline"
                                     : candidateReport.report_status === "no_recomendable"
                                       ? "destructive"
                                       : "secondary"
                                 }
-                                className="text-xs"
+                                className={
+                                  candidateReport.report_status === "recomendable"
+                                    ? "text-xs bg-green-100 text-green-800 border-green-300"
+                                    : "text-xs"
+                                }
                               >
                                 {candidateReport.report_status === "recomendable" && "✓ Recomendable"}
                                 {candidateReport.report_status === "no_recomendable" && "✗ No Recomendable"}
@@ -1098,12 +1176,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                 <Badge
                                   variant={
                                     candidateReport.report_status === "recomendable"
-                                      ? "default"
+                                      ? "outline"
                                       : candidateReport.report_status === "no_recomendable"
                                         ? "destructive"
                                         : "secondary"
                                   }
-                                  className="text-xs"
+                                  className={
+                                    candidateReport.report_status === "recomendable"
+                                      ? "text-xs bg-green-100 text-green-800 border-green-300"
+                                      : "text-xs"
+                                  }
                                 >
                                   {candidateReport.report_status === "recomendable" && "Recomendable"}
                                   {candidateReport.report_status === "no_recomendable" && "No Recomendable"}
@@ -1167,12 +1249,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                   <Badge
                                     variant={
                                       candidateReport.report_status === "recomendable"
-                                        ? "default"
+                                        ? "outline"
                                         : candidateReport.report_status === "no_recomendable"
                                           ? "destructive"
                                           : "secondary"
                                     }
-                                    className="mt-1"
+                                    className={
+                                      candidateReport.report_status === "recomendable"
+                                        ? "mt-1 bg-green-100 text-green-800 border-green-300"
+                                        : "mt-1"
+                                    }
                                   >
                                     {candidateReport.report_status === "recomendable" && "✓ Recomendable"}
                                     {candidateReport.report_status === "no_recomendable" && "✗ No Recomendable"}
@@ -1385,10 +1471,40 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             <Building className="mr-2 h-4 w-4" />
                             Agregar Referencias
                           </Button>
-                          <Button variant="outline" onClick={() => openReportDialog(candidate)} size="sm">
-                            <FileText className="mr-2 h-4 w-4" />
-                            Gestionar Estado del Informe
-                          </Button>
+                          {(() => {
+                            const evaluation = evaluations[candidate.id]
+                            const candidateInterview = candidateInterviews[candidate.id]
+                            // Verificar en ambas fuentes: evaluations y candidateInterviews
+                            const interviewStatus = evaluation?.estado_evaluacion || candidateInterview?.interview_status
+                            // Comparar con ambos formatos posibles: "Realizada" (del backend) o "realizada" (del frontend)
+                            const isRealized = interviewStatus === "Realizada" || interviewStatus === "realizada"
+                            const reportButton = (
+                              <Button 
+                                variant="outline" 
+                                onClick={() => openReportDialog(candidate)} 
+                                size="sm"
+                                disabled={!isRealized}
+                              >
+                                <FileText className="mr-2 h-4 w-4" />
+                                Gestionar Estado del Informe
+                              </Button>
+                            )
+                            
+                            if (!isRealized) {
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    {reportButton}
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Solo los candidatos con entrevista realizada pueden gestionar el estado del informe</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )
+                            }
+                            
+                            return reportButton
+                          })()}
                         </div>
 
                       </div>
@@ -1874,12 +1990,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                   id="report_observations"
                   value={reportForm.report_observations}
                   onChange={(e) => setReportForm({ ...reportForm, report_observations: e.target.value })}
-                  placeholder="Escribe la conclusión global del informe psicolaboral..."
+                  placeholder="Ingrese su conclusión sobre el informe..."
                   rows={6}
                   className="min-h-[120px]"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mínimo 10 caracteres. Describe la evaluación completa del candidato.
+                  Opcional. Describe la evaluación completa del candidato.
                 </p>
                       </div>
 
@@ -1892,7 +2008,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             </Button>
             <Button 
               onClick={handleSaveReport} 
-              disabled={!reportForm.report_status || !reportForm.report_observations.trim() || reportForm.report_observations.trim().length < 10}
+              disabled={!reportForm.report_status}
             >
               Guardar Estado del Informe
             </Button>

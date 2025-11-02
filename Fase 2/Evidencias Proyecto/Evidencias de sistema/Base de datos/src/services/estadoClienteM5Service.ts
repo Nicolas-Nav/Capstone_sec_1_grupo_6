@@ -4,6 +4,7 @@ import EstadoClienteM5 from '@/models/EstadoClienteM5';
 import EstadoClientePostulacionM5 from '@/models/EstadoClientePostulacionM5';
 import Postulacion from '@/models/Postulacion';
 import Contratacion from '@/models/Contratacion';
+import EvaluacionPsicolaboral from '@/models/EvaluacionPsicolaboral';
 import { Logger } from '@/utils/logger';
 
 export default class EstadoClienteM5Service {
@@ -182,7 +183,7 @@ export default class EstadoClienteM5Service {
         return await this.cambiarEstado(id_postulacion, {
             id_estado_cliente_postulacion_m5: estadoEsperaFeedback,
             fecha_cambio_estado_cliente_m5: null, // Fecha NULL, se ingresa manualmente después
-            comentario_modulo5_cliente: comentario || ""
+            comentario_modulo5_cliente: comentario || undefined
         });
     }
 
@@ -302,6 +303,15 @@ export default class EstadoClienteM5Service {
             contrataciones.map(c => [c.id_postulacion, c])
         );
         
+        // Obtener evaluaciones psicolaborales para incluir estado del informe
+        const evaluaciones = await EvaluacionPsicolaboral.findAll({
+            where: { id_postulacion: idsPostulaciones }
+        });
+        
+        const evaluacionMap = new Map(
+            evaluaciones.map(e => [e.id_postulacion, e])
+        );
+        
         // Obtener historial completo de estados para calcular fecha de feedback
         const historiales = await EstadoClientePostulacionM5.findAll({
             where: { id_postulacion: idsPostulaciones },
@@ -390,7 +400,9 @@ export default class EstadoClienteM5Service {
                 })(),
                 // Obtener comentarios: si hay contratación, usar las observaciones de contratación; si no, usar comentarios del módulo 5
                 observations: contratacionMap.get(estadoData.id_postulacion)?.observaciones_contratacion || 
-                    estadoData.postulacion?.comentario_modulo5_cliente || ''
+                    estadoData.postulacion?.comentario_modulo5_cliente || '',
+                // Estado del informe desde la evaluación psicolaboral
+                estado_informe: evaluacionMap.get(estadoData.id_postulacion)?.estado_informe || null
             };
         });
         

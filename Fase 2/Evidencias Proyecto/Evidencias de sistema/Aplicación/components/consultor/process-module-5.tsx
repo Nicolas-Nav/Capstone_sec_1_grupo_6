@@ -552,6 +552,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Candidato</TableHead>
+                  <TableHead>Estado del Informe</TableHead>
                   <TableHead>Estado de Contratación</TableHead>
                   <TableHead>Fecha Respuesta Cliente</TableHead>
                   <TableHead>Acciones</TableHead>
@@ -571,6 +572,30 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                             <p className="text-sm text-muted-foreground">{candidate.email}</p>
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {candidate.estado_informe ? (
+                          <Badge
+                            variant={
+                              candidate.estado_informe === "Recomendable"
+                                ? "outline"
+                                : candidate.estado_informe === "No recomendable"
+                                  ? "destructive"
+                                  : "secondary"
+                            }
+                            className={
+                              candidate.estado_informe === "Recomendable"
+                                ? "text-xs bg-green-100 text-green-800 border-green-300"
+                                : "text-xs"
+                            }
+                          >
+                            {candidate.estado_informe === "Recomendable" && "✓ Recomendable"}
+                            {candidate.estado_informe === "No recomendable" && "✗ No Recomendable"}
+                            {candidate.estado_informe === "Recomendable con observaciones" && "⚠ Recomendable con Observaciones"}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {getHiringStatusBadge((candidate.hiring_status || "en_espera_feedback") as HiringStatus)}

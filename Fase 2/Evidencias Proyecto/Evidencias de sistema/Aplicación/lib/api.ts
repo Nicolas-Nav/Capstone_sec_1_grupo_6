@@ -363,6 +363,73 @@ export const estadoClienteService = {
 };
 
 // ===========================================
+// SERVICIOS DE ESTADO CLIENTE MÓDULO 5
+// ===========================================
+
+export const estadoClienteM5Service = {
+  // Obtener todos los estados del módulo 5
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/estado-cliente-m5');
+  },
+
+  // Obtener estado por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/${id}`);
+  },
+
+  // Cambiar estado de cliente para una postulación (Módulo 5)
+  async cambiarEstado(id_postulacion: number, data: {
+    id_estado_cliente_postulacion_m5: number;
+    fecha_cambio_estado_cliente_m5: string;
+    comentario_modulo5_cliente?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Avanzar candidato al módulo 5 (desde módulo 4)
+  async avanzarAlModulo5(id_postulacion: number, comentario?: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/avanzar`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        comentario_modulo5_cliente: comentario
+      }),
+    });
+  },
+
+  // Obtener historial de cambios de estado para una postulación
+  async getHistorial(id_postulacion: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/historial`);
+  },
+
+  // Obtener el último estado de una postulación
+  async getUltimoEstado(id_postulacion: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/ultimo`);
+  },
+
+  // Obtener candidatos que están en el módulo 5
+  async getCandidatosEnModulo5(id_proceso: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/estado-cliente-m5/proceso/${id_proceso}/candidatos`);
+  },
+
+  // Actualizar información completa del candidato en módulo 5
+  async actualizarCandidatoModulo5(id_postulacion: number, data: {
+    hiring_status: string;
+    client_response_date?: string;
+    observations?: string;
+    fecha_ingreso_contratacion?: string;
+    observaciones_contratacion?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/actualizar`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ===========================================
 // SERVICIOS DE CANDIDATOS
 // ===========================================
 
@@ -841,7 +908,7 @@ export const evaluacionPsicolaboralService = {
 
   // Crear evaluación
   async create(data: {
-    fecha_evaluacion?: Date | null;
+    fecha_evaluacion?: Date | string | null;
     fecha_envio_informe: Date;
     estado_evaluacion: string;
     estado_informe: string;
@@ -856,7 +923,7 @@ export const evaluacionPsicolaboralService = {
 
   // Actualizar evaluación
   async update(id: number, data: Partial<{
-    fecha_evaluacion: Date | null;
+    fecha_evaluacion: Date | string | null;
     fecha_envio_informe: Date;
     estado_evaluacion: string;
     estado_informe: string;

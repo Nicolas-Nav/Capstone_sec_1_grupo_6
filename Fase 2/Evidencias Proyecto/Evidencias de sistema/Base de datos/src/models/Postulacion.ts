@@ -12,12 +12,10 @@ interface PostulacionAttributes {
     expectativa_renta?: number;
     disponibilidad_postulacion?: string;
     comentario_no_presentado?: string;
-    comentario_rech_obs_cliente?: string;
     comentario_modulo5_cliente?: string;
     situacion_familiar?: string;
     valoracion?: number;
     fecha_envio?: Date;
-    fecha_feedback_cliente?: Date;
     cv_postulacion?: Buffer;
     id_candidato: number;
     id_estado_candidato?: number;
@@ -25,7 +23,7 @@ interface PostulacionAttributes {
     id_portal_postulacion?: number;
 }
 
-interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'id_postulacion' | 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_rech_obs_cliente' | 'comentario_modulo5_cliente' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion' |
+interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'id_postulacion' | 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_modulo5_cliente' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion' |
     'id_portal_postulacion' | 'id_estado_candidato'> { }
 
 // ===========================================
@@ -38,12 +36,10 @@ class Postulacion extends Model<PostulacionAttributes, PostulacionCreationAttrib
     public expectativa_renta?: number;
     public disponibilidad_postulacion?: string;
     public comentario_no_presentado?: string;
-    public comentario_rech_obs_cliente?: string;
     public comentario_modulo5_cliente?: string;
     public situacion_familiar?: string;
     public valoracion?: number;
     public fecha_envio?: Date;
-    public fecha_feedback_cliente?: Date;
     public cv_postulacion?: Buffer;
     public id_candidato!: number;
     public id_estado_candidato?: number;
@@ -136,16 +132,6 @@ Postulacion.init({
             }
         }
     },
-    comentario_rech_obs_cliente: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-        validate: {
-            len: {
-                args: [0, 500],
-                msg: 'El comentario no puede exceder 500 caracteres'
-            }
-        }
-    },
     comentario_modulo5_cliente: {
         type: DataTypes.TEXT,
         allowNull: true,
@@ -170,10 +156,6 @@ Postulacion.init({
         type: DataTypes.DATE,
         allowNull: true,
         
-    },
-    fecha_feedback_cliente: {
-        type: DataTypes.DATE,
-        allowNull: true,
     },
     valoracion: {
         type: DataTypes.INTEGER,

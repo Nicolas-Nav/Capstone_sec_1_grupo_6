@@ -135,10 +135,9 @@ EvaluacionPsicolaboral.init({
     },
     conclusion_global: {
         type: DataTypes.STRING(300),
-        allowNull: false,
+        allowNull: true,
         validate: {
-            notEmpty: true,
-            len: [10, 300]
+            len: [0, 300]
         }
     },
     id_postulacion: {

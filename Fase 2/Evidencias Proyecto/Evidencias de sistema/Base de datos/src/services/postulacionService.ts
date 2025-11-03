@@ -97,7 +97,9 @@ export class PostulacionService {
                             model: EstadoCliente,
                             as: 'estadoCliente'
                         }
-                    ]
+                    ],
+                    separate: true,
+                    order: [['updated_at', 'DESC']]
                 }
             ],
             order: [['id_postulacion', 'DESC']]
@@ -171,7 +173,9 @@ export class PostulacionService {
                             model: EstadoCliente,
                             as: 'estadoCliente'
                         }
-                    ]
+                    ],
+                    separate: true,
+                    order: [['updated_at', 'DESC']]
                 }
             ]
         });
@@ -195,7 +199,6 @@ export class PostulacionService {
         disponibilidad_postulacion?: string;
         valoracion?: number;
         comentario_no_presentado?: string;
-        comentario_rech_obs_cliente?: string;
         comentario_modulo5_cliente?: string;
         situacion_familiar?: string;
         cv_file?: Buffer;
@@ -239,7 +242,6 @@ export class PostulacionService {
                 disponibilidad_postulacion: data.disponibilidad_postulacion,
                 valoracion: data.valoracion,
                 comentario_no_presentado: data.comentario_no_presentado,
-                comentario_rech_obs_cliente: data.comentario_rech_obs_cliente,
                 comentario_modulo5_cliente: data.comentario_modulo5_cliente,
                 situacion_familiar: data.situacion_familiar,
                 cv_postulacion: data.cv_file
@@ -587,12 +589,12 @@ export class PostulacionService {
         const portal = postulacion.get('portalPostulacion') as any;
         const estadosCliente = postulacion.get('estadosCliente') as any[];
 
-        // Obtener el último estado de cliente (más reciente)
-        const ultimoEstadoCliente = estadosCliente && estadosCliente.length > 0 
-            ? estadosCliente.sort((a: any, b: any) => 
-                new Date(b.fecha_cambio_estado_cliente).getTime() - new Date(a.fecha_cambio_estado_cliente).getTime()
-              )[0]
-            : null;
+        // Obtener el último estado de cliente
+        // Los estados están ordenados por updated_at DESC, el primero es el más reciente
+        let ultimoEstadoCliente = null;
+        if (estadosCliente && estadosCliente.length > 0) {
+            ultimoEstadoCliente = estadosCliente[0];
+        }
 
         const estadoClienteNombre = ultimoEstadoCliente?.estadoCliente?.nombre_estado?.toLowerCase();
 
@@ -629,12 +631,12 @@ export class PostulacionService {
             })) || [],
             consultant_comment: postulacion.comentario_no_presentado,
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),
-            rejection_reason: postulacion.comentario_rech_obs_cliente,
+            rejection_reason: ultimoEstadoCliente?.comentario_rech_obs_cliente || undefined,
             // Campos del módulo 3 - Presentación de candidatos
             presentation_date: postulacion.fecha_envio ? (postulacion.fecha_envio instanceof Date ? postulacion.fecha_envio.toISOString() : new Date(postulacion.fecha_envio).toISOString()) : undefined,
             client_response: estadoClienteNombre || undefined,
-            client_feedback_date: postulacion.fecha_feedback_cliente ? (postulacion.fecha_feedback_cliente instanceof Date ? postulacion.fecha_feedback_cliente.toISOString() : new Date(postulacion.fecha_feedback_cliente).toISOString()) : undefined,
-            client_comments: postulacion.comentario_rech_obs_cliente || undefined,
+            client_feedback_date: ultimoEstadoCliente?.fecha_feedback_cliente_m3 ? (ultimoEstadoCliente.fecha_feedback_cliente_m3 instanceof Date ? ultimoEstadoCliente.fecha_feedback_cliente_m3.toISOString() : new Date(ultimoEstadoCliente.fecha_feedback_cliente_m3).toISOString()) : undefined,
+            client_comments: ultimoEstadoCliente?.comentario_rech_obs_cliente || undefined,
             has_disability_credential: candidato.discapacidad,
             licencia: candidato.licencia,
             work_experience: candidato.experiencias?.map((exp: any) => ({

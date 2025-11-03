@@ -216,8 +216,7 @@ export class ContratacionService {
             }
 
             await contratacion.update({
-                encuesta_satisfaccion: encuesta,
-                fecha_respuesta_cliente: new Date()
+                encuesta_satisfaccion: encuesta
             }, { transaction });
 
             await transaction.commit();

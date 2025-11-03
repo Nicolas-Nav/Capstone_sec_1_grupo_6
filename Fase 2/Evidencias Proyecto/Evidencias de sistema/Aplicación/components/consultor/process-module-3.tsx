@@ -40,6 +40,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     client_feedback_date: "",
     client_comments: ""
   })
+  const [feedbackDateError, setFeedbackDateError] = useState<string>("")
 
   // Estados para finalizar solicitud (solo Long List)
   const [processStatus, setProcessStatus] = useState<ProcessStatus>((process.estado_solicitud || process.status) as ProcessStatus)
@@ -134,12 +135,23 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
   const handleOpenUpdateModal = (candidate: Candidate) => {
     setUpdatingCandidate(candidate)
+    const clientResponse = candidate.client_response || "pendiente"
+    const clientFeedbackDate = candidate.client_feedback_date?.split("T")[0] || ""
+    
     setUpdateFormData({
-      client_response: candidate.client_response || "pendiente",
+      client_response: clientResponse,
       presentation_date: candidate.presentation_date?.split("T")[0] || "",
-      client_feedback_date: candidate.client_feedback_date?.split("T")[0] || "",
+      client_feedback_date: clientFeedbackDate,
       client_comments: candidate.client_comments || ""
     })
+    
+    // Validar si hay fecha pero el estado es pendiente
+    if (clientFeedbackDate && clientResponse === "pendiente") {
+      setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+    } else {
+      setFeedbackDateError("")
+    }
+    
     setShowUpdateModal(true)
   }
 
@@ -152,13 +164,36 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       client_feedback_date: "",
       client_comments: ""
     })
+    setFeedbackDateError("")
   }
 
   const handleUpdateFormChange = (field: string, value: string) => {
-    setUpdateFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    setUpdateFormData(prev => {
+      const newData = {
+        ...prev,
+        [field]: value
+      }
+      
+      // Validar fecha de feedback si se está actualizando
+      if (field === "client_feedback_date") {
+        if (value && prev.client_response === "pendiente") {
+          setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+        } else {
+          setFeedbackDateError("")
+        }
+      }
+      
+      // Limpiar error de fecha si se cambia el estado del cliente
+      if (field === "client_response") {
+        if (value !== "pendiente" && prev.client_feedback_date) {
+          setFeedbackDateError("")
+        } else if (value === "pendiente" && prev.client_feedback_date) {
+          setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+        }
+      }
+      
+      return newData
+    })
   }
 
   const handleUpdateCandidateState = async () => {
@@ -174,6 +209,12 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       return
     }
 
+    // Validar fecha de feedback si existe pero el estado es pendiente
+    if (updateFormData.client_feedback_date && updateFormData.client_response === "pendiente") {
+      setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+      return
+    }
+    
     // Validar comentarios si es necesario
     if ((updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && !updateFormData.client_comments?.trim()) {
       toast({
@@ -236,9 +277,13 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         }
 
         // Recargar datos desde la base de datos para reflejar los cambios reales
+        // Agregar un pequeño delay para asegurar que el backend haya completado la transacción
+        await new Promise(resolve => setTimeout(resolve, 300))
         const allCandidates = await getCandidatesByProcess(process.id)
         const filteredCandidates = allCandidates.filter((c: Candidate) => c.presentation_status === "presentado")
         setCandidates(filteredCandidates)
+        // Forzar re-render
+        setCandidates(prev => [...prev])
 
         // Cerrar modal
         handleCloseUpdateModal()
@@ -909,8 +954,13 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                 type="date"
                 value={updateFormData.client_feedback_date}
                 onChange={(e) => handleUpdateFormChange("client_feedback_date", e.target.value)}
-                disabled={!updateFormData.client_response || updateFormData.client_response === "pendiente"}
+                className={feedbackDateError ? "border-red-500 focus:border-red-500" : ""}
               />
+              {feedbackDateError && (
+                <p className="text-destructive text-sm">
+                  {feedbackDateError}
+                </p>
+              )}
             </div>
 
             {/* Comentarios */}

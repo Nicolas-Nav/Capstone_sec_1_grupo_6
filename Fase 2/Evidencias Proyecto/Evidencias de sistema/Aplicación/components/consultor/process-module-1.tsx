@@ -318,15 +318,15 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
     // Validar formato de RUT si se proporciona
     if (personalData.rut?.trim()) {
-      const rutRegex = /^[0-9]+-[0-9kK]$/
-      if (!rutRegex.test(personalData.rut)) {
-        toast({
+    const rutRegex = /^[0-9]+-[0-9kK]$/
+    if (!rutRegex.test(personalData.rut)) {
+      toast({
           title: "Formato inválido",
-          description: "Ingresa un RUT válido (ej: 12345678-9)",
-          variant: "destructive",
-        })
-        return
-      }
+        description: "Ingresa un RUT válido (ej: 12345678-9)",
+        variant: "destructive",
+      })
+      return
+    }
     }
     
     // Los demás campos son opcionales (rut, birth_date, region, comuna, nacionalidad, rubro)
@@ -394,7 +394,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           description: "Datos del candidato guardados exitosamente",
           variant: "default",
         })
-        
+
         // Recargar candidatos para actualizar la información
         const candidatesData = await getCandidatesByProcess(process.id)
         setCandidates(candidatesData)
@@ -522,11 +522,11 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         })
       } else {
         // Modo agregar
-        const experience: WorkExperience = {
-          id: Date.now().toString(),
-          ...newWorkExperience,
-        }
-        setWorkExperience([...workExperience, experience])
+      const experience: WorkExperience = {
+        id: Date.now().toString(),
+        ...newWorkExperience,
+      }
+      setWorkExperience([...workExperience, experience])
         toast({
           title: "Experiencia agregada",
           description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
@@ -604,13 +604,13 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         })
       } else {
         // Modo agregar
-        const educationItem: Education = {
-          id: Date.now().toString(),
-          institution: newEducation.institution,
-          title: newEducation.title,
-          completion_date: newEducation.completion_date,
-        }
-        setEducation([...education, educationItem])
+      const educationItem: Education = {
+        id: Date.now().toString(),
+        institution: newEducation.institution,
+        title: newEducation.title,
+        completion_date: newEducation.completion_date,
+      }
+      setEducation([...education, educationItem])
         toast({
           title: "Formación agregada",
           description: "Recuerda hacer clic en 'Guardar Datos del Candidato' al finalizar",
@@ -868,13 +868,13 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
             Pasar a Módulo 4
           </Button>
         ) : (
-          <Button
-            onClick={handleAdvanceToModule2}
-            className="bg-primary hover:bg-primary/90"
-            disabled={isProcessBlocked(processStatus)}
-          >
-            Pasar a Módulo 2
-          </Button>
+        <Button
+          onClick={handleAdvanceToModule2}
+          className="bg-primary hover:bg-primary/90"
+          disabled={isProcessBlocked(processStatus)}
+        >
+          Pasar a Módulo 2
+        </Button>
         )}
       </div>
 
@@ -1198,14 +1198,14 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                           }}
                         >
                           <Download className="h-4 w-4" />
-                          Ver CV
+                  Ver CV
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="shrink-0 text-sm h-[32px] px-4 flex items-center">
                           Datos básicos
                         </Badge>
                       )}
-                    </div>
+              </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4 pt-0">
                     <div className="space-y-4">
@@ -1214,8 +1214,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               <>
               {/* Acordeón interno para organizar secciones */}
               <Accordion type="multiple" defaultValue={["datos-personales"]} className="space-y-3">
-              
-              {/* Formulario de datos personales */}
+
+            {/* Formulario de datos personales */}
               <div className="bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <AccordionItem value="datos-personales" className="border-0">
                 <AccordionTrigger className="px-4 py-3 hover:no-underline">
@@ -1260,788 +1260,6 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Teléfono (8-12 caracteres) <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="phone"
-                    value={personalData.phone}
-                    onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
-                    placeholder="+56912345678"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
-                  <DatePicker
-                    selected={personalData.birth_date ? new Date(personalData.birth_date) : null}
-                    onChange={(date) => {
-                      if (date) {
-                        const age = calculateAge(date.toISOString().split('T')[0])
-                        setPersonalData({
-                          ...personalData,
-                          birth_date: date.toISOString().split('T')[0],
-                          age: age,
-                        })
-                      }
-                    }}
-                    dateFormat="dd/MM/yyyy"
-                    showYearDropdown
-                    showMonthDropdown
-                    dropdownMode="select"
-                    placeholderText="Selecciona fecha de nacimiento"
-                    className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    maxDate={new Date()}
-                    minDate={new Date("1900-01-01")}
-                    yearDropdownItemNumber={100}
-                    locale="es"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="age">Edad</Label>
-                  <Input
-                    id="age"
-                    type="number"
-                    value={personalData.age}
-                    readOnly
-                    className="bg-white dark:bg-gray-950"
-                  />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="has_disability_credential"
-                    checked={personalData.has_disability_credential}
-                    readOnly
-                    disabled
-                  />
-                  <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad (registrado por administrador)</Label>
-                </div>
-              </div>
-
-
-              {/* Información adicional del candidato (editable) */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium text-lg mb-4">Información Adicional</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="region">Región</Label>
-                    <Select
-                      value={personalData.region}
-                      onValueChange={(value) => {
-                        setPersonalData({ ...personalData, region: value, comuna: "" })
-                      }}
-                      disabled={loadingLists}
-                    >
-                      <SelectTrigger className="bg-white dark:bg-gray-950">
-                        <SelectValue placeholder="Seleccione región" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {regiones.map((region) => (
-                          <SelectItem key={region.id_region} value={region.nombre_region}>
-                            {region.nombre_region}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="comuna">Comuna</Label>
-                    <Select
-                      value={personalData.comuna}
-                      onValueChange={(value) => setPersonalData({ ...personalData, comuna: value })}
-                      disabled={loadingLists || !personalData.region}
-                    >
-                      <SelectTrigger className="bg-white dark:bg-gray-950">
-                        <SelectValue placeholder={personalData.region ? "Seleccione comuna" : "Primero seleccione región"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {comunasFiltradas.map((comuna) => (
-                          <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
-                            {comuna.nombre_comuna}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="nacionalidad">Nacionalidad</Label>
-                    <Select
-                      value={personalData.nacionalidad}
-                      onValueChange={(value) => setPersonalData({ ...personalData, nacionalidad: value })}
-                      disabled={loadingLists}
-                    >
-                      <SelectTrigger className="bg-white dark:bg-gray-950">
-                        <SelectValue placeholder="Seleccione nacionalidad" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {nacionalidades.map((nac) => (
-                          <SelectItem key={nac.id_nacionalidad} value={nac.nombre_nacionalidad}>
-                            {nac.nombre_nacionalidad}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="rubro">Rubro</Label>
-                    <Select
-                      value={personalData.rubro}
-                      onValueChange={(value) => setPersonalData({ ...personalData, rubro: value })}
-                      disabled={loadingLists}
-                    >
-                      <SelectTrigger className="bg-white dark:bg-gray-950">
-                        <SelectValue placeholder="Seleccione rubro" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rubros.map((rubro) => (
-                          <SelectItem key={rubro.id_rubro} value={rubro.nombre_rubro}>
-                            {rubro.nombre_rubro}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-              </div>
-
-              {/* Formación Académica con sub-acordeones */}
-              <div className="bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
-              <AccordionItem value="formacion" className="border-0">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                  <h4 className="font-semibold text-lg text-foreground">
-                    Formación Académica {(professions.length > 0 || education.length > 0) && <span className="text-muted-foreground">({professions.length + education.length})</span>}
-                  </h4>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <div className="space-y-3 pt-2">
-
-                  {/* Sub-acordeón 1: Profesión(es) */}
-                  <Accordion type="multiple" className="space-y-2">
-                    <div className="border rounded-lg bg-card">
-                      <AccordionItem value="profesiones" className="border-0">
-                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
-                          <span className="font-medium text-sm">
-                            Profesión(es) {professions.length > 0 ? <span className="text-muted-foreground">({professions.length})</span> : <span className="text-amber-600">- Sin registros</span>}
-                          </span>
-                        </AccordionTrigger>
-                        <AccordionContent className="px-3 pb-3">
-                          <div className="space-y-3 pt-2">
-
-                            {/* Si tiene profesiones, mostrar lista primero */}
-                            {professions.length > 0 && (
-                              <div className="space-y-2">
-                                {[...professions].reverse().map((prof) => (
-                                  <div key={prof.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
-                                    <div>
-                                      <p className="font-medium">{prof.profession}</p>
-                                      <p className="text-sm text-muted-foreground">{prof.institution}</p>
-                                      {prof.date && (
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                          {formatDate(prof.date)}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <div className="flex gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleEditProfession(prof.id)}
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleRemoveProfession(prof.id)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Si NO tiene profesiones, mostrar mensaje */}
-                            {professions.length === 0 && !showAddProfessionForm && (
-                              <p className="text-sm text-muted-foreground text-center py-2">
-                                No hay profesiones registradas. Completa el formulario:
-                              </p>
-                            )}
-
-                            {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
-                            {(professions.length === 0 || showAddProfessionForm) && (
-                              <div className="space-y-4 p-4 bg-muted rounded-lg">
-                  <h6 className="font-medium text-sm">{editingProfessionId ? "Editar Profesión" : "Agregar Profesión"}</h6>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Profesión</Label>
-                      <Input
-                        value={newProfession.profession}
-                        onChange={(e) => setNewProfession({ ...newProfession, profession: e.target.value })}
-                        placeholder="Ej: Ingeniero en Sistemas"
-                        className="bg-white dark:bg-gray-950"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Institución</Label>
-                      <Select
-                        value={newProfession.institution}
-                        onValueChange={(value) => setNewProfession({ ...newProfession, institution: value })}
-                        disabled={loadingLists}
-                      >
-                        <SelectTrigger className="bg-white dark:bg-gray-950">
-                          <SelectValue placeholder={loadingLists ? "Cargando instituciones..." : "Seleccione institución"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {instituciones.length > 0 ? (
-                            instituciones.map((inst) => (
-                              <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
-                                {inst.nombre_institucion}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <div className="p-2 text-sm text-muted-foreground text-center">
-                              No hay instituciones disponibles
-                            </div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Fecha de Obtención</Label>
-                    <DatePicker
-                      selected={newProfession.date ? new Date(newProfession.date) : null}
-                      onChange={(date) => {
-                        if (date) {
-                          setNewProfession({ ...newProfession, date: date.toISOString().split('T')[0] })
-                        }
-                      }}
-                      dateFormat="dd/MM/yyyy"
-                      showYearDropdown
-                      showMonthDropdown
-                      dropdownMode="select"
-                      placeholderText="Selecciona fecha de obtención"
-                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      maxDate={new Date()}
-                      minDate={new Date("1900-01-01")}
-                      yearDropdownItemNumber={100}
-                      locale="es"
-                    />
-                  </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    onClick={handleAddProfession}
-                                    disabled={!newProfession.profession || !newProfession.institution}
-                                    className="flex-1"
-                                  >
-                                    {editingProfessionId ? "Guardar Cambios" : "Agregar Profesión"}
-                                  </Button>
-                                  {(professions.length > 0 || editingProfessionId) && (
-                                    <Button
-                                      variant="outline"
-                                      onClick={handleCancelEditProfession}
-                                    >
-                                      Cancelar
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Botón para agregar otra profesión (solo si ya hay profesiones Y el formulario está oculto) */}
-                            {professions.length > 0 && !showAddProfessionForm && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowAddProfessionForm(true)}
-                                className="w-full"
-                              >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Agregar otra profesión
-                              </Button>
-                            )}
-
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </div>
-                  </Accordion>
-
-                  {/* Sub-acordeón 2: Postgrados y Capacitaciones */}
-                  <Accordion type="multiple" className="space-y-2">
-                    <div className="border rounded-lg bg-card">
-                      <AccordionItem value="postgrados" className="border-0">
-                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
-                          <span className="font-medium text-sm">
-                            Postgrados y Capacitaciones {education.length > 0 ? <span className="text-muted-foreground">({education.length})</span> : <span className="text-amber-600">- Sin registros</span>}
-                          </span>
-                        </AccordionTrigger>
-                        <AccordionContent className="px-3 pb-3">
-                          <div className="space-y-3 pt-2">
-
-                            {/* Si tiene educación, mostrar lista primero */}
-                            {education.length > 0 && (
-                              <div className="space-y-2">
-                                {[...education].reverse().map((edu) => (
-                                  <div key={edu.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
-                                    <div>
-                                      <p className="font-medium">{edu.title}</p>
-                                      <p className="text-sm text-muted-foreground">{edu.institution}</p>
-                                      {edu.completion_date && (
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                          {formatDate(edu.completion_date)}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <div className="flex gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleEditEducation(edu.id)}
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleRemoveEducation(edu.id)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Si NO tiene educación, mostrar mensaje */}
-                            {education.length === 0 && !showAddEducationForm && (
-                              <p className="text-sm text-muted-foreground text-center py-2">
-                                No hay formación registrada. Completa el formulario:
-                              </p>
-                            )}
-
-                            {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
-                            {(education.length === 0 || showAddEducationForm) && (
-                              <div className="space-y-4 p-4 bg-muted rounded-lg">
-                  <h6 className="font-medium text-sm">{editingEducationId ? "Editar Formación" : "Agregar Formación"}</h6>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Título</Label>
-                      <Input
-                        value={newEducation.title}
-                        onChange={(e) => setNewEducation({ ...newEducation, title: e.target.value })}
-                        placeholder="Ej: Magister en Administración"
-                        className="bg-white dark:bg-gray-950"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Institución</Label>
-                      <Input
-                        value={newEducation.institution}
-                        onChange={(e) => setNewEducation({ ...newEducation, institution: e.target.value })}
-                        placeholder="Nombre de la institución"
-                        className="bg-white dark:bg-gray-950"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Fecha de Obtención</Label>
-                    <DatePicker
-                      selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
-                      onChange={(date) => {
-                        if (date) {
-                          setNewEducation({ ...newEducation, completion_date: date.toISOString().split('T')[0] })
-                        }
-                      }}
-                      dateFormat="dd/MM/yyyy"
-                      showYearDropdown
-                      showMonthDropdown
-                      dropdownMode="select"
-                      placeholderText="Selecciona fecha de obtención"
-                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      maxDate={new Date()}
-                      yearDropdownItemNumber={50}
-                      locale="es"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleAddEducation}
-                      disabled={!newEducation.institution || !newEducation.title || !newEducation.completion_date}
-                      className="flex-1"
-                    >
-                      {editingEducationId ? "Guardar Cambios" : "Agregar Formación"}
-                    </Button>
-                    {(education.length > 0 || editingEducationId) && (
-                      <Button
-                        variant="outline"
-                        onClick={handleCancelEditEducation}
-                      >
-                        Cancelar
-                      </Button>
-                    )}
-                  </div>
-                              </div>
-                            )}
-
-                            {/* Botón para agregar otra formación (solo si ya hay items Y el formulario está oculto) */}
-                            {education.length > 0 && !showAddEducationForm && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowAddEducationForm(true)}
-                                className="w-full"
-                              >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Agregar otra formación
-                              </Button>
-                            )}
-
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </div>
-                  </Accordion>
-
-                  {/* Sub-acordeón 3: Habilidades Adicionales */}
-                  <Accordion type="multiple" className="space-y-2">
-                    <div className="border rounded-lg bg-card">
-                      <AccordionItem value="habilidades" className="border-0">
-                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
-                          <span className="font-medium text-sm">
-                            Habilidades Adicionales {(personalData.english_level || personalData.software_tools) ? <span className="text-green-600">✓</span> : <span className="text-amber-600">- Sin completar</span>}
-                          </span>
-                        </AccordionTrigger>
-                        <AccordionContent className="px-3 pb-3">
-                          <div className="space-y-3 pt-2">
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="english_level">Nivel de Inglés</Label>
-                                <Input
-                                  id="english_level"
-                                  value={personalData.english_level}
-                                  onChange={(e) => setPersonalData({ ...personalData, english_level: e.target.value })}
-                                  placeholder="Ej: Intermedio, Avanzado, Nativo"
-                                  className="bg-white dark:bg-gray-950"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="software_tools">Software y Herramientas</Label>
-                                <Input
-                                  id="software_tools"
-                                  value={personalData.software_tools}
-                                  onChange={(e) => setPersonalData({ ...personalData, software_tools: e.target.value })}
-                                  placeholder="Ej: Excel, SAP, AutoCAD"
-                                  className="bg-white dark:bg-gray-950"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </div>
-                  </Accordion>
-
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-              </div>
-
-              {/* Experiencia Laboral */}
-              <div className="bg-slate-50/50 dark:bg-slate-950/20 rounded-lg border border-slate-200 dark:border-slate-800">
-              <AccordionItem value="experiencia" className="border-0">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                  <h4 className="font-semibold text-lg text-foreground">
-                    Experiencia Laboral {workExperience.length > 0 && <span className="text-muted-foreground">({workExperience.length})</span>}
-                  </h4>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <div className="space-y-4 pt-2">
-
-                    {/* Si tiene experiencias, mostrar lista primero */}
-                    {workExperience.length > 0 && (
-                      <div className="space-y-2">
-                        {[...workExperience].reverse().map((exp) => (
-                          <div key={exp.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
-                            <div>
-                              <p className="font-medium">{exp.position}</p>
-                              <p className="text-sm text-muted-foreground">{exp.company}</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {exp.start_date && formatDate(exp.start_date)} - {exp.is_current ? 'Actual' : (exp.end_date ? formatDate(exp.end_date) : 'No especificada')}
-                              </p>
-                              {exp.description && (
-                                <p className="text-sm mt-1">{exp.description}</p>
-                              )}
-                            </div>
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditWorkExperience(exp.id)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveWorkExperience(exp.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Si NO tiene experiencias, mostrar mensaje */}
-                    {workExperience.length === 0 && !showAddWorkExperienceForm && (
-                      <p className="text-sm text-muted-foreground text-center py-2">
-                        No hay experiencias registradas. Completa el formulario:
-                      </p>
-                    )}
-
-                    {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
-                    {(workExperience.length === 0 || showAddWorkExperienceForm) && (
-                      <div className="space-y-4 p-4 bg-muted rounded-lg">
-                        <h5 className="font-medium text-sm">{editingWorkExperienceId ? "Editar Experiencia" : "Agregar Experiencia"}</h5>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Empresa</Label>
-                      <Input
-                        value={newWorkExperience.company}
-                        onChange={(e) => setNewWorkExperience({ ...newWorkExperience, company: e.target.value })}
-                        placeholder="Nombre de la empresa"
-                        className="bg-white dark:bg-gray-950"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Cargo</Label>
-                      <Input
-                        value={newWorkExperience.position}
-                        onChange={(e) => setNewWorkExperience({ ...newWorkExperience, position: e.target.value })}
-                        placeholder="Título del cargo"
-                        className="bg-white dark:bg-gray-950"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Fecha Inicio</Label>
-                      <DatePicker
-                        selected={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : null}
-                        onChange={(date) => {
-                          if (date) {
-                            setNewWorkExperience({ ...newWorkExperience, start_date: date.toISOString().split('T')[0] })
-                          }
-                        }}
-                        dateFormat="dd/MM/yyyy"
-                        showYearDropdown
-                        showMonthDropdown
-                        dropdownMode="select"
-                        placeholderText="Selecciona fecha"
-                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        maxDate={new Date()}
-                        yearDropdownItemNumber={50}
-                        locale="es"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Fecha Fin</Label>
-                      <DatePicker
-                        selected={newWorkExperience.end_date ? new Date(newWorkExperience.end_date) : null}
-                        onChange={(date) => {
-                          if (date) {
-                            setNewWorkExperience({ ...newWorkExperience, end_date: date.toISOString().split('T')[0] })
-                          }
-                        }}
-                        dateFormat="dd/MM/yyyy"
-                        showYearDropdown
-                        showMonthDropdown
-                        dropdownMode="select"
-                        placeholderText="Selecciona fecha"
-                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        maxDate={new Date()}
-                        minDate={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : undefined}
-                        yearDropdownItemNumber={50}
-                        disabled={newWorkExperience.is_current}
-                        locale="es"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="is_current"
-                      checked={newWorkExperience.is_current}
-                      onChange={(e) => setNewWorkExperience({
-                        ...newWorkExperience,
-                        is_current: e.target.checked,
-                        end_date: e.target.checked ? "" : newWorkExperience.end_date,
-                      })}
-                    />
-                    <Label htmlFor="is_current">Trabajo actual</Label>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Descripción de Funciones</Label>
-                    <Textarea
-                      value={newWorkExperience.description}
-                      onChange={(e) => setNewWorkExperience({ ...newWorkExperience, description: e.target.value })}
-                      placeholder="Principales responsabilidades y logros"
-                      rows={3}
-                      className="bg-white dark:bg-gray-950"
-                    />
-                  </div>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={handleAddWorkExperience}
-                            disabled={!newWorkExperience.company || !newWorkExperience.position}
-                            className="flex-1"
-                          >
-                            {editingWorkExperienceId ? "Guardar Cambios" : "Agregar Experiencia"}
-                          </Button>
-                          {(workExperience.length > 0 || editingWorkExperienceId) && (
-                            <Button
-                              variant="outline"
-                              onClick={handleCancelEditWorkExperience}
-                            >
-                              Cancelar
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Botón para agregar otra experiencia (solo si ya hay experiencias Y el formulario está oculto) */}
-                    {workExperience.length > 0 && !showAddWorkExperienceForm && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowAddWorkExperienceForm(true)}
-                        className="w-full"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Agregar otra experiencia
-                      </Button>
-                    )}
-
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-              </div>
-
-              </Accordion>
-
-              {/* Botón guardar fuera de las secciones */}
-              <div className="flex justify-end pt-4">
-                <Button
-                  onClick={handlePersonalDataSubmit}
-                  disabled={savingCandidate}
-                >
-                  {savingCandidate ? "Guardando..." : "Guardar Datos del Candidato"}
-                </Button>
-              </div>
-              </>
-            ) : (
-              /* Vista simplificada sin CV - Solo datos básicos */
-              <div className="space-y-4">
-                <div className="p-4 bg-amber-50/50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                  <p className="text-sm text-amber-800 dark:text-amber-200 text-center font-medium">
-                    Este candidato no tiene CV adjunto
-                  </p>
-                </div>
-                
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-lg text-foreground">Datos Básicos Registrados</h4>
-                  
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Nombre Completo</Label>
-                      <p className="font-medium text-foreground">{candidate.name || 'No especificado'}</p>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Email</Label>
-                      <p className="font-medium text-foreground">{candidate.email || 'No especificado'}</p>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Teléfono</Label>
-                      <p className="font-medium text-foreground">{candidate.phone || 'No especificado'}</p>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase">RUT</Label>
-                      <p className="font-medium text-foreground">{candidate.rut || 'No especificado'}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-center pt-2">
-                    <Button
-                      variant="outline"
-                      className="w-full sm:w-auto"
-                      onClick={() => setShowFullFormForNonCV(!showFullFormForNonCV)}
-                    >
-                      {showFullFormForNonCV ? "Ocultar formulario" : "+ Completar información adicional"}
-                    </Button>
-                  </div>
-                  
-                  {showFullFormForNonCV && (
-                    <div className="pt-4 border-t">
-                      {/* Formulario completo - igual que para candidatos con CV */}
-                      <>
-              {/* Acordeón interno para organizar secciones */}
-              <Accordion type="multiple" defaultValue={["datos-personales"]} className="space-y-3">
-              
-              {/* Formulario de datos personales */}
-              <div className="bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <AccordionItem value="datos-personales" className="border-0">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                  <h4 className="font-semibold text-lg text-foreground">
-                    Datos Personales
-                  </h4>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <div className="space-y-4 pt-2">
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nombre Completo <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="name"
-                    value={personalData.name}
-                    onChange={(e) => setPersonalData({ ...personalData, name: e.target.value })}
-                    placeholder="Ingrese nombre completo"
-                    className="bg-white dark:bg-gray-950"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rut">RUT</Label>
-                  <Input
-                    id="rut"
-                    value={personalData.rut}
-                    onChange={(e) => setPersonalData({ ...personalData, rut: e.target.value })}
-                    placeholder="12.345.678-9"
-                    className="bg-white dark:bg-gray-950"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={personalData.email}
-                    onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
-                    placeholder="correo@ejemplo.com"
-                    className="bg-white dark:bg-gray-950"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono <span className="text-red-500">*</span></Label>
                   <Input
                     id="phone"
                     value={personalData.phone}
@@ -2590,6 +1808,789 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
                     {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
                     {(workExperience.length === 0 || showAddWorkExperienceForm) && (
+                <div className="space-y-4 p-4 bg-muted rounded-lg">
+                        <h5 className="font-medium text-sm">{editingWorkExperienceId ? "Editar Experiencia" : "Agregar Experiencia"}</h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Empresa</Label>
+                      <Input
+                        value={newWorkExperience.company}
+                        onChange={(e) => setNewWorkExperience({ ...newWorkExperience, company: e.target.value })}
+                        placeholder="Nombre de la empresa"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Cargo</Label>
+                      <Input
+                        value={newWorkExperience.position}
+                        onChange={(e) => setNewWorkExperience({ ...newWorkExperience, position: e.target.value })}
+                        placeholder="Título del cargo"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Fecha Inicio</Label>
+                      <DatePicker
+                        selected={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            setNewWorkExperience({ ...newWorkExperience, start_date: date.toISOString().split('T')[0] })
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        placeholderText="Selecciona fecha"
+                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        maxDate={new Date()}
+                        yearDropdownItemNumber={50}
+                        locale="es"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Fecha Fin</Label>
+                      <DatePicker
+                        selected={newWorkExperience.end_date ? new Date(newWorkExperience.end_date) : null}
+                        onChange={(date) => {
+                          if (date) {
+                            setNewWorkExperience({ ...newWorkExperience, end_date: date.toISOString().split('T')[0] })
+                          }
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        placeholderText="Selecciona fecha"
+                        className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        maxDate={new Date()}
+                        minDate={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : undefined}
+                        yearDropdownItemNumber={50}
+                        disabled={newWorkExperience.is_current}
+                        locale="es"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="is_current"
+                      checked={newWorkExperience.is_current}
+                      onChange={(e) => setNewWorkExperience({
+                        ...newWorkExperience,
+                        is_current: e.target.checked,
+                        end_date: e.target.checked ? "" : newWorkExperience.end_date,
+                      })}
+                    />
+                    <Label htmlFor="is_current">Trabajo actual</Label>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Descripción de Funciones</Label>
+                    <Textarea
+                      value={newWorkExperience.description}
+                      onChange={(e) => setNewWorkExperience({ ...newWorkExperience, description: e.target.value })}
+                      placeholder="Principales responsabilidades y logros"
+                      rows={3}
+                      className="bg-white dark:bg-gray-950"
+                    />
+                  </div>
+                        <div className="flex gap-2">
+                  <Button
+                    onClick={handleAddWorkExperience}
+                    disabled={!newWorkExperience.company || !newWorkExperience.position}
+                            className="flex-1"
+                          >
+                            {editingWorkExperienceId ? "Guardar Cambios" : "Agregar Experiencia"}
+                          </Button>
+                          {(workExperience.length > 0 || editingWorkExperienceId) && (
+                            <Button
+                              variant="outline"
+                              onClick={handleCancelEditWorkExperience}
+                            >
+                              Cancelar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Botón para agregar otra experiencia (solo si ya hay experiencias Y el formulario está oculto) */}
+                    {workExperience.length > 0 && !showAddWorkExperienceForm && (
+                      <Button
+                        variant="outline"
+                    size="sm"
+                        onClick={() => setShowAddWorkExperienceForm(true)}
+                        className="w-full"
+                  >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Agregar otra experiencia
+                  </Button>
+                    )}
+
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+                </div>
+
+              </Accordion>
+
+              {/* Botón guardar fuera de las secciones */}
+              <div className="flex justify-end pt-4">
+                <Button
+                  onClick={handlePersonalDataSubmit}
+                  disabled={savingCandidate}
+                >
+                  {savingCandidate ? "Guardando..." : "Guardar Datos del Candidato"}
+                </Button>
+              </div>
+              </>
+            ) : (
+              /* Vista simplificada sin CV - Solo datos básicos */
+              <div className="space-y-4">
+                <div className="p-4 bg-amber-50/50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <p className="text-sm text-amber-800 dark:text-amber-200 text-center font-medium">
+                    Este candidato no tiene CV adjunto
+                  </p>
+                </div>
+                
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-lg text-foreground">Datos Básicos Registrados</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Nombre Completo</Label>
+                      <p className="font-medium text-foreground">{candidate.name || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Email</Label>
+                      <p className="font-medium text-foreground">{candidate.email || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Teléfono</Label>
+                      <p className="font-medium text-foreground">{candidate.phone || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">RUT</Label>
+                      <p className="font-medium text-foreground">{candidate.rut || 'No especificado'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => setShowFullFormForNonCV(!showFullFormForNonCV)}
+                    >
+                      {showFullFormForNonCV ? "Ocultar formulario" : "+ Completar información adicional"}
+                    </Button>
+                  </div>
+                  
+                  {showFullFormForNonCV && (
+                    <div className="pt-4 border-t">
+                      {/* Formulario completo - igual que para candidatos con CV */}
+                      <>
+              {/* Acordeón interno para organizar secciones */}
+              <Accordion type="multiple" defaultValue={["datos-personales"]} className="space-y-3">
+              
+              {/* Formulario de datos personales */}
+              <div className="bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <AccordionItem value="datos-personales" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Datos Personales
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4 pt-2">
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nombre Completo <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="name"
+                    value={personalData.name}
+                    onChange={(e) => setPersonalData({ ...personalData, name: e.target.value })}
+                    placeholder="Ingrese nombre completo"
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rut">RUT</Label>
+                  <Input
+                    id="rut"
+                    value={personalData.rut}
+                    onChange={(e) => setPersonalData({ ...personalData, rut: e.target.value })}
+                    placeholder="12.345.678-9"
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={personalData.email}
+                    onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
+                    placeholder="correo@ejemplo.com"
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Teléfono <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="phone"
+                    value={personalData.phone}
+                    onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
+                    placeholder="+56 9 1234 5678"
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
+                  <DatePicker
+                    selected={personalData.birth_date ? new Date(personalData.birth_date) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        const age = calculateAge(date.toISOString().split('T')[0])
+                        setPersonalData({
+                          ...personalData,
+                          birth_date: date.toISOString().split('T')[0],
+                          age: age,
+                        })
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    showYearDropdown
+                    showMonthDropdown
+                    dropdownMode="select"
+                    placeholderText="Selecciona fecha de nacimiento"
+                    className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    maxDate={new Date()}
+                    minDate={new Date("1900-01-01")}
+                    yearDropdownItemNumber={100}
+                    locale="es"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="age">Edad</Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    value={personalData.age}
+                    readOnly
+                    className="bg-white dark:bg-gray-950"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="has_disability_credential"
+                    checked={personalData.has_disability_credential}
+                    readOnly
+                    disabled
+                  />
+                  <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad (registrado por administrador)</Label>
+                </div>
+              </div>
+
+
+              {/* Información adicional del candidato (editable) */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-lg mb-4">Información Adicional</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="region">Región</Label>
+                    <Select
+                      value={personalData.region}
+                      onValueChange={(value) => {
+                        setPersonalData({ ...personalData, region: value, comuna: "" })
+                      }}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
+                        <SelectValue placeholder="Seleccione región" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {regiones.map((region) => (
+                          <SelectItem key={region.id_region} value={region.nombre_region}>
+                            {region.nombre_region}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="comuna">Comuna</Label>
+                    <Select
+                      value={personalData.comuna}
+                      onValueChange={(value) => setPersonalData({ ...personalData, comuna: value })}
+                      disabled={loadingLists || !personalData.region}
+                    >
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
+                        <SelectValue placeholder={personalData.region ? "Seleccione comuna" : "Primero seleccione región"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {comunasFiltradas.map((comuna) => (
+                          <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
+                            {comuna.nombre_comuna}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nacionalidad">Nacionalidad</Label>
+                    <Select
+                      value={personalData.nacionalidad}
+                      onValueChange={(value) => setPersonalData({ ...personalData, nacionalidad: value })}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
+                        <SelectValue placeholder="Seleccione nacionalidad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {nacionalidades.map((nac) => (
+                          <SelectItem key={nac.id_nacionalidad} value={nac.nombre_nacionalidad}>
+                            {nac.nombre_nacionalidad}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rubro">Rubro</Label>
+                    <Select
+                      value={personalData.rubro}
+                      onValueChange={(value) => setPersonalData({ ...personalData, rubro: value })}
+                      disabled={loadingLists}
+                    >
+                      <SelectTrigger className="bg-white dark:bg-gray-950">
+                        <SelectValue placeholder="Seleccione rubro" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {rubros.map((rubro) => (
+                          <SelectItem key={rubro.id_rubro} value={rubro.nombre_rubro}>
+                            {rubro.nombre_rubro}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              </div>
+
+              {/* Formación Académica con sub-acordeones */}
+              <div className="bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+              <AccordionItem value="formacion" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Formación Académica {(professions.length > 0 || education.length > 0) && <span className="text-muted-foreground">({professions.length + education.length})</span>}
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-3 pt-2">
+
+                  {/* Sub-acordeón 1: Profesión(es) */}
+                  <Accordion type="multiple" className="space-y-2">
+                    <div className="border rounded-lg bg-card">
+                      <AccordionItem value="profesiones" className="border-0">
+                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                          <span className="font-medium text-sm">
+                            Profesión(es) {professions.length > 0 ? <span className="text-muted-foreground">({professions.length})</span> : <span className="text-amber-600">- Sin registros</span>}
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <div className="space-y-3 pt-2">
+
+                            {/* Si tiene profesiones, mostrar lista primero */}
+                            {professions.length > 0 && (
+                              <div className="space-y-2">
+                                {[...professions].reverse().map((prof) => (
+                                  <div key={prof.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
+                          <div>
+                                      <p className="font-medium">{prof.profession}</p>
+                                      <p className="text-sm text-muted-foreground">{prof.institution}</p>
+                                      {prof.date && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          {formatDate(prof.date)}
+                                        </p>
+                            )}
+                          </div>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditProfession(prof.id)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveProfession(prof.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                            {/* Si NO tiene profesiones, mostrar mensaje */}
+                            {professions.length === 0 && !showAddProfessionForm && (
+                              <p className="text-sm text-muted-foreground text-center py-2">
+                                No hay profesiones registradas. Completa el formulario:
+                              </p>
+                            )}
+
+                            {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
+                            {(professions.length === 0 || showAddProfessionForm) && (
+                              <div className="space-y-4 p-4 bg-muted rounded-lg">
+                  <h6 className="font-medium text-sm">{editingProfessionId ? "Editar Profesión" : "Agregar Profesión"}</h6>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Profesión</Label>
+                      <Input
+                        value={newProfession.profession}
+                        onChange={(e) => setNewProfession({ ...newProfession, profession: e.target.value })}
+                        placeholder="Ej: Ingeniero en Sistemas"
+                        className="bg-white dark:bg-gray-950"
+                      />
+              </div>
+                    <div className="space-y-2">
+                      <Label>Institución</Label>
+                      <Select
+                        value={newProfession.institution}
+                        onValueChange={(value) => setNewProfession({ ...newProfession, institution: value })}
+                        disabled={loadingLists}
+                      >
+                        <SelectTrigger className="bg-white dark:bg-gray-950">
+                          <SelectValue placeholder={loadingLists ? "Cargando instituciones..." : "Seleccione institución"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {instituciones.length > 0 ? (
+                            instituciones.map((inst) => (
+                              <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
+                                {inst.nombre_institucion}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              No hay instituciones disponibles
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha de Obtención</Label>
+                    <DatePicker
+                      selected={newProfession.date ? new Date(newProfession.date) : null}
+                      onChange={(date) => {
+                        if (date) {
+                          setNewProfession({ ...newProfession, date: date.toISOString().split('T')[0] })
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      showYearDropdown
+                      showMonthDropdown
+                      dropdownMode="select"
+                      placeholderText="Selecciona fecha de obtención"
+                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      maxDate={new Date()}
+                      minDate={new Date("1900-01-01")}
+                      yearDropdownItemNumber={100}
+                      locale="es"
+                    />
+                  </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    onClick={handleAddProfession}
+                                    disabled={!newProfession.profession || !newProfession.institution}
+                                    className="flex-1"
+                                  >
+                                    {editingProfessionId ? "Guardar Cambios" : "Agregar Profesión"}
+                                  </Button>
+                                  {(professions.length > 0 || editingProfessionId) && (
+                                    <Button
+                                      variant="outline"
+                                      onClick={handleCancelEditProfession}
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Botón para agregar otra profesión (solo si ya hay profesiones Y el formulario está oculto) */}
+                            {professions.length > 0 && !showAddProfessionForm && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAddProfessionForm(true)}
+                                className="w-full"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Agregar otra profesión
+                              </Button>
+                            )}
+
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </div>
+                  </Accordion>
+
+                  {/* Sub-acordeón 2: Postgrados y Capacitaciones */}
+                  <Accordion type="multiple" className="space-y-2">
+                    <div className="border rounded-lg bg-card">
+                      <AccordionItem value="postgrados" className="border-0">
+                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                          <span className="font-medium text-sm">
+                            Postgrados y Capacitaciones {education.length > 0 ? <span className="text-muted-foreground">({education.length})</span> : <span className="text-amber-600">- Sin registros</span>}
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <div className="space-y-3 pt-2">
+
+                            {/* Si tiene educación, mostrar lista primero */}
+                            {education.length > 0 && (
+                              <div className="space-y-2">
+                                {[...education].reverse().map((edu) => (
+                                  <div key={edu.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
+                                    <div>
+                                      <p className="font-medium">{edu.title}</p>
+                                      <p className="text-sm text-muted-foreground">{edu.institution}</p>
+                                      {edu.completion_date && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          {formatDate(edu.completion_date)}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditEducation(edu.id)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveEducation(edu.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Si NO tiene educación, mostrar mensaje */}
+                            {education.length === 0 && !showAddEducationForm && (
+                              <p className="text-sm text-muted-foreground text-center py-2">
+                                No hay formación registrada. Completa el formulario:
+                              </p>
+                            )}
+
+                            {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
+                            {(education.length === 0 || showAddEducationForm) && (
+                <div className="space-y-4 p-4 bg-muted rounded-lg">
+                  <h6 className="font-medium text-sm">{editingEducationId ? "Editar Formación" : "Agregar Formación"}</h6>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Título</Label>
+                      <Input
+                        value={newEducation.title}
+                        onChange={(e) => setNewEducation({ ...newEducation, title: e.target.value })}
+                        placeholder="Ej: Magister en Administración"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Institución</Label>
+                      <Input
+                        value={newEducation.institution}
+                        onChange={(e) => setNewEducation({ ...newEducation, institution: e.target.value })}
+                        placeholder="Nombre de la institución"
+                        className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                    </div>
+                    <div className="space-y-2">
+                    <Label>Fecha de Obtención</Label>
+                    <DatePicker
+                      selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
+                      onChange={(date) => {
+                        if (date) {
+                          setNewEducation({ ...newEducation, completion_date: date.toISOString().split('T')[0] })
+                        }
+                      }}
+                      dateFormat="dd/MM/yyyy"
+                      showYearDropdown
+                      showMonthDropdown
+                      dropdownMode="select"
+                      placeholderText="Selecciona fecha de obtención"
+                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      maxDate={new Date()}
+                      yearDropdownItemNumber={50}
+                      locale="es"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleAddEducation}
+                      disabled={!newEducation.institution || !newEducation.title || !newEducation.completion_date}
+                      className="flex-1"
+                    >
+                      {editingEducationId ? "Guardar Cambios" : "Agregar Formación"}
+                    </Button>
+                    {(education.length > 0 || editingEducationId) && (
+                      <Button
+                        variant="outline"
+                        onClick={handleCancelEditEducation}
+                      >
+                        Cancelar
+                      </Button>
+                    )}
+                  </div>
+                              </div>
+                            )}
+
+                            {/* Botón para agregar otra formación (solo si ya hay items Y el formulario está oculto) */}
+                            {education.length > 0 && !showAddEducationForm && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAddEducationForm(true)}
+                                className="w-full"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Agregar otra formación
+                              </Button>
+                            )}
+
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </div>
+                  </Accordion>
+
+                  {/* Sub-acordeón 3: Habilidades Adicionales */}
+                  <Accordion type="multiple" className="space-y-2">
+                    <div className="border rounded-lg bg-card">
+                      <AccordionItem value="habilidades" className="border-0">
+                        <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                          <span className="font-medium text-sm">
+                            Habilidades Adicionales {(personalData.english_level || personalData.software_tools) ? <span className="text-green-600">✓</span> : <span className="text-amber-600">- Sin completar</span>}
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <div className="space-y-3 pt-2">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="english_level">Nivel de Inglés</Label>
+                      <Input
+                                  id="english_level"
+                                  value={personalData.english_level}
+                                  onChange={(e) => setPersonalData({ ...personalData, english_level: e.target.value })}
+                                  placeholder="Ej: Intermedio, Avanzado, Nativo"
+                                  className="bg-white dark:bg-gray-950"
+                      />
+                    </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="software_tools">Software y Herramientas</Label>
+                                <Input
+                                  id="software_tools"
+                                  value={personalData.software_tools}
+                                  onChange={(e) => setPersonalData({ ...personalData, software_tools: e.target.value })}
+                                  placeholder="Ej: Excel, SAP, AutoCAD"
+                                  className="bg-white dark:bg-gray-950"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </div>
+                  </Accordion>
+
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              </div>
+
+              {/* Experiencia Laboral */}
+              <div className="bg-slate-50/50 dark:bg-slate-950/20 rounded-lg border border-slate-200 dark:border-slate-800">
+              <AccordionItem value="experiencia" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <h4 className="font-semibold text-lg text-foreground">
+                    Experiencia Laboral {workExperience.length > 0 && <span className="text-muted-foreground">({workExperience.length})</span>}
+                  </h4>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4 pt-2">
+
+                    {/* Si tiene experiencias, mostrar lista primero */}
+                    {workExperience.length > 0 && (
+                      <div className="space-y-2">
+                        {[...workExperience].reverse().map((exp) => (
+                          <div key={exp.id} className="flex items-start justify-between p-3 border rounded-lg bg-background">
+                            <div>
+                              <p className="font-medium">{exp.position}</p>
+                              <p className="text-sm text-muted-foreground">{exp.company}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {exp.start_date && formatDate(exp.start_date)} - {exp.is_current ? 'Actual' : (exp.end_date ? formatDate(exp.end_date) : 'No especificada')}
+                              </p>
+                              {exp.description && (
+                                <p className="text-sm mt-1">{exp.description}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditWorkExperience(exp.id)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveWorkExperience(exp.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Si NO tiene experiencias, mostrar mensaje */}
+                    {workExperience.length === 0 && !showAddWorkExperienceForm && (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        No hay experiencias registradas. Completa el formulario:
+                      </p>
+                    )}
+
+                    {/* Formulario para agregar (visible si no hay items O si se presionó el botón) */}
+                    {(workExperience.length === 0 || showAddWorkExperienceForm) && (
                       <div className="space-y-4 p-4 bg-muted rounded-lg">
                         <h5 className="font-medium text-sm">{editingWorkExperienceId ? "Editar Experiencia" : "Agregar Experiencia"}</h5>
                   <div className="grid grid-cols-2 gap-4">
@@ -2680,13 +2681,13 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     />
                   </div>
                         <div className="flex gap-2">
-                          <Button
+                  <Button
                             onClick={handleAddWorkExperience}
                             disabled={!newWorkExperience.company || !newWorkExperience.position}
                             className="flex-1"
                           >
                             {editingWorkExperienceId ? "Guardar Cambios" : "Agregar Experiencia"}
-                          </Button>
+                  </Button>
                           {(workExperience.length > 0 || editingWorkExperienceId) && (
                             <Button
                               variant="outline"
@@ -2694,10 +2695,10 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                             >
                               Cancelar
                             </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                            )}
+                          </div>
+                  </div>
+                )}
 
                     {/* Botón para agregar otra experiencia (solo si ya hay experiencias Y el formulario está oculto) */}
                     {workExperience.length > 0 && !showAddWorkExperienceForm && (

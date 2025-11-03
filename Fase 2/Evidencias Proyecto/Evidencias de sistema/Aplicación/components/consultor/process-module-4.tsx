@@ -19,8 +19,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getCandidatesByProcess } from "@/lib/api"
-import { evaluacionPsicolaboralService, referenciaLaboralService } from "@/lib/api"
+import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service } from "@/lib/api"
 import { formatDate } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -71,7 +72,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const { toast } = useToast()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
-
+  
   // Función para calcular días hábiles
   const addBusinessDays = (date: Date, days: number): Date => {
     const result = new Date(date)
@@ -136,6 +137,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         const evaluationsData: { [candidateId: string]: any } = {}
         const interviewsData: { [candidateId: string]: any } = {}
         const testsData: { [candidateId: string]: any[] } = {}
+        const reportsData: { [candidateId: string]: CandidateReport } = {}
         
         for (const candidate of candidatesToShow) {
           try {
@@ -147,6 +149,23 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               interviewsData[candidate.id] = {
                 interview_date: evaluation.fecha_evaluacion ? new Date(evaluation.fecha_evaluacion) : null,
                 interview_status: evaluation.estado_evaluacion,
+              }
+              
+              // Mapear estado_informe a report_status para candidateReports
+              let reportStatus: "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | null = null
+              if (evaluation.estado_informe === "Recomendable") {
+                reportStatus = "recomendable"
+              } else if (evaluation.estado_informe === "No recomendable") {
+                reportStatus = "no_recomendable"
+              } else if (evaluation.estado_informe === "Recomendable con observaciones") {
+                reportStatus = "recomendable_con_observaciones"
+              }
+              
+              reportsData[candidate.id] = {
+                candidate_id: candidate.id,
+                report_status: reportStatus,
+                report_observations: evaluation.conclusion_global || undefined,
+                report_sent_date: evaluation.fecha_envio_informe ? new Date(evaluation.fecha_envio_informe).toISOString().split('T')[0] : undefined
               }
               
               // Cargar tests de la evaluación
@@ -164,6 +183,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         setEvaluations(evaluationsData)
         setCandidateInterviews(interviewsData)
         setCandidateTests(testsData)
+        setCandidateReports(reportsData)
 
         // Cargar tests disponibles
         const { testPsicolaboralService } = await import('@/lib/api')
@@ -197,6 +217,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
   const [workReferences, setWorkReferences] = useState<{ [candidateId: string]: WorkReference[] }>({})
   const [candidateTests, setCandidateTests] = useState<{ [candidateId: string]: any[] }>({})
+  
+  // Estados para el módulo 5
+  const [canAdvanceToModule5, setCanAdvanceToModule5] = useState(false)
+  const [candidatesWithRealizedInterview, setCandidatesWithRealizedInterview] = useState<Candidate[]>([])
   const [candidateInterviews, setCandidateInterviews] = useState<{ [candidateId: string]: any }>({})
   const [availableTests, setAvailableTests] = useState<any[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -217,6 +241,37 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     comentario_referencia: "",
   })
 
+  // Función para convertir datetime-local a Date preservando la hora local exacta (sin conversión UTC)
+  const parseLocalDateTime = (dateTimeString: string): Date => {
+    // Formato: "YYYY-MM-DDTHH:mm"
+    const [datePart, timePart] = dateTimeString.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hour, minute] = (timePart || '00:00').split(':').map(Number);
+    // Crear Date usando constructor local (no UTC)
+    return new Date(year, month - 1, day, hour, minute);
+  }
+
+  // Función para convertir Date a formato datetime-local preservando hora local (sin conversión UTC)
+  const formatDateForInput = (date: Date | string | null | undefined): string => {
+    if (!date) return "";
+    
+    let dateObj: Date;
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+    
+    // Usar métodos locales (getFullYear, getMonth, etc.) para obtener componentes en hora local
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const hour = String(dateObj.getHours()).padStart(2, '0');
+    const minute = String(dateObj.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hour}:${minute}`;
+  }
+
   const [interviewForm, setInterviewForm] = useState({
     interview_date: "",
     interview_status: "programada" as "programada" | "realizada" | "cancelada",
@@ -232,6 +287,30 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     report_observations: "",
     report_sent_date: "",
   })
+  const [reportSentDateError, setReportSentDateError] = useState<string>("")
+
+  // Determinar si es proceso de evaluación
+  const isEvaluationProcess = process.service_type === "ES" || process.service_type === "TS"
+
+  // Detectar candidatos con estado de informe definido (no pendiente) para habilitar botón de módulo 5
+  useEffect(() => {
+    if (!isEvaluationProcess && candidates.length > 0) {
+      const candidatesWithReportStatus = candidates.filter(candidate => {
+        const evaluation = evaluations[candidate.id]
+        const estadoInforme = evaluation?.estado_informe
+        // Solo avanzan los que tienen estado: Recomendable, No recomendable, o Recomendable con observaciones
+        return estadoInforme === "Recomendable" || 
+               estadoInforme === "No recomendable" || 
+               estadoInforme === "Recomendable con observaciones"
+      })
+      
+      setCandidatesWithRealizedInterview(candidatesWithReportStatus)
+      setCanAdvanceToModule5(candidatesWithReportStatus.length > 0)
+    } else {
+      setCandidatesWithRealizedInterview([])
+      setCanAdvanceToModule5(false)
+    }
+  }, [candidates, evaluations, isEvaluationProcess])
 
   const handleAddTest = () => {
     setTestForm({
@@ -260,14 +339,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
       setInterviewForm({
         interview_date: existingEvaluation.fecha_evaluacion 
-          ? new Date(existingEvaluation.fecha_evaluacion).toISOString().slice(0, 16) 
+          ? formatDateForInput(existingEvaluation.fecha_evaluacion)
           : "",
         interview_status: statusValue,
       })
     } else {
       setInterviewForm({
-        interview_date: "",
-        interview_status: "programada",
+      interview_date: "",
+      interview_status: "programada",
       })
     }
     
@@ -294,45 +373,32 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       
       if (existingEvaluation) {
         // Actualizar evaluación existente
-        let fechaEnvioInforme = undefined
-        
-        // Para procesos PC, HS, TR: calcular fecha basada en client_feedback_date + 5 días hábiles
-        if (['PC', 'HS', 'TR'].includes(process.service_type) && selectedCandidate.client_feedback_date) {
-          const feedbackDate = new Date(selectedCandidate.client_feedback_date)
-          fechaEnvioInforme = addBusinessDays(feedbackDate, 5)
-        }
-
+        // NO actualizar fecha_envio_informe aquí - solo se actualiza cuando se gestiona el estado del informe
+        // Mantener la fecha existente si ya existe, no prellenar ni calcular
         const updateData = {
-          fecha_evaluacion: interviewForm.interview_date ? new Date(interviewForm.interview_date) : undefined,
+          fecha_evaluacion: interviewForm.interview_date || undefined,
           estado_evaluacion: interviewForm.interview_status === "programada" ? "Programada" : 
                             interviewForm.interview_status === "realizada" ? "Realizada" :
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
-          fecha_envio_informe: fechaEnvioInforme,
+          // NO incluir fecha_envio_informe aquí - solo se actualiza en el diálogo de "Estado del Informe"
         }
         
-        await evaluacionPsicolaboralService.update(existingEvaluation.id_evaluacion_psicolaboral, updateData)
+        await evaluacionPsicolaboralService.update(existingEvaluation.id_evaluacion_psicolaboral, updateData as any)
       } else {
         // Crear nueva evaluación
-        let fechaEnvioInforme = new Date()
-        
-        // Para procesos PC, HS, TR: calcular fecha basada en client_feedback_date + 5 días hábiles
-        if (['PC', 'HS', 'TR'].includes(process.service_type) && selectedCandidate.client_feedback_date) {
-          const feedbackDate = new Date(selectedCandidate.client_feedback_date)
-          fechaEnvioInforme = addBusinessDays(feedbackDate, 5)
-        }
-
+        // NO prellenar fecha_envio_informe - debe estar en blanco hasta que el consultor la ingrese al gestionar el estado del informe
         const createData = {
-          fecha_evaluacion: interviewForm.interview_date ? new Date(interviewForm.interview_date) : new Date(),
-          fecha_envio_informe: fechaEnvioInforme,
+          fecha_evaluacion: interviewForm.interview_date || undefined,
+          fecha_envio_informe: null, // No prellenar - el consultor la ingresará al gestionar el estado del informe
           estado_evaluacion: interviewForm.interview_status === "programada" ? "Programada" : 
                             interviewForm.interview_status === "realizada" ? "Realizada" :
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
           estado_informe: "Pendiente",
-          conclusion_global: "Evaluación en proceso - Conclusión pendiente de completar en el informe final",
+          conclusion_global: "",
           id_postulacion: Number(selectedCandidate.id_postulacion)
         }
         
-        await evaluacionPsicolaboralService.create(createData)
+        await evaluacionPsicolaboralService.create(createData as any)
       }
       
       // Actualizar estado local con fechas convertidas a Date
@@ -359,8 +425,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       setInterviewForm({
         interview_date: "",
         interview_status: "programada",
-      })
-      setSelectedCandidate(null)
+    })
+    setSelectedCandidate(null)
       
       toast({
         title: "¡Éxito!",
@@ -622,21 +688,30 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       setReportForm({
         report_status: reportStatus as "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | "",
         report_observations: existingEvaluation.conclusion_global || "",
+        // Si ya existe fecha, mostrarla, pero si no existe, dejar en blanco (NO prellenar con fecha de hoy)
         report_sent_date: existingEvaluation.fecha_envio_informe ? new Date(existingEvaluation.fecha_envio_informe).toISOString().split('T')[0] : "",
       })
     } else {
-      // Si no existe evaluación, limpiar el formulario
+      // Si no existe evaluación, limpiar el formulario (fecha en blanco, NO prellenar)
       setReportForm({
         report_status: "",
         report_observations: "",
         report_sent_date: "",
       })
     }
+    setReportSentDateError("")
     setShowReportDialog(true)
   }
 
   const handleSaveReport = async () => {
     if (!selectedCandidate) return
+
+    // Validar que la fecha de envío del informe sea obligatoria
+    if (!reportForm.report_sent_date || reportForm.report_sent_date.trim() === "") {
+      setReportSentDateError("Debe ingresarse la fecha de envío del informe")
+      return
+    }
+    setReportSentDateError("")
 
     try {
       // Buscar la evaluación existente para este candidato
@@ -691,15 +766,36 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               interview_status: evaluation.estado_evaluacion,
             }
           }))
+          
+          // Actualizar candidateReports con el nuevo estado del informe
+          let reportStatus: "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | null = null
+          if (evaluation.estado_informe === "Recomendable") {
+            reportStatus = "recomendable"
+          } else if (evaluation.estado_informe === "No recomendable") {
+            reportStatus = "no_recomendable"
+          } else if (evaluation.estado_informe === "Recomendable con observaciones") {
+            reportStatus = "recomendable_con_observaciones"
+          }
+          
+          setCandidateReports(prev => ({
+            ...prev,
+            [selectedCandidate.id]: {
+              candidate_id: selectedCandidate.id,
+              report_status: reportStatus,
+              report_observations: evaluation.conclusion_global || undefined,
+              report_sent_date: evaluation.fecha_envio_informe ? new Date(evaluation.fecha_envio_informe).toISOString().split('T')[0] : undefined
+            }
+          }))
         }
 
-        setShowReportDialog(false)
-        setReportForm({
-          report_status: "",
-          report_observations: "",
-          report_sent_date: "",
-        })
-        setSelectedCandidate(null)
+    setShowReportDialog(false)
+    setReportForm({
+      report_status: "",
+      report_observations: "",
+      report_sent_date: "",
+    })
+    setReportSentDateError("")
+    setSelectedCandidate(null)
       } else {
         throw new Error(response.message || "Error al actualizar el informe")
       }
@@ -734,7 +830,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         await loadReferencesForCandidate(Number(selectedCandidate.id))
         
         // Limpiar el formulario
-        setNewReference({
+    setNewReference({
           nombre_referencia: "",
           cargo_referencia: "",
           relacion_postulante_referencia: "",
@@ -801,8 +897,79 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
   }
 
-  const isEvaluationProcess =
-    process.service_type === "ES" || process.service_type === "TS"
+  // Función para avanzar candidatos al módulo 5
+  const handleAdvanceToModule5 = async () => {
+    if (candidatesWithRealizedInterview.length === 0) {
+      toast({
+        title: "Error",
+        description: "No hay candidatos con entrevista realizada para avanzar",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      // Avanzar cada candidato con entrevista realizada
+      const promises = candidatesWithRealizedInterview.map(async (candidate) => {
+        try {
+          const response = await estadoClienteM5Service.avanzarAlModulo5(
+            Number(candidate.id_postulacion)
+          )
+          
+          if (!response.success) {
+            throw new Error(response.message || 'Error al cambiar estado')
+          }
+          
+          return { candidate, success: true }
+        } catch (error) {
+          console.error(`Error al avanzar candidato ${candidate.id}:`, error)
+          return { candidate, success: false, error: error instanceof Error ? error.message : 'Error desconocido' }
+        }
+      })
+
+      const results = await Promise.all(promises)
+      const successful = results.filter(r => r.success)
+      const failed = results.filter(r => !r.success)
+
+      if (successful.length > 0) {
+        toast({
+          title: "Candidatos avanzados",
+          description: `${successful.length} candidato(s) avanzado(s) al módulo 5 exitosamente`,
+        })
+        
+        // Navegar automáticamente al módulo 5 después de 2 segundos
+        setTimeout(() => {
+          window.location.href = `/consultor/proceso/${process.id}?tab=modulo-5`
+        }, 2000)
+      }
+
+      if (failed.length > 0) {
+        toast({
+          title: "Algunos candidatos no pudieron avanzar",
+          description: `${failed.length} candidato(s) no pudieron avanzar: ${failed.map(f => f.error).join(', ')}`,
+          variant: "destructive",
+        })
+      }
+
+      // Actualizar estado local para reflejar los cambios
+      setCandidatesWithRealizedInterview([])
+      setCanAdvanceToModule5(false)
+      
+      // Recargar candidatos para obtener datos actualizados
+      const updatedCandidates = await getCandidatesByProcess(process.id)
+      if (Array.isArray(updatedCandidates)) {
+        setCandidates(updatedCandidates)
+      }
+
+    } catch (error) {
+      console.error('Error al avanzar candidatos al módulo 5:', error)
+      toast({
+        title: "Error",
+        description: "Error al avanzar candidatos al módulo 5",
+        variant: "destructive",
+      })
+    }
+  }
 
   // Mostrar indicador de carga
   if (isLoading) {
@@ -884,6 +1051,32 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         <CardContent>
           {candidates.length > 0 ? (
             <div className="space-y-6">
+              {/* Botón para avanzar al Módulo 5 */}
+              {!isEvaluationProcess && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-900">Avanzar al Módulo 5</h3>
+                      <p className="text-sm text-blue-700">
+                        Los candidatos con estado de informe definido pueden avanzar al módulo de feedback del cliente
+                      </p>
+                      {candidatesWithRealizedInterview.length > 0 && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          {candidatesWithRealizedInterview.length} candidato(s) listo(s) para avanzar
+                        </p>
+                      )}
+                    </div>
+                    <Button 
+                      onClick={handleAdvanceToModule5}
+                      disabled={!canAdvanceToModule5}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      Avanzar al Módulo 5
+                    </Button>
+                  </div>
+                </div>
+              )}
               {candidates.map((candidate) => {
                 const evaluation = evaluations[candidate.id]
                 const candidateReferences = workReferences[candidate.id] || []
@@ -906,12 +1099,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                               <Badge
                                 variant={
                                   candidateReport.report_status === "recomendable"
-                                    ? "default"
+                                    ? "outline"
                                     : candidateReport.report_status === "no_recomendable"
                                       ? "destructive"
                                       : "secondary"
                                 }
-                                className="text-xs"
+                                className={
+                                  candidateReport.report_status === "recomendable"
+                                    ? "text-xs bg-green-100 text-green-800 border-green-300"
+                                    : "text-xs"
+                                }
                               >
                                 {candidateReport.report_status === "recomendable" && "✓ Recomendable"}
                                 {candidateReport.report_status === "no_recomendable" && "✗ No Recomendable"}
@@ -977,12 +1174,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                 <Badge
                                   variant={
                                     candidateReport.report_status === "recomendable"
-                                      ? "default"
+                                      ? "outline"
                                       : candidateReport.report_status === "no_recomendable"
                                         ? "destructive"
                                         : "secondary"
                                   }
-                                  className="text-xs"
+                                  className={
+                                    candidateReport.report_status === "recomendable"
+                                      ? "text-xs bg-green-100 text-green-800 border-green-300"
+                                      : "text-xs"
+                                  }
                                 >
                                   {candidateReport.report_status === "recomendable" && "Recomendable"}
                                   {candidateReport.report_status === "no_recomendable" && "No Recomendable"}
@@ -1033,7 +1234,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             Ver información detallada
                           </CollapsibleTrigger>
                           <CollapsibleContent className="mt-4 space-y-6">
-                            {candidateReport && (candidateReport.report_status || candidateReport.report_sent_date) && (
+                        {candidateReport && (candidateReport.report_status || candidateReport.report_sent_date) && (
                           <div className="bg-muted/20 rounded-lg p-4 border-l-4 border-l-primary">
                             <h4 className="font-medium mb-3 flex items-center gap-2">
                               <FileText className="h-4 w-4" />
@@ -1046,12 +1247,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                   <Badge
                                     variant={
                                       candidateReport.report_status === "recomendable"
-                                        ? "default"
+                                        ? "outline"
                                         : candidateReport.report_status === "no_recomendable"
                                           ? "destructive"
                                           : "secondary"
                                     }
-                                    className="mt-1"
+                                    className={
+                                      candidateReport.report_status === "recomendable"
+                                        ? "mt-1 bg-green-100 text-green-800 border-green-300"
+                                        : "mt-1"
+                                    }
                                   >
                                     {candidateReport.report_status === "recomendable" && "✓ Recomendable"}
                                     {candidateReport.report_status === "no_recomendable" && "✗ No Recomendable"}
@@ -1088,25 +1293,25 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                         {/* Referencias Laborales - Dentro de información detallada */}
                         {candidateReferences.length > 0 && (
                           <div className="ml-4 border-l-2 border-muted pl-4">
-                            <Collapsible>
-                              <CollapsibleTrigger
-                                className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors"
-                                onClick={() =>
-                                  setExpandedCandidate(
-                                    expandedCandidate === `${candidate.id}-references`
-                                      ? null
+                          <Collapsible>
+                            <CollapsibleTrigger
+                              className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors"
+                              onClick={() =>
+                                setExpandedCandidate(
+                                  expandedCandidate === `${candidate.id}-references`
+                                    ? null
                                       : `${candidate.id}-references`
-                                  )
-                                }
-                              >
-                                {expandedCandidate === `${candidate.id}-references` ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
+                                )
+                              }
+                            >
+                              {expandedCandidate === `${candidate.id}-references` ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
                                 <Building className="h-4 w-4" />
                                 Referencias Laborales ({candidateReferences.length})
-                              </CollapsibleTrigger>
+                            </CollapsibleTrigger>
                             <CollapsibleContent className="mt-4">
                               <div className="bg-muted/30 rounded-lg p-4 space-y-3">
                                 {candidateReferences.map((reference) => (
@@ -1115,11 +1320,11 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                       <div className="space-y-4">
                                         {/* Información principal - alineada horizontalmente */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                          <div>
+                                        <div>
                                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre de la referencia</p>
                                             <p className="text-sm font-medium">{reference.nombre_referencia}</p>
-                                          </div>
-                                          <div>
+                                        </div>
+                                        <div>
                                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Relación con el postulante</p>
                                             <p className="text-sm">{reference.relacion_postulante_referencia}</p>
                                           </div>
@@ -1158,9 +1363,9 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                                     <p className="text-sm">{reference.email_referencia}</p>
                                                   </div>
                                                 </div>
-                                              )}
-                                            </div>
-                                          </div>
+                                          )}
+                                        </div>
+                                      </div>
                                         )}
 
                                         {/* Comentarios - al final si existen */}
@@ -1169,26 +1374,26 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Comentarios</p>
                                             <p className="text-sm text-muted-foreground mt-1">
                                               {reference.comentario_referencia}
-                                            </p>
-                                          </div>
-                                        )}
+                                          </p>
+                                        </div>
+                                      )}
                                       </div>
                                     </CardContent>
                                   </Card>
                                 ))}
                               </div>
                             </CollapsibleContent>
-                            </Collapsible>
+                          </Collapsible>
                           </div>
                         )}
 
                         {/* Tests Realizados - Dentro de información detallada */}
                         {candidateTestsList.length > 0 && (
                           <div className="ml-4 border-l-2 border-muted pl-4">
-                            <Collapsible>
-                              <CollapsibleTrigger
-                                className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors"
-                                onClick={() =>
+                          <Collapsible>
+                            <CollapsibleTrigger
+                              className="flex items-center gap-2 text-sm font-medium hover:text-primary p-2 hover:bg-muted/50 rounded-md transition-colors"
+                              onClick={() =>
                                   setExpandedCandidate(
                                     expandedCandidate === `${candidate.id}-tests`
                                       ? null
@@ -1197,30 +1402,30 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                 }
                               >
                                 {expandedCandidate === `${candidate.id}-tests` ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
                                 <FileText className="h-4 w-4" />
                                 Tests Realizados ({candidateTestsList.length})
-                              </CollapsibleTrigger>
+                            </CollapsibleTrigger>
                             <CollapsibleContent className="mt-4">
                               <div className="bg-muted/30 rounded-lg p-4 space-y-3">
                                 {candidateTestsList.map((test, index) => (
                                   <Card key={index} className="bg-background">
                                     <CardContent className="pt-4">
-                                      <div className="space-y-3">
+                                  <div className="space-y-3">
                                         <div className="flex justify-between items-start">
                                           <div className="flex-1 space-y-2">
                                             <div>
                                               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre del test</p>
                                               <p className="text-sm font-medium">{test.test_name}</p>
-                                            </div>
+                                        </div>
                                             <div>
                                               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Resultado</p>
                                               <p className="text-sm">{test.result}</p>
-                                            </div>
-                                          </div>
+                                      </div>
+                                  </div>
                                           <div className="flex gap-2 ml-4">
                                             <Button
                                               variant="outline"
@@ -1236,15 +1441,15 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                             >
                                               <Trash2 className="h-4 w-4" />
                                             </Button>
-                                          </div>
-                                        </div>
+                                </div>
+                                </div>
                                       </div>
                                     </CardContent>
                                   </Card>
                                 ))}
                               </div>
                             </CollapsibleContent>
-                            </Collapsible>
+                          </Collapsible>
                           </div>
                         )}
                           </CollapsibleContent>
@@ -1264,10 +1469,40 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             <Building className="mr-2 h-4 w-4" />
                             Agregar Referencias
                           </Button>
-                          <Button variant="outline" onClick={() => openReportDialog(candidate)} size="sm">
-                            <FileText className="mr-2 h-4 w-4" />
-                            Gestionar Estado del Informe
-                          </Button>
+                          {(() => {
+                            const evaluation = evaluations[candidate.id]
+                            const candidateInterview = candidateInterviews[candidate.id]
+                            // Verificar en ambas fuentes: evaluations y candidateInterviews
+                            const interviewStatus = evaluation?.estado_evaluacion || candidateInterview?.interview_status
+                            // Comparar con ambos formatos posibles: "Realizada" (del backend) o "realizada" (del frontend)
+                            const isRealized = interviewStatus === "Realizada" || interviewStatus === "realizada"
+                            const reportButton = (
+                              <Button 
+                                variant="outline" 
+                                onClick={() => openReportDialog(candidate)} 
+                                size="sm"
+                                disabled={!isRealized}
+                              >
+                                <FileText className="mr-2 h-4 w-4" />
+                                Gestionar Estado del Informe
+                              </Button>
+                            )
+                            
+                            if (!isRealized) {
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    {reportButton}
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Solo los candidatos con entrevista realizada pueden gestionar el estado del informe</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )
+                            }
+                            
+                            return reportButton
+                          })()}
                         </div>
 
                       </div>
@@ -1343,7 +1578,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               </div>
             </div>
 
-          </div>
+            </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowInterviewDialog(false)}>
@@ -1399,7 +1634,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                         {availableTests.map((test) => (
                           <SelectItem key={test.id_test_psicolaboral} value={test.id_test_psicolaboral.toString()}>
                             {test.nombre_test_psicolaboral}
-                          </SelectItem>
+                        </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1512,7 +1747,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Agregar Nueva Referencia</CardTitle>
+                <CardTitle className="text-lg">Agregar Nueva Referencia</CardTitle>
                   <Button type="button" variant="outline" size="sm" onClick={() => {
                     // Agregar nueva referencia vacía
                     setNewReference({
@@ -1575,12 +1810,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Teléfono (8-12 caracteres, Opcional)</Label>
+                    <Label htmlFor="telefono_referencia">Teléfono (Opcional)</Label>
                     <Input
-                      id="phone"
-                      value={newReference.phone}
-                      onChange={(e) => setNewReference({ ...newReference, phone: e.target.value })}
-                      placeholder="+56912345678"
+                      id="telefono_referencia"
+                      value={newReference.telefono_referencia}
+                      onChange={(e) => setNewReference({ ...newReference, telefono_referencia: e.target.value })}
+                      placeholder="+56 9 1234 5678"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1688,7 +1923,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+      <Dialog open={showReportDialog} onOpenChange={(open) => {
+        setShowReportDialog(open)
+        if (!open) {
+          setReportSentDateError("")
+        }
+      }}>
         <DialogContent className="!max-w-[50vw] !w-[50vw] max-h-[90vh] overflow-y-auto" style={{ maxWidth: '50vw', width: '50vw' }}>
           <DialogHeader>
             <DialogTitle>Estado del Informe</DialogTitle>
@@ -1738,13 +1978,23 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="report_sent_date">Fecha de Envío del Informe al Cliente</Label>
+                <Label htmlFor="report_sent_date">
+                  Fecha de Envío del Informe al Cliente
+                  <span className="text-destructive ml-1">*</span>
+                </Label>
                 <Input
                   id="report_sent_date"
                   type="date"
                   value={reportForm.report_sent_date}
-                  onChange={(e) => setReportForm({ ...reportForm, report_sent_date: e.target.value })}
+                  onChange={(e) => {
+                    setReportForm({ ...reportForm, report_sent_date: e.target.value })
+                    // Limpiar error cuando el usuario empiece a ingresar la fecha
+                    if (reportSentDateError) setReportSentDateError("")
+                  }}
                 />
+                {reportSentDateError && (
+                  <p className="text-destructive text-sm">{reportSentDateError}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1753,14 +2003,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                   id="report_observations"
                   value={reportForm.report_observations}
                   onChange={(e) => setReportForm({ ...reportForm, report_observations: e.target.value })}
-                  placeholder="Escribe la conclusión global del informe psicolaboral..."
+                  placeholder="Ingrese su conclusión sobre el informe..."
                   rows={6}
                   className="min-h-[120px]"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mínimo 10 caracteres. Describe la evaluación completa del candidato.
+                  Opcional. Describe la evaluación completa del candidato.
                 </p>
-              </div>
+                      </div>
 
             </div>
           </div>
@@ -1771,7 +2021,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             </Button>
             <Button 
               onClick={handleSaveReport} 
-              disabled={!reportForm.report_status || !reportForm.report_observations.trim() || reportForm.report_observations.trim().length < 10}
+              disabled={!reportForm.report_status}
             >
               Guardar Estado del Informe
             </Button>

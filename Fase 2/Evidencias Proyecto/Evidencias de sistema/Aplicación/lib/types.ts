@@ -124,6 +124,11 @@ export interface Candidate {
   has_disability_credential?: boolean
   // Driving license
   licencia?: boolean
+  // Module 5 fields
+  hiring_status?: string
+  client_response_date?: string | null
+  contract_date?: string
+  observations?: string
 }
 
 export interface PortalResponses {

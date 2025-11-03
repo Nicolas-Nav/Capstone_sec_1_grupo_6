@@ -158,7 +158,7 @@ export default function AlertasPage() {
 
   const filteredHitosAlertas = getHitoMasRelevante(
     hitosAlertas.filter(hito => {
-      const matchesSearch = 
+    const matchesSearch =
         hito.nombre_hito.toLowerCase().includes(searchTerm.toLowerCase()) ||
         hito.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (hito.solicitud?.descripcionCargo?.titulo_cargo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||

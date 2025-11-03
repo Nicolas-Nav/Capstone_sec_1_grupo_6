@@ -320,9 +320,6 @@ BEGIN
                         ELSIF (p_record_old.fecha_envio IS DISTINCT FROM p_record_new.fecha_envio) 
                               AND p_record_new.fecha_envio IS NOT NULL THEN
                             v_detalle := 'Postulación enviada';
-                        ELSIF (p_record_old.fecha_feedback_cliente IS DISTINCT FROM p_record_new.fecha_feedback_cliente) 
-                              AND p_record_new.fecha_feedback_cliente IS NOT NULL THEN
-                            v_detalle := 'Feedback del cliente registrado';
                         ELSE
                             v_detalle := 'Datos de postulación actualizados';
                         END IF;

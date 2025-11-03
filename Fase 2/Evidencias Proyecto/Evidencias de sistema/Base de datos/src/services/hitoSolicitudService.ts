@@ -80,7 +80,7 @@ export class HitoSolicitudService {
 
             // Obtener plantillas del servicio
             const plantillas = obtenerPlantillasPorServicio(solicitud.codigo_servicio);
-            
+
             if (plantillas.length === 0) {
                 console.log(`No hay plantillas para el servicio ${solicitud.codigo_servicio}`);
                 await transaction.commit();
@@ -128,7 +128,7 @@ export class HitoSolicitudService {
             // Activar cada hito
             for (const hito of hitosPendientes) {
                 const fechaLimite = FechasLaborales.sumarDiasHabiles(fechaEvento, hito.duracion_dias);
-                
+
                 await hito.update({
                     fecha_base: fechaEvento,
                     fecha_limite: fechaLimite
@@ -168,17 +168,17 @@ export class HitoSolicitudService {
      */
     static async getHitosVencidos(consultor_id?: string) {
         const where: any = {
-            id_solicitud: { [Op.not]: null } as any,
-            fecha_limite: { [Op.lt]: new Date() },
-            fecha_cumplimiento: { [Op.is]: null } as any
+                id_solicitud: { [Op.not]: null } as any,
+                fecha_limite: { [Op.lt]: new Date() },
+                fecha_cumplimiento: { [Op.is]: null } as any
         };
 
         const hitos = await HitoSolicitud.findAll({
             where,
             include: [
                 {
-                    model: Solicitud,
-                    as: 'solicitud',
+                model: Solicitud,
+                as: 'solicitud',
                     required: true,
                     include: [
                         { model: DescripcionCargo, as: 'descripcionCargo' },
@@ -219,7 +219,7 @@ export class HitoSolicitudService {
             const hitoData = h.toJSON() as any;
             return {
                 ...hitoData,
-                estado: 'vencido',
+            estado: 'vencido',
                 dias_atrasados: Math.abs(h.diasHabilesRestantes() || 0),
                 descripcion: h.getMensajeAlerta(), // Usar mensaje dinámico
                 solicitud: hitoData.solicitud ? {
@@ -246,8 +246,8 @@ export class HitoSolicitudService {
             },
             include: [
                 {
-                    model: Solicitud,
-                    as: 'solicitud',
+                model: Solicitud,
+                as: 'solicitud',
                     required: true,
                     include: [
                         { model: DescripcionCargo, as: 'descripcionCargo' },
@@ -277,7 +277,7 @@ export class HitoSolicitudService {
                 const matches = rutUsuario === consultor_id;
                 
                 console.log(`🔍 [DEBUG] Hito ${hitoData.id_hito_solicitud}: rut_usuario=${rutUsuario}, matches=${matches}`);
-                
+
                 return matches;
             });
             
@@ -322,8 +322,8 @@ export class HitoSolicitudService {
             where,
             include: [
                 {
-                    model: Solicitud,
-                    as: 'solicitud',
+                model: Solicitud,
+                as: 'solicitud',
                     include: [
                         { model: DescripcionCargo, as: 'descripcionCargo' },
                         { 
@@ -369,8 +369,8 @@ export class HitoSolicitudService {
             where,
             include: [
                 {
-                    model: Solicitud,
-                    as: 'solicitud',
+                model: Solicitud,
+                as: 'solicitud',
                     include: [
                         { model: DescripcionCargo, as: 'descripcionCargo' },
                         { 

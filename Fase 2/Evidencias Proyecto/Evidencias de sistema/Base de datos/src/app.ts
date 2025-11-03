@@ -8,6 +8,7 @@ import { config } from '@/config';
 import { Logger } from '@/utils/logger';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
 import { connectionManager } from '@/middleware/connectionManager';
+import { captureUserContext } from '@/middleware/captureUserContext';
 import authRoutes from '@/routes/authRoutes';
 import userRoutes from '@/routes/userRoutes';
 import { authenticateToken, requireAdmin, requireConsultorOrAdmin } from '@/middleware/auth';
@@ -101,6 +102,15 @@ if (config.server.nodeEnv === 'development') {
 
 // Middleware para manejar conexiones de base de datos
 app.use(connectionManager);
+
+// ===========================================
+// MIDDLEWARE DE CONTEXTO DE USUARIO
+// ===========================================
+
+// Capturar el usuario autenticado y establecerlo en el contexto
+// Este middleware captura req.user (establecido por autenticación)
+// y lo guarda en AsyncLocalStorage para que esté disponible en toda la aplicación
+app.use(captureUserContext);
 
 // ===========================================
 // RUTAS

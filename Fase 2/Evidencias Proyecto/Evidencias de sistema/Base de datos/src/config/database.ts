@@ -1,5 +1,6 @@
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+import { getCurrentUserContext } from '@/utils/userContext';
 
 dotenv.config();
 
@@ -38,6 +39,54 @@ const sequelize = new Sequelize({
       rejectUnauthorized: false
     }
   } : {}
+});
+
+// ===========================================
+// HOOK GLOBAL PARA CONFIGURAR USUARIO EN CADA QUERY
+// ===========================================
+
+/**
+ * Hook que se ejecuta antes de cada query para configurar el usuario responsable
+ * Lee el contexto del usuario establecido por el middleware captureUserContext
+ */
+sequelize.addHook('beforeQuery', async (options) => {
+  const currentUser = getCurrentUserContext();
+  
+  if (currentUser && options.transaction) {
+    try {
+      // Escapar el RUT para prevenir SQL injection
+      const rutEscapado = currentUser.replace(/'/g, "''");
+      
+      // Configurar variable de sesión LOCAL para esta transacción
+      await sequelize.query(
+        `SET LOCAL app.current_user = '${rutEscapado}'`,
+        { transaction: options.transaction }
+      );
+      
+      // Log solo en desarrollo
+      if (NODE_ENV === 'development') {
+        console.log(`📝 [LOG] Usuario ${currentUser} configurado para query en transacción`);
+      }
+    } catch (error) {
+      // No interrumpir la query si falla la configuración del usuario
+      console.error('⚠️ Error configurando usuario en query:', error);
+    }
+  } else if (currentUser && !options.transaction) {
+    try {
+      // Si no hay transacción, usar SET normal (dura toda la conexión)
+      const rutEscapado = currentUser.replace(/'/g, "''");
+      
+      await sequelize.query(
+        `SET app.current_user = '${rutEscapado}'`
+      );
+      
+      if (NODE_ENV === 'development') {
+        console.log(`📝 [LOG] Usuario ${currentUser} configurado para query sin transacción`);
+      }
+    } catch (error) {
+      console.error('⚠️ Error configurando usuario en query:', error);
+    }
+  }
 });
 
 // Función para probar la conexión

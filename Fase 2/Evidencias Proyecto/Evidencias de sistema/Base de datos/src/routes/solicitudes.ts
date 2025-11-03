@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { SolicitudController } from '@/controllers/solicitudController';
-// import { authenticate, authorize } from '@/middleware/auth'; // Descomentar cuando esté listo
+import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
 
@@ -9,17 +9,28 @@ const router = Router();
  * Base: /api/solicitudes
  */
 
-// Obtener solicitudes por consultor
-router.get('/consultor/:rutUsuario', SolicitudController.getByConsultor);
-
+// Rutas públicas (sin autenticación)
 // Obtener solicitudes paginadas con filtros
 router.get('/', SolicitudController.getAll);
 
 // Obtener todas las solicitudes (sin paginación)
 router.get('/all', SolicitudController.getAllSolicitudes);
 
+// Obtener etapas disponibles
+router.get('/etapas/disponibles', SolicitudController.getEtapas);
+
+// Obtener estados de solicitud disponibles
+router.get('/estados/disponibles', SolicitudController.getEstadosSolicitud);
+
 // Obtener una solicitud específica
 router.get('/:id', SolicitudController.getById);
+
+// Obtener solicitudes por consultor
+router.get('/consultor/:rutUsuario', SolicitudController.getByConsultor);
+
+// Rutas protegidas (requieren autenticación)
+// Todas las operaciones de escritura requieren estar autenticado
+router.use(authenticateToken); // ← Aplica autenticación a todas las rutas siguientes
 
 // Crear nueva solicitud
 router.post('/', SolicitudController.create);
@@ -39,15 +50,10 @@ router.put('/:id/avanzar-modulo3', SolicitudController.avanzarAModulo3);
 // Avanzar al módulo 4
 router.put('/:id/avanzar-modulo4', SolicitudController.avanzarAModulo4);
 
-// Obtener etapas disponibles
-router.get('/etapas/disponibles', SolicitudController.getEtapas);
-
-// Obtener estados de solicitud disponibles
-router.get('/estados/disponibles', SolicitudController.getEstadosSolicitud);
+// Actualizar solicitud
+router.put('/:id', SolicitudController.update);
 
 // Eliminar solicitud
 router.delete('/:id', SolicitudController.delete);
-
-router.put('/:id', SolicitudController.update);
 
 export default router;

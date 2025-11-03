@@ -146,16 +146,16 @@ export function AppHeader() {
                 onClick={handleButtonClick}
               >
                 <Bell className="h-4 w-4 mr-2" />
-                {unreadCount > 0 && (
+                  {unreadCount > 0 && (
                   <>
                     <span className="text-xs">Alertas</span>
                     <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center">
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </Badge>
                   </>
-                )}
+                  )}
                 {unreadCount === 0 && <span className="text-xs">Alertas</span>}
-              </Button>
+                </Button>
               
               {/* Panel de notificaciones */}
               {popoverOpen && (
@@ -163,11 +163,11 @@ export function AppHeader() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-sm">Notificaciones</h4>
-                      {unreadCount > 0 && (
-                        <Badge variant="secondary" className="text-xs">
+                  {unreadCount > 0 && (
+                    <Badge variant="secondary" className="text-xs">
                           {unreadCount} nueva{unreadCount !== 1 ? 's' : ''}
-                        </Badge>
-                      )}
+                    </Badge>
+                  )}
                     </div>
                     <div className="border-t pt-2">
                       {loading ? (
@@ -218,8 +218,8 @@ export function AppHeader() {
                                     )}
                                     </div>
                                   </div>
-                                </div>
-                              </div>
+                      </div>
+                    </div>
                             )
                           })}
                           <div className="pt-2 border-t">
@@ -228,8 +228,8 @@ export function AppHeader() {
                               className="block text-center text-sm font-medium text-primary hover:underline"
                               onClick={() => setPopoverOpen(false)}
                             >
-                              Ver todas las alertas
-                            </Link>
+                    Ver todas las alertas
+                  </Link>
                           </div>
                         </div>
                       ) : (

@@ -46,7 +46,7 @@ export default class EstadoClienteM5Controller {
     static async cambiarEstado(req: Request, res: Response): Promise<Response> {
         try {
             const { id_postulacion } = req.params;
-            const { id_estado_cliente_postulacion_m5, fecha_cambio_estado_cliente_m5, comentario_modulo5_cliente } = req.body;
+            const { id_estado_cliente_postulacion_m5, fecha_feedback_cliente_m5, comentario_modulo5_cliente } = req.body;
 
             if (!id_estado_cliente_postulacion_m5) {
                 return sendError(res, 'El estado del cliente es requerido', 400);
@@ -59,10 +59,15 @@ export default class EstadoClienteM5Controller {
                 parseInt(id_postulacion),
                 {
                     id_estado_cliente_postulacion_m5,
-                    fecha_cambio_estado_cliente_m5: fecha_cambio_estado_cliente_m5 || null,
+                    fecha_feedback_cliente_m5: fecha_feedback_cliente_m5 || null,
                     comentario_modulo5_cliente
                 }
             );
+
+            // Agregar headers de cache control
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
 
             Logger.info(`Estado de cliente cambiado para postulación ${id_postulacion} (Módulo 5)`);
             return sendSuccess(res, result, 'Estado de cliente actualizado exitosamente (Módulo 5)');
@@ -192,6 +197,11 @@ static async actualizarCandidatoModulo5(req: Request, res: Response): Promise<Re
                 observaciones_contratacion
             }
         );
+
+        // Agregar headers de cache control
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
 
         Logger.info(`Candidato del módulo 5 actualizado - Postulación: ${id_postulacion}, Estado: ${hiring_status}`);
         return sendSuccess(res, result, 'Candidato del módulo 5 actualizado exitosamente');

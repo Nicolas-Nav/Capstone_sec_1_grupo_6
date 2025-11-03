@@ -32,17 +32,17 @@ export default class EstadoClienteM5Service {
         id_postulacion: number, 
         data: {
             id_estado_cliente_postulacion_m5: number;
-            fecha_cambio_estado_cliente_m5: string | null; // Cambiado a string para evitar problemas de zona horaria
+            fecha_feedback_cliente_m5: string | null;
             comentario_modulo5_cliente?: string;
         }
     ) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            const { id_estado_cliente_postulacion_m5, fecha_cambio_estado_cliente_m5, comentario_modulo5_cliente } = data;
+            const { id_estado_cliente_postulacion_m5, fecha_feedback_cliente_m5, comentario_modulo5_cliente } = data;
 
             console.log(`[DEBUG] Cambiando estado módulo 5 - Postulación: ${id_postulacion}, Estado: ${id_estado_cliente_postulacion_m5}`);
-            console.log(`[DEBUG] Fecha recibida: ${fecha_cambio_estado_cliente_m5}`);
+            console.log(`[DEBUG] Fecha recibida: ${fecha_feedback_cliente_m5}`);
 
             // Verificar que la postulación existe
             const postulacion = await Postulacion.findByPk(id_postulacion);
@@ -64,89 +64,33 @@ export default class EstadoClienteM5Service {
                 throw new Error(`Los comentarios son obligatorios para el estado "${estadoCliente.nombre_estado}"`);
             }
 
-            // Verificar si el estado realmente cambió
-            const ultimoEstado = await EstadoClientePostulacionM5.findOne({
-                where: { id_postulacion },
-                order: [['fecha_cambio_estado_cliente_m5', 'DESC'], ['id_estado_cliente_postulacion_m5', 'DESC']]
-            });
-
-            console.log(`[DEBUG] Último estado encontrado:`, ultimoEstado ? {
-                id_estado: ultimoEstado.id_estado_cliente_postulacion_m5,
-                fecha: ultimoEstado.fecha_cambio_estado_cliente_m5
-            } : 'No existe');
-
-            // Si el estado cambió, crear un nuevo registro
-            const estadoCambio = !ultimoEstado || ultimoEstado.id_estado_cliente_postulacion_m5 !== id_estado_cliente_postulacion_m5;
-            
-            if (estadoCambio) {
-                // IMPORTANTE: Cuando el ESTADO CAMBIA, siempre usar la fecha actual (hoy) para el nuevo estado
-                // Esto garantiza que podamos determinar cuál es el estado más reciente
-                // La fecha original se mantiene en los estados anteriores, pero el nuevo cambio debe tener fecha actual
-                let fechaAUsar: string | null = null;
-                
-                if (fecha_cambio_estado_cliente_m5) {
-                    // El usuario proporciona una fecha nueva, usarla
-                    fechaAUsar = fecha_cambio_estado_cliente_m5;
-                    console.log(`[DEBUG] Estado cambió. Usando fecha proporcionada por el usuario: ${fechaAUsar}`);
-                } else {
-                    // Cuando el estado cambia, SIEMPRE usar la fecha actual para poder ordenar correctamente
-                    // Esto asegura que cada cambio de estado tenga una fecha única y más reciente
-                    const ahora = new Date();
-                    // Usar fecha y hora para mayor precisión, pero solo guardar la fecha (sin hora)
-                    fechaAUsar = ahora.toISOString().split('T')[0];
-                    console.log(`[DEBUG] Estado cambió. No se proporcionó fecha, usando fecha actual: ${fechaAUsar}`);
-                }
-                
-                // Verificar si ya existe un registro con esta combinación estado+postulación
+            // Buscar registro existente por la clave primaria compuesta
                 const registroExistente = await EstadoClientePostulacionM5.findOne({
                     where: {
-                        id_postulacion,
-                        id_estado_cliente_postulacion_m5
-                    }
-                });
+                    id_estado_cliente_postulacion_m5,
+                    id_postulacion
+                },
+                transaction
+            });
 
-                if (!registroExistente) {
-                    console.log(`[DEBUG] Creando nuevo registro de cambio de estado`);
-                    console.log(`[DEBUG] Estado anterior: ${ultimoEstado?.id_estado_cliente_postulacion_m5 || 'Ninguno'}, Nuevo estado: ${id_estado_cliente_postulacion_m5}`);
-                    console.log(`[DEBUG] Fecha a usar: ${fechaAUsar || 'NULL'}`);
-                    
-                    await EstadoClientePostulacionM5.create({
-                        id_postulacion,
-                        id_estado_cliente_postulacion_m5,
-                        fecha_cambio_estado_cliente_m5: fechaAUsar ? new Date(fechaAUsar + 'T00:00:00') : new Date()
-                    }, { transaction });
-                } else {
-                    console.log(`[DEBUG] Ya existe un registro con estado ${id_estado_cliente_postulacion_m5} para postulación ${id_postulacion}`);
-                    // IMPORTANTE: Cuando el estado cambia, SIEMPRE actualizar la fecha al momento actual
-                    // para que podamos determinar cuál es el estado más reciente
-                    // Usar fecha/hora actual para garantizar unicidad, pero convertirlo a Date object
-                    const fechaParaActualizar = fechaAUsar ? new Date(fechaAUsar + 'T00:00:00') : new Date();
-                    console.log(`[DEBUG] Actualizando fecha del registro existente a: ${fechaParaActualizar.toISOString()}`);
-                    await registroExistente.update({
-                        fecha_cambio_estado_cliente_m5: fechaParaActualizar
-                    }, { transaction });
-                    console.log(`[DEBUG] Registro actualizado. Nueva fecha guardada: ${fechaParaActualizar.toISOString()}`);
-                }
-            } else {
-                // El estado no cambió, pero puede que la fecha sí haya cambiado
-                if (fecha_cambio_estado_cliente_m5 && ultimoEstado) {
-                    const fechaActualStr = ultimoEstado.fecha_cambio_estado_cliente_m5?.toISOString().split('T')[0];
-                    if (fechaActualStr !== fecha_cambio_estado_cliente_m5) {
-                        console.log(`[DEBUG] Estado no cambió, pero actualizando fecha de ${fechaActualStr} a ${fecha_cambio_estado_cliente_m5}`);
-                        await ultimoEstado.update({
-                            fecha_cambio_estado_cliente_m5: fecha_cambio_estado_cliente_m5 as any
-                        }, { transaction });
-                    }
-                }
-            }
-
-            // Actualizar comentario del módulo 5 en la postulación (siempre que haya comentario)
-            if (comentario_modulo5_cliente !== undefined) {
-                const comentarioValue = comentario_modulo5_cliente?.trim() ? comentario_modulo5_cliente : undefined;
-                await postulacion.update({
-                    comentario_modulo5_cliente: comentarioValue
+            if (registroExistente) {
+                // Actualizar registro existente
+                console.log(`[DEBUG] Actualizando registro existente`);
+                await registroExistente.update({
+                    fecha_feedback_cliente_m5: fecha_feedback_cliente_m5 ? new Date(fecha_feedback_cliente_m5 + 'T00:00:00') : registroExistente.fecha_feedback_cliente_m5,
+                    comentario_modulo5_cliente: comentario_modulo5_cliente !== undefined ? comentario_modulo5_cliente : registroExistente.comentario_modulo5_cliente,
+                    updated_at: new Date() // ✅ Actualizar manualmente
                 }, { transaction });
-                console.log(`[DEBUG] Comentario actualizado: "${comentario_modulo5_cliente}"`);
+            } else {
+                // Crear nuevo registro
+                console.log(`[DEBUG] Creando nuevo registro de estado`);
+                await EstadoClientePostulacionM5.create({
+                    id_postulacion,
+                    id_estado_cliente_postulacion_m5,
+                    fecha_feedback_cliente_m5: fecha_feedback_cliente_m5 ? new Date(fecha_feedback_cliente_m5 + 'T00:00:00') : undefined,
+                    comentario_modulo5_cliente: comentario_modulo5_cliente || undefined
+                    // updated_at se establece automáticamente por el default
+                }, { transaction });
             }
 
             await transaction.commit();
@@ -155,7 +99,7 @@ export default class EstadoClienteM5Service {
                 success: true,
                 id_postulacion,
                 id_estado_cliente_postulacion_m5,
-                fecha_cambio_estado_cliente_m5,
+                fecha_feedback_cliente_m5,
                 message: 'Estado de cliente actualizado exitosamente (Módulo 5)'
             };
 
@@ -174,7 +118,7 @@ export default class EstadoClienteM5Service {
         
         return await this.cambiarEstado(id_postulacion, {
             id_estado_cliente_postulacion_m5: estadoEsperaFeedback,
-            fecha_cambio_estado_cliente_m5: null, // Fecha NULL, se ingresa manualmente después
+            fecha_feedback_cliente_m5: null, // Fecha NULL, se ingresa manualmente después
             comentario_modulo5_cliente: comentario || undefined
         });
     }
@@ -191,13 +135,14 @@ export default class EstadoClienteM5Service {
                     as: 'estadoCliente'
                 }
             ],
-            order: [['fecha_cambio_estado_cliente_m5', 'DESC']]
+            order: [['updated_at', 'DESC']]
         });
 
         return historial.map((item: any) => ({
             id_estado_cliente: item.id_estado_cliente_postulacion_m5,
             nombre_estado: item.estadoCliente?.nombre_estado,
-            fecha_cambio_estado_cliente_m5: item.fecha_cambio_estado_cliente_m5
+            fecha_feedback_cliente_m5: item.fecha_feedback_cliente_m5,
+            comentario_modulo5_cliente: item.comentario_modulo5_cliente
         }));
     }
 
@@ -205,7 +150,7 @@ export default class EstadoClienteM5Service {
      * Obtener el último estado de una postulación
      */
     static async getUltimoEstado(id_postulacion: number) {
-        const ultimoEstado = await EstadoClientePostulacionM5.findOne({
+        const estados = await EstadoClientePostulacionM5.findAll({
             where: { id_postulacion },
             include: [
                 {
@@ -213,17 +158,20 @@ export default class EstadoClienteM5Service {
                     as: 'estadoCliente'
                 }
             ],
-            order: [['fecha_cambio_estado_cliente_m5', 'DESC']]
+            order: [['updated_at', 'DESC']]
         });
 
-        if (!ultimoEstado) {
+        if (estados.length === 0) {
             return null;
         }
+
+        const ultimoEstado = estados[0];
 
         return {
             id_estado_cliente: ultimoEstado.id_estado_cliente_postulacion_m5,
             nombre_estado: (ultimoEstado as any).estadoCliente?.nombre_estado,
-            fecha_cambio_estado_cliente_m5: ultimoEstado.fecha_cambio_estado_cliente_m5
+            fecha_feedback_cliente_m5: ultimoEstado.fecha_feedback_cliente_m5,
+            comentario_modulo5_cliente: ultimoEstado.comentario_modulo5_cliente
         };
     }
 
@@ -270,8 +218,7 @@ export default class EstadoClienteM5Service {
             ],
             order: [
                 ['id_postulacion', 'ASC'],
-                ['fecha_cambio_estado_cliente_m5', 'DESC'],
-                ['id_estado_cliente_postulacion_m5', 'DESC']
+                ['updated_at', 'DESC']
             ]
         });
 
@@ -301,7 +248,7 @@ export default class EstadoClienteM5Service {
         // Obtener historial completo de estados para calcular fecha de feedback
         const historiales = await EstadoClientePostulacionM5.findAll({
             where: { id_postulacion: idsPostulaciones },
-            order: [['fecha_cambio_estado_cliente_m5', 'ASC']]
+            order: [['updated_at', 'ASC']]
         });
 
         // Agrupar historial por postulación
@@ -323,38 +270,15 @@ export default class EstadoClienteM5Service {
             estadosPorPostulacion.get(estado.id_postulacion)!.push(estado);
         });
         
-        // Para cada postulación, encontrar el estado más reciente
+        // Para cada postulación, tomar el primer estado (ya ordenado por updated_at DESC)
         estadosPorPostulacion.forEach((estados: any[], idPostulacion: number) => {
-            // Ordenar por fecha descendente (más reciente primero)
-            // Si las fechas son iguales, el último insertado debería tener fecha actual
-            const estadoMasReciente = estados.sort((a: any, b: any) => {
-                const fechaA = a.fecha_cambio_estado_cliente_m5;
-                const fechaB = b.fecha_cambio_estado_cliente_m5;
-                
-                // Si ambos tienen fecha, comparar fechas (más reciente primero)
-                if (fechaA && fechaB) {
-                    const diffFecha = fechaB.getTime() - fechaA.getTime();
-                    if (diffFecha !== 0) return diffFecha;
-                    // Si las fechas son iguales, necesitamos otro criterio
-                    // En este caso, usamos el ID del estado como desempate
-                    // pero esto NO es ideal - deberíamos tener un timestamp de creación
-                    Logger.warn(`[DEBUG] Postulación ${idPostulacion}: Dos estados con la misma fecha. Estado A: ${(a as any).estadoClienteM5?.nombre_estado} (ID: ${a.id_estado_cliente_postulacion_m5}), Estado B: ${(b as any).estadoClienteM5?.nombre_estado} (ID: ${b.id_estado_cliente_postulacion_m5})`);
-                }
-                
-                // Si uno tiene fecha y el otro no, el que tiene fecha es más reciente
-                if (fechaA && !fechaB) return -1;
-                if (!fechaA && fechaB) return 1;
-                
-                // Si ambos no tienen fecha (no debería pasar ahora), usar ID del estado
-                const idA = a.id_estado_cliente_postulacion_m5 || 0;
-                const idB = b.id_estado_cliente_postulacion_m5 || 0;
-                return idB - idA;
-            })[0]; // Tomar el primero después de ordenar
+            // Como ya está ordenado por updated_at DESC, el primer elemento es el más reciente
+            const estadoMasReciente = estados[0];
             
-            Logger.info(`[DEBUG] Postulación ${idPostulacion}: Estado más reciente encontrado: ${(estadoMasReciente as any).estadoClienteM5?.nombre_estado}, Fecha: ${estadoMasReciente.fecha_cambio_estado_cliente_m5}, ID Estado: ${estadoMasReciente.id_estado_cliente_postulacion_m5}`);
+            Logger.info(`[DEBUG] Postulación ${idPostulacion}: Estado más reciente encontrado: ${(estadoMasReciente as any).estadoClienteM5?.nombre_estado}, Updated_at: ${estadoMasReciente.updated_at}, ID Estado: ${estadoMasReciente.id_estado_cliente_postulacion_m5}`);
             Logger.info(`[DEBUG] Postulación ${idPostulacion}: Todos los estados disponibles:`, estados.map((e: any) => ({
                 estado: (e as any).estadoClienteM5?.nombre_estado,
-                fecha: e.fecha_cambio_estado_cliente_m5,
+                updated_at: e.updated_at,
                 id_estado: e.id_estado_cliente_postulacion_m5
             })));
             candidatosUnicos.set(idPostulacion, estadoMasReciente);
@@ -363,20 +287,13 @@ export default class EstadoClienteM5Service {
         const resultado = Array.from(candidatosUnicos.values()).map(estado => {
             const estadoData = estado as any; // Type assertion para acceder a las relaciones
             
-            // Obtener la primera fecha no-null del historial (la fecha de feedback original)
-            const historial = historialPorPostulacion.get(estado.id_postulacion) || [];
-            let fechaFeedback = null;
-            
-            // Buscar la primera fecha no-null en el historial
-            const primerRegistroConFecha = historial.find(h => h.fecha_cambio_estado_cliente_m5 !== null);
-            if (primerRegistroConFecha) {
-                fechaFeedback = primerRegistroConFecha.fecha_cambio_estado_cliente_m5;
-            }
+            // La fecha de feedback viene directamente del estado actual
+            const fechaFeedback = estado.fecha_feedback_cliente_m5;
             
             Logger.info(`[DEBUG] Procesando candidato postulación ${estado.id_postulacion}, estado: ${estadoData.estadoClienteM5?.nombre_estado}`);
-            Logger.info(`[DEBUG] Fecha cambio estado M5:`, estado.fecha_cambio_estado_cliente_m5);
-            Logger.info(`[DEBUG] Fecha feedback calculada:`, fechaFeedback);
-            Logger.info(`[DEBUG] Fecha formateada:`, fechaFeedback ? fechaFeedback.toISOString().split('T')[0] : null);
+            Logger.info(`[DEBUG] Fecha feedback M5:`, estado.fecha_feedback_cliente_m5);
+            Logger.info(`[DEBUG] Updated at:`, estado.updated_at);
+            Logger.info(`[DEBUG] Comentario:`, estado.comentario_modulo5_cliente);
             
             const candidatoData = estadoData.postulacion?.candidato;
             const candidatoInfo = candidatoData ? {
@@ -403,7 +320,7 @@ export default class EstadoClienteM5Service {
                 ...candidatoInfo,
                 id_postulacion: estado.id_postulacion,
                 ultimo_estado_m5: estadoData.estadoClienteM5?.nombre_estado,
-                fecha_ultimo_cambio_m5: estado.fecha_cambio_estado_cliente_m5,
+                fecha_ultimo_cambio_m5: estado.fecha_feedback_cliente_m5,
                 // Mapear estado del módulo 5 (SIEMPRE desde estado_cliente_m5, no desde Contratacion)
                 hiring_status: this.mapEstadoToFrontend(estadoData.estadoClienteM5?.nombre_estado),
                 // Estado final de contratación (si existe registro en Contratacion)
@@ -415,18 +332,18 @@ export default class EstadoClienteM5Service {
                     }
                     return null;
                 })(),
-                // Mapear fecha de respuesta del cliente (fecha de feedback real calculada)
+                // Mapear fecha de respuesta del cliente (fecha de feedback real)
                 client_response_date: fechaFeedback ? 
-                    fechaFeedback.toISOString().split('T')[0] : null,
+                    (typeof fechaFeedback === 'string' ? fechaFeedback : fechaFeedback.toISOString().split('T')[0]) : null,
                 // Fecha de contrato desde la tabla Contratacion (solo si existe)
                 contract_date: (() => {
                     const contratacion = contratacionMap.get(estadoData.id_postulacion);
                     return contratacion?.fecha_ingreso_contratacion ? 
                         contratacion.fecha_ingreso_contratacion.toISOString().split('T')[0] : null;
                 })(),
-                // Obtener comentarios: si hay contratación, usar las observaciones de contratación; si no, usar comentarios del módulo 5
+                // Obtener comentarios: primero de contratación, luego de estado_cliente_postulacion_m5
                 observations: contratacionMap.get(estadoData.id_postulacion)?.observaciones_contratacion || 
-                    estadoData.postulacion?.comentario_modulo5_cliente || '',
+                    estado.comentario_modulo5_cliente || '',
                 // Estado del informe desde la evaluación psicolaboral
                 estado_informe: evaluacionMap.get(estadoData.id_postulacion)?.estado_informe || null
             };
@@ -536,14 +453,14 @@ export default class EstadoClienteM5Service {
 
             // IMPORTANTE: NO convertir la fecha a Date object para evitar problemas de zona horaria
             // Pasarla directamente como string en formato YYYY-MM-DD
-            const fechaCambio = data.client_response_date || null;
+            const fechaFeedback = data.client_response_date || null;
             
-            Logger.info(`[DEBUG] Estado mapeado: ${id_estado_cliente_postulacion_m5}, Fecha: ${fechaCambio}`);
+            Logger.info(`[DEBUG] Estado mapeado: ${id_estado_cliente_postulacion_m5}, Fecha: ${fechaFeedback}`);
             
             // Actualizar estado en módulo 5
             await this.cambiarEstado(id_postulacion, {
                 id_estado_cliente_postulacion_m5,
-                fecha_cambio_estado_cliente_m5: fechaCambio,
+                fecha_feedback_cliente_m5: fechaFeedback,
                 comentario_modulo5_cliente: data.observations
             });
 

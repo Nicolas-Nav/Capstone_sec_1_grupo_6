@@ -26,9 +26,10 @@ export class PostulacionController {
             const candidatos = await PostulacionService.getPostulacionesBySolicitud(parseInt(idSolicitud));
 
             return sendSuccess(res, candidatos, 'Candidatos obtenidos exitosamente');
-        } catch (error) {
+        } catch (error: any) {
             Logger.error('Error al obtener candidatos:', error);
-            return sendError(res, 'Error al obtener candidatos', 500);
+            console.error('❌ ERROR DETALLADO:', error);
+            return sendError(res, error?.message || 'Error al obtener candidatos', 500);
         }
     }
 

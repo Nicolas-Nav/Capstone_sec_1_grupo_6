@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { TestPsicolaboralController } from '@/controllers/testPsicolaboralController';
+import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
 
@@ -9,11 +10,17 @@ const router = Router();
  * Los tests se cargan directamente en la BD mediante scripts SQL
  */
 
+// Rutas públicas de lectura (GET)
 // Obtener todos los tests (para selección en Módulo 4)
 router.get('/', TestPsicolaboralController.getAll);
 
 // Obtener un test específico
 router.get('/:id', TestPsicolaboralController.getById);
+
+// ====================================
+// RUTAS PROTEGIDAS (requieren token)
+// ====================================
+router.use(authenticateToken);
 
 // Crear nuevo test
 router.post('/', TestPsicolaboralController.create);

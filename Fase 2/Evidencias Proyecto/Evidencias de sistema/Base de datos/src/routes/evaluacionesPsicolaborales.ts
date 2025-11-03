@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { EvaluacionPsicolaboralController } from '@/controllers/evaluacionPsicolaboralController';
+import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
 
@@ -8,11 +9,23 @@ const router = Router();
  * Base: /api/evaluaciones-psicolaborales
  */
 
+// Rutas públicas de lectura (GET)
 // Obtener evaluaciones por postulación
 router.get('/postulacion/:idPostulacion', EvaluacionPsicolaboralController.getByPostulacion);
 
 // Obtener evaluaciones pendientes
 router.get('/pendientes', EvaluacionPsicolaboralController.getPendientes);
+
+// Obtener todas las evaluaciones
+router.get('/', EvaluacionPsicolaboralController.getAll);
+
+// Obtener una evaluación específica
+router.get('/:id', EvaluacionPsicolaboralController.getById);
+
+// ====================================
+// RUTAS PROTEGIDAS (requieren token)
+// ====================================
+router.use(authenticateToken);
 
 // Agregar resultado de test
 router.post('/:id/tests', EvaluacionPsicolaboralController.addTest);
@@ -31,12 +44,6 @@ router.put('/:id/conclusion-global', EvaluacionPsicolaboralController.actualizar
 
 // Actualizar informe completo (estado + conclusión)
 router.put('/:id/informe-completo', EvaluacionPsicolaboralController.actualizarInformeCompleto);
-
-// Obtener todas las evaluaciones
-router.get('/', EvaluacionPsicolaboralController.getAll);
-
-// Obtener una evaluación específica
-router.get('/:id', EvaluacionPsicolaboralController.getById);
 
 // Crear nueva evaluación
 router.post('/', EvaluacionPsicolaboralController.create);

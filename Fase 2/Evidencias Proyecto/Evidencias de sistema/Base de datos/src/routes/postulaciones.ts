@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { PostulacionController } from '@/controllers/postulacionController';
 import { uploadCV } from '@/config/multer';
-// import { authenticate, authorize } from '@/middleware/auth'; // Descomentar cuando esté listo
+import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
 
@@ -10,11 +10,17 @@ const router = Router();
  * Base: /api/postulaciones
  */
 
+// Rutas públicas de lectura (GET)
 // Obtener postulaciones por solicitud
 router.get('/solicitud/:idSolicitud', PostulacionController.getBySolicitud);
 
 // Obtener postulaciones optimizadas (sin datos de formación académica)
 router.get('/solicitud/:idSolicitud/optimized', PostulacionController.getBySolicitudOptimized);
+
+// ====================================
+// RUTAS PROTEGIDAS (requieren token)
+// ====================================
+router.use(authenticateToken);
 
 // Crear nueva postulación (con CV opcional)
 router.post('/', uploadCV.single('cv_file'), PostulacionController.create);

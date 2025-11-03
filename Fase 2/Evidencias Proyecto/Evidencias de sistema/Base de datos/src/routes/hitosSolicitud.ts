@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { HitoSolicitudController } from '@/controllers/hitoSolicitudController';
+import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
 
@@ -9,31 +10,14 @@ const router = Router();
  */
 
 // ===========================================
-// PLANTILLAS
+// RUTAS PÚBLICAS DE LECTURA (GET)
 // ===========================================
 
 // Obtener plantillas
 router.get('/plantillas', HitoSolicitudController.getPlantillas);
 
-// Crear plantilla (admin)
-router.post('/plantillas', HitoSolicitudController.createPlantilla);
-
-// ===========================================
-// HITOS POR SOLICITUD
-// ===========================================
-
-// Copiar plantillas a una solicitud
-router.post('/copiar-plantillas', HitoSolicitudController.copiarPlantillas);
-
-// Activar hitos por evento ancla
-router.post('/activar-evento', HitoSolicitudController.activarEvento);
-
 // Obtener hitos de una solicitud
 router.get('/solicitud/:idSolicitud', HitoSolicitudController.getBySolicitud);
-
-// ===========================================
-// CONSULTAS DASHBOARD
-// ===========================================
 
 // Obtener hitos vencidos
 router.get('/vencidos', HitoSolicitudController.getVencidos);
@@ -56,19 +40,37 @@ router.get('/alertas', HitoSolicitudController.getAlertas);
 // Dashboard de hitos para consultores
 router.get('/dashboard/:consultor_id', HitoSolicitudController.getDashboard);
 
+// Obtener un hito específico
+router.get('/:id', HitoSolicitudController.getById);
+
+// ====================================
+// RUTAS PROTEGIDAS (requieren token)
+// ====================================
+router.use(authenticateToken);
+
 // ===========================================
-// ACCIONES
+// PLANTILLAS (protegidas)
+// ===========================================
+
+// Crear plantilla (admin)
+router.post('/plantillas', HitoSolicitudController.createPlantilla);
+
+// ===========================================
+// HITOS POR SOLICITUD (protegidas)
+// ===========================================
+
+// Copiar plantillas a una solicitud
+router.post('/copiar-plantillas', HitoSolicitudController.copiarPlantillas);
+
+// Activar hitos por evento ancla
+router.post('/activar-evento', HitoSolicitudController.activarEvento);
+
+// ===========================================
+// ACCIONES (protegidas)
 // ===========================================
 
 // Completar un hito
 router.put('/:id/completar', HitoSolicitudController.completar);
-
-// ===========================================
-// CRUD BÁSICO
-// ===========================================
-
-// Obtener un hito específico
-router.get('/:id', HitoSolicitudController.getById);
 
 // Actualizar hito
 router.put('/:id', HitoSolicitudController.update);

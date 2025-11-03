@@ -99,7 +99,7 @@ export class PostulacionService {
                         }
                     ],
                     separate: true,
-                    order: [['fecha_cambio_estado_cliente', 'DESC']]
+                    order: [['updated_at', 'DESC']]
                 }
             ],
             order: [['id_postulacion', 'DESC']]
@@ -175,7 +175,7 @@ export class PostulacionService {
                         }
                     ],
                     separate: true,
-                    order: [['fecha_cambio_estado_cliente', 'DESC']]
+                    order: [['updated_at', 'DESC']]
                 }
             ]
         });
@@ -199,7 +199,6 @@ export class PostulacionService {
         disponibilidad_postulacion?: string;
         valoracion?: number;
         comentario_no_presentado?: string;
-        comentario_rech_obs_cliente?: string;
         comentario_modulo5_cliente?: string;
         situacion_familiar?: string;
         cv_file?: Buffer;
@@ -243,7 +242,6 @@ export class PostulacionService {
                 disponibilidad_postulacion: data.disponibilidad_postulacion,
                 valoracion: data.valoracion,
                 comentario_no_presentado: data.comentario_no_presentado,
-                comentario_rech_obs_cliente: data.comentario_rech_obs_cliente,
                 comentario_modulo5_cliente: data.comentario_modulo5_cliente,
                 situacion_familiar: data.situacion_familiar,
                 cv_postulacion: data.cv_file
@@ -591,33 +589,11 @@ export class PostulacionService {
         const portal = postulacion.get('portalPostulacion') as any;
         const estadosCliente = postulacion.get('estadosCliente') as any[];
 
-        // Obtener el último estado de cliente (más reciente)
-        // Con separate: true y order, el primer elemento debería ser el más reciente
-        // Pero ordenamos por seguridad como respaldo
+        // Obtener el último estado de cliente
+        // Los estados están ordenados por updated_at DESC, el primero es el más reciente
         let ultimoEstadoCliente = null;
         if (estadosCliente && estadosCliente.length > 0) {
-            // Log temporal para debuggear
-            console.log('[DEBUG postulacionService] Estados encontrados para postulación', postulacion.id_postulacion, ':', 
-                estadosCliente.map((e: any) => ({
-                    id_estado: e.id_estado_cliente,
-                    nombre: e.estadoCliente?.nombre_estado,
-                    fecha: e.fecha_cambio_estado_cliente
-                }))
-            );
-            
-            // Ordenar por fecha descendente para asegurar que el más reciente esté primero
-            const estadosOrdenados = estadosCliente.sort((a: any, b: any) => {
-                const fechaA = a.fecha_cambio_estado_cliente ? new Date(a.fecha_cambio_estado_cliente).getTime() : 0;
-                const fechaB = b.fecha_cambio_estado_cliente ? new Date(b.fecha_cambio_estado_cliente).getTime() : 0;
-                return fechaB - fechaA; // Orden descendente (más reciente primero)
-            });
-            ultimoEstadoCliente = estadosOrdenados[0];
-            
-            console.log('[DEBUG postulacionService] Estado seleccionado como último:', {
-                id_estado: ultimoEstadoCliente?.id_estado_cliente,
-                nombre: ultimoEstadoCliente?.estadoCliente?.nombre_estado,
-                fecha: ultimoEstadoCliente?.fecha_cambio_estado_cliente
-            });
+            ultimoEstadoCliente = estadosCliente[0];
         }
 
         const estadoClienteNombre = ultimoEstadoCliente?.estadoCliente?.nombre_estado?.toLowerCase();
@@ -655,12 +631,12 @@ export class PostulacionService {
             })) || [],
             consultant_comment: postulacion.comentario_no_presentado,
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),
-            rejection_reason: postulacion.comentario_rech_obs_cliente,
+            rejection_reason: ultimoEstadoCliente?.comentario_rech_obs_cliente || undefined,
             // Campos del módulo 3 - Presentación de candidatos
             presentation_date: postulacion.fecha_envio ? (postulacion.fecha_envio instanceof Date ? postulacion.fecha_envio.toISOString() : new Date(postulacion.fecha_envio).toISOString()) : undefined,
             client_response: estadoClienteNombre || undefined,
-            client_feedback_date: postulacion.fecha_feedback_cliente ? (postulacion.fecha_feedback_cliente instanceof Date ? postulacion.fecha_feedback_cliente.toISOString() : new Date(postulacion.fecha_feedback_cliente).toISOString()) : undefined,
-            client_comments: postulacion.comentario_rech_obs_cliente || undefined,
+            client_feedback_date: ultimoEstadoCliente?.fecha_feedback_cliente_m3 ? (ultimoEstadoCliente.fecha_feedback_cliente_m3 instanceof Date ? ultimoEstadoCliente.fecha_feedback_cliente_m3.toISOString() : new Date(ultimoEstadoCliente.fecha_feedback_cliente_m3).toISOString()) : undefined,
+            client_comments: ultimoEstadoCliente?.comentario_rech_obs_cliente || undefined,
             has_disability_credential: candidato.discapacidad,
             licencia: candidato.licencia,
             work_experience: candidato.experiencias?.map((exp: any) => ({

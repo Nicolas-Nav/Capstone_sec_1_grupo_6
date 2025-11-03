@@ -277,9 +277,13 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         }
 
         // Recargar datos desde la base de datos para reflejar los cambios reales
+        // Agregar un pequeño delay para asegurar que el backend haya completado la transacción
+        await new Promise(resolve => setTimeout(resolve, 300))
         const allCandidates = await getCandidatesByProcess(process.id)
         const filteredCandidates = allCandidates.filter((c: Candidate) => c.presentation_status === "presentado")
         setCandidates(filteredCandidates)
+        // Forzar re-render
+        setCandidates(prev => [...prev])
 
         // Cerrar modal
         handleCloseUpdateModal()

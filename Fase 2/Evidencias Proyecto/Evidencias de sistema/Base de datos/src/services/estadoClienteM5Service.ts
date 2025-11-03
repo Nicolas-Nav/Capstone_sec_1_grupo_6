@@ -79,32 +79,22 @@ export default class EstadoClienteM5Service {
             const estadoCambio = !ultimoEstado || ultimoEstado.id_estado_cliente_postulacion_m5 !== id_estado_cliente_postulacion_m5;
             
             if (estadoCambio) {
-                // Buscar la primera fecha no-null en el historial (la fecha de feedback original)
-                const primerFecha = await EstadoClientePostulacionM5.findOne({
-                    where: { 
-                        id_postulacion,
-                        fecha_cambio_estado_cliente_m5: { [Op.ne]: null as any }
-                    },
-                    order: [['fecha_cambio_estado_cliente_m5', 'ASC']]
-                });
-                
-                // LÓGICA ACTUALIZADA: 
-                // 1. Si el usuario proporciona una nueva fecha, usarla (permitir actualización)
-                // 2. Si no hay fecha nueva pero existe una fecha previa, mantener la fecha previa
-                // 3. Si no hay ninguna fecha, dejar en null
+                // IMPORTANTE: Cuando el ESTADO CAMBIA, siempre usar la fecha actual (hoy) para el nuevo estado
+                // Esto garantiza que podamos determinar cuál es el estado más reciente
+                // La fecha original se mantiene en los estados anteriores, pero el nuevo cambio debe tener fecha actual
                 let fechaAUsar: string | null = null;
                 
                 if (fecha_cambio_estado_cliente_m5) {
                     // El usuario proporciona una fecha nueva, usarla
                     fechaAUsar = fecha_cambio_estado_cliente_m5;
-                    console.log(`[DEBUG] Usando fecha proporcionada por el usuario: ${fechaAUsar}`);
-                } else if (primerFecha?.fecha_cambio_estado_cliente_m5) {
-                    // No hay fecha nueva, pero existe una fecha previa, mantenerla
-                    fechaAUsar = primerFecha.fecha_cambio_estado_cliente_m5.toISOString().split('T')[0];
-                    console.log(`[DEBUG] Manteniendo fecha existente del historial: ${fechaAUsar}`);
+                    console.log(`[DEBUG] Estado cambió. Usando fecha proporcionada por el usuario: ${fechaAUsar}`);
                 } else {
-                    // No hay fecha nueva ni fecha previa
-                    console.log(`[DEBUG] No hay fecha disponible, usando NULL`);
+                    // Cuando el estado cambia, SIEMPRE usar la fecha actual para poder ordenar correctamente
+                    // Esto asegura que cada cambio de estado tenga una fecha única y más reciente
+                    const ahora = new Date();
+                    // Usar fecha y hora para mayor precisión, pero solo guardar la fecha (sin hora)
+                    fechaAUsar = ahora.toISOString().split('T')[0];
+                    console.log(`[DEBUG] Estado cambió. No se proporcionó fecha, usando fecha actual: ${fechaAUsar}`);
                 }
                 
                 // Verificar si ya existe un registro con esta combinación estado+postulación
@@ -123,17 +113,19 @@ export default class EstadoClienteM5Service {
                     await EstadoClientePostulacionM5.create({
                         id_postulacion,
                         id_estado_cliente_postulacion_m5,
-                        fecha_cambio_estado_cliente_m5: fechaAUsar as any
+                        fecha_cambio_estado_cliente_m5: fechaAUsar ? new Date(fechaAUsar + 'T00:00:00') : new Date()
                     }, { transaction });
                 } else {
                     console.log(`[DEBUG] Ya existe un registro con estado ${id_estado_cliente_postulacion_m5} para postulación ${id_postulacion}`);
-                    // Si el usuario proporciona una nueva fecha, actualizar el registro existente
-                    if (fecha_cambio_estado_cliente_m5) {
-                        console.log(`[DEBUG] Actualizando fecha del registro existente a: ${fecha_cambio_estado_cliente_m5}`);
-                        await registroExistente.update({
-                            fecha_cambio_estado_cliente_m5: fecha_cambio_estado_cliente_m5 as any
-                        }, { transaction });
-                    }
+                    // IMPORTANTE: Cuando el estado cambia, SIEMPRE actualizar la fecha al momento actual
+                    // para que podamos determinar cuál es el estado más reciente
+                    // Usar fecha/hora actual para garantizar unicidad, pero convertirlo a Date object
+                    const fechaParaActualizar = fechaAUsar ? new Date(fechaAUsar + 'T00:00:00') : new Date();
+                    console.log(`[DEBUG] Actualizando fecha del registro existente a: ${fechaParaActualizar.toISOString()}`);
+                    await registroExistente.update({
+                        fecha_cambio_estado_cliente_m5: fechaParaActualizar
+                    }, { transaction });
+                    console.log(`[DEBUG] Registro actualizado. Nueva fecha guardada: ${fechaParaActualizar.toISOString()}`);
                 }
             } else {
                 // El estado no cambió, pero puede que la fecha sí haya cambiado
@@ -255,20 +247,10 @@ export default class EstadoClienteM5Service {
             return [];
         }
 
-        // Obtener el último estado de cada postulación (el más reciente con fecha no nula)
+        // Obtener TODOS los estados de cada postulación (necesitamos todos para determinar el más reciente)
         const candidatosConEstadoM5 = await EstadoClientePostulacionM5.findAll({
             where: {
-                id_postulacion: idsPostulaciones,
-                [Op.and]: sequelize.literal(`
-                    ("EstadoClientePostulacionM5".id_postulacion, "EstadoClientePostulacionM5".id_estado_cliente_postulacion_m5) IN (
-                        SELECT DISTINCT ON (ecm5.id_postulacion) ecm5.id_postulacion, ecm5.id_estado_cliente_postulacion_m5
-                        FROM estado_cliente_postulacion_m5 ecm5
-                        WHERE ecm5.id_postulacion IN (${idsPostulaciones.join(',')})
-                        ORDER BY ecm5.id_postulacion, 
-                                 ecm5.fecha_cambio_estado_cliente_m5 DESC NULLS LAST,
-                                 ecm5.id_estado_cliente_postulacion_m5 DESC
-                    )
-                `)
+                id_postulacion: idsPostulaciones
             },
             include: [
                 {
@@ -286,7 +268,11 @@ export default class EstadoClienteM5Service {
                     as: 'estadoClienteM5'
                 }
             ],
-            order: [['id_postulacion', 'ASC']]
+            order: [
+                ['id_postulacion', 'ASC'],
+                ['fecha_cambio_estado_cliente_m5', 'DESC'],
+                ['id_estado_cliente_postulacion_m5', 'DESC']
+            ]
         });
 
         Logger.info(`[DEBUG] Encontrados ${candidatosConEstadoM5.length} registros en estado_cliente_postulacion_m5`);
@@ -327,11 +313,51 @@ export default class EstadoClienteM5Service {
             historialPorPostulacion.get(estado.id_postulacion)!.push(estado);
         });
 
-        // Agrupar por id_postulacion y tomar solo el primero (más reciente)
-        candidatosConEstadoM5.forEach(estado => {
-            if (!candidatosUnicos.has(estado.id_postulacion)) {
-                candidatosUnicos.set(estado.id_postulacion, estado);
+        // Agrupar por id_postulacion y tomar solo el más reciente
+        // Primero, agrupar todos los estados por postulación
+        const estadosPorPostulacion = new Map<number, any[]>();
+        candidatosConEstadoM5.forEach((estado: any) => {
+            if (!estadosPorPostulacion.has(estado.id_postulacion)) {
+                estadosPorPostulacion.set(estado.id_postulacion, []);
             }
+            estadosPorPostulacion.get(estado.id_postulacion)!.push(estado);
+        });
+        
+        // Para cada postulación, encontrar el estado más reciente
+        estadosPorPostulacion.forEach((estados: any[], idPostulacion: number) => {
+            // Ordenar por fecha descendente (más reciente primero)
+            // Si las fechas son iguales, el último insertado debería tener fecha actual
+            const estadoMasReciente = estados.sort((a: any, b: any) => {
+                const fechaA = a.fecha_cambio_estado_cliente_m5;
+                const fechaB = b.fecha_cambio_estado_cliente_m5;
+                
+                // Si ambos tienen fecha, comparar fechas (más reciente primero)
+                if (fechaA && fechaB) {
+                    const diffFecha = fechaB.getTime() - fechaA.getTime();
+                    if (diffFecha !== 0) return diffFecha;
+                    // Si las fechas son iguales, necesitamos otro criterio
+                    // En este caso, usamos el ID del estado como desempate
+                    // pero esto NO es ideal - deberíamos tener un timestamp de creación
+                    Logger.warn(`[DEBUG] Postulación ${idPostulacion}: Dos estados con la misma fecha. Estado A: ${(a as any).estadoClienteM5?.nombre_estado} (ID: ${a.id_estado_cliente_postulacion_m5}), Estado B: ${(b as any).estadoClienteM5?.nombre_estado} (ID: ${b.id_estado_cliente_postulacion_m5})`);
+                }
+                
+                // Si uno tiene fecha y el otro no, el que tiene fecha es más reciente
+                if (fechaA && !fechaB) return -1;
+                if (!fechaA && fechaB) return 1;
+                
+                // Si ambos no tienen fecha (no debería pasar ahora), usar ID del estado
+                const idA = a.id_estado_cliente_postulacion_m5 || 0;
+                const idB = b.id_estado_cliente_postulacion_m5 || 0;
+                return idB - idA;
+            })[0]; // Tomar el primero después de ordenar
+            
+            Logger.info(`[DEBUG] Postulación ${idPostulacion}: Estado más reciente encontrado: ${(estadoMasReciente as any).estadoClienteM5?.nombre_estado}, Fecha: ${estadoMasReciente.fecha_cambio_estado_cliente_m5}, ID Estado: ${estadoMasReciente.id_estado_cliente_postulacion_m5}`);
+            Logger.info(`[DEBUG] Postulación ${idPostulacion}: Todos los estados disponibles:`, estados.map((e: any) => ({
+                estado: (e as any).estadoClienteM5?.nombre_estado,
+                fecha: e.fecha_cambio_estado_cliente_m5,
+                id_estado: e.id_estado_cliente_postulacion_m5
+            })));
+            candidatosUnicos.set(idPostulacion, estadoMasReciente);
         });
 
         const resultado = Array.from(candidatosUnicos.values()).map(estado => {

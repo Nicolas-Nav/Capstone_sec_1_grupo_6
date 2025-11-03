@@ -287,6 +287,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     report_observations: "",
     report_sent_date: "",
   })
+  const [reportSentDateError, setReportSentDateError] = useState<string>("")
 
   // Determinar si es proceso de evaluación
   const isEvaluationProcess = process.service_type === "ES" || process.service_type === "TS"
@@ -372,36 +373,23 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       
       if (existingEvaluation) {
         // Actualizar evaluación existente
-        let fechaEnvioInforme = undefined
-        
-        // Para procesos PC, HS, TR: calcular fecha basada en client_feedback_date + 5 días hábiles
-        if (['PC', 'HS', 'TR'].includes(process.service_type) && selectedCandidate.client_feedback_date) {
-          const feedbackDate = new Date(selectedCandidate.client_feedback_date)
-          fechaEnvioInforme = addBusinessDays(feedbackDate, 5)
-        }
-
+        // NO actualizar fecha_envio_informe aquí - solo se actualiza cuando se gestiona el estado del informe
+        // Mantener la fecha existente si ya existe, no prellenar ni calcular
         const updateData = {
           fecha_evaluacion: interviewForm.interview_date || undefined,
           estado_evaluacion: interviewForm.interview_status === "programada" ? "Programada" : 
                             interviewForm.interview_status === "realizada" ? "Realizada" :
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
-          fecha_envio_informe: fechaEnvioInforme,
+          // NO incluir fecha_envio_informe aquí - solo se actualiza en el diálogo de "Estado del Informe"
         }
         
         await evaluacionPsicolaboralService.update(existingEvaluation.id_evaluacion_psicolaboral, updateData as any)
       } else {
         // Crear nueva evaluación
-        let fechaEnvioInforme = new Date()
-        
-        // Para procesos PC, HS, TR: calcular fecha basada en client_feedback_date + 5 días hábiles
-        if (['PC', 'HS', 'TR'].includes(process.service_type) && selectedCandidate.client_feedback_date) {
-          const feedbackDate = new Date(selectedCandidate.client_feedback_date)
-          fechaEnvioInforme = addBusinessDays(feedbackDate, 5)
-        }
-
+        // NO prellenar fecha_envio_informe - debe estar en blanco hasta que el consultor la ingrese al gestionar el estado del informe
         const createData = {
           fecha_evaluacion: interviewForm.interview_date || undefined,
-          fecha_envio_informe: fechaEnvioInforme,
+          fecha_envio_informe: null, // No prellenar - el consultor la ingresará al gestionar el estado del informe
           estado_evaluacion: interviewForm.interview_status === "programada" ? "Programada" : 
                             interviewForm.interview_status === "realizada" ? "Realizada" :
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
@@ -700,21 +688,30 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       setReportForm({
         report_status: reportStatus as "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | "",
         report_observations: existingEvaluation.conclusion_global || "",
+        // Si ya existe fecha, mostrarla, pero si no existe, dejar en blanco (NO prellenar con fecha de hoy)
         report_sent_date: existingEvaluation.fecha_envio_informe ? new Date(existingEvaluation.fecha_envio_informe).toISOString().split('T')[0] : "",
       })
     } else {
-      // Si no existe evaluación, limpiar el formulario
+      // Si no existe evaluación, limpiar el formulario (fecha en blanco, NO prellenar)
       setReportForm({
         report_status: "",
         report_observations: "",
         report_sent_date: "",
       })
     }
+    setReportSentDateError("")
     setShowReportDialog(true)
   }
 
   const handleSaveReport = async () => {
     if (!selectedCandidate) return
+
+    // Validar que la fecha de envío del informe sea obligatoria
+    if (!reportForm.report_sent_date || reportForm.report_sent_date.trim() === "") {
+      setReportSentDateError("Debe ingresarse la fecha de envío del informe")
+      return
+    }
+    setReportSentDateError("")
 
     try {
       // Buscar la evaluación existente para este candidato
@@ -797,6 +794,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       report_observations: "",
       report_sent_date: "",
     })
+    setReportSentDateError("")
     setSelectedCandidate(null)
       } else {
         throw new Error(response.message || "Error al actualizar el informe")
@@ -1925,7 +1923,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+      <Dialog open={showReportDialog} onOpenChange={(open) => {
+        setShowReportDialog(open)
+        if (!open) {
+          setReportSentDateError("")
+        }
+      }}>
         <DialogContent className="!max-w-[50vw] !w-[50vw] max-h-[90vh] overflow-y-auto" style={{ maxWidth: '50vw', width: '50vw' }}>
           <DialogHeader>
             <DialogTitle>Estado del Informe</DialogTitle>
@@ -1975,13 +1978,23 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="report_sent_date">Fecha de Envío del Informe al Cliente</Label>
+                <Label htmlFor="report_sent_date">
+                  Fecha de Envío del Informe al Cliente
+                  <span className="text-destructive ml-1">*</span>
+                </Label>
                 <Input
                   id="report_sent_date"
                   type="date"
                   value={reportForm.report_sent_date}
-                  onChange={(e) => setReportForm({ ...reportForm, report_sent_date: e.target.value })}
+                  onChange={(e) => {
+                    setReportForm({ ...reportForm, report_sent_date: e.target.value })
+                    // Limpiar error cuando el usuario empiece a ingresar la fecha
+                    if (reportSentDateError) setReportSentDateError("")
+                  }}
                 />
+                {reportSentDateError && (
+                  <p className="text-destructive text-sm">{reportSentDateError}</p>
+                )}
               </div>
 
               <div className="space-y-2">

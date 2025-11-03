@@ -95,11 +95,22 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   // Función para recargar datos (sin mostrar loading)
   const reloadData = async () => {
     try {
+      // Agregar timestamp para evitar caché del navegador
+      const timestamp = new Date().getTime()
       // Obtener candidatos que están en el módulo 5 (avanzados desde módulo 4)
       const response = await estadoClienteM5Service.getCandidatosEnModulo5(Number(process.id))
       if (response.success && response.data) {
-        console.log('[DEBUG FRONTEND] Datos recibidos del backend:', response.data)
-        setCandidates(response.data)
+        console.log('[DEBUG FRONTEND] Datos recibidos del backend después de actualizar:', response.data)
+        console.log('[DEBUG FRONTEND] Cantidad de candidatos:', response.data.length)
+        
+        // Actualizar el estado con los nuevos datos
+        const nuevosCandidatos = response.data.map((candidate: any) => ({
+          ...candidate,
+          id_postulacion: candidate.id_postulacion || candidate.id
+        }))
+        
+        console.log('[DEBUG FRONTEND] Candidatos mapeados:', nuevosCandidatos)
+        setCandidates(nuevosCandidatos)
         
         // Cargar estados guardados en contractedCandidates
         const contractedData = response.data
@@ -116,6 +127,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             contratacion_status: candidate.contratacion_status
           }))
         
+        console.log('[DEBUG FRONTEND] Contracted candidates actualizados:', contractedData)
         setContractedCandidates(contractedData)
       } else {
         console.error('Error al recargar candidatos del módulo 5:', response.message)
@@ -146,6 +158,14 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const handleContractSubmit = async () => {
     if (!selectedCandidate) return
 
+    // Validar comentarios obligatorios para estados específicos
+    const requiresComments = contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta"
+    if (requiresComments && (!contractForm.observations || contractForm.observations.trim() === "")) {
+      setObservationsError("Los comentarios son obligatorios para este estado")
+      return
+    }
+    setObservationsError("")
+
     try {
       // Llamar al API para actualizar el candidato en el backend
       const response = await estadoClienteM5Service.actualizarCandidatoModulo5(
@@ -158,14 +178,24 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       )
 
       if (response.success) {
+        // Cerrar el diálogo primero
+        setShowContractDialog(false)
+        setObservationsError("")
+        
         // Mostrar mensaje de éxito
         toast({
           title: "Éxito",
           description: "Estado del candidato actualizado exitosamente",
         })
         
+        // Esperar un momento para asegurar que la transacción del backend terminó
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
         // Recargar datos desde el backend para obtener la información actualizada
         await reloadData()
+        
+        // Forzar un re-render adicional
+        setCandidates(prev => [...prev])
       } else {
         toast({
           title: "Error",
@@ -190,6 +220,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       continues: true,
       observations: "",
     })
+    setObservationsError("")
     setSelectedCandidate(null)
   }
 
@@ -405,6 +436,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     continues: true,
     observations: "",
   })
+  const [observationsError, setObservationsError] = useState<string>("")
 
   // Función para obtener los estados disponibles según el estado actual
   const getAvailableStates = (currentStatus: HiringStatus): HiringStatus[] => {
@@ -561,9 +593,15 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
               <TableBody>
                 {candidates.map((candidate) => {
                   const contractedCandidate = contractedCandidates.find((cc) => cc.id === candidate.id)
+                  const candidateData = candidate as any
+                  const estadoInforme = candidateData.estado_informe
+                  // Asegurar que tenemos el hiring_status correcto
+                  const hiringStatus = candidateData.hiring_status || candidate.hiring_status || "en_espera_feedback"
+                  
+                  console.log('[DEBUG RENDER] Candidato:', candidate.name, 'hiring_status:', hiringStatus, 'datos completos:', candidateData)
                   
                   return (
-                    <TableRow key={candidate.id}>
+                    <TableRow key={`${candidate.id}-${hiringStatus}`}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
@@ -574,31 +612,31 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {candidate.estado_informe ? (
+                        {estadoInforme ? (
                           <Badge
                             variant={
-                              candidate.estado_informe === "Recomendable"
+                              estadoInforme === "Recomendable"
                                 ? "outline"
-                                : candidate.estado_informe === "No recomendable"
+                                : estadoInforme === "No recomendable"
                                   ? "destructive"
                                   : "secondary"
                             }
                             className={
-                              candidate.estado_informe === "Recomendable"
+                              estadoInforme === "Recomendable"
                                 ? "text-xs bg-green-100 text-green-800 border-green-300"
                                 : "text-xs"
                             }
                           >
-                            {candidate.estado_informe === "Recomendable" && "✓ Recomendable"}
-                            {candidate.estado_informe === "No recomendable" && "✗ No Recomendable"}
-                            {candidate.estado_informe === "Recomendable con observaciones" && "⚠ Recomendable con Observaciones"}
+                            {estadoInforme === "Recomendable" && "✓ Recomendable"}
+                            {estadoInforme === "No recomendable" && "✗ No Recomendable"}
+                            {estadoInforme === "Recomendable con observaciones" && "⚠ Recomendable con Observaciones"}
                           </Badge>
                         ) : (
                           <span className="text-sm text-muted-foreground">-</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        {getHiringStatusBadge((candidate.hiring_status || "en_espera_feedback") as HiringStatus)}
+                        {getHiringStatusBadge(hiringStatus as HiringStatus)}
                       </TableCell>
                       <TableCell>
                         {candidate.client_response_date ? (
@@ -791,7 +829,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                      </div>
+                        </div>
                       <p className="text-sm text-green-600">El candidato ha sido contratado exitosamente.</p>
                       
                       <div className="grid grid-cols-1 gap-4 mt-4">
@@ -826,18 +864,18 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                           <XCircle className="h-5 w-5 text-orange-600" />
                           <h4 className="font-medium text-orange-800">Candidato No Contratado</h4>
                         </div>
-                        <Button
-                          size="sm"
+                            <Button 
+                              size="sm" 
                           variant="ghost"
                           className="text-orange-700 hover:text-orange-800 hover:bg-orange-100"
-                          onClick={() => {
+                              onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "no_contratado")
                           }}
                         >
                           <Pencil className="h-4 w-4" />
-                        </Button>
-                      </div>
+                            </Button>
+                          </div>
                       <p className="text-sm text-orange-600">El candidato no fue contratado.</p>
                       
                       {candidate.observations && (
@@ -846,7 +884,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                           <div>
                             <p className="text-sm font-medium text-gray-700">Razón</p>
                             <p className="text-sm text-gray-600">{candidate.observations}</p>
-                          </div>
+                      </div>
                         </div>
                       )}
                     </div>
@@ -858,7 +896,12 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         </Card>
       )}
 
-      <Dialog open={showContractDialog} onOpenChange={setShowContractDialog}>
+      <Dialog open={showContractDialog} onOpenChange={(open) => {
+        setShowContractDialog(open)
+        if (!open) {
+          setObservationsError("")
+        }
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Gestión de Estado de Contratación</DialogTitle>
@@ -876,7 +919,11 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
               <Label>Estado de Contratación</Label>
               <Select
                 value={contractForm.hiring_status}
-                onValueChange={(value: HiringStatus) => setContractForm({ ...contractForm, hiring_status: value })}
+                onValueChange={(value: HiringStatus) => {
+                  setContractForm({ ...contractForm, hiring_status: value })
+                  // Limpiar error cuando se cambia el estado
+                  setObservationsError("")
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -904,14 +951,30 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
 
 
             <div className="space-y-2">
-              <Label htmlFor="observations">Observaciones del Módulo 5</Label>
+              <Label htmlFor="observations">
+                Observaciones del Módulo 5
+                {(contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta") && (
+                  <span className="text-destructive ml-1">*</span>
+                )}
+              </Label>
               <Textarea
                 id="observations"
                 value={contractForm.observations}
-                onChange={(e) => setContractForm({ ...contractForm, observations: e.target.value })}
-                placeholder="Comentarios adicionales sobre el proceso..."
+                onChange={(e) => {
+                  setContractForm({ ...contractForm, observations: e.target.value })
+                  // Limpiar error cuando el usuario empiece a escribir
+                  if (observationsError) setObservationsError("")
+                }}
+                placeholder={
+                  contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta"
+                    ? "Ingrese los comentarios (obligatorio)..."
+                    : "Comentarios adicionales sobre el proceso..."
+                }
                 rows={3}
               />
+              {observationsError && (
+                <p className="text-destructive text-sm">{observationsError}</p>
+              )}
             </div>
 
             {/* Información contextual según el estado */}

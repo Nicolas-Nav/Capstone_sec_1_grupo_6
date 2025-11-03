@@ -151,6 +151,10 @@ export default class EstadoClienteM5Controller {
     static async getCandidatosEnModulo5(req: Request, res: Response): Promise<Response> {
         try {
             const { id_proceso } = req.params;
+            // Agregar headers para prevenir caché y asegurar datos frescos
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
             const candidatos = await EstadoClienteM5Service.getCandidatosEnModulo5(parseInt(id_proceso));
             return sendSuccess(res, candidatos, 'Candidatos del Módulo 5 obtenidos exitosamente');
         } catch (error) {

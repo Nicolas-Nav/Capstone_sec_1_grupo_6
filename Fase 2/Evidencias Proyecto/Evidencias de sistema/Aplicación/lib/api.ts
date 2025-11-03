@@ -380,7 +380,7 @@ export const estadoClienteM5Service = {
   // Cambiar estado de cliente para una postulación (Módulo 5)
   async cambiarEstado(id_postulacion: number, data: {
     id_estado_cliente_postulacion_m5: number;
-    fecha_cambio_estado_cliente_m5: string;
+    fecha_feedback_cliente_m5: string;
     comentario_modulo5_cliente?: string;
   }): Promise<ApiResponse<any>> {
     return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}`, {
@@ -624,7 +624,6 @@ export const postulacionService = {
     comentario_no_presentado?: string;
     // Campos adicionales de postulación
     comentario_rech_obs_cliente?: string;
-    comentario_modulo5_cliente?: string;
     situacion_familiar?: string;
   }): Promise<ApiResponse<any>> {
     // Si hay archivo CV, usar FormData
@@ -644,7 +643,6 @@ export const postulacionService = {
       if (data.valoracion) formData.append('valoracion', data.valoracion.toString());
       if (data.comentario_no_presentado) formData.append('comentario_no_presentado', data.comentario_no_presentado);
       if (data.comentario_rech_obs_cliente) formData.append('comentario_rech_obs_cliente', data.comentario_rech_obs_cliente);
-      if (data.comentario_modulo5_cliente) formData.append('comentario_modulo5_cliente', data.comentario_modulo5_cliente);
       if (data.situacion_familiar) formData.append('situacion_familiar', data.situacion_familiar);
 
       const token = localStorage.getItem('llc_token');
@@ -678,7 +676,6 @@ export const postulacionService = {
     if (data.valoracion) payload.valoracion = data.valoracion;
     if (data.comentario_no_presentado) payload.comentario_no_presentado = data.comentario_no_presentado;
     if (data.comentario_rech_obs_cliente) payload.comentario_rech_obs_cliente = data.comentario_rech_obs_cliente;
-    if (data.comentario_modulo5_cliente) payload.comentario_modulo5_cliente = data.comentario_modulo5_cliente;
     if (data.situacion_familiar) payload.situacion_familiar = data.situacion_familiar;
     
     return apiRequest('/api/postulaciones', {

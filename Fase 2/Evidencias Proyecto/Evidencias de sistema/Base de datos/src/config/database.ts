@@ -23,11 +23,11 @@ const sequelize = new Sequelize({
   dialect: 'postgres',
   logging: NODE_ENV === 'development' ? console.log : false,
   pool: {
-    max: 20,
-    min: 2,
-    acquire: 30000,
-    idle: 10000,
-    evict: 1000
+    max: 5,         // URGENTE: Reducido a 5 por límite de PostgreSQL
+    min: 1,         // Reducido a 1 para usar menos conexiones
+    acquire: 30000, // 30 segundos para adquirir conexión
+    idle: 3000,     // Reducido a 3s - liberar conexiones MUY rápido
+    evict: 500      // Revisar cada 0.5s para liberar conexiones
   },
   define: {
     timestamps: false,

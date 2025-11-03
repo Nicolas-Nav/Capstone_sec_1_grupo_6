@@ -199,7 +199,6 @@ export class PostulacionService {
         disponibilidad_postulacion?: string;
         valoracion?: number;
         comentario_no_presentado?: string;
-        comentario_modulo5_cliente?: string;
         situacion_familiar?: string;
         cv_file?: Buffer;
     }) {
@@ -242,7 +241,6 @@ export class PostulacionService {
                 disponibilidad_postulacion: data.disponibilidad_postulacion,
                 valoracion: data.valoracion,
                 comentario_no_presentado: data.comentario_no_presentado,
-                comentario_modulo5_cliente: data.comentario_modulo5_cliente,
                 situacion_familiar: data.situacion_familiar,
                 cv_postulacion: data.cv_file
             }, { transaction });

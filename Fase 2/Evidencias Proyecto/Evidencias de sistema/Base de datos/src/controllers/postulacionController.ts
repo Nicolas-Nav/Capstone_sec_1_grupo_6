@@ -68,7 +68,6 @@ export class PostulacionController {
                     disponibilidad_postulacion,
                     valoracion,
                     comentario_no_presentado,
-                    comentario_modulo5_cliente,
                     situacion_familiar
                 } = req.body;
 
@@ -82,7 +81,6 @@ export class PostulacionController {
                     disponibilidad_postulacion,
                     valoracion: valoracion ? parseInt(valoracion) : undefined,
                     comentario_no_presentado,
-                    comentario_modulo5_cliente,
                     situacion_familiar,
                     cv_file: cvFile
                 });

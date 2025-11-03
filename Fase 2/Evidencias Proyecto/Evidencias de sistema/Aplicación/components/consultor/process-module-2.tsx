@@ -891,7 +891,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
             valoracion: newCandidate.consultant_rating,
             comentario_no_presentado: newCandidate.consultant_comment,
             // Campos adicionales de postulación
-            comentario_modulo5_cliente: newCandidate.portal_responses?.module5_comment || undefined,
             situacion_familiar: newCandidate.portal_responses?.family_situation || undefined,
             cv_file: newCandidate.cv_file || undefined // El archivo CV se maneja por separado
           }

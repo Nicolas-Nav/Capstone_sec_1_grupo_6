@@ -8,10 +8,12 @@ import sequelize from '@/config/database';
 interface EstadoClientePostulacionM5Attributes {
     id_estado_cliente_postulacion_m5: number;
     id_postulacion: number;
-    fecha_cambio_estado_cliente_m5: Date | null;
+    fecha_feedback_cliente_m5?: Date;
+    comentario_modulo5_cliente?: string;
+    updated_at: Date;
 }
 
-interface EstadoClientePostulacionM5CreationAttributes extends Optional<EstadoClientePostulacionM5Attributes, never> { }
+interface EstadoClientePostulacionM5CreationAttributes extends Optional<EstadoClientePostulacionM5Attributes, 'fecha_feedback_cliente_m5' | 'comentario_modulo5_cliente' | 'updated_at'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -20,7 +22,9 @@ interface EstadoClientePostulacionM5CreationAttributes extends Optional<EstadoCl
 class EstadoClientePostulacionM5 extends Model<EstadoClientePostulacionM5Attributes, EstadoClientePostulacionM5CreationAttributes> implements EstadoClientePostulacionM5Attributes {
     public id_estado_cliente_postulacion_m5!: number;
     public id_postulacion!: number;
-    public fecha_cambio_estado_cliente_m5!: Date | null;
+    public fecha_feedback_cliente_m5?: Date;
+    public comentario_modulo5_cliente?: string;
+    public updated_at!: Date;
 }
 
 // ===========================================
@@ -46,12 +50,18 @@ EstadoClientePostulacionM5.init({
             key: 'id_postulacion'
         }
     },
-    fecha_cambio_estado_cliente_m5: {
+    fecha_feedback_cliente_m5: {
         type: DataTypes.DATE,
-        allowNull: true,
-        validate: {
-            isDate: true
-        }
+        allowNull: true
+    },
+    comentario_modulo5_cliente: {
+        type: DataTypes.TEXT,
+        allowNull: true
+    },
+    updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW
     }
 }, {
     sequelize,
@@ -66,7 +76,7 @@ EstadoClientePostulacionM5.init({
             fields: ['id_postulacion']
         },
         {
-            fields: ['fecha_cambio_estado_cliente_m5']
+            fields: ['updated_at']
         }
     ]
 });

@@ -17,11 +17,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getCandidatesByProcess, estadoClienteM5Service } from "@/lib/api"
-import { formatDate } from "@/lib/utils"
+import { getCandidatesByProcess, estadoClienteM5Service, solicitudService } from "@/lib/api"
+import { formatDate, isProcessBlocked } from "@/lib/utils"
 import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle, Pencil } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
+import { ProcessBlocked } from "./ProcessBlocked"
 
 interface ProcessModule5Props {
   process: Process
@@ -142,12 +143,44 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     loadData()
   }, [process.id])
 
+  // Cargar estados de solicitud disponibles para finalización
+  useEffect(() => {
+    const loadEstados = async () => {
+      try {
+        setLoadingEstados(true)
+        const response = await solicitudService.getEstadosSolicitud()
+        if (response.success && response.data) {
+          // Filtrar solo estados finales (cerrado, congelado, cancelado, cierre extraordinario)
+          const estadosFinales = response.data.filter((estado: any) => {
+            const nombre = estado.nombre?.toLowerCase() || estado.nombre_estado_solicitud?.toLowerCase() || ""
+            return nombre.includes('cerrado') || 
+                   nombre.includes('congelado') || 
+                   nombre.includes('cancelado') || 
+                   nombre.includes('extraordinario')
+          })
+          setEstadosDisponibles(estadosFinales)
+        }
+      } catch (error) {
+        console.error("Error al cargar estados de solicitud:", error)
+      } finally {
+        setLoadingEstados(false)
+      }
+    }
+    loadEstados()
+  }, [])
+
   const [contractedCandidates, setContractedCandidates] = useState<ContractedCandidate[]>([])
   const [showContractDialog, setShowContractDialog] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
-  const [showClosureDialog, setShowClosureDialog] = useState(false)
-  const [closureReason, setClosureReason] = useState("")
   const [showContratacionDialog, setShowContratacionDialog] = useState(false)
+  
+  // Estados para finalizar solicitud (similar a Longlist)
+  const [processStatus, setProcessStatus] = useState<string>((process.estado_solicitud || process.status) as string)
+  const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
+  const [loadingEstados, setLoadingEstados] = useState(false)
+  const [showStatusChange, setShowStatusChange] = useState(false)
+  const [selectedEstado, setSelectedEstado] = useState<string>("")
+  const [statusChangeReason, setStatusChangeReason] = useState("")
   const [contratacionForm, setContratacionForm] = useState({
     fecha_ingreso_contratacion: "",
     observaciones_contratacion: "",
@@ -285,15 +318,127 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     setShowContractDialog(true)
   }
 
-  const handleProcessClosure = () => {
-    console.log(`Proceso cerrado: ${closureType}`)
-    console.log(`Vacantes llenas: ${contractedCount}/${totalVacancies}`)
-    console.log(`Razón: ${closureReason}`)
+  // Verificar si el proceso está bloqueado (estado final)
+  const isBlocked = isProcessBlocked(processStatus)
 
-    setShowClosureDialog(false)
-    setClosureReason("")
+  // Función para obtener el label dinámico según el estado seleccionado
+  const getReasonLabel = (): string => {
+    if (!selectedEstado) {
+      return "Motivo del Cambio (Opcional)"
+    }
 
-    alert(`Proceso cerrado ${closureType === "completo" ? "completamente" : "parcialmente"}`)
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+
+    if (!estadoSeleccionado) {
+      return "Motivo del Cambio (Opcional)"
+    }
+
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Motivo del cierre"
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Motivo del porqué se congela"
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Motivo de la cancelación"
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Motivo del cierre extraordinario"
+    }
+
+    return "Motivo del Cambio (Opcional)"
+  }
+
+  // Función para obtener el placeholder dinámico según el estado seleccionado
+  const getReasonPlaceholder = (): string => {
+    if (!selectedEstado) {
+      return "Explica el motivo de finalización..."
+    }
+
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+
+    if (!estadoSeleccionado) {
+      return "Explica el motivo de finalización..."
+    }
+
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Explica el motivo del cierre del proceso..."
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Explica el motivo por el cual se congela el proceso..."
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Explica el motivo de la cancelación del proceso..."
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Explica el motivo del cierre extraordinario del proceso..."
+    }
+
+    return "Explica el motivo de finalización..."
+  }
+
+  // Función para cambiar estado de la solicitud (finalizar)
+  const handleProcessClosure = async () => {
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede cambiar el estado de un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!selectedEstado) {
+      toast({
+        title: "Error",
+        description: "Debes seleccionar un estado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const response = await solicitudService.cambiarEstado(
+        parseInt(process.id), 
+        parseInt(selectedEstado),
+        statusChangeReason || undefined
+      )
+
+      if (response.success) {
+        toast({
+          title: "¡Éxito!",
+          description: "Solicitud finalizada exitosamente",
+          variant: "default",
+        })
+        setShowStatusChange(false)
+        setSelectedEstado("")
+        setStatusChangeReason("")
+        // Recargar la página para reflejar el cambio
+        window.location.reload()
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al finalizar la solicitud",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error al cambiar estado:", error)
+      toast({
+        title: "Error",
+        description: "Error al finalizar la solicitud",
+        variant: "destructive",
+      })
+    }
   }
 
   // Función para abrir el dialog de contratación
@@ -423,11 +568,6 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     candidatosEnProceso < (totalVacancies - contractedCount)
   
   const allVacanciesFilled = contractedCount >= totalVacancies
-  const canClose = contractedCandidates.length > 0
-
-  const closureType = allVacanciesFilled ? "completo" : "parcial"
-  const closureButtonText = allVacanciesFilled ? "Cerrar Proceso" : "Cierre Parcial"
-  const closureButtonVariant = allVacanciesFilled ? "default" : "secondary"
 
   const [contractForm, setContractForm] = useState({
     hiring_status: "en_espera_feedback" as HiringStatus,
@@ -542,6 +682,12 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         <h2 className="text-2xl font-bold mb-2">Módulo 5 - Seguimiento y Control</h2>
         <p className="text-muted-foreground">Gestiona la contratación final y seguimiento de candidatos</p>
       </div>
+
+      {/* Componente de bloqueo si el proceso está en estado final */}
+      <ProcessBlocked 
+        processStatus={processStatus} 
+        moduleName="Módulo 5" 
+      />
 
       {canReturnToModule2 && (
         <Card className="border-cyan-200 bg-cyan-50">
@@ -699,20 +845,14 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                     </Badge>
                   </div>
                 </div>
-                {canClose && (
-                  <Button
-                    variant={closureButtonVariant as any}
-                    onClick={() => setShowClosureDialog(true)}
-                    className={allVacanciesFilled ? "" : "border-cyan-300 text-cyan-700 hover:bg-cyan-100"}
-                  >
-                    {allVacanciesFilled ? (
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                    ) : (
-                      <XCircle className="mr-2 h-4 w-4" />
-                    )}
-                    {closureButtonText}
-                  </Button>
-                )}
+                <Button
+                  variant="default"
+                  className="hover:opacity-90 hover:scale-105 transition-all duration-200"
+                  onClick={() => setShowStatusChange(!showStatusChange)}
+                  disabled={isBlocked || loadingEstados}
+                >
+                  {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
+                </Button>
               </div>
             </div>
 
@@ -1009,22 +1149,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showClosureDialog} onOpenChange={setShowClosureDialog}>
+      {/* Dialog para finalizar solicitud */}
+      <Dialog open={showStatusChange} onOpenChange={setShowStatusChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{allVacanciesFilled ? "Cerrar Proceso" : "Cierre Parcial del Proceso"}</DialogTitle>
+            <DialogTitle>Finalizar Solicitud</DialogTitle>
             <DialogDescription>
-              {allVacanciesFilled ? (
-                <>
-                  Se han llenado todas las vacantes ({contractedCount}/{totalVacancies}). ¿Deseas cerrar el proceso
-                  completamente?
-                </>
-              ) : (
-                <>
-                  Se han llenado {contractedCount} de {totalVacancies} vacantes. ¿Deseas realizar un cierre parcial del
-                  proceso?
-                </>
-              )}
+              Selecciona el estado final del proceso y proporciona una razón si es necesario.
             </DialogDescription>
           </DialogHeader>
 
@@ -1042,41 +1173,57 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   Candidatos que continúan:{" "}
                   <strong>{contractedCandidates.filter((c) => c.hiring_status === "contratado" && c.continues).length}</strong>
                 </p>
-                <p>
-                  Tipo de cierre: <strong>{closureType === "completo" ? "Completo" : "Parcial"}</strong>
-                </p>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="closure_reason">
-                {allVacanciesFilled ? "Comentarios finales (opcional)" : "Razón del cierre parcial"}
-              </Label>
+            <div>
+              <Label htmlFor="estado_solicitud">Estado Final</Label>
+              <Select value={selectedEstado} onValueChange={setSelectedEstado}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecciona un estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  {estadosDisponibles.map((estado) => (
+                    <SelectItem
+                      key={estado.id || estado.id_estado_solicitud} 
+                      value={(estado.id || estado.id_estado_solicitud).toString()}
+                    >
+                      {estado.nombre || estado.nombre_estado_solicitud}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="status_reason">{getReasonLabel()}</Label>
               <Textarea
-                id="closure_reason"
-                value={closureReason}
-                onChange={(e) => setClosureReason(e.target.value)}
-                placeholder={
-                  allVacanciesFilled
-                    ? "Comentarios adicionales sobre el proceso completado..."
-                    : "Explica por qué se cierra parcialmente el proceso..."
-                }
+                id="status_reason"
+                value={statusChangeReason}
+                onChange={(e) => setStatusChangeReason(e.target.value)}
+                placeholder={getReasonPlaceholder()}
+                className="mt-1"
                 rows={3}
-                required={!allVacanciesFilled}
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowClosureDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowStatusChange(false)
+                setSelectedEstado("")
+                setStatusChangeReason("")
+              }}
+            >
               Cancelar
             </Button>
             <Button
               onClick={handleProcessClosure}
-              variant={allVacanciesFilled ? "default" : "secondary"}
-              disabled={!allVacanciesFilled && !closureReason.trim()}
+              disabled={!selectedEstado || isBlocked}
             >
-              {allVacanciesFilled ? "Cerrar Proceso" : "Cierre Parcial"}
+              Actualizar Estado
             </Button>
           </DialogFooter>
         </DialogContent>

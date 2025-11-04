@@ -21,7 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getCandidatesByProcess } from "@/lib/api"
-import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service } from "@/lib/api"
+import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service, solicitudService } from "@/lib/api"
 import { formatDate } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -909,6 +909,17 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
 
     try {
+      // Primero, actualizar la etapa de la solicitud al módulo 5
+      try {
+        const etapaResponse = await solicitudService.avanzarAModulo5(Number(process.id))
+        if (!etapaResponse.success) {
+          console.warn('Advertencia: No se pudo actualizar la etapa de la solicitud:', etapaResponse.message)
+        }
+      } catch (error) {
+        console.error('Error al actualizar etapa de solicitud:', error)
+        // Continuar aunque falle la actualización de etapa, ya que los candidatos pueden avanzar
+      }
+
       // Avanzar cada candidato con entrevista realizada
       const promises = candidatesWithRealizedInterview.map(async (candidate) => {
         try {

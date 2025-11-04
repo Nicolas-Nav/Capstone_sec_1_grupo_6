@@ -32,20 +32,93 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   const [descripcionCargo, setDescripcionCargo] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Leer parámetro tab de la URL
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const tab = urlParams.get('tab')
-    if (tab && ['modulo-1', 'modulo-2', 'modulo-3', 'modulo-4', 'modulo-5'].includes(tab)) {
-      setActiveTab(tab)
+  // Función para determinar el módulo activo basado en la etapa
+  const getModuleFromStage = (etapa: string | null | undefined, serviceType: string | null | undefined): string => {
+    if (!etapa || etapa === 'Sin etapa') {
+      return 'modulo-1'
     }
-  }, [])
+
+    // Mapeo de etapas a módulos según el tipo de servicio
+    if (etapa === 'Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral') {
+      // Solo PC tiene módulo 5
+      if (serviceType === 'PC') {
+        return 'modulo-5'
+      }
+      // Si no es PC, no debería estar en módulo 5, pero por seguridad:
+      // TS y ES tienen módulo 4, LL y HH tienen módulo 3
+      if (serviceType === 'TS' || serviceType === 'ES') {
+        return 'modulo-4'
+      }
+      if (serviceType === 'LL' || serviceType === 'HH') {
+        return 'modulo-3'
+      }
+      return 'modulo-1'
+    }
+
+    if (etapa === 'Módulo 4: Evaluación Psicolaboral') {
+      // Solo PC, TS y ES tienen módulo 4
+      if (serviceType === 'PC' || serviceType === 'TS' || serviceType === 'ES') {
+        return 'modulo-4'
+      }
+      // LL y HH no tienen módulo 4, mostrar módulo 3 como máximo
+      if (serviceType === 'LL' || serviceType === 'HH') {
+        return 'modulo-3'
+      }
+      return 'modulo-1'
+    }
+
+    if (etapa === 'Módulo 3: Presentación de Candidatos') {
+      // Solo PC, LL y HH tienen módulo 3
+      if (serviceType === 'PC' || serviceType === 'LL' || serviceType === 'HH') {
+        return 'modulo-3'
+      }
+      // TS y ES no tienen módulo 3 (esto sería un error de datos)
+      // Mostrar el módulo más alto disponible para ese servicio
+      if (serviceType === 'TS' || serviceType === 'ES') {
+        return 'modulo-4' // TS y ES tienen módulo 4
+      }
+      return 'modulo-1'
+    }
+
+    if (etapa === 'Módulo 2: Publicación y Registro de Candidatos') {
+      // Solo PC, LL y HH tienen módulo 2
+      if (serviceType === 'PC' || serviceType === 'LL' || serviceType === 'HH') {
+        return 'modulo-2'
+      }
+      // TS y ES no tienen módulo 2 (esto sería un error de datos)
+      // Mostrar el módulo más alto disponible para ese servicio
+      if (serviceType === 'TS' || serviceType === 'ES') {
+        return 'modulo-4' // TS y ES tienen módulo 4
+      }
+      return 'modulo-1'
+    }
+
+    // Por defecto, módulo 1
+    return 'modulo-1'
+  }
 
   useEffect(() => {
     if (user?.id) {
       loadProcessData()
     }
   }, [params.id, user])
+
+  // Establecer módulo activo basado en la etapa o parámetro tab de la URL cuando se carga el proceso
+  useEffect(() => {
+    if (process && !isLoading) {
+      const urlParams = new URLSearchParams(window.location.search)
+      const tabFromUrl = urlParams.get('tab')
+      
+      // Si hay parámetro tab en la URL, usarlo (tiene prioridad)
+      if (tabFromUrl && ['modulo-1', 'modulo-2', 'modulo-3', 'modulo-4', 'modulo-5', 'timeline'].includes(tabFromUrl)) {
+        setActiveTab(tabFromUrl)
+      } else {
+        // Si no hay parámetro tab, determinar el módulo basado en la etapa
+        const moduleFromStage = getModuleFromStage(process.etapa, process.tipo_servicio || process.service_type)
+        setActiveTab(moduleFromStage)
+      }
+    }
+  }, [process, isLoading])
 
   const loadProcessData = async () => {
     try {

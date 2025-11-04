@@ -85277,7 +85277,7 @@
 											"font": "Arial;13;0",
 											"parentStyle": true,
 											"left": 1008,
-											"top": -592,
+											"top": -480,
 											"height": 13
 										},
 										{
@@ -85289,7 +85289,7 @@
 											"font": "Arial;13;1",
 											"parentStyle": true,
 											"left": 1025,
-											"top": 247,
+											"top": 303,
 											"width": 227,
 											"height": 13,
 											"text": "Capa Frontend"
@@ -85304,7 +85304,7 @@
 											"font": "Arial;13;0",
 											"parentStyle": true,
 											"left": 1008,
-											"top": -592,
+											"top": -480,
 											"width": 73.67724609375,
 											"height": 13,
 											"text": "(from Model)"
@@ -85319,7 +85319,7 @@
 											"font": "Arial;13;0",
 											"parentStyle": true,
 											"left": 1008,
-											"top": -592,
+											"top": -480,
 											"height": 13,
 											"horizontalAlignment": 1
 										}
@@ -85327,7 +85327,7 @@
 									"font": "Arial;13;0",
 									"parentStyle": true,
 									"left": 1020,
-									"top": 240,
+									"top": 296,
 									"width": 237,
 									"height": 25,
 									"stereotypeLabel": {
@@ -85365,7 +85365,7 @@
 											"font": "Arial;13;0",
 											"parentStyle": true,
 											"left": 1025,
-											"top": 270,
+											"top": 326,
 											"width": 227,
 											"height": 13,
 											"text": "+Next.js 14",
@@ -85383,7 +85383,7 @@
 											"font": "Arial;13;0",
 											"parentStyle": true,
 											"left": 1025,
-											"top": 285,
+											"top": 341,
 											"width": 227,
 											"height": 13,
 											"text": "+React 18",
@@ -85401,7 +85401,7 @@
 											"font": "Arial;13;0",
 											"parentStyle": true,
 											"left": 1025,
-											"top": 300,
+											"top": 356,
 											"width": 227,
 											"height": 13,
 											"text": "+TypeScript",
@@ -85411,7 +85411,7 @@
 									"font": "Arial;13;0",
 									"parentStyle": true,
 									"left": 1020,
-									"top": 265,
+									"top": 321,
 									"width": 237,
 									"height": 53
 								},
@@ -85428,7 +85428,7 @@
 									"font": "Arial;13;0",
 									"parentStyle": true,
 									"left": 504,
-									"top": -296,
+									"top": -240,
 									"width": 10,
 									"height": 10
 								},
@@ -85445,7 +85445,7 @@
 									"font": "Arial;13;0",
 									"parentStyle": true,
 									"left": 504,
-									"top": -296,
+									"top": -240,
 									"width": 10,
 									"height": 10
 								},
@@ -85462,7 +85462,7 @@
 									"font": "Arial;13;0",
 									"parentStyle": true,
 									"left": 504,
-									"top": -296,
+									"top": -240,
 									"width": 10,
 									"height": 10
 								}
@@ -85471,7 +85471,7 @@
 							"parentStyle": false,
 							"containerChangeable": true,
 							"left": 1000,
-							"top": 240,
+							"top": 296,
 							"width": 256,
 							"height": 120,
 							"nameCompartment": {
@@ -86743,7 +86743,7 @@
 									"font": "Arial;13;0",
 									"parentStyle": false,
 									"left": 1143,
-									"top": 429,
+									"top": 457,
 									"height": 13,
 									"alpha": 1.5707963267948966,
 									"distance": 15,
@@ -86765,7 +86765,7 @@
 									"font": "Arial;13;0",
 									"parentStyle": false,
 									"left": 1127,
-									"top": 429,
+									"top": 457,
 									"width": 62.88623046875,
 									"height": 13,
 									"alpha": 1.5707963267948966,
@@ -86789,7 +86789,7 @@
 									"font": "Arial;13;0",
 									"parentStyle": false,
 									"left": 1114,
-									"top": 430,
+									"top": 458,
 									"height": 13,
 									"alpha": -1.5707963267948966,
 									"distance": 15,
@@ -86808,7 +86808,7 @@
 								"$ref": "AAAAAAGZt+BQao2KhNE="
 							},
 							"lineStyle": 1,
-							"points": "1129:361;1130:511",
+							"points": "1129:417;1130:511",
 							"showVisibility": true,
 							"nameLabel": {
 								"$ref": "AAAAAAGZt+fxcZBQ0jw="
@@ -87155,6 +87155,20 @@
 							"width": 224,
 							"height": 32,
 							"text": "Capa de Acceso a Datos"
+						},
+						{
+							"_type": "UMLTextView",
+							"_id": "AAAAAAGaSlu6FIK2mWU=",
+							"_parent": {
+								"$ref": "AAAAAAGZt97DtoroQiI="
+							},
+							"font": "Arial;13;0",
+							"parentStyle": false,
+							"left": 832,
+							"top": 240,
+							"width": 100,
+							"height": 38,
+							"text": "Arquitectura de software?"
 						}
 					]
 				},
@@ -89721,6 +89735,48 @@
 							"headQualifiersCompartment": {
 								"$ref": "AAAAAAGZt/U6nKPw1xc="
 							}
+						},
+						{
+							"_type": "UMLTextView",
+							"_id": "AAAAAAGaSluXlYI9JYk=",
+							"_parent": {
+								"$ref": "AAAAAAGZt9+ZRIyJALE="
+							},
+							"font": "Arial;13;0",
+							"parentStyle": false,
+							"left": 444,
+							"top": 282,
+							"width": 100,
+							"height": 38,
+							"text": "Arquitectura solución? "
+						},
+						{
+							"_type": "UMLTextView",
+							"_id": "AAAAAAGaSn8nhYcsNiw=",
+							"_parent": {
+								"$ref": "AAAAAAGZt9+ZRIyJALE="
+							},
+							"font": "Arial;13;0",
+							"parentStyle": false,
+							"left": 737,
+							"top": 710,
+							"width": 100,
+							"height": 38,
+							"text": "servidor aplicaciones"
+						},
+						{
+							"_type": "UMLTextView",
+							"_id": "AAAAAAGaSn9IHIe4KXo=",
+							"_parent": {
+								"$ref": "AAAAAAGZt9+ZRIyJALE="
+							},
+							"font": "Arial;13;0",
+							"parentStyle": false,
+							"left": 760,
+							"top": 960,
+							"width": 100,
+							"height": 38,
+							"text": "servidor base de datos "
 						}
 					]
 				},

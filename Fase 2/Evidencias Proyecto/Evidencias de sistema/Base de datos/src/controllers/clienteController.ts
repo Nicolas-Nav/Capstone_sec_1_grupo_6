@@ -70,7 +70,7 @@ export class ClienteController {
     static async create(req: Request, res: Response): Promise<Response> {
         try {
             const { name, contacts } = req.body;
-            const nuevoCliente = await ClienteService.createCliente({ name, contacts });
+            const nuevoCliente = await ClienteService.createCliente({ name, contacts }, req.user?.id);
             
             Logger.info(`Cliente creado: ${nuevoCliente.id}`);
             return sendSuccess(res, nuevoCliente, 'Cliente creado exitosamente', 201);
@@ -114,7 +114,7 @@ export class ClienteController {
             const { id } = req.params;
             const { name, contacts } = req.body;
             
-            const clienteActualizado = await ClienteService.updateCliente(parseInt(id), { name, contacts });
+            const clienteActualizado = await ClienteService.updateCliente(parseInt(id), { name, contacts }, req.user?.id);
             
             Logger.info(`Cliente actualizado: ${id}`);
             return sendSuccess(res, clienteActualizado, 'Cliente actualizado exitosamente');
@@ -160,7 +160,7 @@ export class ClienteController {
     static async delete(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            await ClienteService.deleteCliente(parseInt(id));
+            await ClienteService.deleteCliente(parseInt(id), req.user?.id);
             
             Logger.info(`Cliente eliminado: ${id}`);
             return sendSuccess(res, null, 'Cliente eliminado exitosamente');

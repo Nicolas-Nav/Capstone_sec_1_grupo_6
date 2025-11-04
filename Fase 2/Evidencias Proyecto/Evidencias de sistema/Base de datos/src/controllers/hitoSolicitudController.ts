@@ -33,7 +33,7 @@ export class HitoSolicitudController {
      */
     static async createPlantilla(req: Request, res: Response): Promise<Response> {
         try {
-            const plantilla = await HitoSolicitudService.createPlantilla(req.body);
+            const plantilla = await HitoSolicitudService.createPlantilla(req.body, req.user?.id);
             return sendSuccess(res, plantilla, 'Plantilla creada exitosamente', 201);
         } catch (error) {
             Logger.error('Error al crear plantilla:', error);
@@ -337,7 +337,7 @@ export class HitoSolicitudController {
     static async update(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            const hito = await HitoSolicitudService.updateHito(parseInt(id), req.body);
+            const hito = await HitoSolicitudService.updateHito(parseInt(id), req.body, req.user?.id);
             return sendSuccess(res, hito, 'Hito actualizado exitosamente');
         } catch (error) {
             Logger.error('Error al actualizar hito:', error);
@@ -352,7 +352,7 @@ export class HitoSolicitudController {
     static async delete(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            await HitoSolicitudService.deleteHito(parseInt(id));
+            await HitoSolicitudService.deleteHito(parseInt(id), req.user?.id);
             return sendSuccess(res, null, 'Hito eliminado exitosamente');
         } catch (error) {
             Logger.error('Error al eliminar hito:', error);

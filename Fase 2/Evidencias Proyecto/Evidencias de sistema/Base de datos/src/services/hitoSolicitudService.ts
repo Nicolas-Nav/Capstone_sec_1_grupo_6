@@ -1,5 +1,6 @@
 import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
+import { setDatabaseUser } from '@/utils/databaseUser';
 import { HitoSolicitud, Solicitud, DescripcionCargo, Contacto, Usuario, Cliente } from '@/models';
 import { FechasLaborales } from '@/utils/fechasLaborales';
 import { obtenerPlantillasPorServicio } from '@/data/plantillasHitos';
@@ -41,10 +42,15 @@ export class HitoSolicitudService {
         avisar_antes_dias: number;
         descripcion: string;
         codigo_servicio: string;
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const plantilla = await HitoSolicitud.create({
                 ...data,
                 id_solicitud: undefined,
@@ -510,10 +516,15 @@ export class HitoSolicitudService {
         fecha_base: Date;
         fecha_limite: Date;
         fecha_cumplimiento: Date;
-    }>) {
+    }>, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const hito = await HitoSolicitud.findByPk(id);
             if (!hito) {
                 throw new Error('Hito no encontrado');
@@ -531,10 +542,15 @@ export class HitoSolicitudService {
     /**
      * Eliminar hito (solo plantillas)
      */
-    static async deleteHito(id: number) {
+    static async deleteHito(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const hito = await HitoSolicitud.findByPk(id);
             if (!hito) {
                 throw new Error('Hito no encontrado');

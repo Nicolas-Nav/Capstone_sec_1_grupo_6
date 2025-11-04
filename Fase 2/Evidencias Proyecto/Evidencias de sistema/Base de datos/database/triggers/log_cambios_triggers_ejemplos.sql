@@ -460,14 +460,14 @@ BEGIN
             v_detalle := 'Expectativa de renta modificada';
         ELSIF OLD.fecha_envio IS NULL AND NEW.fecha_envio IS NOT NULL THEN
             v_detalle := 'Postulación #' || NEW.id_postulacion::TEXT || ' enviada';
-        ELSIF OLD.fecha_feedback_cliente IS NULL AND NEW.fecha_feedback_cliente IS NOT NULL THEN
-            v_detalle := 'Feedback del cliente registrado para postulación #' || NEW.id_postulacion::TEXT;
         ELSIF OLD.motivacion IS DISTINCT FROM NEW.motivacion THEN
             v_detalle := 'Motivación de postulación actualizada';
         ELSIF OLD.disponibilidad_postulacion IS DISTINCT FROM NEW.disponibilidad_postulacion THEN
             v_detalle := 'Disponibilidad de postulación actualizada';
         ELSIF OLD.cv_postulacion IS NULL AND NEW.cv_postulacion IS NOT NULL THEN
             v_detalle := 'CV agregado a postulación #' || NEW.id_postulacion::TEXT;
+        ELSIF OLD.comentario_no_presentado IS DISTINCT FROM NEW.comentario_no_presentado THEN
+            v_detalle := 'Comentario actualizado en postulación #' || NEW.id_postulacion::TEXT;
         ELSE
             v_detalle := 'Datos de postulación #' || NEW.id_postulacion::TEXT || ' actualizados';
         END IF;

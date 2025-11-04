@@ -214,7 +214,7 @@ export class PostulacionController {
                 expectativa_renta: expectativa_renta ? parseFloat(expectativa_renta) : undefined,
                 disponibilidad_postulacion,
                 comentario_no_presentado
-            });
+            }, req.user?.id);
 
             Logger.info(`Postulación actualizada ${id}`);
             return sendSuccess(res, null, 'Postulación actualizada exitosamente');

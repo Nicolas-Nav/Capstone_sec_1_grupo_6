@@ -1,6 +1,7 @@
 import { Transaction } from 'sequelize';
 import sequelize from '@/config/database';
 import { Logger } from '@/utils/logger';
+import { setDatabaseUser } from '@/utils/databaseUser';
 import {
     Postulacion,
     Candidato,
@@ -450,40 +451,54 @@ export class PostulacionService {
         expectativa_renta?: number;
         disponibilidad_postulacion?: string;
         comentario_no_presentado?: string;
-    }) {
+    }, usuarioRut?: string) {
         console.log('🔍 === SERVICIO updateValoracion ===');
         console.log('🔍 ID:', id);
         console.log('🔍 Data recibida:', JSON.stringify(data, null, 2));
         
-        // Validar valoración si se proporciona
-        if (data.valoracion !== undefined && (data.valoracion < 1 || data.valoracion > 5)) {
-            throw new Error('La valoración debe estar entre 1 y 5');
+        const transaction: Transaction = await sequelize.transaction();
+        
+        try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
+            // Validar valoración si se proporciona
+            if (data.valoracion !== undefined && (data.valoracion < 1 || data.valoracion > 5)) {
+                throw new Error('La valoración debe estar entre 1 y 5');
+            }
+
+            const postulacion = await Postulacion.findByPk(id, { transaction });
+            if (!postulacion) {
+                throw new Error('Postulación no encontrada');
+            }
+
+            console.log('🔍 Postulación encontrada:', postulacion.id_postulacion);
+            console.log('🔍 Valoración actual:', postulacion.valoracion);
+
+            // Actualizar solo los campos proporcionados
+            const updateData: any = {};
+            if (data.valoracion !== undefined) updateData.valoracion = data.valoracion;
+            if (data.motivacion !== undefined) updateData.motivacion = data.motivacion;
+            if (data.expectativa_renta !== undefined) updateData.expectativa_renta = data.expectativa_renta;
+            if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
+            if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
+
+            console.log('🔍 Datos a actualizar:', updateData);
+
+            await postulacion.update(updateData, { transaction });
+
+            await transaction.commit();
+            
+            console.log('🔍 Postulación actualizada exitosamente');
+            console.log('🔍 Nueva valoración:', postulacion.valoracion);
+
+            return { id, ...updateData };
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
         }
-
-        const postulacion = await Postulacion.findByPk(id);
-        if (!postulacion) {
-            throw new Error('Postulación no encontrada');
-        }
-
-        console.log('🔍 Postulación encontrada:', postulacion.id_postulacion);
-        console.log('🔍 Valoración actual:', postulacion.valoracion);
-
-        // Actualizar solo los campos proporcionados
-        const updateData: any = {};
-        if (data.valoracion !== undefined) updateData.valoracion = data.valoracion;
-        if (data.motivacion !== undefined) updateData.motivacion = data.motivacion;
-        if (data.expectativa_renta !== undefined) updateData.expectativa_renta = data.expectativa_renta;
-        if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
-        if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
-
-        console.log('🔍 Datos a actualizar:', updateData);
-
-        await postulacion.update(updateData);
-
-        console.log('🔍 Postulación actualizada exitosamente');
-        console.log('🔍 Nueva valoración:', postulacion.valoracion);
-
-        return { id, ...updateData };
     }
 
     /**

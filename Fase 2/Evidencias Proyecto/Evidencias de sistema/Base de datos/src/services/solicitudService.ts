@@ -1,7 +1,6 @@
 import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
 import { setDatabaseUser } from '@/utils/databaseUser';
-import { getCurrentUserContext } from '@/utils/userContext';
 import {
     Solicitud,
     DescripcionCargo,
@@ -471,13 +470,14 @@ export class SolicitudService {
         vacancies?: number;
         consultant_id: string;
         deadline_days?: number;
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
             // Establecer el usuario en la transacción para los triggers de auditoría
-            const currentUser = getCurrentUserContext();
-            await setDatabaseUser(currentUser, transaction);
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
 
             const {
                 contact_id,
@@ -618,13 +618,14 @@ export class SolicitudService {
         vacancies?: number;
         consultant_id?: string;
         deadline_days?: number;
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
             // Establecer el usuario en la transacción para los triggers de auditoría
-            const currentUser = getCurrentUserContext();
-            await setDatabaseUser(currentUser, transaction);
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
 
             const solicitud = await Solicitud.findByPk(id, {
                 include: [{ model: DescripcionCargo, as: 'descripcionCargo' }],
@@ -696,13 +697,14 @@ export class SolicitudService {
     /**
      * Actualizar estado de solicitud (Creado, En Progreso, Cerrado, Congelado)
      */
-    static async updateEstado(id: number, data: { status: string; reason?: string }) {
+    static async updateEstado(id: number, data: { status: string; reason?: string }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
             // Establecer el usuario en la transacción para los triggers de auditoría
-            const currentUser = getCurrentUserContext();
-            await setDatabaseUser(currentUser, transaction);
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
 
             const { status, reason } = data;
 
@@ -742,13 +744,14 @@ export class SolicitudService {
     /**
      * Cambiar etapa de solicitud (Módulo 1, 2, 3, 4, 5)
      */
-    static async cambiarEtapa(id: number, id_etapa: number) {
+    static async cambiarEtapa(id: number, id_etapa: number, usuarioRut?: string) {
         const transaction = await sequelize.transaction();
 
         try {
             // Establecer el usuario en la transacción para los triggers de auditoría
-            const currentUser = getCurrentUserContext();
-            await setDatabaseUser(currentUser, transaction);
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
 
             const solicitud = await Solicitud.findByPk(id, { transaction });
             if (!solicitud) {
@@ -773,13 +776,14 @@ export class SolicitudService {
     /**
      * Avanzar al módulo 2 (Publicación y Candidatos)
      */
-    static async avanzarAModulo2(id: number) {
+    static async avanzarAModulo2(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
             // Establecer el usuario en la transacción para los triggers de auditoría
-            const currentUser = getCurrentUserContext();
-            await setDatabaseUser(currentUser, transaction);
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
 
             const solicitud = await Solicitud.findByPk(id);
             if (!solicitud) {
@@ -1069,10 +1073,15 @@ export class SolicitudService {
     /**
      * Cambiar estado de solicitud por ID
      */
-    static async cambiarEstado(id: number, id_estado: number, reason?: string) {
+    static async cambiarEstado(id: number, id_estado: number, reason?: string, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const solicitud = await Solicitud.findByPk(id);
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
@@ -1107,10 +1116,15 @@ export class SolicitudService {
     /**
      * Eliminar solicitud
      */
-    static async deleteSolicitud(id: number) {
+    static async deleteSolicitud(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const solicitud = await Solicitud.findByPk(id);
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');

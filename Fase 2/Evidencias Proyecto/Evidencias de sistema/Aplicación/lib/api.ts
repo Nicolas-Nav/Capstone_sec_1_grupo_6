@@ -1076,3 +1076,111 @@ export const referenciaLaboralService = {
     });
   }
 };
+
+// ===========================================
+// INTERFACES DE LOG DE CAMBIOS
+// ===========================================
+
+export interface LogCambio {
+  id_log: number;
+  tabla_afectada: string;
+  id_registro: string;
+  accion: 'INSERT' | 'UPDATE' | 'DELETE';
+  detalle_cambio: string;
+  fecha_cambio: string;
+  usuario_responsable: string;
+}
+
+export interface LogEstadisticas {
+  total_logs: number;
+  por_tabla: { tabla: string; count: number }[];
+  por_accion: { accion: string; count: number }[];
+  usuarios_activos: number;
+  tablas_afectadas: number;
+  acciones_recientes: LogCambio[];
+}
+
+// ===========================================
+// SERVICIO DE USUARIOS
+// ===========================================
+
+export const userService = {
+  // Obtener todos los usuarios (para enriquecer logs)
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/users?limit=1000'); // Obtener todos los usuarios
+  },
+
+  // Obtener un usuario por RUT
+  async getByRut(rut: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/users/${rut}`);
+  }
+};
+
+// ===========================================
+// SERVICIO DE LOG DE CAMBIOS (HISTORIAL)
+// ===========================================
+
+export const logService = {
+  // Obtener logs con filtros opcionales
+  async getLogs(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<LogCambio[]>> {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+
+    const url = `/api/logs${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return apiRequest(url);
+  },
+
+  // Obtener logs con búsqueda y filtros avanzados
+  async search(params: {
+    search?: string;
+    tabla?: string;
+    accion?: string;
+    usuario?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<LogCambio[]>> {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.append('search', params.search);
+    if (params.tabla) queryParams.append('tabla', params.tabla);
+    if (params.accion) queryParams.append('accion', params.accion);
+    if (params.usuario) queryParams.append('usuario', params.usuario);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    return apiRequest(`/api/logs/search?${queryParams.toString()}`);
+  },
+
+  // Obtener estadísticas del historial
+  async getEstadisticas(): Promise<ApiResponse<LogEstadisticas>> {
+    return apiRequest('/api/logs/estadisticas');
+  },
+
+  // Obtener actividad reciente
+  async getReciente(limit: number = 10): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/reciente?limit=${limit}`);
+  },
+
+  // Obtener logs por tabla específica
+  async getByTabla(tabla: string, limit: number = 100): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/tabla/${tabla}?limit=${limit}`);
+  },
+
+  // Obtener logs por usuario específico
+  async getByUsuario(usuario: string, limit: number = 100): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/usuario/${usuario}?limit=${limit}`);
+  },
+
+  // Obtener logs por acción específica
+  async getByAccion(accion: string, limit: number = 100): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/accion/${accion}?limit=${limit}`);
+  },
+
+  // Obtener historial de un registro específico
+  async getHistorialRegistro(tabla: string, id: string): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/historial/${tabla}/${id}`);
+  }
+};

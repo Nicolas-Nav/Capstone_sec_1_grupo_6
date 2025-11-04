@@ -279,10 +279,10 @@ export const solicitudService = {
   },
 
   // Cambiar estado de solicitud por ID
-  async cambiarEstado(id: number, id_estado: number): Promise<ApiResponse<any>> {
+  async cambiarEstado(id: number, id_estado: number, reason?: string): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/estado`, {
       method: 'PUT',
-      body: JSON.stringify({ id_estado }),
+      body: JSON.stringify({ id_estado, reason }),
     });
   },
 
@@ -310,6 +310,13 @@ export const solicitudService = {
   // Avanzar al módulo 4
   async avanzarAModulo4(id: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/avanzar-modulo4`, {
+      method: 'PUT',
+    });
+  },
+
+  // Avanzar al módulo 5
+  async avanzarAModulo5(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/avanzar-modulo5`, {
       method: 'PUT',
     });
   },

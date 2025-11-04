@@ -384,6 +384,70 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     }
   }
 
+  // Función para obtener el label dinámico según el estado seleccionado
+  const getReasonLabel = (): string => {
+    if (!selectedEstado) {
+      return "Motivo del Cambio (Opcional)"
+    }
+
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+
+    if (!estadoSeleccionado) {
+      return "Motivo del Cambio (Opcional)"
+    }
+
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Motivo del cierre"
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Motivo del porqué se congela"
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Motivo de la cancelación"
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Motivo del cierre extraordinario"
+    }
+
+    return "Motivo del Cambio (Opcional)"
+  }
+
+  // Función para obtener el placeholder dinámico según el estado seleccionado
+  const getReasonPlaceholder = (): string => {
+    if (!selectedEstado) {
+      return "Explica el motivo de finalización..."
+    }
+
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+
+    if (!estadoSeleccionado) {
+      return "Explica el motivo de finalización..."
+    }
+
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Explica el motivo del cierre del proceso..."
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Explica el motivo por el cual se congela el proceso..."
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Explica el motivo de la cancelación del proceso..."
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Explica el motivo del cierre extraordinario del proceso..."
+    }
+
+    return "Explica el motivo de finalización..."
+  }
+
   // Función para cambiar estado de la solicitud (finalizar)
   const handleStatusChange = async (estadoId: string) => {
     // Validar que el proceso no esté bloqueado
@@ -586,7 +650,8 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                 </Badge>
               </div>
               <Button
-                variant="outline"
+                variant="default"
+                className="hover:opacity-90 hover:scale-105 transition-all duration-200"
                 onClick={() => setShowStatusChange(!showStatusChange)}
                 disabled={loadingEstados}
               >
@@ -594,64 +659,76 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
               </Button>
             </div>
 
-            {showStatusChange && (
-              <div className="mt-4 space-y-4 p-4 border rounded-lg bg-muted/50">
-                <div>
-                  <Label htmlFor="new-estado">Estado Final</Label>
-                  <Select
-                    value={selectedEstado}
-                    onValueChange={setSelectedEstado}
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Selecciona un estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {estadosDisponibles.map((estado) => (
-                        <SelectItem 
-                          key={estado.id || estado.id_estado_solicitud} 
-                          value={(estado.id || estado.id_estado_solicitud).toString()}
-                        >
-                          {estado.nombre || estado.nombre_estado_solicitud}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="reason">Motivo del Cambio (Opcional)</Label>
-                  <Textarea
-                    id="reason"
-                    placeholder="Explica el motivo de finalización..."
-                    value={statusChangeReason}
-                    onChange={(e) => setStatusChangeReason(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => handleStatusChange(selectedEstado)}
-                    disabled={!selectedEstado}
-                  >
-                    Actualizar Estado
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowStatusChange(false)
-                      setSelectedEstado("")
-                      setStatusChangeReason("")
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
+
+      {/* Dialog para finalizar solicitud */}
+      <Dialog open={showStatusChange} onOpenChange={setShowStatusChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Finalizar Solicitud</DialogTitle>
+            <DialogDescription>
+              Selecciona el estado final del proceso y proporciona una razón si es necesario.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="new-estado">Estado Final</Label>
+              <Select
+                value={selectedEstado}
+                onValueChange={setSelectedEstado}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecciona un estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  {estadosDisponibles.map((estado) => (
+                    <SelectItem 
+                      key={estado.id || estado.id_estado_solicitud} 
+                      value={(estado.id || estado.id_estado_solicitud).toString()}
+                    >
+                      {estado.nombre || estado.nombre_estado_solicitud}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="reason">{getReasonLabel()}</Label>
+              <Textarea
+                id="reason"
+                placeholder={getReasonPlaceholder()}
+                value={statusChangeReason}
+                onChange={(e) => setStatusChangeReason(e.target.value)}
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowStatusChange(false)
+                setSelectedEstado("")
+                setStatusChangeReason("")
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => handleStatusChange(selectedEstado)}
+              disabled={!selectedEstado}
+            >
+              Actualizar Estado
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Candidates Presentation Table */}
       <Card>

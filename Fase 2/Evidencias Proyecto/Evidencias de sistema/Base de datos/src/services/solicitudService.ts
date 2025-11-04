@@ -11,7 +11,9 @@ import {
     EstadoSolicitud,
     EstadoSolicitudHist,
     Cargo,
-    Comuna
+    Comuna,
+    Postulacion,
+    EstadoClientePostulacionM5
 } from '@/models';
 import { HitoSolicitudService } from './hitoSolicitudService';
 
@@ -195,6 +197,18 @@ export class SolicitudService {
         // Transformar al formato del frontend
         const transformedSolicitudes = rows.map(solicitud => this.transformSolicitud(solicitud));
 
+        // Verificar y actualizar etapas para solicitudes PC con candidatos en módulo 5 (de forma asíncrona, no bloquea la respuesta)
+        if (transformedSolicitudes.length > 0) {
+            // Ejecutar en segundo plano sin bloquear
+            Promise.all(
+                transformedSolicitudes
+                    .filter(s => s.tipo_servicio === 'PC')
+                    .map(s => this.verificarYActualizarEtapaModulo5(s.id_solicitud, 'PC'))
+            ).catch(error => {
+                console.error('Error al verificar etapas módulo 5 en getSolicitudes:', error);
+            });
+        }
+
         return {
             solicitudes: transformedSolicitudes,
             pagination: {
@@ -282,7 +296,73 @@ export class SolicitudService {
         });
 
         // Transformar al formato del frontend
-        return solicitudes.map(solicitud => this.transformSolicitud(solicitud));
+        const transformedSolicitudes = solicitudes.map(solicitud => this.transformSolicitud(solicitud));
+
+        // Verificar y actualizar etapas para solicitudes PC con candidatos en módulo 5 (de forma asíncrona, no bloquea la respuesta)
+        if (transformedSolicitudes.length > 0) {
+            // Ejecutar en segundo plano sin bloquear
+            Promise.all(
+                transformedSolicitudes
+                    .filter(s => s.tipo_servicio === 'PC')
+                    .map(s => this.verificarYActualizarEtapaModulo5(s.id_solicitud, 'PC'))
+            ).catch(error => {
+                console.error('Error al verificar etapas módulo 5 en getAllSolicitudes:', error);
+            });
+        }
+
+        return transformedSolicitudes;
+    }
+
+    /**
+     * Verificar y actualizar etapa si hay candidatos en módulo 5
+     */
+    private static async verificarYActualizarEtapaModulo5(idSolicitud: number, codigoServicio: string) {
+        // Solo verificar para servicios PC (Proceso Completo)
+        if (codigoServicio !== 'PC') {
+            return;
+        }
+
+        try {
+            // Verificar si hay postulaciones con candidatos en módulo 5
+            const postulaciones = await Postulacion.findAll({
+                where: { id_solicitud: idSolicitud },
+                attributes: ['id_postulacion']
+            });
+
+            if (postulaciones.length === 0) {
+                return;
+            }
+
+            const idsPostulaciones = postulaciones.map(p => p.id_postulacion);
+
+            // Verificar si hay alguna postulación con estado en módulo 5
+            const candidatosEnModulo5 = await EstadoClientePostulacionM5.findOne({
+                where: {
+                    id_postulacion: { [Op.in]: idsPostulaciones }
+                }
+            });
+
+            if (candidatosEnModulo5) {
+                // Buscar la etapa "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
+                const etapaModulo5 = await EtapaSolicitud.findOne({
+                    where: { nombre_etapa: 'Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral' }
+                });
+
+                if (etapaModulo5) {
+                    const solicitud = await Solicitud.findByPk(idSolicitud);
+                    if (solicitud && solicitud.id_etapa_solicitud !== etapaModulo5.id_etapa_solicitud) {
+                        // Actualizar la etapa solo si es diferente
+                        await solicitud.update({
+                            id_etapa_solicitud: etapaModulo5.id_etapa_solicitud
+                        });
+                        console.log(`✅ Etapa actualizada automáticamente a Módulo 5 para solicitud ${idSolicitud}`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error al verificar/actualizar etapa módulo 5:', error);
+            // No lanzar error, solo registrar
+        }
     }
 
     /**
@@ -331,7 +411,49 @@ export class SolicitudService {
             return null;
         }
 
-        return this.transformSolicitud(solicitud);
+        // Verificar y actualizar etapa si hay candidatos en módulo 5
+        await this.verificarYActualizarEtapaModulo5(id, solicitud.codigo_servicio);
+
+        // Recargar la solicitud para obtener la etapa actualizada
+        const solicitudActualizada = await Solicitud.findByPk(id, {
+            include: [
+                {
+                    model: Contacto,
+                    as: 'contacto',
+                    include: [
+                        { model: Cliente, as: 'cliente' },
+                        { model: Comuna, as: 'comuna' }
+                    ]
+                },
+                { model: TipoServicio, as: 'tipoServicio' },
+                {
+                    model: DescripcionCargo,
+                    as: 'descripcionCargo',
+                    include: [
+                        { model: Cargo, as: 'cargo' },
+                        { model: Comuna, as: 'comuna' }
+                    ]
+                },
+                {
+                    model: Usuario,
+                    as: 'usuario',
+                    attributes: ['rut_usuario', 'nombre_usuario', 'email_usuario']
+                },
+                { model: EtapaSolicitud, as: 'etapaSolicitud' },
+                {
+                    model: EstadoSolicitudHist,
+                    as: 'historialEstados',
+                    include: [{
+                        model: EstadoSolicitud,
+                        as: 'estado'
+                    }],
+                    limit: 1,
+                    order: [['fecha_cambio_estado_solicitud', 'DESC']]
+                }
+            ]
+        });
+
+        return this.transformSolicitud(solicitudActualizada);
     }
 
     /**
@@ -816,6 +938,55 @@ export class SolicitudService {
         } catch (error) {
             await transaction.rollback();
             console.error('❌ Error al avanzar al Módulo 4:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Avanzar al Módulo 5 (Seguimiento Posterior a la Evaluación Psicolaboral)
+     */
+    static async avanzarAModulo5(id: number) {
+        const transaction = await sequelize.transaction();
+
+        try {
+            const solicitud = await Solicitud.findByPk(id);
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            // Buscar la etapa "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
+            console.log('🔍 Buscando etapa Módulo 5...');
+            const etapaModulo5 = await EtapaSolicitud.findOne({
+                where: { nombre_etapa: 'Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral' }
+            });
+
+            console.log('📋 Etapa encontrada:', etapaModulo5);
+
+            if (!etapaModulo5) {
+                // Intentar buscar todas las etapas para debug
+                const todasLasEtapas = await EtapaSolicitud.findAll();
+                console.log('📋 Todas las etapas disponibles:', todasLasEtapas.map(e => ({ id: e.id_etapa_solicitud, nombre: e.nombre_etapa })));
+                throw new Error('Etapa Módulo 5 no encontrada');
+            }
+
+            // Actualizar la solicitud
+            await solicitud.update({
+                id_etapa_solicitud: etapaModulo5.id_etapa_solicitud 
+            }, { transaction });
+
+            await transaction.commit();
+
+            console.log('✅ Proceso avanzado al Módulo 5 exitosamente');
+            console.log('📋 Nueva etapa:', etapaModulo5.nombre_etapa);
+
+            return { 
+                success: true, 
+                message: 'Proceso avanzado al Módulo 5 exitosamente',
+                etapa: etapaModulo5.nombre_etapa
+            };
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error al avanzar al Módulo 5:', error);
             throw error;
         }
     }

@@ -22,8 +22,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getCandidatesByProcess } from "@/lib/api"
 import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service, solicitudService } from "@/lib/api"
-import { formatDate } from "@/lib/utils"
+import { formatDate, processStatusLabels, getStatusColor } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { ProcessBlocked } from "@/components/consultor/ProcessBlocked"
 import {
   Plus,
   ChevronDown,
@@ -203,6 +204,62 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     loadData()
   }, [process.id, process.service_type])
 
+  // Cargar estado del proceso y estados disponibles para finalización (solo ES y TS)
+  useEffect(() => {
+    // Inicializar estado desde el proceso
+    const initialStatus = (process.estado_solicitud || process.status || process.estado || "") as string
+    setProcessStatus(initialStatus)
+
+    const loadProcessStatus = async () => {
+      try {
+        const response = await solicitudService.getById(Number(process.id))
+        if (response.success && response.data) {
+          setProcessStatus(response.data.estado_solicitud || response.data.status || response.data.estado || "")
+        }
+      } catch (error) {
+        console.error("Error al cargar estado del proceso:", error)
+      }
+    }
+
+    const loadEstados = async () => {
+      // Solo cargar estados si es ES o TS
+      const serviceType = (process.service_type as string)?.toUpperCase() || ""
+      const isEvaluationProcess = serviceType === "ES" || serviceType === "TS"
+      
+      if (!isEvaluationProcess) {
+        return
+      }
+
+      try {
+        setLoadingEstados(true)
+        const response = await solicitudService.getEstadosSolicitud()
+        if (response.success && response.data) {
+          // Filtrar solo estados de cierre: Cerrado, Congelado, Cancelado, Cierre Extraordinario
+          const estadosCierre = response.data.filter((estado: any) => {
+            const nombre = estado.nombre?.toLowerCase() || estado.nombre_estado_solicitud?.toLowerCase() || ""
+            return nombre === "cerrado" || 
+                   nombre === "congelado" || 
+                   nombre === "cancelado" || 
+                   nombre === "cierre extraordinario"
+          })
+          setEstadosDisponibles(estadosCierre)
+        }
+      } catch (error) {
+        console.error("Error al cargar estados de solicitud:", error)
+        toast({
+          title: "Error",
+          description: "Error al cargar estados disponibles",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingEstados(false)
+      }
+    }
+
+    loadProcessStatus()
+    loadEstados()
+  }, [process.id, process.service_type])
+
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [showInterviewDialog, setShowInterviewDialog] = useState(false)
   const [showTestDialog, setShowTestDialog] = useState(false)
@@ -240,6 +297,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     email_referencia: "",
     comentario_referencia: "",
   })
+
+  // Estados para finalizar solicitud (solo ES y TS)
+  const [showStatusChange, setShowStatusChange] = useState(false)
+  const [selectedEstado, setSelectedEstado] = useState("")
+  const [statusChangeReason, setStatusChangeReason] = useState("")
+  const [loadingEstados, setLoadingEstados] = useState(false)
+  const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
+  const [processStatus, setProcessStatus] = useState<string>("")
 
   // Función para convertir datetime-local a Date preservando la hora local exacta (sin conversión UTC)
   const parseLocalDateTime = (dateTimeString: string): Date => {
@@ -288,6 +353,136 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     report_sent_date: "",
   })
   const [reportSentDateError, setReportSentDateError] = useState<string>("")
+
+  // Verificar si el proceso está bloqueado (estado final)
+  const isProcessBlocked = (status: string): boolean => {
+    const finalStates = ['cerrado', 'congelado', 'cancelado', 'cierre extraordinario']
+    return finalStates.some(state => 
+      status.toLowerCase().includes(state.toLowerCase())
+    )
+  }
+
+  const isBlocked = isProcessBlocked(processStatus)
+
+  // Función para obtener el label dinámico según el estado seleccionado
+  const getReasonLabel = (): string => {
+    if (!selectedEstado) {
+      return "Motivo del Cambio (Opcional)"
+    }
+
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+
+    if (!estadoSeleccionado) {
+      return "Motivo del Cambio (Opcional)"
+    }
+
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Motivo del cierre"
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Motivo del porqué se congela"
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Motivo de la cancelación"
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Motivo del cierre extraordinario"
+    }
+
+    return "Motivo del Cambio (Opcional)"
+  }
+
+  // Función para obtener el placeholder dinámico según el estado seleccionado
+  const getReasonPlaceholder = (): string => {
+    if (!selectedEstado) {
+      return "Explica el motivo de finalización..."
+    }
+
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+
+    if (!estadoSeleccionado) {
+      return "Explica el motivo de finalización..."
+    }
+
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Explica el motivo del cierre del proceso..."
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Explica el motivo por el cual se congela el proceso..."
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Explica el motivo de la cancelación del proceso..."
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Explica el motivo del cierre extraordinario del proceso..."
+    }
+
+    return "Explica el motivo de finalización..."
+  }
+
+  // Función para cambiar estado de la solicitud (finalizar)
+  const handleStatusChange = async (estadoId: string) => {
+    // Validar que el proceso no esté bloqueado
+    if (isBlocked) {
+      toast({
+        title: "Acción Bloqueada",
+        description: "No se puede cambiar el estado de un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!estadoId) {
+      toast({
+        title: "Error",
+        description: "Debes seleccionar un estado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const response = await solicitudService.cambiarEstado(
+        parseInt(process.id), 
+        parseInt(estadoId),
+        statusChangeReason || undefined
+      )
+
+      if (response.success) {
+        toast({
+          title: "¡Éxito!",
+          description: "Solicitud finalizada exitosamente",
+          variant: "default",
+        })
+        setShowStatusChange(false)
+        setSelectedEstado("")
+        setStatusChangeReason("")
+        // Recargar la página para reflejar el cambio
+        window.location.reload()
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al finalizar la solicitud",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error al cambiar estado:", error)
+      toast({
+        title: "Error",
+        description: "Error al finalizar la solicitud",
+        variant: "destructive",
+      })
+    }
+  }
 
   // Determinar si es proceso de evaluación
   const isEvaluationProcess = process.service_type === "ES" || process.service_type === "TS"
@@ -1016,6 +1211,45 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             : "Realiza evaluaciones psicolaborales a candidatos aprobados por el cliente"}
         </p>
       </div>
+
+      {/* Componente de bloqueo si el proceso está en estado final */}
+      <ProcessBlocked 
+        processStatus={processStatus} 
+        moduleName="Módulo 4" 
+      />
+
+      {/* Finalizar Solicitud - Solo para ES y TS */}
+      {isEvaluationProcess && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" />
+              Finalizar Solicitud
+            </CardTitle>
+            <CardDescription>
+              Una vez que hayas finalizado la evaluación de candidatos, puedes cerrar la solicitud
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <Label htmlFor="estado-select">Estado Actual: </Label>
+                <Badge className={getStatusColor(processStatus)}>
+                  {processStatusLabels[processStatus] || processStatus}
+                </Badge>
+              </div>
+              <Button
+                variant="default"
+                className="hover:opacity-90 hover:scale-105 transition-all duration-200"
+                onClick={() => setShowStatusChange(!showStatusChange)}
+                disabled={loadingEstados || isBlocked}
+              >
+                {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Process Header for Evaluation Processes */}
       {isEvaluationProcess && (
@@ -2071,6 +2305,75 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog para finalizar solicitud (solo ES y TS) */}
+      {isEvaluationProcess && (
+        <Dialog open={showStatusChange} onOpenChange={setShowStatusChange}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Finalizar Solicitud</DialogTitle>
+              <DialogDescription>
+                Selecciona el estado final del proceso y proporciona una razón si es necesario.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="new-estado">Estado Final</Label>
+                <Select
+                  value={selectedEstado}
+                  onValueChange={setSelectedEstado}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecciona un estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {estadosDisponibles.map((estado) => (
+                      <SelectItem 
+                        key={estado.id || estado.id_estado_solicitud} 
+                        value={(estado.id || estado.id_estado_solicitud).toString()}
+                      >
+                        {estado.nombre || estado.nombre_estado_solicitud}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="reason">{getReasonLabel()}</Label>
+                <Textarea
+                  id="reason"
+                  placeholder={getReasonPlaceholder()}
+                  value={statusChangeReason}
+                  onChange={(e) => setStatusChangeReason(e.target.value)}
+                  className="mt-1"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowStatusChange(false)
+                  setSelectedEstado("")
+                  setStatusChangeReason("")
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => handleStatusChange(selectedEstado)}
+                disabled={!selectedEstado}
+              >
+                Actualizar Estado
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

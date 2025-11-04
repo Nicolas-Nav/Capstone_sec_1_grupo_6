@@ -1,4 +1,4 @@
-﻿import { Transaction } from 'sequelize';
+﻿import { Transaction, QueryTypes } from 'sequelize';
 import sequelize from '@/config/database';
 
 /**
@@ -20,11 +20,11 @@ export async function setDatabaseUser(
 
   try {
     await sequelize.query(
-      'SET LOCAL app.current_user = :rutUsuario',
+      'SET LOCAL "app.current_user" = :rutUsuario',
       {
         transaction,
         replacements: { rutUsuario },
-        type: sequelize.QueryTypes.RAW,
+        type: QueryTypes.RAW,
       }
     );
   } catch (error) {

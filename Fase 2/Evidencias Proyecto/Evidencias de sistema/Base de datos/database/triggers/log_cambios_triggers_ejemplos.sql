@@ -17,7 +17,7 @@ DECLARE
 BEGIN
     -- Obtener usuario actual (puede venir de una variable de sesión o función de aplicación)
     v_usuario := COALESCE(
-        current_setting('app.current_user', true),
+        NULLIF(current_setting('app.current_user', true), ''),
         current_user,
         'system'
     );
@@ -93,8 +93,9 @@ DECLARE
     v_id_registro TEXT;
     v_usuario TEXT;
 BEGIN
+    -- Obtener usuario actual (puede venir de una variable de sesión o función de aplicación)
     v_usuario := COALESCE(
-        current_setting('app.current_user', true),
+        NULLIF(current_setting('app.current_user', true), ''),
         current_user,
         'system'
     );
@@ -164,8 +165,9 @@ DECLARE
     v_usuario TEXT;
     v_nombre_completo TEXT;
 BEGIN
+    -- Obtener usuario actual (puede venir de una variable de sesión o función de aplicación)
     v_usuario := COALESCE(
-        current_setting('app.current_user', true),
+        NULLIF(current_setting('app.current_user', true), ''),
         current_user,
         'system'
     );
@@ -234,8 +236,9 @@ DECLARE
     v_id_registro TEXT;
     v_usuario TEXT;
 BEGIN
+    -- Obtener usuario actual (puede venir de una variable de sesión o función de aplicación)
     v_usuario := COALESCE(
-        current_setting('app.current_user', true),
+        NULLIF(current_setting('app.current_user', true), ''),
         current_user,
         'system'
     );
@@ -296,8 +299,9 @@ DECLARE
     v_id_registro TEXT;
     v_usuario TEXT;
 BEGIN
+    -- Obtener usuario actual (puede venir de una variable de sesión o función de aplicación)
     v_usuario := COALESCE(
-        current_setting('app.current_user', true),
+        NULLIF(current_setting('app.current_user', true), ''),
         current_user,
         'system'
     );
@@ -362,8 +366,9 @@ DECLARE
     v_usuario TEXT;
     v_nombre_completo TEXT;
 BEGIN
+    -- Obtener usuario actual (puede venir de una variable de sesión o función de aplicación)
     v_usuario := COALESCE(
-        current_setting('app.current_user', true),
+        NULLIF(current_setting('app.current_user', true), ''),
         current_user,
         'system'
     );
@@ -431,8 +436,9 @@ DECLARE
     v_id_registro TEXT;
     v_usuario TEXT;
 BEGIN
+    -- Obtener usuario actual (puede venir de una variable de sesión o función de aplicación)
     v_usuario := COALESCE(
-        current_setting('app.current_user', true),
+        NULLIF(current_setting('app.current_user', true), ''),
         current_user,
         'system'
     );

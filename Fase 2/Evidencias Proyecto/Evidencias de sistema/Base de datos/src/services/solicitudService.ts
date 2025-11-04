@@ -1,5 +1,7 @@
 import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
+import { setDatabaseUser } from '@/utils/databaseUser';
+import { getCurrentUserContext } from '@/utils/userContext';
 import {
     Solicitud,
     DescripcionCargo,
@@ -473,6 +475,10 @@ export class SolicitudService {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            const currentUser = getCurrentUserContext();
+            await setDatabaseUser(currentUser, transaction);
+
             const {
                 contact_id,
                 service_type,
@@ -616,6 +622,10 @@ export class SolicitudService {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            const currentUser = getCurrentUserContext();
+            await setDatabaseUser(currentUser, transaction);
+
             const solicitud = await Solicitud.findByPk(id, {
                 include: [{ model: DescripcionCargo, as: 'descripcionCargo' }],
                 transaction
@@ -690,6 +700,10 @@ export class SolicitudService {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            const currentUser = getCurrentUserContext();
+            await setDatabaseUser(currentUser, transaction);
+
             const { status, reason } = data;
 
             const solicitud = await Solicitud.findByPk(id);
@@ -732,6 +746,10 @@ export class SolicitudService {
         const transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            const currentUser = getCurrentUserContext();
+            await setDatabaseUser(currentUser, transaction);
+
             const solicitud = await Solicitud.findByPk(id, { transaction });
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
@@ -759,6 +777,10 @@ export class SolicitudService {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            const currentUser = getCurrentUserContext();
+            await setDatabaseUser(currentUser, transaction);
+
             const solicitud = await Solicitud.findByPk(id);
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');

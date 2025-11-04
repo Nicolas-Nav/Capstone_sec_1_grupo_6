@@ -13,6 +13,7 @@ import {
     Rubro,
     Postulacion
 } from '@/models';
+import { setDatabaseUser } from '@/utils/databaseUser';
 
 /**
  * Servicio para gestión de Candidatos
@@ -444,10 +445,14 @@ export class CandidatoService {
             institution: string;
             completion_date: string;
         }>;
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
             const candidato = await Candidato.findByPk(id);
             if (!candidato) {
                 throw new Error('Candidato no encontrado');

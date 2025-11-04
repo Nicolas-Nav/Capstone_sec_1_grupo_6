@@ -182,7 +182,7 @@ export class CandidatoController {
                 licencia,
                 work_experience,
                 education
-            });
+            }, req.user?.id);
 
             Logger.info(`Candidato actualizado: ${id}`);
             return sendSuccess(res, candidatoActualizado, 'Candidato actualizado exitosamente');

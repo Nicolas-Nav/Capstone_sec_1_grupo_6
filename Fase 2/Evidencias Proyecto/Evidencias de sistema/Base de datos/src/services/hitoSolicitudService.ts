@@ -1,6 +1,9 @@
 import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
-import { HitoSolicitud, Solicitud } from '@/models';
+import { setDatabaseUser } from '@/utils/databaseUser';
+import { HitoSolicitud, Solicitud, DescripcionCargo, Contacto, Usuario, Cliente } from '@/models';
+import { FechasLaborales } from '@/utils/fechasLaborales';
+import { obtenerPlantillasPorServicio } from '@/data/plantillasHitos';
 
 /**
  * Servicio para gestión de Hitos de Solicitud
@@ -23,7 +26,7 @@ export class HitoSolicitudService {
 
         const plantillas = await HitoSolicitud.findAll({
             where,
-            order: [['codigo_servicio', 'ASC'], ['nombre_hito', 'ASC'], ['avisar_antes_horas', 'DESC']]
+            order: [['codigo_servicio', 'ASC'], ['nombre_hito', 'ASC'], ['avisar_antes_dias', 'DESC']]
         });
 
         return plantillas;
@@ -35,14 +38,19 @@ export class HitoSolicitudService {
     static async createPlantilla(data: {
         nombre_hito: string;
         tipo_ancla: string;
-        duracion_horas: number;
-        avisar_antes_horas: number;
+        duracion_dias: number;
+        avisar_antes_dias: number;
         descripcion: string;
         codigo_servicio: string;
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const plantilla = await HitoSolicitud.create({
                 ...data,
                 id_solicitud: undefined,
@@ -60,58 +68,42 @@ export class HitoSolicitudService {
     }
 
     // ===========================================
-    // COPIAR PLANTILLAS A SOLICITUD
+    // GESTIÓN DE HITOS POR SOLICITUD
     // ===========================================
 
     /**
-     * Copiar plantillas de hitos a una solicitud
-     * Se ejecuta automáticamente cuando se crea una solicitud
+     * Copiar plantillas a una solicitud específica
      */
     static async copiarPlantillasASolicitud(idSolicitud: number) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // Obtener la solicitud CON su código de servicio
+            // Obtener la solicitud para saber el tipo de servicio
             const solicitud = await Solicitud.findByPk(idSolicitud);
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
             }
 
-            // Obtener el código de servicio de la solicitud
-            const codigoServicio = solicitud.codigo_servicio;
-            if (!codigoServicio) {
-                throw new Error('La solicitud no tiene código de servicio asignado');
-            }
-
-            // Buscar plantillas del código de servicio
-            const plantillas = await HitoSolicitud.findAll({
-                where: {
-                    codigo_servicio: codigoServicio,
-                    id_solicitud: { [Op.is]: null } as any
-                }
-            });
+            // Obtener plantillas del servicio
+            const plantillas = obtenerPlantillasPorServicio(solicitud.codigo_servicio);
 
             if (plantillas.length === 0) {
-                throw new Error(`No hay plantillas de hitos para el servicio ${codigoServicio}`);
+                console.log(`No hay plantillas para el servicio ${solicitud.codigo_servicio}`);
+                await transaction.commit();
+                return [];
             }
 
-            // Copiar plantillas para esta solicitud
+            // Crear hitos basados en las plantillas
             const hitosCreados = [];
             for (const plantilla of plantillas) {
-                const hitoNuevo = await HitoSolicitud.create({
-                    nombre_hito: plantilla.nombre_hito,
-                    tipo_ancla: plantilla.tipo_ancla,
-                    duracion_horas: plantilla.duracion_horas,
-                    avisar_antes_horas: plantilla.avisar_antes_horas,
-                    descripcion: plantilla.descripcion,
-                    codigo_servicio: plantilla.codigo_servicio,
+                const hito = await HitoSolicitud.create({
+                    ...plantilla,
                     id_solicitud: idSolicitud,
                     fecha_base: undefined,
                     fecha_limite: undefined,
                     fecha_cumplimiento: undefined
                 }, { transaction });
-
-                hitosCreados.push(hitoNuevo);
+                hitosCreados.push(hito);
             }
 
             await transaction.commit();
@@ -122,101 +114,134 @@ export class HitoSolicitudService {
         }
     }
 
-    // ===========================================
-    // ACTIVAR HITOS (ASIGNAR FECHAS)
-    // ===========================================
-
     /**
-     * Activar hitos cuando ocurre un evento ancla
+     * Activar hitos por evento ancla
      */
     static async activarHitosPorEvento(idSolicitud: number, tipoAncla: string, fechaEvento: Date) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // Buscar hitos de esta solicitud con este tipo de ancla
-            const hitos = await HitoSolicitud.findAll({
+            // Buscar hitos pendientes con el tipo de ancla específico
+            const hitosPendientes = await HitoSolicitud.findAll({
                 where: {
                     id_solicitud: idSolicitud,
                     tipo_ancla: tipoAncla,
-                    fecha_base: { [Op.is]: null } as any // Solo los que no han sido activados
-                }
+                    fecha_base: { [Op.is]: null } as any
+                },
+                transaction
             });
 
-            if (hitos.length === 0) {
-                throw new Error(`No hay hitos pendientes de tipo ${tipoAncla} para esta solicitud`);
-            }
-
-            // Actualizar fechas de cada hito
-            const hitosActualizados = [];
-            for (const hito of hitos) {
-                const fechaBase = new Date(fechaEvento);
-                const fechaLimite = new Date(fechaBase.getTime() + (hito.duracion_horas * 60 * 60 * 1000));
+            // Activar cada hito
+            for (const hito of hitosPendientes) {
+                const fechaLimite = FechasLaborales.sumarDiasHabiles(fechaEvento, hito.duracion_dias);
 
                 await hito.update({
-                    fecha_base: fechaBase,
+                    fecha_base: fechaEvento,
                     fecha_limite: fechaLimite
                 }, { transaction });
-
-                hitosActualizados.push(hito);
             }
 
             await transaction.commit();
-            return hitosActualizados;
+            return hitosPendientes;
         } catch (error) {
             await transaction.rollback();
             throw error;
         }
     }
 
-    // ===========================================
-    // CONSULTAS PARA DASHBOARD
-    // ===========================================
-
     /**
-     * Obtener hitos por solicitud
+     * Obtener hitos de una solicitud específica
      */
     static async getHitosBySolicitud(idSolicitud: number) {
         const hitos = await HitoSolicitud.findAll({
             where: { id_solicitud: idSolicitud },
-            order: [['fecha_limite', 'ASC'], ['avisar_antes_horas', 'DESC']]
-        });
-
-        return hitos.map(h => ({
-            ...h.toJSON(),
-            estado: h.getEstado(),
-            horas_restantes: h.horasRestantes()
-        }));
-    }
-
-    /**
-     * Obtener hitos VENCIDOS (atrasados)
-     */
-    static async getHitosVencidos() {
-        const hitos = await HitoSolicitud.findAll({
-            where: {
-                id_solicitud: { [Op.not]: null } as any,
-                fecha_limite: { [Op.lt]: new Date() },
-                fecha_cumplimiento: { [Op.is]: null } as any
-            },
-            include: [{
-                model: Solicitud,
-                as: 'solicitud',
-                attributes: ['id_solicitud', 'codigo_servicio']
-            }],
             order: [['fecha_limite', 'ASC']]
         });
 
         return hitos.map(h => ({
             ...h.toJSON(),
-            estado: 'vencido',
-            horas_atrasadas: Math.abs(h.horasRestantes() || 0)
+            dias_restantes: h.diasHabilesRestantes(),
+            debe_avisar: h.debeAvisar()
         }));
+    }
+
+    // ===========================================
+    // CONSULTAS DASHBOARD
+    // ===========================================
+
+    /**
+     * Obtener hitos VENCIDOS (atrasados)
+     */
+    static async getHitosVencidos(consultor_id?: string) {
+        const where: any = {
+                id_solicitud: { [Op.not]: null } as any,
+                fecha_limite: { [Op.lt]: new Date() },
+                fecha_cumplimiento: { [Op.is]: null } as any
+        };
+
+        const hitos = await HitoSolicitud.findAll({
+            where,
+            include: [
+                {
+                model: Solicitud,
+                as: 'solicitud',
+                    required: true,
+                    include: [
+                        { model: DescripcionCargo, as: 'descripcionCargo' },
+                        { 
+                            model: Contacto, 
+                            as: 'contacto',
+                            include: [
+                                { model: Cliente, as: 'cliente' }
+                            ]
+                        },
+                        { model: Usuario, as: 'usuario', required: true }
+                    ]
+                }
+            ],
+            order: [['fecha_limite', 'ASC']]
+        });
+
+        // Filtrar por consultor si se especifica
+        let hitosFiltrados = hitos;
+        if (consultor_id) {
+            console.log(`🔍 [DEBUG] Filtrando hitos VENCIDOS para consultor_id: ${consultor_id}`);
+            console.log(`🔍 [DEBUG] Total hitos encontrados: ${hitos.length}`);
+            
+            hitosFiltrados = hitos.filter(h => {
+                const hitoData = h.toJSON() as any;
+                const rutUsuario = hitoData.solicitud?.rut_usuario;
+                const matches = rutUsuario === consultor_id;
+                
+                console.log(`🔍 [DEBUG] Hito ${hitoData.id_hito_solicitud}: rut_usuario=${rutUsuario}, matches=${matches}`);
+                
+                return matches;
+            });
+            
+            console.log(`🔍 [DEBUG] Hitos vencidos filtrados: ${hitosFiltrados.length}`);
+        }
+
+        return hitosFiltrados.map(h => {
+            const hitoData = h.toJSON() as any;
+            return {
+                ...hitoData,
+            estado: 'vencido',
+                dias_atrasados: Math.abs(h.diasHabilesRestantes() || 0),
+                descripcion: h.getMensajeAlerta(), // Usar mensaje dinámico
+                solicitud: hitoData.solicitud ? {
+                    ...hitoData.solicitud,
+                    descripcionCargo: hitoData.solicitud.descripcionCargo,
+                    contacto: hitoData.solicitud.contacto,
+                    usuario: hitoData.solicitud.usuario
+                } : null
+            };
+        });
     }
 
     /**
      * Obtener hitos POR VENCER (en período de aviso)
      */
-    static async getHitosPorVencer() {
+    static async getHitosPorVencer(consultor_id?: string) {
         const ahora = new Date();
         
         const hitos = await HitoSolicitud.findAll({
@@ -225,22 +250,65 @@ export class HitoSolicitudService {
                 fecha_limite: { [Op.gte]: ahora },
                 fecha_cumplimiento: { [Op.is]: null } as any
             },
-            include: [{
+            include: [
+                {
                 model: Solicitud,
                 as: 'solicitud',
-                attributes: ['id_solicitud', 'codigo_servicio']
-            }],
+                    required: true,
+                    include: [
+                        { model: DescripcionCargo, as: 'descripcionCargo' },
+                        { 
+                            model: Contacto, 
+                            as: 'contacto',
+                            include: [
+                                { model: Cliente, as: 'cliente' }
+                            ]
+                        },
+                        { model: Usuario, as: 'usuario', required: true }
+                    ]
+                }
+            ],
             order: [['fecha_limite', 'ASC']]
         });
 
-        // Filtrar solo los que deben avisar
-        const hitosPorVencer = hitos.filter(h => h.debeAvisar());
+        // Filtrar por consultor si se especifica
+        let hitosFiltrados = hitos;
+        if (consultor_id) {
+            console.log(`🔍 [DEBUG] Filtrando hitos POR VENCER para consultor_id: ${consultor_id}`);
+            console.log(`🔍 [DEBUG] Total hitos encontrados: ${hitos.length}`);
+            
+            hitosFiltrados = hitos.filter(h => {
+                const hitoData = h.toJSON() as any;
+                const rutUsuario = hitoData.solicitud?.rut_usuario;
+                const matches = rutUsuario === consultor_id;
+                
+                console.log(`🔍 [DEBUG] Hito ${hitoData.id_hito_solicitud}: rut_usuario=${rutUsuario}, matches=${matches}`);
 
-        return hitosPorVencer.map(h => ({
-            ...h.toJSON(),
-            estado: 'por_vencer',
-            horas_restantes: h.horasRestantes()
-        }));
+                return matches;
+            });
+            
+            console.log(`🔍 [DEBUG] Hitos por vencer filtrados: ${hitosFiltrados.length}`);
+        }
+
+        return hitosFiltrados.map(h => {
+            const hitoData = h.toJSON() as any;
+            const diasRestantes = h.diasHabilesRestantes();
+            const debeAvisar = h.debeAvisar();
+            
+            return {
+                ...hitoData,
+                estado: diasRestantes && diasRestantes < 0 ? 'vencido' : 'por_vencer',
+                dias_restantes: diasRestantes,
+                debe_avisar: debeAvisar,
+                descripcion: h.getMensajeAlerta(), // Usar mensaje dinámico
+                solicitud: hitoData.solicitud ? {
+                    ...hitoData.solicitud,
+                    descripcionCargo: hitoData.solicitud.descripcionCargo,
+                    contacto: hitoData.solicitud.contacto,
+                    usuario: hitoData.solicitud.usuario
+                } : null
+            };
+        });
     }
 
     /**
@@ -258,18 +326,36 @@ export class HitoSolicitudService {
 
         const hitos = await HitoSolicitud.findAll({
             where,
-            include: [{
+            include: [
+                {
                 model: Solicitud,
                 as: 'solicitud',
-                attributes: ['id_solicitud', 'codigo_servicio']
-            }],
-            order: [['id_solicitud', 'ASC'], ['nombre_hito', 'ASC']]
+                    include: [
+                        { model: DescripcionCargo, as: 'descripcionCargo' },
+                        { 
+                            model: Contacto, 
+                            as: 'contacto',
+                            include: [
+                                { model: Cliente, as: 'cliente' }
+                            ]
+                        },
+                        { model: Usuario, as: 'usuario' }
+                    ]
+                }
+            ],
+            order: [['nombre_hito', 'ASC']]
         });
 
-        return hitos.map(h => ({
-            ...h.toJSON(),
-            estado: 'pendiente'
-        }));
+        return hitos.map(h => {
+            const hitoData = h.toJSON() as any;
+            return {
+                ...hitoData,
+                estado: 'pendiente',
+                dias_restantes: null,
+                debe_avisar: false,
+                solicitud: hitoData.solicitud
+            };
+        });
     }
 
     /**
@@ -277,6 +363,7 @@ export class HitoSolicitudService {
      */
     static async getHitosCompletados(idSolicitud?: number) {
         const where: any = {
+            id_solicitud: { [Op.not]: null } as any,
             fecha_cumplimiento: { [Op.not]: null } as any
         };
 
@@ -286,46 +373,81 @@ export class HitoSolicitudService {
 
         const hitos = await HitoSolicitud.findAll({
             where,
-            include: [{
+            include: [
+                {
                 model: Solicitud,
                 as: 'solicitud',
-                attributes: ['id_solicitud', 'codigo_servicio']
-            }],
+                    include: [
+                        { model: DescripcionCargo, as: 'descripcionCargo' },
+                        { 
+                            model: Contacto, 
+                            as: 'contacto',
+                            include: [
+                                { model: Cliente, as: 'cliente' }
+                            ]
+                        },
+                        { model: Usuario, as: 'usuario' }
+                    ]
+                }
+            ],
             order: [['fecha_cumplimiento', 'DESC']]
         });
 
-        return hitos.map(h => ({
-            ...h.toJSON(),
-            estado: 'completado'
-        }));
+        return hitos.map(h => {
+            const hitoData = h.toJSON() as any;
+            return {
+                ...hitoData,
+                estado: 'completado',
+                dias_restantes: 0,
+                debe_avisar: false,
+                solicitud: hitoData.solicitud
+            };
+        });
     }
 
     /**
      * Estadísticas de hitos para dashboard
      */
     static async getEstadisticas() {
-        const total = await HitoSolicitud.count({ where: { id_solicitud: { [Op.not]: null } } as any });
-        const completados = await HitoSolicitud.count({ where: { fecha_cumplimiento: { [Op.not]: null } } as any });
-        const vencidos = await HitoSolicitud.count({
+        const totalHitos = await HitoSolicitud.count({ 
+            where: { id_solicitud: { [Op.not]: null } } as any
+        });
+
+        const hitosCompletados = await HitoSolicitud.count({
+            where: {
+                id_solicitud: { [Op.not]: null } as any,
+                fecha_cumplimiento: { [Op.not]: null } as any
+            }
+        });
+
+        const hitosVencidos = await HitoSolicitud.count({
             where: {
                 id_solicitud: { [Op.not]: null } as any,
                 fecha_limite: { [Op.lt]: new Date() },
                 fecha_cumplimiento: { [Op.is]: null } as any
-            } as any
-        });
-        const pendientes = await HitoSolicitud.count({
-            where: {
-                id_solicitud: { [Op.not]: null } as any,
-                fecha_base: { [Op.is]: null } as any
-            } as any
+            }
         });
 
+        const hitosPorVencer = await HitoSolicitud.count({
+            where: {
+                id_solicitud: { [Op.not]: null } as any,
+                fecha_limite: { [Op.gte]: new Date() },
+                fecha_cumplimiento: { [Op.is]: null } as any
+            }
+        });
+
+        const totalHitosNum = totalHitos as number;
+        const hitosCompletadosNum = hitosCompletados as number;
+        const hitosVencidosNum = hitosVencidos as number;
+        const hitosPorVencerNum = hitosPorVencer as number;
+
         return {
-            total,
-            completados,
-            vencidos,
-            pendientes,
-            activos: total - completados - pendientes
+            total: totalHitosNum,
+            completados: hitosCompletadosNum,
+            vencidos: hitosVencidosNum,
+            por_vencer: hitosPorVencerNum,
+            pendientes: totalHitosNum - hitosCompletadosNum - hitosVencidosNum - hitosPorVencerNum,
+            porcentaje_completados: totalHitosNum > 0 ? Math.round((hitosCompletadosNum / totalHitosNum) * 100) : 0
         };
     }
 
@@ -366,44 +488,49 @@ export class HitoSolicitudService {
     // ===========================================
 
     /**
-     * Obtener un hito por ID
+     * Obtener un hito específico
      */
     static async getHitoById(id: number) {
-        const hito = await HitoSolicitud.findByPk(id, {
-            include: [{
-                model: Solicitud,
-                as: 'solicitud'
-            }]
-        });
-
-        if (!hito) return null;
+        const hito = await HitoSolicitud.findByPk(id);
+        if (!hito) {
+            throw new Error('Hito no encontrado');
+        }
 
         return {
             ...hito.toJSON(),
-            estado: hito.getEstado(),
-            horas_restantes: hito.horasRestantes()
+            dias_restantes: hito.diasHabilesRestantes(),
+            debe_avisar: hito.debeAvisar()
         };
     }
 
     /**
-     * Actualizar un hito (solo plantillas o campos específicos)
+     * Actualizar hito
      */
     static async updateHito(id: number, data: Partial<{
         nombre_hito: string;
+        tipo_ancla: string;
+        duracion_dias: number;
+        avisar_antes_dias: number;
         descripcion: string;
-        duracion_horas: number;
-        avisar_antes_horas: number;
-    }>) {
+        codigo_servicio: string;
+        fecha_base: Date;
+        fecha_limite: Date;
+        fecha_cumplimiento: Date;
+    }>, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const hito = await HitoSolicitud.findByPk(id);
             if (!hito) {
                 throw new Error('Hito no encontrado');
             }
 
             await hito.update(data, { transaction });
-
             await transaction.commit();
             return hito;
         } catch (error) {
@@ -413,23 +540,27 @@ export class HitoSolicitudService {
     }
 
     /**
-     * Eliminar un hito (solo plantillas)
+     * Eliminar hito (solo plantillas)
      */
-    static async deleteHito(id: number) {
+    static async deleteHito(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const hito = await HitoSolicitud.findByPk(id);
             if (!hito) {
                 throw new Error('Hito no encontrado');
             }
 
             if (!hito.esPlantilla()) {
-                throw new Error('No se pueden eliminar hitos de solicitudes, solo plantillas');
+                throw new Error('Solo se pueden eliminar plantillas');
             }
 
             await hito.destroy({ transaction });
-
             await transaction.commit();
             return true;
         } catch (error) {

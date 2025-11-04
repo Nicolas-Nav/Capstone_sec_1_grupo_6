@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { ClienteController } from '@/controllers/clienteController';
-// import { authenticate } from '@/middleware/auth'; // Descomentar cuando esté listo
+import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
 
@@ -9,6 +9,7 @@ const router = Router();
  * Base: /api/clientes
  */
 
+// Rutas públicas de lectura (GET)
 // Obtener estadísticas de clientes
 router.get('/stats', ClienteController.getStats);
 
@@ -20,6 +21,11 @@ router.get('/all', ClienteController.getAllClientes);
 
 // Obtener un cliente específico
 router.get('/:id', ClienteController.getById);
+
+// ====================================
+// RUTAS PROTEGIDAS (requieren token)
+// ====================================
+router.use(authenticateToken);
 
 // Crear nuevo cliente
 router.post('/', ClienteController.create);

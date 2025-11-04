@@ -1,105 +1,114 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
-import { mockUsers } from "@/lib/mock-data"
+import { logService, userService, type LogCambio, type LogEstadisticas } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, History, User, FileText, Calendar } from "lucide-react"
+import { Search, History, User, FileText, Calendar, Loader2 } from "lucide-react"
 import { formatDateTime } from "@/lib/utils"
 
-// Mock audit log data
-const mockAuditLog = [
-  {
-    id: "1",
-    process_id: "1",
-    process_title: "Desarrollador Full Stack Senior",
-    user_id: "2",
-    user_name: "Carlos Rodríguez",
-    action: "Candidato agregado",
-    details: "Agregó candidato: Alejandro Ruiz",
-    timestamp: "2024-01-17T10:30:00Z",
-  },
-  {
-    id: "2",
-    process_id: "1",
-    process_title: "Desarrollador Full Stack Senior",
-    user_id: "2",
-    user_name: "Carlos Rodríguez",
-    action: "Estado actualizado",
-    details: "Cambió estado de candidato a 'Presentado'",
-    timestamp: "2024-01-20T14:00:00Z",
-  },
-  {
-    id: "3",
-    process_id: "2",
-    process_title: "Diseñador UX/UI",
-    user_id: "1",
-    user_name: "Ana García",
-    action: "Proceso creado",
-    details: "Creó nueva solicitud de reclutamiento",
-    timestamp: "2024-01-20T14:30:00Z",
-  },
-  {
-    id: "4",
-    process_id: "2",
-    process_title: "Diseñador UX/UI",
-    user_id: "3",
-    user_name: "María López",
-    action: "Proceso iniciado",
-    details: "Marcó el proceso como iniciado",
-    timestamp: "2024-01-22T08:00:00Z",
-  },
-  {
-    id: "5",
-    process_id: "1",
-    process_title: "Desarrollador Full Stack Senior",
-    user_id: "2",
-    user_name: "Carlos Rodríguez",
-    action: "Publicación realizada",
-    details: "Publicó en LinkedIn y GetOnBoard",
-    timestamp: "2024-01-16T14:30:00Z",
-  },
-  {
-    id: "6",
-    process_id: "3",
-    process_title: "Gerente de Ventas",
-    user_id: "1",
-    user_name: "Ana García",
-    action: "Consultor asignado",
-    details: "Asignó proceso a Carlos Rodríguez",
-    timestamp: "2024-01-25T11:15:00Z",
-  },
-  {
-    id: "7",
-    process_id: "1",
-    process_title: "Desarrollador Full Stack Senior",
-    user_id: "2",
-    user_name: "Carlos Rodríguez",
-    action: "Respuesta cliente",
-    details: "Cliente aprobó candidato: Alejandro Ruiz",
-    timestamp: "2024-01-21T16:30:00Z",
-  },
-  {
-    id: "8",
-    process_id: "4",
-    process_title: "Analista de Riesgos",
-    user_id: "1",
-    user_name: "Ana García",
-    action: "Proceso creado",
-    details: "Creó solicitud para test psicológico",
-    timestamp: "2024-01-28T16:45:00Z",
-  },
-]
+// Interfaces para enriquecimiento de datos
+interface LogEnriquecido extends LogCambio {
+  usuarioNombre?: string;
+}
+
+interface Usuario {
+  rut_usuario: string;
+  nombre_usuario: string;
+  apellido_usuario?: string;
+}
 
 export default function HistorialPage() {
   const { user } = useAuth()
+  const [logs, setLogs] = useState<LogEnriquecido[]>([])
+  const [stats, setStats] = useState<LogEstadisticas | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [userFilter, setUserFilter] = useState<string>("all")
-  const [actionFilter, setActionFilter] = useState<string>("all")
+  const [tablaFilter, setTablaFilter] = useState<string>("all")
+  const [accionFilter, setAccionFilter] = useState<string>("all")
+  const [usuarioFilter, setUsuarioFilter] = useState<string>("all")
+  const [usuariosMap, setUsuariosMap] = useState<Map<string, string>>(new Map())
+
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Cargar logs y estadísticas en paralelo
+        const [logsResponse, statsResponse] = await Promise.all([
+          logService.getLogs({ limit: 500 }),
+          logService.getEstadisticas()
+        ])
+
+        if (logsResponse.success && logsResponse.data) {
+          const logsData = logsResponse.data
+
+          // Enriquecer con nombres de usuario (Opción 1.5)
+          const rutUnicos = [...new Set(logsData.map((log: LogCambio) => log.usuario_responsable))]
+          
+          // Función para normalizar RUT (quitar puntos y guiones)
+          const normalizarRut = (rut: string): string => {
+            return rut.replace(/[.\-]/g, '').toLowerCase()
+          }
+          
+          try {
+            const usuariosResponse = await userService.getAll()
+            if (usuariosResponse.success && usuariosResponse.data) {
+              // La API puede devolver data.users como array o data directamente
+              const responseData: any = usuariosResponse.data
+              const usuariosData = responseData.users || responseData
+              const rutToNombre = new Map<string, string>()
+              
+              usuariosData.forEach((u: any) => {
+                // Construir nombre completo
+                const nombreCompleto = `${u.nombre_usuario || ''} ${u.apellido_usuario || ''}`.trim()
+                // Normalizar el RUT para hacer match correcto
+                const rutNormalizado = normalizarRut(u.rut_usuario)
+                rutToNombre.set(rutNormalizado, nombreCompleto)
+              })
+              
+              setUsuariosMap(rutToNombre)
+              
+              // Enriquecer logs con nombres
+              const logsEnriquecidos: LogEnriquecido[] = logsData.map((log: LogCambio) => ({
+                ...log,
+                usuarioNombre: rutToNombre.get(normalizarRut(log.usuario_responsable))
+              }))
+              
+              setLogs(logsEnriquecidos)
+            } else {
+              // Si falla cargar usuarios, usar solo logs
+              setLogs(logsData)
+            }
+          } catch (err) {
+            console.error('Error cargando usuarios para enriquecer:', err)
+            // Si falla cargar usuarios, usar solo logs
+            setLogs(logsData)
+          }
+        }
+
+        if (statsResponse.success && statsResponse.data) {
+          setStats(statsResponse.data)
+        }
+      } catch (err: any) {
+        console.error('Error cargando historial:', err)
+        setError(err.message || 'Error al cargar el historial de cambios')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (user?.role === "admin") {
+      loadData()
+    }
+  }, [user])
 
   if (user?.role !== "admin") {
     return (
@@ -112,20 +121,84 @@ export default function HistorialPage() {
     )
   }
 
-  const filteredAuditLog = mockAuditLog.filter((entry) => {
+  // Funciones auxiliares para formateo
+  const formatTabla = (tabla: string): string => {
+    const nombres: Record<string, string> = {
+      'solicitud': 'Solicitud',
+      'candidato': 'Candidato',
+      'postulacion': 'Postulación',
+      'hito_solicitud': 'Hito',
+      'cliente': 'Cliente',
+      'contacto': 'Contacto',
+      'usuario': 'Usuario'
+    }
+    return nombres[tabla] || tabla.charAt(0).toUpperCase() + tabla.slice(1)
+  }
+
+  const getAccionBadgeVariant = (accion: string): "default" | "secondary" | "destructive" | "outline" => {
+    if (accion === 'INSERT') return 'default'
+    if (accion === 'UPDATE') return 'secondary'
+    if (accion === 'DELETE') return 'destructive'
+    return 'outline'
+  }
+
+  const formatRut = (rut: string): string => {
+    // Formatear RUT: 209942917 → 20.994.291-7
+    const cleaned = rut.replace(/[^\dkK]/g, '')
+    if (cleaned.length <= 1) return cleaned
+    
+    const dv = cleaned.slice(-1)
+    const number = cleaned.slice(0, -1)
+    const reversed = number.split('').reverse().join('')
+    const formatted = reversed.match(/.{1,3}/g)?.join('.').split('').reverse().join('') || reversed
+    
+    return `${formatted}-${dv}`
+  }
+
+  // Filtrar logs
+  const filteredLogs = logs.filter((log) => {
     const matchesSearch =
-      entry.process_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.user_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.details.toLowerCase().includes(searchTerm.toLowerCase())
+      log.detalle_cambio.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.tabla_afectada.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.id_registro.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.usuarioNombre && log.usuarioNombre.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      log.usuario_responsable.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesUser = userFilter === "all" || entry.user_id === userFilter
-    const matchesAction = actionFilter === "all" || entry.action.toLowerCase().includes(actionFilter.toLowerCase())
+    const matchesTabla = tablaFilter === "all" || log.tabla_afectada === tablaFilter
+    const matchesAccion = accionFilter === "all" || log.accion === accionFilter
+    const matchesUsuario = usuarioFilter === "all" || log.usuario_responsable === usuarioFilter
 
-    return matchesSearch && matchesUser && matchesAction
+    return matchesSearch && matchesTabla && matchesAccion && matchesUsuario
   })
 
-  const uniqueActions = [...new Set(mockAuditLog.map((entry) => entry.action))]
+  // Obtener valores únicos para filtros
+  const tablasUnicas = [...new Set(logs.map(log => log.tabla_afectada))].sort()
+  const accionesUnicas: ('INSERT' | 'UPDATE' | 'DELETE')[] = ['INSERT', 'UPDATE', 'DELETE']
+  const usuariosUnicos = [...new Set(logs.map(log => log.usuario_responsable))].sort()
+
+  // Estado de carga
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Cargando historial de cambios...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Estado de error
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <h2 className="text-2xl font-bold text-destructive">Error al cargar historial</h2>
+          <p className="text-muted-foreground">{error}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -145,8 +218,8 @@ export default function HistorialPage() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockAuditLog.length}</div>
-            <p className="text-xs text-muted-foreground">Últimos 30 días</p>
+            <div className="text-2xl font-bold">{stats?.total_logs || logs.length}</div>
+            <p className="text-xs text-muted-foreground">Registros en sistema</p>
           </CardContent>
         </Card>
         <Card>
@@ -155,28 +228,32 @@ export default function HistorialPage() {
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{new Set(mockAuditLog.map((entry) => entry.user_id)).size}</div>
-            <p className="text-xs text-muted-foreground">Con actividad reciente</p>
+            <div className="text-2xl font-bold">
+              {stats?.usuarios_activos || new Set(logs.map(log => log.usuario_responsable)).size}
+            </div>
+            <p className="text-xs text-muted-foreground">Con actividad registrada</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Procesos Afectados</CardTitle>
+            <CardTitle className="text-sm font-medium">Tablas Afectadas</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{new Set(mockAuditLog.map((entry) => entry.process_id)).size}</div>
-            <p className="text-xs text-muted-foreground">Con movimientos</p>
+            <div className="text-2xl font-bold">
+              {stats?.tablas_afectadas || tablasUnicas.length}
+            </div>
+            <p className="text-xs text-muted-foreground">Con cambios registrados</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Acciones Únicas</CardTitle>
+            <CardTitle className="text-sm font-medium">Tipos de Acción</CardTitle>
             <History className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{uniqueActions.length}</div>
-            <p className="text-xs text-muted-foreground">Tipos de movimientos</p>
+            <div className="text-2xl font-bold">{accionesUnicas.length}</div>
+            <p className="text-xs text-muted-foreground">INSERT, UPDATE, DELETE</p>
           </CardContent>
         </Card>
       </div>
@@ -185,46 +262,100 @@ export default function HistorialPage() {
       <Card>
         <CardHeader>
           <CardTitle>Filtros</CardTitle>
+          <CardDescription>
+            Filtra y busca en el historial de cambios del sistema
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por proceso, usuario, acción o detalles..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por tabla, usuario, detalle o ID de registro..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
               </div>
             </div>
-            <Select value={userFilter} onValueChange={setUserFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Usuario" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los usuarios</SelectItem>
-                {mockUsers.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.name}
+            <div className="flex flex-col md:flex-row gap-4">
+              <Select value={tablaFilter} onValueChange={setTablaFilter}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue placeholder="Tabla" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las tablas</SelectItem>
+                  {tablasUnicas.map((tabla) => (
+                    <SelectItem key={tabla} value={tabla}>
+                      {formatTabla(tabla)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={accionFilter} onValueChange={setAccionFilter}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue placeholder="Acción" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las acciones</SelectItem>
+                  {accionesUnicas.map((accion) => (
+                    <SelectItem key={accion} value={accion}>
+                      {accion === 'INSERT' ? 'Creación' : accion === 'UPDATE' ? 'Actualización' : 'Eliminación'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={usuarioFilter} onValueChange={setUsuarioFilter}>
+                <SelectTrigger className="w-full md:w-[250px]">
+                  <SelectValue placeholder="Usuario">
+                    {usuarioFilter === "all" ? (
+                      "Todos los usuarios"
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        <span>
+                          {usuariosMap.get(usuarioFilter.replace(/[.\-]/g, '').toLowerCase()) || formatRut(usuarioFilter)}
+                        </span>
+                      </div>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>Todos los usuarios</span>
+                    </div>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Tipo de acción" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las acciones</SelectItem>
-                {uniqueActions.map((action) => (
-                  <SelectItem key={action} value={action.toLowerCase()}>
-                    {action}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  {usuariosUnicos.map((rut) => {
+                    const normalizarRut = (rutStr: string): string => {
+                      return rutStr.replace(/[.\-]/g, '').toLowerCase()
+                    }
+                    const nombreUsuario = usuariosMap.get(normalizarRut(rut))
+                    return (
+                      <SelectItem key={rut} value={rut}>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 flex-shrink-0" />
+                          <div className="flex flex-col min-w-0">
+                            {nombreUsuario ? (
+                              <>
+                                <span className="font-medium truncate">{nombreUsuario}</span>
+                                <span className="text-xs text-muted-foreground font-mono">{formatRut(rut)}</span>
+                              </>
+                            ) : (
+                              <span className="font-mono">{formatRut(rut)}</span>
+                            )}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -234,49 +365,80 @@ export default function HistorialPage() {
         <CardHeader>
           <CardTitle>Registro de Actividad</CardTitle>
           <CardDescription>
-            {filteredAuditLog.length} de {mockAuditLog.length} movimientos
+            {filteredLogs.length} de {logs.length} movimientos
+            {filteredLogs.length === 0 && " (sin resultados con los filtros actuales)"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fecha y Hora</TableHead>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Proceso</TableHead>
-                <TableHead>Acción</TableHead>
-                <TableHead>Detalles</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAuditLog
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell className="font-mono text-sm">{formatDateTime(entry.timestamp)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
-                          {entry.user_name.charAt(0)}
-                        </div>
-                        <span className="text-sm">{entry.user_name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-[200px] truncate" title={entry.process_title}>
-                        {entry.process_title}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{entry.action}</Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[300px] truncate" title={entry.details}>
-                      {entry.details}
-                    </TableCell>
+          {filteredLogs.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No se encontraron registros</p>
+              <p className="text-sm">Intenta ajustar los filtros de búsqueda</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[180px]">Fecha y Hora</TableHead>
+                    <TableHead>Usuario</TableHead>
+                    <TableHead>Tabla</TableHead>
+                    <TableHead className="w-[100px]">Registro ID</TableHead>
+                    <TableHead className="w-[120px]">Acción</TableHead>
+                    <TableHead>Detalle</TableHead>
                   </TableRow>
-                ))}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredLogs
+                    .sort((a, b) => new Date(b.fecha_cambio).getTime() - new Date(a.fecha_cambio).getTime())
+                    .map((log) => (
+                      <TableRow key={log.id_log}>
+                        <TableCell className="font-mono text-sm">
+                          {formatDateTime(log.fecha_cambio)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            {log.usuarioNombre ? (
+                              <>
+                                <span className="text-sm font-medium">{log.usuarioNombre}</span>
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  {formatRut(log.usuario_responsable)}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-sm font-mono">
+                                {formatRut(log.usuario_responsable)}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-normal">
+                            {formatTabla(log.tabla_afectada)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {log.id_registro}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getAccionBadgeVariant(log.accion)}>
+                            {log.accion === 'INSERT' ? 'Crear' : 
+                             log.accion === 'UPDATE' ? 'Actualizar' : 
+                             'Eliminar'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="max-w-[400px] truncate" title={log.detalle_cambio}>
+                            {log.detalle_cambio}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

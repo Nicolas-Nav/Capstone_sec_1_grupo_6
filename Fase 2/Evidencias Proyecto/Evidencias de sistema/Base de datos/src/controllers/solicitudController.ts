@@ -127,7 +127,7 @@ export class SolicitudController {
                 vacancies: vacancies ? parseInt(vacancies) : undefined,
                 consultant_id,
                 deadline_days: deadline_days ? parseInt(deadline_days) : undefined
-            });
+            }, req.user?.id);
 
             Logger.info(`Solicitud creada: ${nuevaSolicitud.id}`);
             return sendSuccess(res, nuevaSolicitud, 'Solicitud creada exitosamente', 201);
@@ -148,11 +148,11 @@ export class SolicitudController {
 
             // Si se envía id_estado, usar el método de cambio por ID
             if (id_estado) {
-                await SolicitudService.cambiarEstado(parseInt(id), parseInt(id_estado), reason);
-                Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado}${reason ? ` con motivo: ${reason}` : ''}`);
+                await SolicitudService.cambiarEstado(parseInt(id), parseInt(id_estado), reason, req.user?.id);
+                Logger.info(`Estado de solicitud ${id} cambiado a ID: ${id_estado}`);
             } else {
                 // Mantener compatibilidad con el método anterior
-            await SolicitudService.updateEstado(parseInt(id), { status, reason });
+                await SolicitudService.updateEstado(parseInt(id), { status, reason }, req.user?.id);
                 Logger.info(`Estado actualizado para solicitud ${id}: ${status}`);
             }
 
@@ -181,7 +181,7 @@ export class SolicitudController {
             const { id } = req.params;
             const { id_etapa } = req.body;
 
-            const resultado = await SolicitudService.cambiarEtapa(parseInt(id), parseInt(id_etapa));
+            const resultado = await SolicitudService.cambiarEtapa(parseInt(id), parseInt(id_etapa), req.user?.id);
 
             Logger.info(`Etapa actualizada para solicitud ${id}: ${resultado.etapa}`);
             return sendSuccess(res, resultado, 'Etapa actualizada exitosamente');
@@ -203,7 +203,7 @@ export class SolicitudController {
     static async delete(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            await SolicitudService.deleteSolicitud(parseInt(id));
+            await SolicitudService.deleteSolicitud(parseInt(id), req.user?.id);
 
             Logger.info(`Solicitud eliminada: ${id}`);
             return sendSuccess(res, null, 'Solicitud eliminada exitosamente');
@@ -247,7 +247,7 @@ export class SolicitudController {
                 vacancies: vacancies ? parseInt(vacancies) : undefined,
                 consultant_id,
                 deadline_days: deadline_days ? parseInt(deadline_days) : undefined
-            });
+            }, req.user?.id);
 
             Logger.info(`Solicitud actualizada: ${id}`);
             return sendSuccess(res, solicitudActualizada, 'Solicitud actualizada exitosamente');
@@ -273,7 +273,7 @@ export class SolicitudController {
                 return sendError(res, 'ID de solicitud inválido', 400);
             }
 
-            const result = await SolicitudService.avanzarAModulo2(solicitudId);
+            const result = await SolicitudService.avanzarAModulo2(solicitudId, req.user?.id);
             
             Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 2`);
             return sendSuccess(res, result, result.message);
@@ -351,6 +351,37 @@ export class SolicitudController {
             }
             
             return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
+        }
+    }
+
+    /**
+     * Avanzar al módulo 5
+     */
+    static async avanzarAModulo5(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const solicitudId = parseInt(id);
+
+            if (isNaN(solicitudId)) {
+                return sendError(res, 'ID de solicitud inválido', 400);
+            }
+
+            const result = await SolicitudService.avanzarAModulo5(solicitudId);
+            
+            Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 5`);
+            return sendSuccess(res, result, result.message);
+        } catch (error: any) {
+            Logger.error('Error al avanzar al módulo 5:', error);
+            
+            if (error.message === 'Solicitud no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+            
+            if (error.message === 'Etapa Módulo 5 no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+            
+            return sendError(res, 'Error al avanzar al módulo 5', 500);
         }
     }
 

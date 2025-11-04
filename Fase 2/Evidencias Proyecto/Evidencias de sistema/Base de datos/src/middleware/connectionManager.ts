@@ -13,7 +13,9 @@ export const connectionManager = (req: Request, res: Response, next: NextFunctio
             // Acceder al pool de manera segura
             const pool = (sequelize as any).connectionManager.pool;
             if (pool) {
-                Logger.debug(`Conexiones activas: ${pool.size}/${pool.max}`);
+                // Intentar obtener el máximo del pool (puede estar en diferentes propiedades según la versión de Sequelize)
+                const poolMax = pool.max || pool._config?.max || (sequelize as any).config?.pool?.max || 'N/A';
+                Logger.debug(`Conexiones activas: ${pool.size}/${poolMax}`);
             }
         } catch (error) {
             // Ignorar errores de acceso al pool
@@ -48,12 +50,16 @@ export const getPoolStats = () => {
         const pool = (sequelize as any).connectionManager.pool;
         if (!pool) return null;
 
+        // Intentar obtener el máximo del pool desde diferentes fuentes
+        const poolMax = pool.max || pool._config?.max || (sequelize as any).config?.pool?.max || 20;
+        const poolMin = pool.min || pool._config?.min || (sequelize as any).config?.pool?.min || 2;
+
         return {
             size: pool.size,
-            max: pool.max,
-            min: pool.min,
+            max: poolMax,
+            min: poolMin,
             used: pool.size,
-            available: pool.max - pool.size
+            available: poolMax - pool.size
         };
     } catch (error) {
         return null;

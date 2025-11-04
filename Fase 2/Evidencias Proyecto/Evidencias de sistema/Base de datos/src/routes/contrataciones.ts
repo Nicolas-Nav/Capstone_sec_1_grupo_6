@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ContratacionController } from '@/controllers/contratacionController';
+import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
 
@@ -8,6 +9,7 @@ const router = Router();
  * Base: /api/contrataciones
  */
 
+// Rutas públicas de lectura (GET)
 // Obtener estadísticas
 router.get('/estadisticas', ContratacionController.getEstadisticas);
 
@@ -17,17 +19,22 @@ router.get('/estado/:idEstado', ContratacionController.getByEstado);
 // Obtener contratación por postulación
 router.get('/postulacion/:idPostulacion', ContratacionController.getByPostulacion);
 
-// Actualizar estado de contratación
-router.put('/:id/estado', ContratacionController.updateEstado);
-
-// Registrar encuesta
-router.put('/:id/encuesta', ContratacionController.registrarEncuesta);
-
 // Obtener todas las contrataciones
 router.get('/', ContratacionController.getAll);
 
 // Obtener una contratación específica
 router.get('/:id', ContratacionController.getById);
+
+// ====================================
+// RUTAS PROTEGIDAS (requieren token)
+// ====================================
+router.use(authenticateToken);
+
+// Actualizar estado de contratación
+router.put('/:id/estado', ContratacionController.updateEstado);
+
+// Registrar encuesta
+router.put('/:id/encuesta', ContratacionController.registrarEncuesta);
 
 // Crear nueva contratación
 router.post('/', ContratacionController.create);

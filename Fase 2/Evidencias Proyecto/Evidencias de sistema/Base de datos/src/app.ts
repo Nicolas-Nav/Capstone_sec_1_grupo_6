@@ -8,6 +8,7 @@ import { config } from '@/config';
 import { Logger } from '@/utils/logger';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
 import { connectionManager } from '@/middleware/connectionManager';
+import { captureUserContext } from '@/middleware/captureUserContext';
 import authRoutes from '@/routes/authRoutes';
 import userRoutes from '@/routes/userRoutes';
 import { authenticateToken, requireAdmin, requireConsultorOrAdmin } from '@/middleware/auth';
@@ -31,6 +32,7 @@ import institucionRoutes from '@/routes/instituciones';
 import rubroRoutes from '@/routes/rubros';
 import nacionalidadRoutes from '@/routes/nacionalidades';
 import estadoClienteRoutes from '@/routes/estadoCliente';
+import estadoClienteM5Routes from '@/routes/estadoClienteM5';
 import referenciaLaboralRoutes from '@/routes/referenciasLaborales';
 import hitoSolicitudRoutes from '@/routes/hitosSolicitud';
 import estadoContratacionRoutes from '@/routes/estadosContratacion';
@@ -101,6 +103,15 @@ if (config.server.nodeEnv === 'development') {
 
 // Middleware para manejar conexiones de base de datos
 app.use(connectionManager);
+
+// ===========================================
+// MIDDLEWARE DE CONTEXTO DE USUARIO
+// ===========================================
+
+// Capturar el usuario autenticado y establecerlo en el contexto
+// Este middleware captura req.user (establecido por autenticación)
+// y lo guarda en AsyncLocalStorage para que esté disponible en toda la aplicación
+app.use(captureUserContext);
 
 // ===========================================
 // RUTAS
@@ -242,6 +253,7 @@ app.use('/api/instituciones', institucionRoutes);
 app.use('/api/rubros', rubroRoutes);
 app.use('/api/nacionalidades', nacionalidadRoutes);
 app.use('/api/estado-cliente', estadoClienteRoutes);
+app.use('/api/estado-cliente-m5', estadoClienteM5Routes);
 app.use('/api/referencias-laborales', referenciaLaboralRoutes);
 app.use('/api/hitos-solicitud', hitoSolicitudRoutes);
 app.use('/api/estados-contratacion', estadoContratacionRoutes);

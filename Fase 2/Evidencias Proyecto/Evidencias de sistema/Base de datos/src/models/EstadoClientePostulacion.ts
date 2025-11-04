@@ -6,21 +6,25 @@ import sequelize from '@/config/database';
 // ===========================================
 
 interface EstadoClientePostulacionAttributes {
-    fecha_cambio_estado_cliente: Date;
     id_estado_cliente: number;
     id_postulacion: number;
+    fecha_feedback_cliente_m3?: Date;
+    comentario_rech_obs_cliente?: string;
+    updated_at: Date;
 }
 
-interface EstadoClientePostulacionCreationAttributes extends Optional<EstadoClientePostulacionAttributes, 'fecha_cambio_estado_cliente'> { }
+interface EstadoClientePostulacionCreationAttributes extends Optional<EstadoClientePostulacionAttributes, 'fecha_feedback_cliente_m3' | 'comentario_rech_obs_cliente' | 'updated_at'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
 // ===========================================
 
 class EstadoClientePostulacion extends Model<EstadoClientePostulacionAttributes, EstadoClientePostulacionCreationAttributes> implements EstadoClientePostulacionAttributes {
-    public fecha_cambio_estado_cliente!: Date;
     public id_estado_cliente!: number;
     public id_postulacion!: number;
+    public fecha_feedback_cliente_m3?: Date;
+    public comentario_rech_obs_cliente?: string;
+    public updated_at!: Date;
 }
 
 // ===========================================
@@ -28,17 +32,6 @@ class EstadoClientePostulacion extends Model<EstadoClientePostulacionAttributes,
 // ===========================================
 
 EstadoClientePostulacion.init({
-    fecha_cambio_estado_cliente: {
-        type: DataTypes.DATE,
-        allowNull: false,
-        primaryKey: true,
-        validate: {
-            isDate: true,
-            notNull: {
-                msg: 'La fecha del cambio de estado del cliente es requerida'
-            }
-        }
-    },
     id_estado_cliente: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -66,6 +59,19 @@ EstadoClientePostulacion.init({
                 msg: 'La postulación es requerida'
             }
         }
+    },
+    fecha_feedback_cliente_m3: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    comentario_rech_obs_cliente: {
+        type: DataTypes.TEXT,
+        allowNull: true
+    },
+    updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW
     }
 }, {
     sequelize,
@@ -78,9 +84,6 @@ EstadoClientePostulacion.init({
         },
         {
             fields: ['id_postulacion']
-        },
-        {
-            fields: ['fecha_cambio_estado_cliente']
         }
     ]
 });

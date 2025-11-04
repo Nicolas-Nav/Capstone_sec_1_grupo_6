@@ -35,6 +35,18 @@ export function validateRut(rut: string): boolean {
 }
 
 export function formatDate(date: string | Date): string {
+  // Si es string en formato YYYY-MM-DD, parsearlo manualmente para evitar problemas de zona horaria
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [year, month, day] = date.split('-').map(Number);
+    const d = new Date(year, month - 1, day); // Usar constructor con parámetros locales
+    return d.toLocaleDateString("es-CL", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  }
+  
+  // Para otros formatos o Date objects, usar el método original
   const d = typeof date === "string" ? new Date(date) : date
   return d.toLocaleDateString("es-CL", {
     year: "numeric",
@@ -51,6 +63,15 @@ export function formatDateTime(date: string | Date): string {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+  })
+}
+
+export function formatDateOnly(date: string | Date): string {
+  const d = typeof date === "string" ? new Date(date) : date
+  return d.toLocaleDateString("es-CL", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   })
 }
 

@@ -279,10 +279,10 @@ export const solicitudService = {
   },
 
   // Cambiar estado de solicitud por ID
-  async cambiarEstado(id: number, id_estado: number): Promise<ApiResponse<any>> {
+  async cambiarEstado(id: number, id_estado: number, reason?: string): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/estado`, {
       method: 'PUT',
-      body: JSON.stringify({ id_estado }),
+      body: JSON.stringify({ id_estado, reason }),
     });
   },
 
@@ -310,6 +310,13 @@ export const solicitudService = {
   // Avanzar al módulo 4
   async avanzarAModulo4(id: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/avanzar-modulo4`, {
+      method: 'PUT',
+    });
+  },
+
+  // Avanzar al módulo 5
+  async avanzarAModulo5(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/avanzar-modulo5`, {
       method: 'PUT',
     });
   },
@@ -359,6 +366,73 @@ export const estadoClienteService = {
   // Obtener historial de cambios de estado para una postulación
   async getHistorial(id_postulacion: number): Promise<ApiResponse<any[]>> {
     return apiRequest(`/api/estado-cliente/postulacion/${id_postulacion}/historial`);
+  },
+};
+
+// ===========================================
+// SERVICIOS DE ESTADO CLIENTE MÓDULO 5
+// ===========================================
+
+export const estadoClienteM5Service = {
+  // Obtener todos los estados del módulo 5
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/estado-cliente-m5');
+  },
+
+  // Obtener estado por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/${id}`);
+  },
+
+  // Cambiar estado de cliente para una postulación (Módulo 5)
+  async cambiarEstado(id_postulacion: number, data: {
+    id_estado_cliente_postulacion_m5: number;
+    fecha_feedback_cliente_m5: string;
+    comentario_modulo5_cliente?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Avanzar candidato al módulo 5 (desde módulo 4)
+  async avanzarAlModulo5(id_postulacion: number, comentario?: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/avanzar`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        comentario_modulo5_cliente: comentario
+      }),
+    });
+  },
+
+  // Obtener historial de cambios de estado para una postulación
+  async getHistorial(id_postulacion: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/historial`);
+  },
+
+  // Obtener el último estado de una postulación
+  async getUltimoEstado(id_postulacion: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/ultimo`);
+  },
+
+  // Obtener candidatos que están en el módulo 5
+  async getCandidatosEnModulo5(id_proceso: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/estado-cliente-m5/proceso/${id_proceso}/candidatos`);
+  },
+
+  // Actualizar información completa del candidato en módulo 5
+  async actualizarCandidatoModulo5(id_postulacion: number, data: {
+    hiring_status: string;
+    client_response_date?: string;
+    observations?: string;
+    fecha_ingreso_contratacion?: string;
+    observaciones_contratacion?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/actualizar`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 };
 
@@ -557,7 +631,6 @@ export const postulacionService = {
     comentario_no_presentado?: string;
     // Campos adicionales de postulación
     comentario_rech_obs_cliente?: string;
-    comentario_modulo5_cliente?: string;
     situacion_familiar?: string;
   }): Promise<ApiResponse<any>> {
     // Si hay archivo CV, usar FormData
@@ -577,7 +650,6 @@ export const postulacionService = {
       if (data.valoracion) formData.append('valoracion', data.valoracion.toString());
       if (data.comentario_no_presentado) formData.append('comentario_no_presentado', data.comentario_no_presentado);
       if (data.comentario_rech_obs_cliente) formData.append('comentario_rech_obs_cliente', data.comentario_rech_obs_cliente);
-      if (data.comentario_modulo5_cliente) formData.append('comentario_modulo5_cliente', data.comentario_modulo5_cliente);
       if (data.situacion_familiar) formData.append('situacion_familiar', data.situacion_familiar);
 
       const token = localStorage.getItem('llc_token');
@@ -611,7 +683,6 @@ export const postulacionService = {
     if (data.valoracion) payload.valoracion = data.valoracion;
     if (data.comentario_no_presentado) payload.comentario_no_presentado = data.comentario_no_presentado;
     if (data.comentario_rech_obs_cliente) payload.comentario_rech_obs_cliente = data.comentario_rech_obs_cliente;
-    if (data.comentario_modulo5_cliente) payload.comentario_modulo5_cliente = data.comentario_modulo5_cliente;
     if (data.situacion_familiar) payload.situacion_familiar = data.situacion_familiar;
     
     return apiRequest('/api/postulaciones', {
@@ -841,7 +912,7 @@ export const evaluacionPsicolaboralService = {
 
   // Crear evaluación
   async create(data: {
-    fecha_evaluacion?: Date | null;
+    fecha_evaluacion?: Date | string | null;
     fecha_envio_informe: Date;
     estado_evaluacion: string;
     estado_informe: string;
@@ -856,7 +927,7 @@ export const evaluacionPsicolaboralService = {
 
   // Actualizar evaluación
   async update(id: number, data: Partial<{
-    fecha_evaluacion: Date | null;
+    fecha_evaluacion: Date | string | null;
     fecha_envio_informe: Date;
     estado_evaluacion: string;
     estado_informe: string;
@@ -1003,5 +1074,113 @@ export const referenciaLaboralService = {
     return apiRequest(`/api/referencias-laborales/${id}`, {
       method: 'DELETE',
     });
+  }
+};
+
+// ===========================================
+// INTERFACES DE LOG DE CAMBIOS
+// ===========================================
+
+export interface LogCambio {
+  id_log: number;
+  tabla_afectada: string;
+  id_registro: string;
+  accion: 'INSERT' | 'UPDATE' | 'DELETE';
+  detalle_cambio: string;
+  fecha_cambio: string;
+  usuario_responsable: string;
+}
+
+export interface LogEstadisticas {
+  total_logs: number;
+  por_tabla: { tabla: string; count: number }[];
+  por_accion: { accion: string; count: number }[];
+  usuarios_activos: number;
+  tablas_afectadas: number;
+  acciones_recientes: LogCambio[];
+}
+
+// ===========================================
+// SERVICIO DE USUARIOS
+// ===========================================
+
+export const userService = {
+  // Obtener todos los usuarios (para enriquecer logs)
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/users?limit=1000'); // Obtener todos los usuarios
+  },
+
+  // Obtener un usuario por RUT
+  async getByRut(rut: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/users/${rut}`);
+  }
+};
+
+// ===========================================
+// SERVICIO DE LOG DE CAMBIOS (HISTORIAL)
+// ===========================================
+
+export const logService = {
+  // Obtener logs con filtros opcionales
+  async getLogs(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<LogCambio[]>> {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+
+    const url = `/api/logs${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return apiRequest(url);
+  },
+
+  // Obtener logs con búsqueda y filtros avanzados
+  async search(params: {
+    search?: string;
+    tabla?: string;
+    accion?: string;
+    usuario?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<LogCambio[]>> {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.append('search', params.search);
+    if (params.tabla) queryParams.append('tabla', params.tabla);
+    if (params.accion) queryParams.append('accion', params.accion);
+    if (params.usuario) queryParams.append('usuario', params.usuario);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    return apiRequest(`/api/logs/search?${queryParams.toString()}`);
+  },
+
+  // Obtener estadísticas del historial
+  async getEstadisticas(): Promise<ApiResponse<LogEstadisticas>> {
+    return apiRequest('/api/logs/estadisticas');
+  },
+
+  // Obtener actividad reciente
+  async getReciente(limit: number = 10): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/reciente?limit=${limit}`);
+  },
+
+  // Obtener logs por tabla específica
+  async getByTabla(tabla: string, limit: number = 100): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/tabla/${tabla}?limit=${limit}`);
+  },
+
+  // Obtener logs por usuario específico
+  async getByUsuario(usuario: string, limit: number = 100): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/usuario/${usuario}?limit=${limit}`);
+  },
+
+  // Obtener logs por acción específica
+  async getByAccion(accion: string, limit: number = 100): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/accion/${accion}?limit=${limit}`);
+  },
+
+  // Obtener historial de un registro específico
+  async getHistorialRegistro(tabla: string, id: string): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/historial/${tabla}/${id}`);
   }
 };

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { CandidatoController } from '@/controllers/candidatoController';
-// import { authenticate, authorize } from '@/middleware/auth'; // Descomentar cuando esté listo
+import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
 
@@ -9,6 +9,7 @@ const router = Router();
  * Base: /api/candidatos
  */
 
+// Rutas públicas de lectura (GET)
 // Buscar candidato por email
 router.get('/email/:email', CandidatoController.getByEmail);
 
@@ -17,6 +18,14 @@ router.get('/', CandidatoController.getAll);
 
 // Obtener un candidato específico
 router.get('/:id', CandidatoController.getById);
+
+// Obtener CV de un candidato
+router.get('/:id/cv', CandidatoController.getCV);
+
+// ====================================
+// RUTAS PROTEGIDAS (requieren token)
+// ====================================
+router.use(authenticateToken);
 
 // Crear nuevo candidato
 router.post('/', CandidatoController.create);
@@ -28,11 +37,8 @@ router.put('/:id', CandidatoController.update);
 router.delete('/:id', CandidatoController.delete);
 
 // ==================================================
-// EXPERIENCIAS LABORALES
+// EXPERIENCIAS LABORALES (todas protegidas)
 // ==================================================
-
-// Obtener experiencias de un candidato
-router.get('/:id/experiencias', CandidatoController.getExperiencias);
 
 // Agregar experiencias a un candidato
 router.post('/:id/experiencias', CandidatoController.addExperiencias);
@@ -44,7 +50,7 @@ router.put('/:id/experiencias/:idExp', CandidatoController.updateExperiencia);
 router.delete('/:id/experiencias/:idExp', CandidatoController.deleteExperiencia);
 
 // ==================================================
-// EDUCACIÓN Y PROFESIÓN
+// EDUCACIÓN Y PROFESIÓN (todas protegidas)
 // ==================================================
 
 // Agregar educación a un candidato
@@ -52,9 +58,6 @@ router.post('/:id/educacion', CandidatoController.addEducacion);
 
 // Agregar profesión a un candidato
 router.post('/:id/profesion', CandidatoController.addProfesion);
-
-// Obtener CV de un candidato
-router.get('/:id/cv', CandidatoController.getCV);
 
 // Actualizar estado del candidato
 router.put('/:id/status', CandidatoController.updateStatus);

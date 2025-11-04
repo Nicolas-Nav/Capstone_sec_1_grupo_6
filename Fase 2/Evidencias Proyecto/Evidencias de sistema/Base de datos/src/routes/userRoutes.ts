@@ -4,14 +4,19 @@ import { authenticateToken, requireAdmin } from '@/middleware/auth';
 
 const router = express.Router();
 
-// REGISTRO DE NUEVO USUARIO (solo admins)
-router.post('/register', authenticateToken, requireAdmin, createUserController);
-
+// Rutas públicas de lectura (GET)
 // Obtener usuarios paginados con filtros
 router.get("/", getUsersController);
 
+// ====================================
+// RUTAS PROTEGIDAS (requieren token)
+// ====================================
+
+// REGISTRO DE NUEVO USUARIO (solo admins)
+router.post('/register', authenticateToken, requireAdmin, createUserController);
+
 // Actualizar usuario
-router.put('/users', updateUserController);
+router.put('/users', authenticateToken, updateUserController);
 
 // Cambiar contraseña (cualquier usuario autenticado puede cambiar su propia contraseña)
 router.put('/change-password', authenticateToken, changePasswordController);

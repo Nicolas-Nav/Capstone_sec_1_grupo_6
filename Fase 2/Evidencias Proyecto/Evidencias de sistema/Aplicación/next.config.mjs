@@ -13,7 +13,7 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:" + (process.env.SERVER_PORT || "4000") + "/api/:path*",
+        destination: "http://localhost:3001/api/:path*",
       },
     ]
   },

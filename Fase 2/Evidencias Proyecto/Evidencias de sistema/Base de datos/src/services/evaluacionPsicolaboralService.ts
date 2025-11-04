@@ -1,6 +1,42 @@
-import { Transaction } from 'sequelize';
+import { Transaction, Sequelize } from 'sequelize';
 import sequelize from '@/config/database';
 import { EvaluacionPsicolaboral, EvaluacionTest, TestPsicolaboral, Postulacion } from '@/models';
+
+/**
+ * Función para convertir fecha a string SQL sin zona horaria
+ * Formato esperado de entrada: "YYYY-MM-DDTHH:mm"
+ * Formato de salida: "YYYY-MM-DD HH:mm:ss" para SQL
+ */
+function formatDateForSQL(dateString: string | Date | null | undefined): string | null {
+    if (!dateString) return null;
+    
+    let date: Date;
+    if (dateString instanceof Date) {
+        // Si ya es Date, usar directamente pero formatear sin zona horaria
+        const year = dateString.getFullYear();
+        const month = String(dateString.getMonth() + 1).padStart(2, '0');
+        const day = String(dateString.getDate()).padStart(2, '0');
+        const hour = String(dateString.getHours()).padStart(2, '0');
+        const minute = String(dateString.getMinutes()).padStart(2, '0');
+        const second = String(dateString.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+    }
+    
+    // Formato: "YYYY-MM-DDTHH:mm"
+    const [datePart, timePart] = dateString.split('T');
+    if (!datePart) return null;
+    
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hour, minute] = (timePart || '00:00').split(':').map(Number);
+    
+    // Crear string SQL directamente: "YYYY-MM-DD HH:mm:ss"
+    const monthStr = String(month).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    const hourStr = String(hour || 0).padStart(2, '0');
+    const minuteStr = String(minute || 0).padStart(2, '0');
+    
+    return `${year}-${monthStr}-${dayStr} ${hourStr}:${minuteStr}:00`;
+}
 
 /**
  * Servicio para gestión de Evaluaciones Psicolaborales
@@ -100,7 +136,7 @@ export class EvaluacionPsicolaboralService {
      * Crear una nueva evaluación psicolaboral
      */
     static async createEvaluacion(data: {
-        fecha_evaluacion?: Date | null;
+        fecha_evaluacion?: Date | string | null;
         fecha_envio_informe: Date;
         estado_evaluacion: string;
         estado_informe: string;
@@ -120,15 +156,26 @@ export class EvaluacionPsicolaboralService {
                 throw new Error('Postulación no encontrada');
             }
 
-            // Crear la evaluación
-            const evaluacion = await EvaluacionPsicolaboral.create({
-                fecha_evaluacion: data.fecha_evaluacion,
+            // Formatear fecha_evaluacion como string SQL sin zona horaria
+            const fechaEvaluacionSQL = formatDateForSQL(data.fecha_evaluacion);
+
+            // Crear la evaluación usando Sequelize.literal para evitar conversión UTC
+            const createData: any = {
                 fecha_envio_informe: data.fecha_envio_informe,
                 estado_evaluacion: data.estado_evaluacion,
                 estado_informe: data.estado_informe,
                 conclusion_global: data.conclusion_global,
                 id_postulacion: data.id_postulacion
-            }, { transaction });
+            };
+
+            // Si hay fecha, usar literal SQL para evitar conversión UTC
+            if (fechaEvaluacionSQL) {
+                createData.fecha_evaluacion = Sequelize.literal(`'${fechaEvaluacionSQL}'::timestamp`);
+            } else {
+                createData.fecha_evaluacion = null;
+            }
+
+            const evaluacion = await EvaluacionPsicolaboral.create(createData, { transaction });
 
             // Si se proporcionan tests, crear las relaciones
             if (data.tests && data.tests.length > 0) {
@@ -161,7 +208,7 @@ export class EvaluacionPsicolaboralService {
      * Actualizar una evaluación psicolaboral
      */
     static async updateEvaluacion(id: number, data: Partial<{
-        fecha_evaluacion: Date | null;
+        fecha_evaluacion: Date | string | null;
         fecha_envio_informe: Date;
         estado_evaluacion: string;
         estado_informe: string;
@@ -175,7 +222,19 @@ export class EvaluacionPsicolaboralService {
                 throw new Error('Evaluación no encontrada');
             }
 
-            await evaluacion.update(data, { transaction });
+            // Formatear fecha_evaluacion como string SQL sin zona horaria
+            const updateData: any = { ...data };
+            if (data.fecha_evaluacion !== undefined) {
+                const fechaEvaluacionSQL = formatDateForSQL(data.fecha_evaluacion);
+                if (fechaEvaluacionSQL) {
+                    // Usar literal SQL para evitar conversión UTC
+                    updateData.fecha_evaluacion = Sequelize.literal(`'${fechaEvaluacionSQL}'::timestamp`);
+                } else {
+                    updateData.fecha_evaluacion = null;
+                }
+            }
+
+            await evaluacion.update(updateData, { transaction });
 
             await transaction.commit();
             return evaluacion;

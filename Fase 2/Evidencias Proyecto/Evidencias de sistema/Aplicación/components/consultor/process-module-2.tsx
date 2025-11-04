@@ -55,6 +55,8 @@ import type { Process, Publication, Candidate, WorkExperience, Education, Portal
 
 import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, publicacionService, postulacionService, institucionService, solicitudService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
+import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
 import { AddPublicationDialog } from "./add-publication-dialog"
 import CVViewerDialog from "./cv-viewer-dialog"
@@ -74,6 +76,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   console.log('=== ProcessModule2 RENDERIZADO ===')
   const { toast } = useToast()
+  const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
 
   
 
@@ -133,6 +136,16 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
 
   const [currentStep, setCurrentStep] = useState<"basic" | "education" | "experience" | "portal_responses">("basic")
+  
+  // Estado para rastrear si se ha intentado enviar el formulario
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
+  
+  // Estados para rastrear qué campos de profesión han sido "touched"
+  const [touchedProfessionFields, setTouchedProfessionFields] = useState({
+    profession: false,
+    profession_institution: false,
+    profession_date: false
+  })
 
   // Estado del proceso para verificar bloqueo
   const [processStatus, setProcessStatus] = useState<string>((process.estado_solicitud || process.status) as string)
@@ -304,7 +317,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   const [newCandidate, setNewCandidate] = useState({
 
-    name: "",
+    nombre: "",
+
+    primer_apellido: "",
+
+    segundo_apellido: "",
 
     email: "",
 
@@ -585,7 +602,15 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   }
 
-
+  // Función para validar edad mínima
+  const validateAge = (birthDate: string) => {
+    if (!birthDate) return null
+    const age = calculateAge(birthDate)
+    if (age < 18) {
+      return 'El candidato debe ser mayor de 18 años'
+    }
+    return null
+  }
 
   const handleAddPublication = () => {
 
@@ -642,18 +667,39 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
 
 
-    // Validar campos requeridos con mensajes específicos (FUERA del try)
-    console.log('Validando nombre:', newCandidate.name)
-    if (!newCandidate.name || newCandidate.name.trim() === "") {
-      console.log('❌ Nombre vacío - mostrando error')
+    // Marcar que se ha intentado enviar el formulario
+    setHasAttemptedSubmit(true)
+    
+    // Validar campos requeridos usando el hook de validación
+    const candidateFormData = {
+      nombre: newCandidate.nombre,
+      primer_apellido: newCandidate.primer_apellido,
+      segundo_apellido: newCandidate.segundo_apellido,
+      email: newCandidate.email,
+      phone: newCandidate.phone,
+      rut: newCandidate.rut || '', // Para mostrar error si está vacío
+      birth_date: newCandidate.birth_date || '',
+      region: newCandidate.region || '',
+      comuna: newCandidate.comuna || '',
+      rubro: newCandidate.rubro || '',
+      nacionalidad: newCandidate.nacionalidad || '',
+      profession: newCandidate.profession || '',
+      profession_institution: newCandidate.profession_institution || '',
+      profession_date: newCandidate.profession_date || ''
+    }
+    
+    const isValid = validateAllFields(candidateFormData, validationSchemas.module2CandidateForm)
+    
+    // La validación de edad ya está incluida en el esquema (birth_date)
+    
+    if (!isValid) {
       toast({
-        title: "Campo obligatorio",
-        description: "El nombre del candidato es obligatorio",
+        title: "Faltan campos por completar",
+        description: "Por favor, complete todos los campos obligatorios correctamente",
         variant: "destructive",
       })
       return
     }
-    console.log('✅ Nombre válido')
     
     console.log('Validando email:', newCandidate.email)
     if (!newCandidate.email || newCandidate.email.trim() === "") {
@@ -778,9 +824,12 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       console.log('📊 Longitud de workExperienceForms:', workExperienceForms.length);
       console.log('📊 Longitud de educationForms:', educationForms.length);
 
+      // Combinar nombre completo
+      const fullName = `${newCandidate.nombre} ${newCandidate.primer_apellido} ${newCandidate.segundo_apellido}`.trim()
+
       const candidateData = {
 
-        name: newCandidate.name,
+        name: fullName,
 
         email: newCandidate.email,
 
@@ -934,7 +983,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         setNewCandidate({
 
-          name: "",
+          nombre: "",
+
+          primer_apellido: "",
+
+          segundo_apellido: "",
 
           email: "",
 
@@ -1001,6 +1054,15 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           },
 
         })
+
+        // Resetear estados de validación
+        setHasAttemptedSubmit(false)
+        setTouchedProfessionFields({
+          profession: false,
+          profession_institution: false,
+          profession_date: false
+        })
+        clearAllErrors()
 
         setShowAddCandidate(false)
 
@@ -2307,7 +2369,19 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
             <div className="flex gap-2">
 
-              <Dialog open={showAddCandidate} onOpenChange={setShowAddCandidate}>
+              <Dialog open={showAddCandidate} onOpenChange={(open) => {
+                setShowAddCandidate(open)
+                if (!open) {
+                  // Resetear estados cuando se cierra el diálogo
+                  setHasAttemptedSubmit(false)
+                  setTouchedProfessionFields({
+                    profession: false,
+                    profession_institution: false,
+                    profession_date: false
+                  })
+                  clearAllErrors()
+                }
+              }}>
 
                 <DialogTrigger asChild>
 
@@ -2343,24 +2417,83 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       <h3 className="text-lg font-semibold border-b pb-2">Información Básica</h3>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
 
                         <div className="space-y-2">
 
-                          <Label htmlFor="candidate_name">Nombre Completo <span className="text-red-500">*</span></Label>
+                          <Label htmlFor="candidate_nombre">Nombre <span className="text-red-500">*</span></Label>
                           <Input
 
-                            id="candidate_name"
+                            id="candidate_nombre"
 
-                            value={newCandidate.name}
+                            value={newCandidate.nombre}
 
-                            onChange={(e) => setNewCandidate({ ...newCandidate, name: e.target.value })}
+                            onChange={(e) => {
+                              setNewCandidate({ ...newCandidate, nombre: e.target.value })
+                              validateField('nombre', e.target.value, validationSchemas.module2CandidateForm)
+                            }}
 
-                            placeholder="Nombre del candidato"
+                            placeholder="Nombre"
+
+                            className={errors.nombre ? "border-destructive" : ""}
 
                           />
 
+                          <ValidationErrorDisplay error={errors.nombre} />
+
                         </div>
+
+                        <div className="space-y-2">
+
+                          <Label htmlFor="candidate_primer_apellido">Primer Apellido <span className="text-red-500">*</span></Label>
+                          <Input
+
+                            id="candidate_primer_apellido"
+
+                            value={newCandidate.primer_apellido}
+
+                            onChange={(e) => {
+                              setNewCandidate({ ...newCandidate, primer_apellido: e.target.value })
+                              validateField('primer_apellido', e.target.value, validationSchemas.module2CandidateForm)
+                            }}
+
+                            placeholder="Primer apellido"
+
+                            className={errors.primer_apellido ? "border-destructive" : ""}
+
+                          />
+
+                          <ValidationErrorDisplay error={errors.primer_apellido} />
+
+                        </div>
+
+                        <div className="space-y-2">
+
+                          <Label htmlFor="candidate_segundo_apellido">Segundo Apellido <span className="text-red-500">*</span></Label>
+                          <Input
+
+                            id="candidate_segundo_apellido"
+
+                            value={newCandidate.segundo_apellido}
+
+                            onChange={(e) => {
+                              setNewCandidate({ ...newCandidate, segundo_apellido: e.target.value })
+                              validateField('segundo_apellido', e.target.value, validationSchemas.module2CandidateForm)
+                            }}
+
+                            placeholder="Segundo apellido"
+
+                            className={errors.segundo_apellido ? "border-destructive" : ""}
+
+                          />
+
+                          <ValidationErrorDisplay error={errors.segundo_apellido} />
+
+                        </div>
+
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
 
                         <div className="space-y-2">
 
@@ -2373,11 +2506,18 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                             value={newCandidate.email}
 
-                            onChange={(e) => setNewCandidate({ ...newCandidate, email: e.target.value })}
+                            onChange={(e) => {
+                              setNewCandidate({ ...newCandidate, email: e.target.value })
+                              validateField('email', e.target.value, validationSchemas.module2CandidateForm)
+                            }}
 
                             placeholder="correo@ejemplo.com"
 
+                            className={errors.email ? "border-destructive" : ""}
+
                           />
+
+                          <ValidationErrorDisplay error={errors.email} />
 
                         </div>
 
@@ -2396,11 +2536,18 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                             value={newCandidate.phone}
 
-                            onChange={(e) => setNewCandidate({ ...newCandidate, phone: e.target.value })}
+                            onChange={(e) => {
+                              setNewCandidate({ ...newCandidate, phone: e.target.value })
+                              validateField('phone', e.target.value, validationSchemas.module2CandidateForm)
+                            }}
 
                             placeholder="+56912345678"
 
+                            className={errors.phone ? "border-destructive" : ""}
+
                           />
+
+                          <ValidationErrorDisplay error={errors.phone} />
 
                         </div>
 
@@ -2410,9 +2557,15 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           <Input
                             id="candidate_rut"
                             value={newCandidate.rut || ""}
-                            onChange={(e) => setNewCandidate({ ...newCandidate, rut: e.target.value })}
+                            onChange={(e) => {
+                              setNewCandidate({ ...newCandidate, rut: e.target.value })
+                              validateField('rut', e.target.value, validationSchemas.module2CandidateForm)
+                            }}
                             placeholder="12.345.678-9"
+                            className={errors.rut ? "border-destructive" : ""}
                           />
+
+                          <ValidationErrorDisplay error={errors.rut} />
 
                         </div>
 
@@ -2428,16 +2581,25 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                             selected={newCandidate.birth_date ? new Date(newCandidate.birth_date) : null}
                             onChange={(date) => {
                               if (date) {
-                                const age = calculateAge(date.toISOString().split('T')[0])
+                                const birthDateStr = date.toISOString().split('T')[0]
+                                const age = calculateAge(birthDateStr)
+                              
                               setNewCandidate({
 
                                 ...newCandidate,
 
-                                  birth_date: date.toISOString().split('T')[0],
+                                  birth_date: birthDateStr,
                                 age: age,
 
                               })
 
+                              // Validar birth_date (opcional, pero debe ser mayor de 18 años si se proporciona)
+                              validateField('birth_date', birthDateStr, validationSchemas.module2CandidateForm)
+
+                              } else {
+                                // Si se borra la fecha, limpiar errores
+                                clearError('birth_date')
+                                setNewCandidate({ ...newCandidate, birth_date: "", age: 0 })
                               }
                             }}
                             dateFormat="dd/MM/yyyy"
@@ -2458,7 +2620,15 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                           <Label htmlFor="age">Edad</Label>
 
-                          <Input id="age" type="number" value={newCandidate.age} readOnly className="bg-muted" />
+                          <Input 
+                            id="age" 
+                            type="number" 
+                            value={newCandidate.age} 
+                            readOnly 
+                            className={`bg-muted ${errors.birth_date ? "border-destructive" : ""}`} 
+                          />
+
+                          <ValidationErrorDisplay error={errors.birth_date} />
 
                         </div>
 
@@ -2470,7 +2640,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                         <div className="space-y-2">
 
-                          <Label htmlFor="region">Región</Label>
+                          <Label htmlFor="region">Región <span className="text-red-500">*</span></Label>
 
                           <Select
 
@@ -2479,6 +2649,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                             onValueChange={(value) => {
 
                               setNewCandidate({ ...newCandidate, region: value, comuna: "" })
+                              
+                              // Validar región
+                              validateField('region', value, validationSchemas.module2CandidateForm)
 
                             }}
 
@@ -2508,17 +2681,24 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                           </Select>
 
+                          <ValidationErrorDisplay error={errors.region} />
+
                         </div>
 
                         <div className="space-y-2">
 
-                          <Label htmlFor="comuna">Comuna</Label>
+                          <Label htmlFor="comuna">Comuna <span className="text-red-500">*</span></Label>
 
                           <Select
 
                             value={newCandidate.comuna}
 
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, comuna: value })}
+                            onValueChange={(value) => {
+                              setNewCandidate({ ...newCandidate, comuna: value })
+                              
+                              // Validar comuna
+                              validateField('comuna', value, validationSchemas.module2CandidateForm)
+                            }}
 
                             disabled={loadingLists || !newCandidate.region}
 
@@ -2546,17 +2726,24 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                           </Select>
 
+                          <ValidationErrorDisplay error={errors.comuna} />
+
                         </div>
 
                         <div className="space-y-2">
 
-                          <Label htmlFor="nacionalidad">Nacionalidad</Label>
+                          <Label htmlFor="nacionalidad">Nacionalidad <span className="text-red-500">*</span></Label>
 
                           <Select
 
                             value={newCandidate.nacionalidad}
 
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, nacionalidad: value })}
+                            onValueChange={(value) => {
+                              setNewCandidate({ ...newCandidate, nacionalidad: value })
+                              
+                              // Validar nacionalidad
+                              validateField('nacionalidad', value, validationSchemas.module2CandidateForm)
+                            }}
 
                             disabled={loadingLists}
 
@@ -2584,6 +2771,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                           </Select>
 
+                          <ValidationErrorDisplay error={errors.nacionalidad} />
+
                         </div>
 
                       </div>
@@ -2594,13 +2783,18 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                         <div className="space-y-2">
 
-                          <Label htmlFor="rubro">Rubro</Label>
+                          <Label htmlFor="rubro">Rubro <span className="text-red-500">*</span></Label>
 
                           <Select
 
                             value={newCandidate.rubro}
 
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, rubro: value })}
+                            onValueChange={(value) => {
+                              setNewCandidate({ ...newCandidate, rubro: value })
+                              
+                              // Validar rubro
+                              validateField('rubro', value, validationSchemas.module2CandidateForm)
+                            }}
 
                             disabled={loadingLists}
 
@@ -2627,6 +2821,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                             </SelectContent>
 
                           </Select>
+
+                          <ValidationErrorDisplay error={errors.rubro} />
 
                         </div>
 
@@ -2728,15 +2924,80 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           <Input
                             id="profession"
                             value={newCandidate.profession || ''}
-                            onChange={(e) => setNewCandidate({ ...newCandidate, profession: e.target.value })}
+                            onChange={(e) => {
+                              const professionValue = e.target.value
+                              setNewCandidate({ ...newCandidate, profession: professionValue })
+                              
+                              // Marcar el campo como "touched"
+                              setTouchedProfessionFields(prev => ({ ...prev, profession: true }))
+                              
+                              // Preparar datos completos para la validación
+                              const allData = {
+                                ...newCandidate,
+                                profession: professionValue
+                              }
+                              
+                              // Si todos los campos están vacíos, limpiar errores
+                              if (!professionValue.trim() && !newCandidate.profession_institution?.trim() && !newCandidate.profession_date?.trim()) {
+                                clearError('profession')
+                                clearError('profession_institution')
+                                clearError('profession_date')
+                              } else {
+                                // Validar solo el campo actual que se está cambiando
+                                if (hasAttemptedSubmit || touchedProfessionFields.profession) {
+                                  validateField('profession', professionValue, validationSchemas.module2CandidateForm, allData)
+                                }
+                                
+                                // Validar otros campos de profesión solo si han sido touched o si se intentó enviar
+                                if (hasAttemptedSubmit || touchedProfessionFields.profession_institution) {
+                                  validateField('profession_institution', newCandidate.profession_institution || '', validationSchemas.module2CandidateForm, allData)
+                                }
+                                if (hasAttemptedSubmit || touchedProfessionFields.profession_date) {
+                                  validateField('profession_date', newCandidate.profession_date || '', validationSchemas.module2CandidateForm, allData)
+                                }
+                              }
+                            }}
                             placeholder="Ej: Ingeniero en Sistemas"
+                            className={errors.profession ? "border-destructive" : ""}
                           />
+                          <ValidationErrorDisplay error={errors.profession} />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="profession_institution">Institución</Label>
                           <Select
                             value={newCandidate.profession_institution || ''}
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, profession_institution: value })}
+                            onValueChange={(value) => {
+                              setNewCandidate({ ...newCandidate, profession_institution: value })
+                              
+                              // Marcar el campo como "touched"
+                              setTouchedProfessionFields(prev => ({ ...prev, profession_institution: true }))
+                              
+                              // Preparar datos completos para la validación
+                              const allData = {
+                                ...newCandidate,
+                                profession_institution: value
+                              }
+                              
+                              // Si todos los campos están vacíos, limpiar errores
+                              if (!value?.trim() && !newCandidate.profession?.trim() && !newCandidate.profession_date?.trim()) {
+                                clearError('profession')
+                                clearError('profession_institution')
+                                clearError('profession_date')
+                              } else {
+                                // Validar solo el campo actual que se está cambiando
+                                if (hasAttemptedSubmit || touchedProfessionFields.profession_institution) {
+                                  validateField('profession_institution', value, validationSchemas.module2CandidateForm, allData)
+                                }
+                                
+                                // Validar otros campos de profesión solo si han sido touched o si se intentó enviar
+                                if (hasAttemptedSubmit || touchedProfessionFields.profession) {
+                                  validateField('profession', newCandidate.profession || '', validationSchemas.module2CandidateForm, allData)
+                                }
+                                if (hasAttemptedSubmit || touchedProfessionFields.profession_date) {
+                                  validateField('profession_date', newCandidate.profession_date || '', validationSchemas.module2CandidateForm, allData)
+                                }
+                              }
+                            }}
                             disabled={loadingLists}
                           >
                             <SelectTrigger>
@@ -2750,6 +3011,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                               ))}
                             </SelectContent>
                           </Select>
+                          <ValidationErrorDisplay error={errors.profession_institution} />
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -2757,8 +3019,60 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                         <DatePicker
                           selected={newCandidate.profession_date ? new Date(newCandidate.profession_date) : null}
                           onChange={(date) => {
+                            // Marcar el campo como "touched"
+                            setTouchedProfessionFields(prev => ({ ...prev, profession_date: true }))
+                            
                             if (date) {
-                              setNewCandidate({ ...newCandidate, profession_date: date.toISOString().split('T')[0] })
+                              const dateStr = date.toISOString().split('T')[0]
+                              setNewCandidate({ ...newCandidate, profession_date: dateStr })
+                              
+                              // Preparar datos completos para la validación
+                              const allData = {
+                                ...newCandidate,
+                                profession_date: dateStr
+                              }
+                              
+                              // Validar solo el campo actual que se está cambiando
+                              if (hasAttemptedSubmit || touchedProfessionFields.profession_date) {
+                                validateField('profession_date', dateStr, validationSchemas.module2CandidateForm, allData)
+                              }
+                              
+                              // Validar otros campos de profesión solo si han sido touched o si se intentó enviar
+                              if (hasAttemptedSubmit || touchedProfessionFields.profession) {
+                                validateField('profession', newCandidate.profession || '', validationSchemas.module2CandidateForm, allData)
+                              }
+                              if (hasAttemptedSubmit || touchedProfessionFields.profession_institution) {
+                                validateField('profession_institution', newCandidate.profession_institution || '', validationSchemas.module2CandidateForm, allData)
+                              }
+                            } else {
+                              // Si se borra la fecha, validar de nuevo
+                              setNewCandidate({ ...newCandidate, profession_date: '' })
+                              
+                              // Preparar datos completos para la validación
+                              const allData = {
+                                ...newCandidate,
+                                profession_date: ''
+                              }
+                              
+                              // Si todos los campos están vacíos, limpiar errores
+                              if (!newCandidate.profession?.trim() && !newCandidate.profession_institution?.trim()) {
+                                clearError('profession')
+                                clearError('profession_institution')
+                                clearError('profession_date')
+                              } else {
+                                // Validar solo el campo actual que se está cambiando
+                                if (hasAttemptedSubmit || touchedProfessionFields.profession_date) {
+                                  validateField('profession_date', '', validationSchemas.module2CandidateForm, allData)
+                                }
+                                
+                                // Validar otros campos de profesión solo si han sido touched o si se intentó enviar
+                                if (hasAttemptedSubmit || touchedProfessionFields.profession) {
+                                  validateField('profession', newCandidate.profession || '', validationSchemas.module2CandidateForm, allData)
+                                }
+                                if (hasAttemptedSubmit || touchedProfessionFields.profession_institution) {
+                                  validateField('profession_institution', newCandidate.profession_institution || '', validationSchemas.module2CandidateForm, allData)
+                                }
+                              }
                             }
                           }}
                           dateFormat="dd/MM/yyyy"
@@ -2766,12 +3080,13 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           showMonthDropdown
                           dropdownMode="select"
                           placeholderText="Selecciona fecha de obtención"
-                          className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          className={`w-full p-2 border bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.profession_date ? "border-destructive" : "border-input"}`}
                           maxDate={new Date()}
                           minDate={new Date("1900-01-01")}
                           yearDropdownItemNumber={100}
                           locale="es"
                         />
+                        <ValidationErrorDisplay error={errors.profession_date} />
                       </div>
                     </div>
 

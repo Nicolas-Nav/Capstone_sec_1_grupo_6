@@ -6,7 +6,7 @@ export interface ValidationRule {
   minLength?: number
   maxLength?: number
   pattern?: RegExp
-  custom?: (value: any) => string | null
+  custom?: (value: any, allData?: any) => string | null
   message?: string
 }
 
@@ -20,7 +20,7 @@ export interface ValidationErrors {
 
 export interface UseFormValidationReturn {
   errors: ValidationErrors
-  validateField: (field: string, value: any, schema?: ValidationSchema) => void
+  validateField: (field: string, value: any, schema?: ValidationSchema, allData?: any) => void
   validateAllFields: (data: any, schema: ValidationSchema) => boolean
   clearError: (field: string) => void
   clearAllErrors: () => void
@@ -236,13 +236,145 @@ export const validationSchemas = {
       required: true,
       message: 'Debe confirmar la contraseña'
     }
+  },
+
+  // Validaciones para formulario de candidato en módulo 2 consultor
+  module2CandidateForm: {
+    nombre: validationRules.requiredTextLength(2, 50, 'El nombre'),
+    primer_apellido: validationRules.requiredTextLength(2, 50, 'El primer apellido'),
+    segundo_apellido: validationRules.requiredTextLength(2, 50, 'El segundo apellido'),
+    email: {
+      ...validationRules.required('El email es obligatorio'),
+      ...validationRules.email('Ingrese un email válido (ej: candidato@ejemplo.com)')
+    },
+    phone: {
+      ...validationRules.required('El teléfono es obligatorio'),
+      ...validationRules.phone()
+    },
+    rut: {
+      required: true,
+      custom: (value: string) => {
+        if (!value?.trim()) {
+          return 'El RUT es obligatorio'
+        }
+        return validateRut(value) ? null : 'Ingrese un RUT válido (ej: 12345678-9)'
+      }
+    },
+    birth_date: {
+      required: false,
+      custom: (value: string) => {
+        // Es opcional, pero si se proporciona, debe ser mayor de 18 años
+        if (!value || !value.trim()) {
+          return null // Campo opcional, no hay error si está vacío
+        }
+        
+        // Validar que la fecha sea válida
+        const birthDate = new Date(value)
+        if (isNaN(birthDate.getTime())) {
+          return 'La fecha de nacimiento no es válida'
+        }
+        
+        // Calcular edad
+        const today = new Date()
+        let age = today.getFullYear() - birthDate.getFullYear()
+        const monthDiff = today.getMonth() - birthDate.getMonth()
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--
+        }
+        
+        // Validar que sea mayor de 18 años
+        if (age < 18) {
+          return 'El candidato debe ser mayor de 18 años'
+        }
+        
+        return null
+      }
+    },
+    region: validationRules.required('La región es obligatoria'),
+    comuna: validationRules.required('La comuna es obligatoria'),
+    rubro: validationRules.required('El rubro es obligatorio'),
+    nacionalidad: validationRules.required('La nacionalidad es obligatoria'),
+    profession: {
+      required: false,
+      custom: (value: string, allData?: any) => {
+        // Si todos los campos de profesión están vacíos, no validar
+        const profession = value?.trim() || ''
+        const institution = allData?.profession_institution?.trim() || ''
+        const date = allData?.profession_date?.trim() || ''
+        
+        // Si todos están vacíos, no hay error
+        if (!profession && !institution && !date) {
+          return null
+        }
+        
+        // Si al menos uno tiene valor, todos deben tener valor
+        if (!profession) {
+          return 'La profesión es obligatoria si completa algún campo de profesión'
+        }
+        
+        return null
+      }
+    },
+    profession_institution: {
+      required: false,
+      custom: (value: string, allData?: any) => {
+        // Si todos los campos de profesión están vacíos, no validar
+        const profession = allData?.profession?.trim() || ''
+        const institution = value?.trim() || ''
+        const date = allData?.profession_date?.trim() || ''
+        
+        // Si todos están vacíos, no hay error
+        if (!profession && !institution && !date) {
+          return null
+        }
+        
+        // Si al menos uno tiene valor, todos deben tener valor
+        if (!institution) {
+          return 'La institución es obligatoria si completa algún campo de profesión'
+        }
+        
+        return null
+      }
+    },
+    profession_date: {
+      required: false,
+      custom: (value: string, allData?: any) => {
+        // Si todos los campos de profesión están vacíos, no validar
+        const profession = allData?.profession?.trim() || ''
+        const institution = allData?.profession_institution?.trim() || ''
+        const date = value?.trim() || ''
+        
+        // Si todos están vacíos, no hay error
+        if (!profession && !institution && !date) {
+          return null
+        }
+        
+        // Si al menos uno tiene valor, todos deben tener valor
+        if (!date) {
+          return 'La fecha de obtención es obligatoria si completa algún campo de profesión'
+        }
+        
+        // Validar que la fecha no sea futura
+        if (date) {
+          const selectedDate = new Date(date)
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          
+          if (selectedDate > today) {
+            return 'La fecha de obtención no puede ser futura'
+          }
+        }
+        
+        return null
+      }
+    }
   }
 }
 
 export function useFormValidation(): UseFormValidationReturn {
   const [errors, setErrors] = useState<ValidationErrors>({})
 
-  const validateField = useCallback((field: string, value: any, schema?: ValidationSchema) => {
+  const validateField = useCallback((field: string, value: any, schema?: ValidationSchema, allData?: any) => {
     if (!schema) return
 
     const rule = schema[field]
@@ -250,7 +382,7 @@ export function useFormValidation(): UseFormValidationReturn {
 
     setErrors(prev => {
       const newErrors = { ...prev }
-      const errorMessage = validateSingleField(value, rule)
+      const errorMessage = validateSingleField(value, rule, allData)
 
       if (errorMessage) {
         newErrors[field] = errorMessage
@@ -269,7 +401,7 @@ export function useFormValidation(): UseFormValidationReturn {
     Object.keys(schema).forEach(field => {
       const rule = schema[field]
       const value = data[field]
-      const errorMessage = validateSingleField(value, rule)
+      const errorMessage = validateSingleField(value, rule, data)
 
       if (errorMessage) {
         newErrors[field] = errorMessage
@@ -315,7 +447,7 @@ export function useFormValidation(): UseFormValidationReturn {
   }
 }
 
-function validateSingleField(value: any, rule: ValidationRule): string | null {
+function validateSingleField(value: any, rule: ValidationRule, allData?: any): string | null {
   // Validación requerida
   if (rule.required && (!value || (typeof value === 'string' && !value.trim()))) {
     return rule.message || 'Este campo es requerido'
@@ -323,7 +455,7 @@ function validateSingleField(value: any, rule: ValidationRule): string | null {
 
   // Validación personalizada (siempre se ejecuta si existe, maneja el caso vacío internamente)
   if (rule.custom) {
-    return rule.custom(value)
+    return rule.custom(value, allData)
   }
 
   // Si el campo no es requerido y está vacío, no validar más

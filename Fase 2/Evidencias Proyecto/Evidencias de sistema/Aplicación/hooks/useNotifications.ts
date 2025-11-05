@@ -61,19 +61,33 @@ export const useNotifications = (userId: string | undefined) => {
         grupos.get(key)!.push(hito)
       })
       
-      // Para cada grupo, seleccionar el hito más relevante (más urgente)
+      // Para cada grupo, seleccionar el hito apropiado según los días restantes REALES
+      // Lógica progresiva: mostrar la alerta correspondiente al tiempo actual
       const hitosRelevantes: typeof hitos = []
       grupos.forEach(grupo => {
         if (grupo.length === 1) {
           hitosRelevantes.push(grupo[0])
         } else {
-          // Si hay múltiples hitos del mismo tipo, seleccionar el más urgente
-          const masUrgente = grupo.reduce((prev, current) => {
-            const diasPrev = Math.abs(prev.dias_restantes || 0)
-            const diasCurrent = Math.abs(current.dias_restantes || 0)
-            return diasCurrent < diasPrev ? current : prev
-          })
-          hitosRelevantes.push(masUrgente)
+          // Si hay múltiples hitos del mismo tipo, seleccionar el apropiado progresivamente
+          // Ordenar por avisar_antes_dias (de mayor a menor)
+          const ordenados = grupo.sort((a, b) => b.avisar_antes_dias - a.avisar_antes_dias)
+          
+          // Obtener los días restantes reales del hito
+          const diasRestantes = Math.abs(grupo[0].dias_restantes || 0)
+          
+          // Seleccionar la alerta apropiada según los días restantes
+          // Lógica: mostrar la alerta con avisar_antes_dias más cercano a los días restantes (sin pasarse)
+          let alertaSeleccionada = ordenados[ordenados.length - 1] // Por defecto, la más urgente
+          
+          for (const hito of ordenados) {
+            // Si los días restantes son >= avisar_antes_dias, esta es la alerta apropiada
+            if (diasRestantes >= hito.avisar_antes_dias) {
+              alertaSeleccionada = hito
+              break
+            }
+          }
+          
+          hitosRelevantes.push(alertaSeleccionada)
         }
       })
       
@@ -157,6 +171,17 @@ export const useNotifications = (userId: string | undefined) => {
   useEffect(() => {
     if (userId) {
       loadNotifications()
+      
+      // Auto-refresh: actualizar notificaciones cada 5 minutos
+      // Esto asegura que las alertas se actualicen progresivamente
+      const intervalId = setInterval(() => {
+        console.log('🔄 [NOTIFICATIONS] Auto-refresh: recargando notificaciones...')
+        loadNotifications()
+      }, 5 * 60 * 1000) // 5 minutos
+      
+      return () => {
+        clearInterval(intervalId)
+      }
     } else {
       setNotifications([])
       setUnreadCount(0)

@@ -28,12 +28,12 @@ export default function AlertasPage() {
   // Marcar como leídas al entrar a la página (solo una vez)
   useEffect(() => {
     if (user && !hasMarkedAsRead.current && hitosAlertas.length > 0) {
-      console.log('🔔 [ALERTAS] Marcando notificaciones como leídas al entrar a la página')
+      console.log('[ALERTAS] Marcando notificaciones como leídas al entrar a la página')
       markAsRead()
       hasMarkedAsRead.current = true
       // Recargar notificaciones después de marcarlas para actualizar el contador en el header
       setTimeout(() => {
-        console.log('🔔 [ALERTAS] Recargando notificaciones después de marcar como leídas')
+        console.log('[ALERTAS] Recargando notificaciones después de marcar como leídas')
         loadNotifications()
       }, 500)
     }
@@ -45,7 +45,7 @@ export default function AlertasPage() {
       
       // Auto-refresh: actualizar alertas cada 5 minutos para mantener progresión
       const intervalId = setInterval(() => {
-        console.log('🔄 [ALERTAS] Auto-refresh: recargando alertas...')
+        console.log('[ALERTAS] Auto-refresh: recargando alertas...')
         loadHitosData()
       }, 5 * 60 * 1000) // 5 minutos
       
@@ -93,30 +93,30 @@ export default function AlertasPage() {
 
   const loadHitosData = async () => {
       if (!user) {
-      console.log('❌ No hay usuario autenticado')
+      console.log('ERROR: No hay usuario autenticado')
       return
     }
     
     setLoading(true)
     try {
-      console.log('🔍 Cargando hitos para usuario:', user.id)
-      console.log('🔍 Usuario completo:', user)
+      console.log('Cargando hitos para usuario:', user.id)
+      console.log('Usuario completo:', user)
       
       // Probar con el RUT específico que sabemos que funciona
       const consultorId = user.id || '209942917'
-      console.log('🔍 Usando consultor_id:', consultorId)
+      console.log('Usando consultor_id:', consultorId)
       
       // Obtener alertas de hitos para el usuario actual
       const alertas = await getHitosAlertas(consultorId)
-      console.log('📊 Hitos cargados:', alertas.length, alertas)
+      console.log('Hitos cargados:', alertas.length, alertas)
       setHitosAlertas(alertas)
       
       // Obtener dashboard completo
       const dashboardData = await getHitosDashboard(consultorId)
-      console.log('📈 Dashboard cargado:', dashboardData)
+      console.log('Dashboard cargado:', dashboardData)
       setDashboard(dashboardData)
     } catch (error) {
-      console.error('❌ Error al cargar datos de hitos:', error)
+      console.error('ERROR: Error al cargar datos de hitos:', error)
     } finally {
       setLoading(false)
     }

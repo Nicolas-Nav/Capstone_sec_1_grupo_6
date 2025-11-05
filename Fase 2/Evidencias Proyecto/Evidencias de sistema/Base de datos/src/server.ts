@@ -4,6 +4,7 @@ import { testConnection, syncDatabase } from '@/config/database';
 import sequelize from '@/config/database';
 import { Logger } from '@/utils/logger';
 import { cleanupConnections } from '@/middleware/connectionManager';
+import { FechasLaborales } from '@/utils/fechasLaborales';
 // Importar modelos para que Sequelize los reconozca
 import '@/models';
 
@@ -21,6 +22,15 @@ const startServer = async (): Promise<void> => {
         // Sincronizar modelos (solo en desarrollo)
         if (config.server.nodeEnv === 'development') {
             await syncDatabase();
+        }
+
+        // Pre-cargar feriados de Chile para mejorar rendimiento
+        Logger.info('Pre-cargando feriados de Chile...');
+        try {
+            await FechasLaborales.precargarFeriados();
+            Logger.info('Feriados pre-cargados exitosamente');
+        } catch (error) {
+            Logger.warn('ADVERTENCIA: No se pudieron pre-cargar los feriados. Se cargarán bajo demanda.');
         }
 
         // Iniciar el servidor

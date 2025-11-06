@@ -133,7 +133,7 @@ export class HitoSolicitudService {
 
             // Activar cada hito
             for (const hito of hitosPendientes) {
-                const fechaLimite = FechasLaborales.sumarDiasHabiles(fechaEvento, hito.duracion_dias);
+                const fechaLimite = await FechasLaborales.sumarDiasHabiles(fechaEvento, hito.duracion_dias);
 
                 await hito.update({
                     fecha_base: fechaEvento,

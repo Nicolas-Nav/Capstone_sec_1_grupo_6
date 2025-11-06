@@ -28,12 +28,12 @@ export default function AlertasPage() {
   // Marcar como leídas al entrar a la página (solo una vez)
   useEffect(() => {
     if (user && !hasMarkedAsRead.current && hitosAlertas.length > 0) {
-      console.log('🔔 [ALERTAS] Marcando notificaciones como leídas al entrar a la página')
+      console.log('[ALERTAS] Marcando notificaciones como leídas al entrar a la página')
       markAsRead()
       hasMarkedAsRead.current = true
       // Recargar notificaciones después de marcarlas para actualizar el contador en el header
       setTimeout(() => {
-        console.log('🔔 [ALERTAS] Recargando notificaciones después de marcar como leídas')
+        console.log('[ALERTAS] Recargando notificaciones después de marcar como leídas')
         loadNotifications()
       }, 500)
     }
@@ -42,6 +42,16 @@ export default function AlertasPage() {
   useEffect(() => {
     if (user) {
       loadHitosData()
+      
+      // Auto-refresh: actualizar alertas cada 5 minutos para mantener progresión
+      const intervalId = setInterval(() => {
+        console.log('[ALERTAS] Auto-refresh: recargando alertas...')
+        loadHitosData()
+      }, 5 * 60 * 1000) // 5 minutos
+      
+      return () => {
+        clearInterval(intervalId)
+      }
     }
   }, [user])
 
@@ -83,30 +93,30 @@ export default function AlertasPage() {
 
   const loadHitosData = async () => {
       if (!user) {
-      console.log('❌ No hay usuario autenticado')
+      console.log('ERROR: No hay usuario autenticado')
       return
     }
     
     setLoading(true)
     try {
-      console.log('🔍 Cargando hitos para usuario:', user.id)
-      console.log('🔍 Usuario completo:', user)
+      console.log('Cargando hitos para usuario:', user.id)
+      console.log('Usuario completo:', user)
       
       // Probar con el RUT específico que sabemos que funciona
       const consultorId = user.id || '209942917'
-      console.log('🔍 Usando consultor_id:', consultorId)
+      console.log('Usando consultor_id:', consultorId)
       
       // Obtener alertas de hitos para el usuario actual
       const alertas = await getHitosAlertas(consultorId)
-      console.log('📊 Hitos cargados:', alertas.length, alertas)
+      console.log('Hitos cargados:', alertas.length, alertas)
       setHitosAlertas(alertas)
       
       // Obtener dashboard completo
       const dashboardData = await getHitosDashboard(consultorId)
-      console.log('📈 Dashboard cargado:', dashboardData)
+      console.log('Dashboard cargado:', dashboardData)
       setDashboard(dashboardData)
     } catch (error) {
-      console.error('❌ Error al cargar datos de hitos:', error)
+      console.error('ERROR: Error al cargar datos de hitos:', error)
     } finally {
       setLoading(false)
     }
@@ -124,7 +134,7 @@ export default function AlertasPage() {
   }
 
   // Filtrar hitos reales del backend
-  // Función para obtener el hito más relevante de cada grupo
+  // Función para obtener el hito apropiado progresivamente
   const getHitoMasRelevante = (hitos: any[]) => {
     const grupos = new Map<string, any[]>();
     
@@ -137,19 +147,32 @@ export default function AlertasPage() {
       grupos.get(key)!.push(hito);
     });
     
-    // Para cada grupo, seleccionar el más relevante
+    // Para cada grupo, seleccionar el apropiado según los días restantes reales
     const hitosRelevantes: any[] = [];
     grupos.forEach(grupo => {
       if (grupo.length === 1) {
         hitosRelevantes.push(grupo[0]);
       } else {
-        // Si hay múltiples hitos del mismo tipo, seleccionar el más urgente
-        const masUrgente = grupo.reduce((prev, current) => {
-          const diasPrev = Math.abs(prev.dias_restantes || 0);
-          const diasCurrent = Math.abs(current.dias_restantes || 0);
-          return diasCurrent < diasPrev ? current : prev;
-        });
-        hitosRelevantes.push(masUrgente);
+        // Si hay múltiples hitos del mismo tipo, seleccionar el apropiado progresivamente
+        // Ordenar por avisar_antes_dias (de mayor a menor)
+        const ordenados = grupo.sort((a: any, b: any) => b.avisar_antes_dias - a.avisar_antes_dias);
+        
+        // Obtener los días restantes reales del hito
+        const diasRestantes = Math.abs(grupo[0].dias_restantes || 0);
+        
+        // Seleccionar la alerta apropiada según los días restantes
+        // Lógica: mostrar la alerta con avisar_antes_dias más cercano a los días restantes (sin pasarse)
+        let alertaSeleccionada = ordenados[ordenados.length - 1]; // Por defecto, la más urgente
+        
+        for (const hito of ordenados) {
+          // Si los días restantes son >= avisar_antes_dias, esta es la alerta apropiada
+          if (diasRestantes >= hito.avisar_antes_dias) {
+            alertaSeleccionada = hito;
+            break;
+          }
+        }
+        
+        hitosRelevantes.push(alertaSeleccionada);
       }
     });
     

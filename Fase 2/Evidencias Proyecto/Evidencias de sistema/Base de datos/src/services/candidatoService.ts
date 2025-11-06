@@ -207,6 +207,11 @@ export class CandidatoService {
         profession?: string;
         profession_institution?: string;
         profession_date?: string;
+        professions?: Array<{
+            profession: string;
+            institution: string;
+            date?: string;
+        }>;
         english_level?: string;
         software_tools?: string;
         has_disability_credential?: boolean;
@@ -232,6 +237,7 @@ export class CandidatoService {
                 profession,
                 profession_institution,
                 profession_date,
+                professions,
                 english_level,
                 software_tools,
                 has_disability_credential,
@@ -334,12 +340,30 @@ export class CandidatoService {
                 console.log('✅ Formación académica agregada');
             }
 
-            // Agregar profesión si se especificó
-            console.log('🔍 Verificando profesión:', profession);
-            if (profession && profession.trim()) {
-                console.log('🎓 Agregando profesión...');
-                await this.addProfesion(nuevoCandidato.id_candidato, profession.trim(), profession_institution, profession_date, useTransaction);
-                console.log('✅ Profesión agregada');
+            // Agregar profesiones si se especificaron
+            console.log('🔍 Verificando profesiones:', professions);
+            if (professions && Array.isArray(professions) && professions.length > 0) {
+                console.log('🎓 Agregando múltiples profesiones...');
+                for (const prof of professions) {
+                    if (prof.profession && prof.institution) {
+                        await this.addProfesion(
+                            nuevoCandidato.id_candidato, 
+                            prof.profession, 
+                            prof.institution, 
+                            prof.date, 
+                            useTransaction
+                        );
+                    }
+                }
+                console.log('✅ Profesiones agregadas');
+            } else if (profession) {
+                // Comportamiento legacy: una sola profesión
+                const professionValue = typeof profession === 'string' ? profession.trim() : String(profession);
+                if (professionValue) {
+                    console.log('🎓 Agregando profesión (legacy)...');
+                    await this.addProfesion(nuevoCandidato.id_candidato, profession, profession_institution, profession_date, useTransaction);
+                    console.log('✅ Profesión agregada');
+                }
             }
 
             // Si no se pasó una transacción externa, hacer commit
@@ -898,8 +922,8 @@ export class CandidatoService {
     /**
      * Agregar profesión a un candidato
      */
-    static async addProfesion(idCandidato: number, nombreProfesion: string, nombreInstitucion?: string, fechaObtencion?: string, transaction?: Transaction) {
-        console.log('🎓 addProfesion - Iniciando:', { idCandidato, nombreProfesion, nombreInstitucion, fechaObtencion });
+    static async addProfesion(idCandidato: number, profesionIdOrNombre: string | number, nombreInstitucion?: string, fechaObtencion?: string, transaction?: Transaction) {
+        console.log('🎓 addProfesion - Iniciando:', { idCandidato, profesionIdOrNombre, nombreInstitucion, fechaObtencion });
         const useTransaction = transaction || await sequelize.transaction();
 
         try {
@@ -919,19 +943,35 @@ export class CandidatoService {
                 console.log('🎓 Institución encontrada:', institucion.nombre_institucion);
             }
 
-            // Buscar o crear profesión
-            let profesion = await Profesion.findOne({
-                where: { nombre_profesion: nombreProfesion },
-                transaction: useTransaction
-            });
-
-            if (!profesion) {
-                console.log('🎓 Creando nueva profesión:', nombreProfesion);
-                profesion = await Profesion.create({
-                    nombre_profesion: nombreProfesion
-                }, { transaction: useTransaction });
+            // Verificar si es un ID numérico o un nombre
+            let profesion;
+            const profesionId = typeof profesionIdOrNombre === 'number' ? profesionIdOrNombre : parseInt(profesionIdOrNombre.toString());
+            
+            if (!isNaN(profesionId) && profesionId > 0) {
+                // Es un ID, buscar la profesión directamente
+                console.log('🎓 Buscando profesión por ID:', profesionId);
+                profesion = await Profesion.findByPk(profesionId, { transaction: useTransaction });
+                
+                if (!profesion) {
+                    throw new Error(`No se encontró la profesión con ID: ${profesionId}`);
+                }
+                console.log('🎓 Profesión encontrada por ID:', profesion.nombre_profesion);
             } else {
-                console.log('🎓 Profesión encontrada:', profesion.nombre_profesion);
+                // Es un nombre, buscar o crear profesión (comportamiento legacy)
+                console.log('🎓 Buscando profesión por nombre:', profesionIdOrNombre);
+                profesion = await Profesion.findOne({
+                    where: { nombre_profesion: profesionIdOrNombre.toString().trim() },
+                    transaction: useTransaction
+                });
+
+                if (!profesion) {
+                    console.log('🎓 Creando nueva profesión:', profesionIdOrNombre);
+                    profesion = await Profesion.create({
+                        nombre_profesion: profesionIdOrNombre.toString().trim()
+                    }, { transaction: useTransaction });
+                } else {
+                    console.log('🎓 Profesión encontrada:', profesion.nombre_profesion);
+                }
             }
 
             // Verificar si ya existe la relación

@@ -252,10 +252,11 @@ export const validationSchemas = {
       ...validationRules.phone()
     },
     rut: {
-      required: true,
+      required: false,
       custom: (value: string) => {
-        if (!value?.trim()) {
-          return 'El RUT es obligatorio'
+        // Es opcional, pero si se proporciona, debe tener formato válido
+        if (!value || !value.trim()) {
+          return null // Campo opcional, no hay error si está vacío
         }
         return validateRut(value) ? null : 'Ingrese un RUT válido (ej: 12345678-9)'
       }
@@ -298,7 +299,7 @@ export const validationSchemas = {
       required: false,
       custom: (value: string, allData?: any) => {
         // Si todos los campos de profesión están vacíos, no validar
-        const profession = value?.trim() || ''
+        const profession = value?.toString().trim() || ''
         const institution = allData?.profession_institution?.trim() || ''
         const date = allData?.profession_date?.trim() || ''
         
@@ -319,7 +320,7 @@ export const validationSchemas = {
       required: false,
       custom: (value: string, allData?: any) => {
         // Si todos los campos de profesión están vacíos, no validar
-        const profession = allData?.profession?.trim() || ''
+        const profession = allData?.profession?.toString().trim() || ''
         const institution = value?.trim() || ''
         const date = allData?.profession_date?.trim() || ''
         
@@ -340,7 +341,7 @@ export const validationSchemas = {
       required: false,
       custom: (value: string, allData?: any) => {
         // Si todos los campos de profesión están vacíos, no validar
-        const profession = allData?.profession?.trim() || ''
+        const profession = allData?.profession?.toString().trim() || ''
         const institution = allData?.profession_institution?.trim() || ''
         const date = value?.trim() || ''
         

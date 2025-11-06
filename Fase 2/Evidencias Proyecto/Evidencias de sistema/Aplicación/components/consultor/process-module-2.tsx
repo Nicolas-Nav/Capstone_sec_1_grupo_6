@@ -2,7 +2,7 @@
 
 
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 import { Label } from "@/components/ui/label"
+
+import { Checkbox } from "@/components/ui/checkbox"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -48,7 +50,7 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Plus, Edit, Trash2, Star, Globe, Settings, FileText } from "lucide-react"
+import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
@@ -140,12 +142,12 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   // Estado para rastrear si se ha intentado enviar el formulario
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   
-  // Estados para rastrear qué campos de profesión han sido "touched"
-  const [touchedProfessionFields, setTouchedProfessionFields] = useState({
-    profession: false,
-    profession_institution: false,
-    profession_date: false
-  })
+  // Estados para rastrear qué campos de profesión han sido "touched" por formulario
+  const [touchedProfessionFields, setTouchedProfessionFields] = useState<Record<string, {
+    profession: boolean,
+    profession_institution: boolean,
+    profession_date: boolean
+  }>>({})
 
   // Estado del proceso para verificar bloqueo
   const [processStatus, setProcessStatus] = useState<string>((process.estado_solicitud || process.status) as string)
@@ -353,12 +355,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     rubro: "",
 
-    profession: "",
-
-    profession_institution: "",
-
-    profession_date: "",
-
     consultant_comment: "",
 
     has_disability_credential: false,
@@ -390,8 +386,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     } as PortalResponses,
 
   })
-
-
 
   // Filtrar comunas cuando cambia la región en newCandidate
 
@@ -489,6 +483,21 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       completion_date: ''
     }
   ])
+  const [professionForms, setProfessionForms] = useState<any[]>([
+    {
+      id: '1',
+      profession: '',
+      profession_institution: '',
+      profession_date: ''
+    }
+  ])
+
+  // Calcular si al menos un campo de profesión tiene valor (habilita validaciones)
+  const hasAnyProfessionField = useMemo(() => {
+    return professionForms.some(form => 
+      !!(form.profession?.trim() || form.profession_institution?.trim() || form.profession_date?.trim())
+    )
+  }, [professionForms])
 
   // Listener para sincronización con Módulo 3
 
@@ -638,7 +647,125 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   }
 
+  // Función para descartar todas las profesiones
+  const handleDiscardProfession = () => {
+    // Limpiar todos los formularios de profesión
+    setProfessionForms([{
+      id: '1',
+      profession: '',
+      profession_institution: '',
+      profession_date: ''
+    }])
+    
+    // Limpiar todos los errores de profesión
+    professionForms.forEach((form) => {
+      clearError(`profession_${form.id}_profession`)
+      clearError(`profession_${form.id}_institution`)
+      clearError(`profession_${form.id}_date`)
+    })
+    
+    // Resetear el estado de touched
+    setTouchedProfessionFields({})
+  }
 
+  // Función para descartar una profesión individual
+  const handleDiscardSingleProfession = (formId: string) => {
+    // Si hay más de una profesión, eliminar el formulario completo
+    if (professionForms.length > 1) {
+      removeProfessionForm(formId)
+      return
+    }
+    
+    // Si hay solo una profesión, limpiar los campos del formulario
+    setProfessionForms(prevForms => 
+      prevForms.map(form => 
+        form.id === formId 
+          ? {
+              ...form,
+              profession: '',
+              profession_institution: '',
+              profession_date: ''
+            }
+          : form
+      )
+    )
+    
+    // Limpiar los errores de esa profesión específica
+    clearError(`profession_${formId}_profession`)
+    clearError(`profession_${formId}_institution`)
+    clearError(`profession_${formId}_date`)
+    
+    // Limpiar el estado touched para esa profesión específica
+    setTouchedProfessionFields(prev => {
+      const updated = { ...prev }
+      delete updated[`${formId}_profession`]
+      delete updated[`${formId}_institution`]
+      delete updated[`${formId}_date`]
+      return updated
+    })
+  }
+
+  // Función para descartar una educación individual
+  const handleDiscardSingleEducation = (formId: string) => {
+    // Si hay más de una educación, eliminar el formulario completo
+    if (educationForms.length > 1) {
+      removeEducationForm(formId)
+      return
+    }
+    
+    // Si hay solo una educación, limpiar los campos del formulario
+    setEducationForms(prevForms => 
+      prevForms.map(form => 
+        form.id === formId 
+          ? {
+              ...form,
+              title: '',
+              institution: '',
+              start_date: '',
+              completion_date: ''
+            }
+          : form
+      )
+    )
+    
+    // Limpiar los errores de esa educación específica
+    clearError(`education_${formId}_title`)
+    clearError(`education_${formId}_institution`)
+    clearError(`education_${formId}_start_date`)
+    clearError(`education_${formId}_completion_date`)
+  }
+
+  // Función para descartar una experiencia laboral individual
+  const handleDiscardSingleWorkExperience = (formId: string) => {
+    // Si hay más de una experiencia, eliminar el formulario completo
+    if (workExperienceForms.length > 1) {
+      removeWorkExperienceForm(formId)
+      return
+    }
+    
+    // Si hay solo una experiencia, limpiar los campos del formulario
+    setWorkExperienceForms(prevForms => 
+      prevForms.map(form => 
+        form.id === formId 
+          ? {
+              ...form,
+              company: '',
+              position: '',
+              start_date: '',
+              end_date: '',
+              description: ''
+            }
+          : form
+      )
+    )
+    
+    // Limpiar los errores de esa experiencia específica
+    clearError(`work_experience_${formId}_company`)
+    clearError(`work_experience_${formId}_position`)
+    clearError(`work_experience_${formId}_start_date`)
+    clearError(`work_experience_${formId}_end_date`)
+    clearError(`work_experience_${formId}_description`)
+  }
 
   const handleAddCandidate = async () => {
 
@@ -670,6 +797,28 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     // Marcar que se ha intentado enviar el formulario
     setHasAttemptedSubmit(true)
     
+    // Validar todos los formularios de profesión después de marcar hasAttemptedSubmit
+    professionForms.forEach(form => {
+      validateProfessionField(form.id, 'profession', form.profession || '', form)
+      validateProfessionField(form.id, 'profession_institution', form.profession_institution || '', form)
+      validateProfessionField(form.id, 'profession_date', form.profession_date || '', form)
+    })
+    
+    // Validar todos los formularios de educación después de marcar hasAttemptedSubmit
+    educationForms.forEach(form => {
+      validateEducationField(form.id, 'title', form.title || '', form)
+      validateEducationField(form.id, 'institution', form.institution || '', form)
+      validateEducationField(form.id, 'start_date', form.start_date || '', form)
+    })
+    
+    // Validar todos los formularios de experiencia laboral después de marcar hasAttemptedSubmit
+    workExperienceForms.forEach(form => {
+      validateWorkExperienceField(form.id, 'company', form.company || '', form)
+      validateWorkExperienceField(form.id, 'position', form.position || '', form)
+      validateWorkExperienceField(form.id, 'start_date', form.start_date || '', form)
+      validateWorkExperienceField(form.id, 'description', form.description || '', form)
+    })
+    
     // Validar campos requeridos usando el hook de validación
     const candidateFormData = {
       nombre: newCandidate.nombre,
@@ -682,17 +831,92 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       region: newCandidate.region || '',
       comuna: newCandidate.comuna || '',
       rubro: newCandidate.rubro || '',
-      nacionalidad: newCandidate.nacionalidad || '',
-      profession: newCandidate.profession || '',
-      profession_institution: newCandidate.profession_institution || '',
-      profession_date: newCandidate.profession_date || ''
+      nacionalidad: newCandidate.nacionalidad || ''
     }
     
     const isValid = validateAllFields(candidateFormData, validationSchemas.module2CandidateForm)
     
     // La validación de edad ya está incluida en el esquema (birth_date)
     
-    if (!isValid) {
+    // Validar profesiones si hay campos con valor
+    let hasProfessionErrors = false
+    if (hasAnyProfessionField) {
+      professionForms.forEach(form => {
+        const hasAnyField = !!(form.profession?.trim() || form.profession_institution?.trim() || form.profession_date?.trim())
+        if (hasAnyField) {
+          if (!form.profession?.trim()) {
+            setFieldError(`profession_${form.id}_profession`, 'La profesión es obligatoria si completa algún campo de profesión')
+            hasProfessionErrors = true
+          }
+          if (!form.profession_institution?.trim()) {
+            setFieldError(`profession_${form.id}_institution`, 'La institución es obligatoria si completa algún campo de profesión')
+            hasProfessionErrors = true
+          }
+          if (!form.profession_date?.trim()) {
+            setFieldError(`profession_${form.id}_date`, 'La fecha de obtención es obligatoria si completa algún campo de profesión')
+            hasProfessionErrors = true
+          }
+        }
+      })
+    }
+    
+    // Validar experiencia laboral si hay campos con valor
+    let hasWorkExperienceErrors = false
+    workExperienceForms.forEach(form => {
+      const hasAnyField = !!(form.company?.trim() || form.position?.trim() || form.start_date?.trim() || form.end_date?.trim() || form.description?.trim())
+      if (hasAnyField) {
+        if (!form.company?.trim()) {
+          setFieldError(`work_experience_${form.id}_company`, 'El nombre de la empresa es obligatorio')
+          hasWorkExperienceErrors = true
+        } else if (form.company.trim().length > 100) {
+          setFieldError(`work_experience_${form.id}_company`, 'El nombre de la empresa no puede tener más de 100 caracteres')
+          hasWorkExperienceErrors = true
+        }
+        if (!form.position?.trim()) {
+          setFieldError(`work_experience_${form.id}_position`, 'El cargo es obligatorio')
+          hasWorkExperienceErrors = true
+        } else if (form.position.trim().length > 100) {
+          setFieldError(`work_experience_${form.id}_position`, 'El cargo no puede tener más de 100 caracteres')
+          hasWorkExperienceErrors = true
+        }
+        if (!form.start_date?.trim()) {
+          setFieldError(`work_experience_${form.id}_start_date`, 'La fecha de inicio es obligatoria')
+          hasWorkExperienceErrors = true
+        }
+        if (!form.description?.trim()) {
+          setFieldError(`work_experience_${form.id}_description`, 'La descripción es obligatoria')
+          hasWorkExperienceErrors = true
+        } else if (form.description.trim().length > 500) {
+          setFieldError(`work_experience_${form.id}_description`, 'La descripción no puede tener más de 500 caracteres')
+          hasWorkExperienceErrors = true
+        }
+      }
+    })
+    
+    // Validar educación si hay campos con valor
+    let hasEducationErrors = false
+    educationForms.forEach(form => {
+      const hasAnyField = !!(form.title?.trim() || form.institution?.trim() || form.start_date?.trim() || form.completion_date?.trim())
+      if (hasAnyField) {
+        if (!form.title?.trim()) {
+          setFieldError(`education_${form.id}_title`, 'El nombre del postgrado/capacitación es obligatorio')
+          hasEducationErrors = true
+        } else if (form.title.trim().length > 100) {
+          setFieldError(`education_${form.id}_title`, 'El nombre del postgrado/capacitación no puede tener más de 100 caracteres')
+          hasEducationErrors = true
+        }
+        if (!form.institution?.trim()) {
+          setFieldError(`education_${form.id}_institution`, 'La institución es obligatoria')
+          hasEducationErrors = true
+        }
+        if (!form.start_date?.trim()) {
+          setFieldError(`education_${form.id}_start_date`, 'La fecha de inicio es obligatoria')
+          hasEducationErrors = true
+        }
+      }
+    })
+    
+    if (!isValid || hasProfessionErrors || hasWorkExperienceErrors || hasEducationErrors) {
       toast({
         title: "Faltan campos por completar",
         description: "Por favor, complete todos los campos obligatorios correctamente",
@@ -845,13 +1069,16 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         rubro: newCandidate.rubro || undefined,
 
-        // ✅ CORREGIDO: Enviar nombre de profesión, no ID
-        profession: newCandidate.profession || undefined,
-
-        // ✅ CORREGIDO: Enviar nombre de institución, no ID
-        profession_institution: newCandidate.profession_institution || undefined,
-
-        profession_date: newCandidate.profession_date || undefined,
+        // Enviar múltiples profesiones como array
+        professions: professionForms.length > 0
+          ? professionForms
+            .filter(prof => prof.profession && prof.profession_institution) // Solo enviar formularios con datos válidos
+            .map(prof => ({
+              profession: prof.profession,
+              institution: prof.profession_institution,
+              date: prof.profession_date
+            }))
+          : undefined,
 
         english_level: newCandidate.portal_responses?.english_level || undefined,
 
@@ -1017,12 +1244,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
           rubro: "",
 
-          profession: "",
-
-          profession_institution: "",
-
-          profession_date: "",
-
           consultant_comment: "",
 
           has_disability_credential: false,
@@ -1055,11 +1276,28 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         // Resetear estados de validación
         setHasAttemptedSubmit(false)
-        setTouchedProfessionFields({
-          profession: false,
-          profession_institution: false,
-          profession_date: false
-        })
+        setTouchedProfessionFields({})
+        setProfessionForms([{
+          id: '1',
+          profession: '',
+          profession_institution: '',
+          profession_date: ''
+        }])
+        setWorkExperienceForms([{
+          id: '1',
+          company: '',
+          position: '',
+          start_date: '',
+          end_date: '',
+          description: ''
+        }])
+        setEducationForms([{
+          id: '1',
+          institution: '',
+          title: '',
+          start_date: '',
+          completion_date: ''
+        }])
         clearAllErrors()
 
         setShowAddCandidate(false)
@@ -1677,15 +1915,173 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const updateWorkExperienceForm = (id: string, field: string, value: string) => {
-    setWorkExperienceForms(forms => 
-      forms.map(form => 
+    // Actualizar el formulario
+    setWorkExperienceForms(forms => {
+      const updatedForms = forms.map(form => 
         form.id === id ? { ...form, [field]: value } : form
       )
-    )
+      
+      // Obtener el formulario actualizado para validación
+      const updatedForm = updatedForms.find(f => f.id === id)
+      
+      if (updatedForm) {
+        // Validar el campo
+        validateWorkExperienceField(id, field, value, updatedForm)
+      }
+      
+      return updatedForms
+    })
   }
 
   const removeWorkExperienceForm = (id: string) => {
+    // Limpiar errores del formulario que se elimina
+    clearError(`work_experience_${id}_company`)
+    clearError(`work_experience_${id}_position`)
+    clearError(`work_experience_${id}_start_date`)
+    clearError(`work_experience_${id}_end_date`)
+    clearError(`work_experience_${id}_description`)
+    
+    // Remover el formulario
     setWorkExperienceForms(forms => forms.filter(form => form.id !== id))
+  }
+  
+  // Función para validar un campo de experiencia laboral
+  const validateWorkExperienceField = (formId: string, field: string, value: string, formData: any) => {
+    const fieldKey = `work_experience_${formId}_${field}`
+    
+    // Verificar si hay al menos un campo con valor en este formulario
+    const hasAnyField = !!(formData.company?.trim() || formData.position?.trim() || formData.start_date?.trim() || formData.end_date?.trim() || formData.description?.trim())
+    
+    if (!hasAnyField) {
+      // Si todos los campos están vacíos, limpiar errores de este formulario
+      clearError(`work_experience_${formId}_company`)
+      clearError(`work_experience_${formId}_position`)
+      clearError(`work_experience_${formId}_start_date`)
+      clearError(`work_experience_${formId}_end_date`)
+      clearError(`work_experience_${formId}_description`)
+      return
+    }
+    
+    // Validar campos con longitud máxima siempre (incluso antes de enviar)
+    if (field === 'company') {
+      const companyValue = value?.trim() || ''
+      if (companyValue.length > 100) {
+        setFieldError(fieldKey, 'El nombre de la empresa no puede tener más de 100 caracteres')
+      } else if (hasAttemptedSubmit && !companyValue) {
+        setFieldError(fieldKey, 'El nombre de la empresa es obligatorio')
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    if (field === 'position') {
+      const positionValue = value?.trim() || ''
+      if (positionValue.length > 100) {
+        setFieldError(fieldKey, 'El cargo no puede tener más de 100 caracteres')
+      } else if (hasAttemptedSubmit && !positionValue) {
+        setFieldError(fieldKey, 'El cargo es obligatorio')
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    if (field === 'description') {
+      const descriptionValue = value?.trim() || ''
+      if (descriptionValue.length > 500) {
+        setFieldError(fieldKey, 'La descripción no puede tener más de 500 caracteres')
+      } else if (hasAttemptedSubmit && !descriptionValue) {
+        setFieldError(fieldKey, 'La descripción es obligatoria')
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    // Solo mostrar errores obligatorios si se ha intentado enviar el formulario
+    // Pero siempre validar todos los campos cuando se intenta enviar
+    if (hasAttemptedSubmit) {
+      // Validar empresa (obligatorio si hay algún campo completado, máximo 100 caracteres)
+      const companyValue = formData.company?.trim() || ''
+      if (!companyValue) {
+        setFieldError(`work_experience_${formId}_company`, 'El nombre de la empresa es obligatorio')
+      } else if (companyValue.length > 100) {
+        setFieldError(`work_experience_${formId}_company`, 'El nombre de la empresa no puede tener más de 100 caracteres')
+      } else {
+        clearError(`work_experience_${formId}_company`)
+      }
+      
+      // Validar cargo (obligatorio si hay algún campo completado, máximo 100 caracteres)
+      const positionValue = formData.position?.trim() || ''
+      if (!positionValue) {
+        setFieldError(`work_experience_${formId}_position`, 'El cargo es obligatorio')
+      } else if (positionValue.length > 100) {
+        setFieldError(`work_experience_${formId}_position`, 'El cargo no puede tener más de 100 caracteres')
+      } else {
+        clearError(`work_experience_${formId}_position`)
+      }
+      
+      // Validar fecha de inicio (obligatoria si hay algún campo completado)
+      if (!formData.start_date?.trim()) {
+        setFieldError(`work_experience_${formId}_start_date`, 'La fecha de inicio es obligatoria')
+      } else {
+        clearError(`work_experience_${formId}_start_date`)
+      }
+      
+      // Validar descripción (obligatoria si hay algún campo completado, máximo 500 caracteres)
+      const descriptionValue = formData.description?.trim() || ''
+      if (!descriptionValue) {
+        setFieldError(`work_experience_${formId}_description`, 'La descripción es obligatoria')
+      } else if (descriptionValue.length > 500) {
+        setFieldError(`work_experience_${formId}_description`, 'La descripción no puede tener más de 500 caracteres')
+      } else {
+        clearError(`work_experience_${formId}_description`)
+      }
+    } else {
+      // Si no se ha intentado enviar, validar longitud máxima siempre
+      // Y limpiar errores cuando se completan campos
+      if (field === 'company') {
+        const companyValue = value?.trim() || ''
+        if (companyValue.length > 100) {
+          setFieldError(fieldKey, 'El nombre de la empresa no puede tener más de 100 caracteres')
+        } else {
+          clearError(fieldKey)
+        }
+      } else if (field === 'position') {
+        const positionValue = value?.trim() || ''
+        if (positionValue.length > 100) {
+          setFieldError(fieldKey, 'El cargo no puede tener más de 100 caracteres')
+        } else {
+          clearError(fieldKey)
+        }
+      } else if (field === 'description') {
+        const descriptionValue = value?.trim() || ''
+        if (descriptionValue.length > 500) {
+          setFieldError(fieldKey, 'La descripción no puede tener más de 500 caracteres')
+        } else {
+          clearError(fieldKey)
+        }
+      } else if (field === 'start_date' && value?.trim()) {
+        clearError(fieldKey)
+      } else if (field === 'end_date' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      // También limpiar errores de otros campos si están completados y son válidos
+      if (formData.company?.trim() && formData.company.trim().length <= 100) {
+        clearError(`work_experience_${formId}_company`)
+      }
+      
+      if (formData.position?.trim() && formData.position.trim().length <= 100) {
+        clearError(`work_experience_${formId}_position`)
+      }
+      
+      if (formData.start_date?.trim()) {
+        clearError(`work_experience_${formId}_start_date`)
+      }
+      
+      if (formData.description?.trim() && formData.description.trim().length <= 500) {
+        clearError(`work_experience_${formId}_description`)
+      }
+    }
   }
 
   // Funciones para manejar múltiples formularios de educación
@@ -1700,15 +2096,242 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const updateEducationForm = (id: string, field: string, value: string) => {
-    setEducationForms(forms => 
-      forms.map(form => 
+    // Actualizar el formulario
+    setEducationForms(forms => {
+      const updatedForms = forms.map(form => 
         form.id === id ? { ...form, [field]: value } : form
       )
-    )
+      
+      // Obtener el formulario actualizado para validación
+      const updatedForm = updatedForms.find(f => f.id === id)
+      
+      if (updatedForm) {
+        // Validar el campo
+        validateEducationField(id, field, value, updatedForm)
+      }
+      
+      return updatedForms
+    })
   }
 
   const removeEducationForm = (id: string) => {
+    // Limpiar errores del formulario que se elimina
+    clearError(`education_${id}_title`)
+    clearError(`education_${id}_institution`)
+    clearError(`education_${id}_start_date`)
+    clearError(`education_${id}_completion_date`)
+    
+    // Remover el formulario
     setEducationForms(forms => forms.filter(form => form.id !== id))
+  }
+  
+  // Función para validar un campo de educación
+  const validateEducationField = (formId: string, field: string, value: string, formData: any) => {
+    const fieldKey = `education_${formId}_${field}`
+    
+    // Verificar si hay al menos un campo con valor en este formulario
+    const hasAnyField = !!(formData.title?.trim() || formData.institution?.trim() || formData.start_date?.trim() || formData.completion_date?.trim())
+    
+    if (!hasAnyField) {
+      // Si todos los campos están vacíos, limpiar errores de este formulario
+      clearError(`education_${formId}_title`)
+      clearError(`education_${formId}_institution`)
+      clearError(`education_${formId}_start_date`)
+      clearError(`education_${formId}_completion_date`)
+      return
+    }
+    
+    // Validar título: longitud máxima siempre se valida (incluso antes de enviar)
+    if (field === 'title') {
+      const titleValue = value?.trim() || ''
+      if (titleValue.length > 100) {
+        setFieldError(fieldKey, 'El nombre del postgrado/capacitación no puede tener más de 100 caracteres')
+      } else if (hasAttemptedSubmit && !titleValue) {
+        setFieldError(fieldKey, 'El nombre del postgrado/capacitación es obligatorio')
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    // Solo mostrar errores obligatorios si se ha intentado enviar el formulario
+    // Pero siempre validar todos los campos cuando se intenta enviar
+    if (hasAttemptedSubmit) {
+      // Validar título (obligatorio si hay algún campo completado, máximo 100 caracteres)
+      const titleValue = formData.title?.trim() || ''
+      if (!titleValue) {
+        setFieldError(`education_${formId}_title`, 'El nombre del postgrado/capacitación es obligatorio')
+      } else if (titleValue.length > 100) {
+        setFieldError(`education_${formId}_title`, 'El nombre del postgrado/capacitación no puede tener más de 100 caracteres')
+      } else {
+        clearError(`education_${formId}_title`)
+      }
+      
+      // Validar institución (obligatoria si hay algún campo completado)
+      if (!formData.institution?.trim()) {
+        setFieldError(`education_${formId}_institution`, 'La institución es obligatoria')
+      } else {
+        clearError(`education_${formId}_institution`)
+      }
+      
+      // Validar fecha de inicio (obligatoria si hay algún campo completado)
+      if (!formData.start_date?.trim()) {
+        setFieldError(`education_${formId}_start_date`, 'La fecha de inicio es obligatoria')
+      } else {
+        clearError(`education_${formId}_start_date`)
+      }
+    } else {
+      // Si no se ha intentado enviar, solo validar longitud máxima del título
+      // Y limpiar errores cuando se completan campos
+      if (field === 'title') {
+        const titleValue = value?.trim() || ''
+        if (titleValue.length > 100) {
+          setFieldError(fieldKey, 'El nombre del postgrado/capacitación no puede tener más de 100 caracteres')
+        } else {
+          clearError(fieldKey)
+        }
+      } else if (field === 'institution' && value?.trim()) {
+        clearError(fieldKey)
+      } else if (field === 'start_date' && value?.trim()) {
+        clearError(fieldKey)
+      } else if (field === 'completion_date' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      // También limpiar errores de otros campos si están completados y son válidos
+      if (formData.title?.trim() && formData.title.trim().length <= 100) {
+        clearError(`education_${formId}_title`)
+      }
+      
+      if (formData.institution?.trim()) {
+        clearError(`education_${formId}_institution`)
+      }
+      
+      if (formData.start_date?.trim()) {
+        clearError(`education_${formId}_start_date`)
+      }
+    }
+  }
+
+  // Funciones para manejar múltiples formularios de profesión
+  const addProfessionForm = () => {
+    const newForm = {
+      id: Date.now().toString(),
+      profession: "",
+      profession_institution: "",
+      profession_date: ""
+    }
+    setProfessionForms([...professionForms, newForm])
+  }
+
+  const updateProfessionForm = (id: string, field: string, value: string) => {
+    // Actualizar el formulario
+    setProfessionForms(forms => {
+      const updatedForms = forms.map(form => 
+        form.id === id ? { ...form, [field]: value } : form
+      )
+      
+      // Obtener el formulario actualizado para validación
+      const updatedForm = updatedForms.find(f => f.id === id)
+      
+      if (updatedForm) {
+        // Marcar el campo como touched
+        setTouchedProfessionFields(prev => ({
+          ...prev,
+          [id]: {
+            ...(prev[id] || { profession: false, profession_institution: false, profession_date: false }),
+            [field]: true
+          }
+        }))
+        
+        // Validar el campo
+        validateProfessionField(id, field, value, updatedForm)
+      }
+      
+      return updatedForms
+    })
+  }
+
+  const removeProfessionForm = (id: string) => {
+    // Limpiar errores del formulario que se elimina
+    clearError(`profession_${id}_profession`)
+    clearError(`profession_${id}_institution`)
+    clearError(`profession_${id}_date`)
+    
+    // Remover el estado touched del formulario
+    setTouchedProfessionFields(prev => {
+      const newTouched = { ...prev }
+      delete newTouched[id]
+      return newTouched
+    })
+    
+    // Remover el formulario
+    setProfessionForms(forms => forms.filter(form => form.id !== id))
+  }
+
+  // Función para validar un campo de profesión
+  const validateProfessionField = (formId: string, field: string, value: string, formData: any) => {
+    const fieldKey = `profession_${formId}_${field}`
+    
+    // Verificar si hay al menos un campo con valor en este formulario
+    const hasAnyField = !!(formData.profession?.trim() || formData.profession_institution?.trim() || formData.profession_date?.trim())
+    
+    if (!hasAnyField) {
+      // Si todos los campos están vacíos, limpiar errores de este formulario
+      clearError(`profession_${formId}_profession`)
+      clearError(`profession_${formId}_institution`)
+      clearError(`profession_${formId}_date`)
+      return
+    }
+    
+    // Solo mostrar errores si se ha intentado enviar el formulario
+    // Pero siempre limpiar errores cuando se completan los campos
+    if (hasAttemptedSubmit) {
+      // Validar todos los campos cuando se ha intentado enviar y hay algún campo completado
+      if (!formData.profession?.trim()) {
+        setFieldError(`profession_${formId}_profession`, 'La profesión es obligatoria si completa algún campo de profesión')
+      } else {
+        clearError(`profession_${formId}_profession`)
+      }
+      
+      if (!formData.profession_institution?.trim()) {
+        setFieldError(`profession_${formId}_institution`, 'La institución es obligatoria si completa algún campo de profesión')
+      } else {
+        clearError(`profession_${formId}_institution`)
+      }
+      
+      if (!formData.profession_date?.trim()) {
+        setFieldError(`profession_${formId}_date`, 'La fecha de obtención es obligatoria si completa algún campo de profesión')
+      } else {
+        clearError(`profession_${formId}_date`)
+      }
+    } else {
+      // Si no se ha intentado enviar, solo limpiar errores cuando se completan campos
+      // No mostrar nuevos errores
+      if (field === 'profession' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      if (field === 'profession_institution' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      if (field === 'profession_date' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      // También limpiar errores de otros campos si están completados
+      if (formData.profession?.trim()) {
+        clearError(`profession_${formId}_profession`)
+      }
+      
+      if (formData.profession_institution?.trim()) {
+        clearError(`profession_${formId}_institution`)
+      }
+      
+      if (formData.profession_date?.trim()) {
+        clearError(`profession_${formId}_date`)
+      }
+    }
   }
 
   // Funciones para manejar formularios múltiples de editar candidato
@@ -2372,11 +2995,13 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                 if (!open) {
                   // Resetear estados cuando se cierra el diálogo
                   setHasAttemptedSubmit(false)
-                  setTouchedProfessionFields({
-                    profession: false,
-                    profession_institution: false,
-                    profession_date: false
-                  })
+                  setTouchedProfessionFields({})
+                  setProfessionForms([{
+                    id: '1',
+                    profession: '',
+                    profession_institution: '',
+                    profession_date: ''
+                  }])
                   clearAllErrors()
                 }
               }}>
@@ -2829,84 +3454,113 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
 
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="source_portal">
+                          Portal de Origen <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={newCandidate.source_portal}
+                          onValueChange={(value) => setNewCandidate({ ...newCandidate, source_portal: value })}
+                          disabled={loadingLists}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {portalesDB.map((portal) => (
+                              <SelectItem key={portal.id} value={portal.id.toString()}>
+                                {portal.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Portal desde donde proviene el candidato
+                        </p>
+                      </div>
 
-                        <div className="space-y-2">
-
-                          <Label htmlFor="source_portal">
-                            Portal de Origen <span className="text-red-500">*</span>
-                          </Label>
-                          <Select
-
-                            value={newCandidate.source_portal}
-
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, source_portal: value })}
-
-                            disabled={loadingLists}
-                          >
-
-                            <SelectTrigger>
-
-                              <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
-                            </SelectTrigger>
-
-                            <SelectContent>
-
-                              {portalesDB.map((portal) => (
-                                <SelectItem key={portal.id} value={portal.id.toString()}>
-                                  {portal.nombre}
-                                </SelectItem>
-
-                              ))}
-
-                            </SelectContent>
-
-                          </Select>
-
-                          <p className="text-xs text-muted-foreground">
-                            Portal desde donde proviene el candidato
-                          </p>
+                      <div className="space-y-2">
+                        <Label htmlFor="cv_file">CV (Archivo) <span className="text-red-500">*</span></Label>
+              
+                        {/* Área de drag & drop para CV */}
+                        <div 
+                          className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-green-400 hover:bg-green-50 transition-colors cursor-pointer"
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                          onDragEnter={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            const files = e.dataTransfer.files
+                            if (files.length > 0) {
+                              const file = files[0]
+                              if (file.name.endsWith('.pdf') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+                                setNewCandidate({ ...newCandidate, cv_file: file })
+                              }
+                            }
+                          }}
+                          onClick={() => document.getElementById('cv_file')?.click()}
+                        >
+                          <div className="flex flex-col items-center space-y-2">
+                            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-gray-700">
+                                {newCandidate.cv_file ? 'CV seleccionado' : 'Arrastra tu CV aquí'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                o haz clic para seleccionar
+                              </p>
+                            </div>
+                            
+                            {newCandidate.cv_file ? (
+                              <div className="flex items-center space-x-2 text-green-600">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-xs font-medium">{newCandidate.cv_file.name}</span>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-400">
+                                PDF, DOC, DOCX
+                              </p>
+                            )}
+                          </div>
                         </div>
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="cv_file">CV (Archivo) <span className="text-red-500">*</span></Label>
-                          <Input
-
-                            id="cv_file"
-
-                            type="file"
-
-                            accept=".pdf,.doc,.docx"
-
-                            onChange={(e) => setNewCandidate({ ...newCandidate, cv_file: e.target.files?.[0] || null })}
-
-                            className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-
-                          />
-
-                        </div>
-
+                        
+                        {/* Input oculto */}
+                        <Input
+                          id="cv_file"
+                          type="file"
+                          accept=".pdf,.doc,.docx"
+                          onChange={(e) => setNewCandidate({ ...newCandidate, cv_file: e.target.files?.[0] || null })}
+                          className="hidden"
+                        />
+                        
+                        <p className="text-xs text-muted-foreground">Formatos aceptados: PDF, DOC, DOCX</p>
                       </div>
 
 
 
-                      <div className="flex items-center space-x-2">
-
-                        <input
-
-                          type="checkbox"
-
+                      <div className="flex items-center space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <Checkbox
                           id="has_disability_credential"
-
                           checked={newCandidate.has_disability_credential}
-
-                          onChange={(e) => setNewCandidate({ ...newCandidate, has_disability_credential: e.target.checked })}
-
+                          onCheckedChange={(checked) => setNewCandidate({ ...newCandidate, has_disability_credential: checked === true })}
+                          className="border-blue-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                         />
-
-                        <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad</Label>
-
+                        <Label htmlFor="has_disability_credential" className="text-sm font-medium text-blue-800 cursor-pointer">
+                          Cuenta con credencial de discapacidad
+                        </Label>
                       </div>
 
                     </div>
@@ -2915,177 +3569,128 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                     {/* Profesión */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold border-b pb-2">Profesión (Opcional)</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="profession">Profesión</Label>
-                          <Input
-                            id="profession"
-                            value={newCandidate.profession || ''}
-                            onChange={(e) => {
-                              const professionValue = e.target.value
-                              setNewCandidate({ ...newCandidate, profession: professionValue })
-                              
-                              // Marcar el campo como "touched"
-                              setTouchedProfessionFields(prev => ({ ...prev, profession: true }))
-                              
-                              // Preparar datos completos para la validación
-                              const allData = {
-                                ...newCandidate,
-                                profession: professionValue
-                              }
-                              
-                              // Si todos los campos están vacíos, limpiar errores
-                              if (!professionValue.trim() && !newCandidate.profession_institution?.trim() && !newCandidate.profession_date?.trim()) {
-                                clearError('profession')
-                                clearError('profession_institution')
-                                clearError('profession_date')
-                              } else {
-                                // Validar solo el campo actual que se está cambiando
-                                if (hasAttemptedSubmit || touchedProfessionFields.profession) {
-                                  validateField('profession', professionValue, validationSchemas.module2CandidateForm, allData)
-                                }
-                                
-                                // Validar otros campos de profesión solo si han sido touched o si se intentó enviar
-                                if (hasAttemptedSubmit || touchedProfessionFields.profession_institution) {
-                                  validateField('profession_institution', newCandidate.profession_institution || '', validationSchemas.module2CandidateForm, allData)
-                                }
-                                if (hasAttemptedSubmit || touchedProfessionFields.profession_date) {
-                                  validateField('profession_date', newCandidate.profession_date || '', validationSchemas.module2CandidateForm, allData)
-                                }
-                              }
-                            }}
-                            placeholder="Ej: Ingeniero en Sistemas"
-                            className={errors.profession ? "border-destructive" : ""}
-                          />
-                          <ValidationErrorDisplay error={errors.profession} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="profession_institution">Institución</Label>
-                          <Select
-                            value={newCandidate.profession_institution || ''}
-                            onValueChange={(value) => {
-                              setNewCandidate({ ...newCandidate, profession_institution: value })
-                              
-                              // Marcar el campo como "touched"
-                              setTouchedProfessionFields(prev => ({ ...prev, profession_institution: true }))
-                              
-                              // Preparar datos completos para la validación
-                              const allData = {
-                                ...newCandidate,
-                                profession_institution: value
-                              }
-                              
-                              // Si todos los campos están vacíos, limpiar errores
-                              if (!value?.trim() && !newCandidate.profession?.trim() && !newCandidate.profession_date?.trim()) {
-                                clearError('profession')
-                                clearError('profession_institution')
-                                clearError('profession_date')
-                              } else {
-                                // Validar solo el campo actual que se está cambiando
-                                if (hasAttemptedSubmit || touchedProfessionFields.profession_institution) {
-                                  validateField('profession_institution', value, validationSchemas.module2CandidateForm, allData)
-                                }
-                                
-                                // Validar otros campos de profesión solo si han sido touched o si se intentó enviar
-                                if (hasAttemptedSubmit || touchedProfessionFields.profession) {
-                                  validateField('profession', newCandidate.profession || '', validationSchemas.module2CandidateForm, allData)
-                                }
-                                if (hasAttemptedSubmit || touchedProfessionFields.profession_date) {
-                                  validateField('profession_date', newCandidate.profession_date || '', validationSchemas.module2CandidateForm, allData)
-                                }
-                              }
-                            }}
-                            disabled={loadingLists}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccione institución" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {instituciones.map((inst) => (
-                                <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
-                                  {inst.nombre_institucion}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <ValidationErrorDisplay error={errors.profession_institution} />
-                        </div>
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <h3 className="text-lg font-semibold">Profesión (Opcional)</h3>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addProfessionForm}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Agregar Otra Profesión
+                        </Button>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="profession_date">Fecha de Obtención</Label>
-                        <DatePicker
-                          selected={newCandidate.profession_date ? new Date(newCandidate.profession_date) : null}
-                          onChange={(date) => {
-                            // Marcar el campo como "touched"
-                            setTouchedProfessionFields(prev => ({ ...prev, profession_date: true }))
-                            
-                            if (date) {
-                              const dateStr = date.toISOString().split('T')[0]
-                              setNewCandidate({ ...newCandidate, profession_date: dateStr })
-                              
-                              // Preparar datos completos para la validación
-                              const allData = {
-                                ...newCandidate,
-                                profession_date: dateStr
-                              }
-                              
-                              // Validar solo el campo actual que se está cambiando
-                              if (hasAttemptedSubmit || touchedProfessionFields.profession_date) {
-                                validateField('profession_date', dateStr, validationSchemas.module2CandidateForm, allData)
-                              }
-                              
-                              // Validar otros campos de profesión solo si han sido touched o si se intentó enviar
-                              if (hasAttemptedSubmit || touchedProfessionFields.profession) {
-                                validateField('profession', newCandidate.profession || '', validationSchemas.module2CandidateForm, allData)
-                              }
-                              if (hasAttemptedSubmit || touchedProfessionFields.profession_institution) {
-                                validateField('profession_institution', newCandidate.profession_institution || '', validationSchemas.module2CandidateForm, allData)
-                              }
-                            } else {
-                              // Si se borra la fecha, validar de nuevo
-                              setNewCandidate({ ...newCandidate, profession_date: '' })
-                              
-                              // Preparar datos completos para la validación
-                              const allData = {
-                                ...newCandidate,
-                                profession_date: ''
-                              }
-                              
-                              // Si todos los campos están vacíos, limpiar errores
-                              if (!newCandidate.profession?.trim() && !newCandidate.profession_institution?.trim()) {
-                                clearError('profession')
-                                clearError('profession_institution')
-                                clearError('profession_date')
-                              } else {
-                                // Validar solo el campo actual que se está cambiando
-                                if (hasAttemptedSubmit || touchedProfessionFields.profession_date) {
-                                  validateField('profession_date', '', validationSchemas.module2CandidateForm, allData)
-                                }
-                                
-                                // Validar otros campos de profesión solo si han sido touched o si se intentó enviar
-                                if (hasAttemptedSubmit || touchedProfessionFields.profession) {
-                                  validateField('profession', newCandidate.profession || '', validationSchemas.module2CandidateForm, allData)
-                                }
-                                if (hasAttemptedSubmit || touchedProfessionFields.profession_institution) {
-                                  validateField('profession_institution', newCandidate.profession_institution || '', validationSchemas.module2CandidateForm, allData)
-                                }
-                              }
-                            }
-                          }}
-                          dateFormat="dd/MM/yyyy"
-                          showYearDropdown
-                          showMonthDropdown
-                          dropdownMode="select"
-                          placeholderText="Selecciona fecha de obtención"
-                          className={`w-full p-2 border bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.profession_date ? "border-destructive" : "border-input"}`}
-                          maxDate={new Date()}
-                          minDate={new Date("1900-01-01")}
-                          yearDropdownItemNumber={100}
-                          locale="es"
-                        />
-                        <ValidationErrorDisplay error={errors.profession_date} />
-                      </div>
+
+                      {/* Multiple Profession Forms */}
+                      {professionForms.map((form, index) => {
+                        // Verificar si esta profesión tiene al menos un campo con valor
+                        const hasFormFields = !!(
+                          (form.profession && String(form.profession).trim()) || 
+                          (form.profession_institution && String(form.profession_institution).trim()) || 
+                          (form.profession_date && String(form.profession_date).trim())
+                        )
+                        
+                        // Mostrar botón de descartar si:
+                        // - Hay más de una profesión: siempre mostrar (incluso en el primer formulario vacío)
+                        // - Hay solo una profesión: mostrar solo si tiene campos completados
+                        const showDiscardButton = professionForms.length > 1 ? true : hasFormFields
+                        
+                        return (
+                          <Card key={form.id}>
+                            <CardHeader>
+                              <div className="flex items-center justify-between">
+                                <CardTitle className="text-base">
+                                  Profesión {index + 1}
+                                </CardTitle>
+                                <div className="flex items-center gap-2">
+                                  {showDiscardButton && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDiscardSingleProfession(form.id)}
+                                      className="text-destructive hover:text-destructive"
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Descartar profesión
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Profesión</Label>
+                                <Select
+                                  value={form.profession || ''}
+                                  onValueChange={(value) => updateProfessionForm(form.id, 'profession', value)}
+                                  disabled={loadingLists}
+                                >
+                                  <SelectTrigger className={errors[`profession_${form.id}_profession`] ? "border-destructive" : ""}>
+                                    <SelectValue placeholder="Seleccione profesión" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {profesiones.map((prof) => (
+                                      <SelectItem key={prof.id_profesion} value={prof.id_profesion.toString()}>
+                                        {prof.nombre_profesion}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <ValidationErrorDisplay error={errors[`profession_${form.id}_profession`]} />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Institución</Label>
+                                <Select
+                                  value={form.profession_institution || ''}
+                                  onValueChange={(value) => updateProfessionForm(form.id, 'profession_institution', value)}
+                                  disabled={loadingLists}
+                                >
+                                  <SelectTrigger className={errors[`profession_${form.id}_institution`] ? "border-destructive" : ""}>
+                                    <SelectValue placeholder="Seleccione institución" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {instituciones.map((inst) => (
+                                      <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
+                                        {inst.nombre_institucion}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <ValidationErrorDisplay error={errors[`profession_${form.id}_institution`]} />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Fecha de Obtención</Label>
+                              <DatePicker
+                                selected={form.profession_date ? new Date(form.profession_date) : null}
+                                onChange={(date) => {
+                                  if (date) {
+                                    const dateStr = date.toISOString().split('T')[0]
+                                    updateProfessionForm(form.id, 'profession_date', dateStr)
+                                  } else {
+                                    updateProfessionForm(form.id, 'profession_date', '')
+                                  }
+                                }}
+                                dateFormat="dd/MM/yyyy"
+                                showYearDropdown
+                                showMonthDropdown
+                                dropdownMode="select"
+                                placeholderText="Selecciona fecha de obtención"
+                                className={`w-full p-2 border bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors[`profession_${form.id}_date`] ? "border-destructive" : "border-input"}`}
+                                maxDate={new Date()}
+                                minDate={new Date("1900-01-01")}
+                                yearDropdownItemNumber={100}
+                                locale="es"
+                              />
+                              <ValidationErrorDisplay error={errors[`profession_${form.id}_date`]} />
+                            </div>
+                          </CardContent>
+                        </Card>
+                        )
+                      })}
                     </div>
 
 
@@ -3122,8 +3727,21 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       {/* Multiple Education Forms */}
 
-                      {educationForms.map((form, index) => (
-
+                      {educationForms.map((form, index) => {
+                        // Verificar si esta educación tiene al menos un campo con valor
+                        const hasFormFields = !!(
+                          (form.title && String(form.title).trim()) || 
+                          (form.institution && String(form.institution).trim()) || 
+                          (form.start_date && String(form.start_date).trim()) || 
+                          (form.completion_date && String(form.completion_date).trim())
+                        )
+                        
+                        // Mostrar botón de descartar si:
+                        // - Hay más de una educación: siempre mostrar (incluso en el primer formulario vacío)
+                        // - Hay solo una educación: mostrar solo si tiene campos completados
+                        const showDiscardButton = educationForms.length > 1 ? true : hasFormFields
+                        
+                        return (
                         <Card key={form.id}>
 
                           <CardHeader>
@@ -3136,25 +3754,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                               </CardTitle>
 
-                              {educationForms.length > 1 && (
-
-                                <Button
-
-                                  type="button"
-
-                                  variant="ghost"
-
-                                  size="sm"
-
-                                  onClick={() => removeEducationForm(form.id)}
-
-                                >
-
-                                  <Trash2 className="h-4 w-4" />
-
-                                </Button>
-
-                              )}
+                              <div className="flex items-center gap-2">
+                                {showDiscardButton && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDiscardSingleEducation(form.id)}
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Descartar capacitación
+                                  </Button>
+                                )}
+                              </div>
 
                             </div>
 
@@ -3175,8 +3788,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                   onChange={(e) => updateEducationForm(form.id, 'title', e.target.value)}
 
                                   placeholder="Ej: Magíster en Administración"
+                                  maxLength={100}
+                                  className={errors[`education_${form.id}_title`] ? "border-destructive" : ""}
 
                                 />
+                                <ValidationErrorDisplay error={errors[`education_${form.id}_title`]} />
 
                               </div>
 
@@ -3194,7 +3810,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                                 >
 
-                                  <SelectTrigger>
+                                  <SelectTrigger className={errors[`education_${form.id}_institution`] ? "border-destructive" : ""}>
 
                                     <SelectValue placeholder="Seleccione institución" />
 
@@ -3215,70 +3831,45 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                   </SelectContent>
 
                                 </Select>
+                                <ValidationErrorDisplay error={errors[`education_${form.id}_institution`]} />
 
                               </div>
 
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
 
-                              <div className="space-y-2">
+                              <Label>Fecha de Inicio</Label>
 
-                                <Label>Fecha de Inicio</Label>
-
-                                <DatePicker
-                                  selected={form.start_date ? new Date(form.start_date) : null}
-                                  onChange={(date) => {
-                                    if (date) {
-                                      updateEducationForm(form.id, 'start_date', date.toISOString().split('T')[0])
-                                    }
-                                  }}
-                                  dateFormat="dd/MM/yyyy"
-                                  showYearDropdown
-                                  showMonthDropdown
-                                  dropdownMode="select"
-                                  placeholderText="Selecciona fecha de inicio"
-                                  className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                  maxDate={new Date()}
-                                  minDate={new Date("1900-01-01")}
-                                  yearDropdownItemNumber={100}
-                                  locale="es"
-                                />
-
-                              </div>
-
-                              <div className="space-y-2">
-
-                                <Label>Fecha Fin</Label>
-
-                                <DatePicker
-                                  selected={form.completion_date ? new Date(form.completion_date) : null}
-                                  onChange={(date) => {
-                                    if (date) {
-                                      updateEducationForm(form.id, 'completion_date', date.toISOString().split('T')[0])
-                                    }
-                                  }}
-                                  dateFormat="dd/MM/yyyy"
-                                  showYearDropdown
-                                  showMonthDropdown
-                                  dropdownMode="select"
-                                  placeholderText="Selecciona fecha final"
-                                  className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                  maxDate={new Date()}
-                                  minDate={form.start_date ? new Date(form.start_date) : new Date("1900-01-01")}
-                                  yearDropdownItemNumber={100}
-                                  locale="es"
-                                />
-
-                              </div>
+                              <DatePicker
+                                selected={form.start_date ? new Date(form.start_date) : null}
+                                onChange={(date) => {
+                                  if (date) {
+                                    updateEducationForm(form.id, 'start_date', date.toISOString().split('T')[0])
+                                  } else {
+                                    updateEducationForm(form.id, 'start_date', '')
+                                  }
+                                }}
+                                dateFormat="dd/MM/yyyy"
+                                showYearDropdown
+                                showMonthDropdown
+                                dropdownMode="select"
+                                placeholderText="Selecciona fecha de inicio"
+                                className={`w-full p-2 border bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors[`education_${form.id}_start_date`] ? "border-destructive" : "border-input"}`}
+                                maxDate={new Date()}
+                                minDate={new Date("1900-01-01")}
+                                yearDropdownItemNumber={100}
+                                locale="es"
+                              />
+                              <ValidationErrorDisplay error={errors[`education_${form.id}_start_date`]} />
 
                             </div>
 
                           </CardContent>
 
                         </Card>
-
-                      ))}
+                        )
+                      })}
 
                       {/* Formulario antiguo de educación eliminado - ahora se usan educationForms */}
 
@@ -3541,8 +4132,22 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                       {/* Multiple Work Experience Forms */}
 
-                      {workExperienceForms.map((form, index) => (
-
+                      {workExperienceForms.map((form, index) => {
+                        // Verificar si esta experiencia tiene al menos un campo con valor
+                        const hasFormFields = !!(
+                          (form.company && String(form.company).trim()) || 
+                          (form.position && String(form.position).trim()) || 
+                          (form.start_date && String(form.start_date).trim()) || 
+                          (form.end_date && String(form.end_date).trim()) ||
+                          (form.description && String(form.description).trim())
+                        )
+                        
+                        // Mostrar botón de descartar si:
+                        // - Hay más de una experiencia: siempre mostrar (incluso en el primer formulario vacío)
+                        // - Hay solo una experiencia: mostrar solo si tiene campos completados
+                        const showDiscardButton = workExperienceForms.length > 1 ? true : hasFormFields
+                        
+                        return (
                         <Card key={form.id}>
 
                           <CardHeader>
@@ -3555,25 +4160,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                               </CardTitle>
 
-                              {workExperienceForms.length > 1 && (
-
-                                <Button
-
-                                  type="button"
-
-                                  variant="ghost"
-
-                                  size="sm"
-
-                                  onClick={() => removeWorkExperienceForm(form.id)}
-
-                                >
-
-                                  <Trash2 className="h-4 w-4" />
-
-                                </Button>
-
-                              )}
+                              <div className="flex items-center gap-2">
+                                {showDiscardButton && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDiscardSingleWorkExperience(form.id)}
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Descartar experiencia
+                                  </Button>
+                                )}
+                              </div>
 
                             </div>
 
@@ -3594,8 +4194,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                   onChange={(e) => updateWorkExperienceForm(form.id, 'company', e.target.value)}
 
                                   placeholder="Nombre de la empresa"
+                                  maxLength={100}
+                                  className={errors[`work_experience_${form.id}_company`] ? "border-destructive" : ""}
 
                                 />
+                                <ValidationErrorDisplay error={errors[`work_experience_${form.id}_company`]} />
 
                               </div>
 
@@ -3610,8 +4213,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                   onChange={(e) => updateWorkExperienceForm(form.id, 'position', e.target.value)}
 
                                   placeholder="Título del cargo"
+                                  maxLength={100}
+                                  className={errors[`work_experience_${form.id}_position`] ? "border-destructive" : ""}
 
                                 />
+                                <ValidationErrorDisplay error={errors[`work_experience_${form.id}_position`]} />
 
                               </div>
 
@@ -3628,6 +4234,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                   onChange={(date) => {
                                     if (date) {
                                       updateWorkExperienceForm(form.id, 'start_date', date.toISOString().split('T')[0])
+                                    } else {
+                                      updateWorkExperienceForm(form.id, 'start_date', '')
                                     }
                                   }}
                                   dateFormat="dd/MM/yyyy"
@@ -3635,11 +4243,12 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                   showMonthDropdown
                                   dropdownMode="select"
                                   placeholderText="Selecciona fecha"
-                                  className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className={`w-full p-2 border bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors[`work_experience_${form.id}_start_date`] ? "border-destructive" : "border-input"}`}
                                   maxDate={new Date()}
                                   yearDropdownItemNumber={50}
                                   locale="es"
                                 />
+                                <ValidationErrorDisplay error={errors[`work_experience_${form.id}_start_date`]} />
 
                               </div>
 
@@ -3652,6 +4261,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                   onChange={(date) => {
                                     if (date) {
                                       updateWorkExperienceForm(form.id, 'end_date', date.toISOString().split('T')[0])
+                                    } else {
+                                      updateWorkExperienceForm(form.id, 'end_date', '')
                                     }
                                   }}
                                   dateFormat="dd/MM/yyyy"
@@ -3681,18 +4292,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                                 onChange={(e) => updateWorkExperienceForm(form.id, 'description', e.target.value)}
 
                                 placeholder="Principales responsabilidades y logros"
-
+                                maxLength={500}
                                 rows={3}
+                                className={errors[`work_experience_${form.id}_description`] ? "border-destructive" : ""}
 
                               />
+                              <ValidationErrorDisplay error={errors[`work_experience_${form.id}_description`]} />
 
                             </div>
 
                           </CardContent>
 
                         </Card>
-
-                      ))}
+                        )
+                      })}
 
                       {/* Add Work Experience Form */}
 

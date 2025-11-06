@@ -5042,22 +5042,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                         </Button>
 
-                        <Button
-
-                          variant="ghost"
-
-                          size="sm"
-
-                          onClick={() => handleDeleteCandidate(candidate.id)}
-                          title="Eliminar candidato"
-                          className="text-destructive hover:text-destructive"
-                          disabled={isBlocked}
-                        >
-
-                          <Trash2 className="h-4 w-4" />
-
-                        </Button>
-
                       </div>
 
                     </TableCell>

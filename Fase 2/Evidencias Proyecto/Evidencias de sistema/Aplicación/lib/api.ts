@@ -331,6 +331,26 @@ export const solicitudService = {
     return apiRequest('/api/solicitudes/estados/disponibles');
   },
 
+  // Obtener procesos activos agrupados por consultor (reportes)
+  async getActiveProcessesByConsultant(): Promise<ApiResponse<Record<string, number>>> {
+    return apiRequest('/api/solicitudes/reportes/carga-operativa');
+  },
+
+  // Obtener distribución por tipo de servicio
+  async getProcessesByServiceType(): Promise<ApiResponse<Array<{ service: string; count: number; percentage: number }>>> {
+    return apiRequest('/api/solicitudes/reportes/distribucion-tipo-servicio');
+  },
+
+  // Obtener fuentes de candidatos
+  async getCandidateSourceData(): Promise<ApiResponse<Array<{ source: string; candidates: number; hired: number }>>> {
+    return apiRequest('/api/solicitudes/reportes/fuentes-candidatos');
+  },
+
+  // Obtener estadísticas generales de procesos
+  async getProcessStats(): Promise<ApiResponse<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }>> {
+    return apiRequest('/api/solicitudes/reportes/estadisticas');
+  },
+
   // Cambiar etapa de solicitud
   async cambiarEtapa(id: number, id_etapa: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/etapa`, {

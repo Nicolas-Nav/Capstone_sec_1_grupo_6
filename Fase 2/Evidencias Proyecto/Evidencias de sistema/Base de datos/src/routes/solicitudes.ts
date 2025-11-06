@@ -28,6 +28,12 @@ router.get('/:id', SolicitudController.getById);
 // Obtener solicitudes por consultor
 router.get('/consultor/:rutUsuario', SolicitudController.getByConsultor);
 
+// Reportes (públicos - solo lectura)
+router.get('/reportes/carga-operativa', SolicitudController.getActiveProcessesByConsultant);
+router.get('/reportes/distribucion-tipo-servicio', SolicitudController.getProcessesByServiceType);
+router.get('/reportes/fuentes-candidatos', SolicitudController.getCandidateSourceData);
+router.get('/reportes/estadisticas', SolicitudController.getProcessStats);
+
 // Rutas protegidas (requieren autenticación)
 // Todas las operaciones de escritura requieren estar autenticado
 router.use(authenticateToken); // ← Aplica autenticación a todas las rutas siguientes

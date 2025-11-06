@@ -415,6 +415,70 @@ export class SolicitudController {
         }
     }
 
+    /**
+     * GET /api/solicitudes/reportes/carga-operativa
+     * Obtener procesos activos agrupados por consultor (reportes)
+     */
+    static async getActiveProcessesByConsultant(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getActiveProcessesByConsultant();
+            
+            Logger.info(`Procesos activos por consultor obtenidos: ${Object.keys(resultado).length} consultores`);
+            return sendSuccess(res, resultado, 'Carga operativa obtenida exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener carga operativa:', error);
+            return sendError(res, 'Error al obtener carga operativa', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/distribucion-tipo-servicio
+     * Obtener distribución de procesos por tipo de servicio
+     */
+    static async getProcessesByServiceType(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getProcessesByServiceType();
+            
+            Logger.info(`Distribución por tipo de servicio obtenida: ${resultado.length} tipos`);
+            return sendSuccess(res, resultado, 'Distribución por tipo de servicio obtenida exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener distribución por tipo de servicio:', error);
+            return sendError(res, 'Error al obtener distribución por tipo de servicio', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/fuentes-candidatos
+     * Obtener distribución de candidatos por fuente (portal de postulación)
+     */
+    static async getCandidateSourceData(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getCandidateSourceData();
+            
+            Logger.info(`Fuentes de candidatos obtenidas: ${resultado.length} fuentes`);
+            return sendSuccess(res, resultado, 'Fuentes de candidatos obtenidas exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener fuentes de candidatos:', error);
+            return sendError(res, 'Error al obtener fuentes de candidatos', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/estadisticas
+     * Obtener estadísticas generales de procesos
+     */
+    static async getProcessStats(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getProcessStats();
+            
+            Logger.info(`Estadísticas obtenidas: ${resultado.activeProcesses} activos, ${resultado.avgTimeToHire} días promedio`);
+            return sendSuccess(res, resultado, 'Estadísticas obtenidas exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener estadísticas:', error);
+            return sendError(res, 'Error al obtener estadísticas', 500);
+        }
+    }
+
 }
 
    

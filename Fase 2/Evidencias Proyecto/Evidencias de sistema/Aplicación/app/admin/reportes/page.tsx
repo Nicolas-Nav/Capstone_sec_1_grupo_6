@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import {
-  getActiveProcessesByConsultant,
   getOverdueHitosByConsultant,
   getProcessCompletionStats,
   getProcessesByServiceType,
@@ -17,8 +16,9 @@ import {
   getConsultantPerformanceData,
   getAllProcesses,
 } from "@/lib/mock-data"
+import { solicitudService } from "@/lib/api"
 import { Users, Clock, Target, TrendingUp, AlertTriangle } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 const COLORS = ["#00BCD4", "#1E3A8A", "#10b981", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#84cc16"]
 
@@ -28,6 +28,18 @@ export default function ReportesPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedWeek, setSelectedWeek] = useState(1)
+  const [activeProcesses, setActiveProcesses] = useState<Record<string, number>>({})
+  const [loadingActiveProcesses, setLoadingActiveProcesses] = useState(true)
+  const [serviceTypeData, setServiceTypeData] = useState<Array<{ service: string; count: number; percentage: number }>>([])
+  const [loadingServiceType, setLoadingServiceType] = useState(true)
+  const [candidateSourceData, setCandidateSourceData] = useState<Array<{ source: string; candidates: number; hired: number }>>([])
+  const [loadingCandidateSource, setLoadingCandidateSource] = useState(true)
+  const [processStats, setProcessStats] = useState<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }>({
+    activeProcesses: 0,
+    avgTimeToHire: 0,
+    totalCandidates: 0
+  })
+  const [loadingProcessStats, setLoadingProcessStats] = useState(true)
 
   if (user?.role !== "admin") {
     return (
@@ -40,12 +52,116 @@ export default function ReportesPage() {
     )
   }
 
-  const activeProcesses = getActiveProcessesByConsultant()
+  // Cargar procesos activos por consultor desde la API (optimizado)
+  useEffect(() => {
+    const loadActiveProcesses = async () => {
+      try {
+        setLoadingActiveProcesses(true)
+        const response = await solicitudService.getActiveProcessesByConsultant()
+        if (response.success && response.data) {
+          setActiveProcesses(response.data as Record<string, number>)
+        } else {
+          // Fallback a mock si falla la API
+          const { getActiveProcessesByConsultant } = await import("@/lib/mock-data")
+          setActiveProcesses(getActiveProcessesByConsultant())
+        }
+      } catch (error) {
+        console.error("Error al cargar procesos activos:", error)
+        // Fallback a mock si hay error
+        const { getActiveProcessesByConsultant } = await import("@/lib/mock-data")
+        setActiveProcesses(getActiveProcessesByConsultant())
+      } finally {
+        setLoadingActiveProcesses(false)
+      }
+    }
+
+    loadActiveProcesses()
+  }, [])
+
+  // Cargar distribución por tipo de servicio desde la API (optimizado)
+  useEffect(() => {
+    const loadServiceTypeData = async () => {
+      try {
+        setLoadingServiceType(true)
+        const response = await solicitudService.getProcessesByServiceType()
+        if (response.success && response.data) {
+          setServiceTypeData(response.data as Array<{ service: string; count: number; percentage: number }>)
+        } else {
+          // Fallback a mock si falla la API
+          const { getProcessesByServiceType } = await import("@/lib/mock-data")
+          setServiceTypeData(getProcessesByServiceType())
+        }
+      } catch (error) {
+        console.error("Error al cargar distribución por tipo de servicio:", error)
+        // Fallback a mock si hay error
+        const { getProcessesByServiceType } = await import("@/lib/mock-data")
+        setServiceTypeData(getProcessesByServiceType())
+      } finally {
+        setLoadingServiceType(false)
+      }
+    }
+
+    loadServiceTypeData()
+  }, [])
+
+  // Cargar fuentes de candidatos desde la API (optimizado)
+  useEffect(() => {
+    const loadCandidateSourceData = async () => {
+      try {
+        setLoadingCandidateSource(true)
+        const response = await solicitudService.getCandidateSourceData()
+        if (response.success && response.data) {
+          setCandidateSourceData(response.data as Array<{ source: string; candidates: number; hired: number }>)
+        } else {
+          // Fallback a mock si falla la API
+          const { getCandidateSourceData } = await import("@/lib/mock-data")
+          setCandidateSourceData(getCandidateSourceData())
+        }
+      } catch (error) {
+        console.error("Error al cargar fuentes de candidatos:", error)
+        // Fallback a mock si hay error
+        const { getCandidateSourceData } = await import("@/lib/mock-data")
+        setCandidateSourceData(getCandidateSourceData())
+      } finally {
+        setLoadingCandidateSource(false)
+      }
+    }
+
+    loadCandidateSourceData()
+  }, [])
+
+  // Cargar estadísticas generales desde la API (optimizado)
+  useEffect(() => {
+    const loadProcessStats = async () => {
+      try {
+        setLoadingProcessStats(true)
+        console.log('[FRONTEND] Cargando estadísticas de procesos...')
+        const response = await solicitudService.getProcessStats()
+        console.log('[FRONTEND] Respuesta de estadísticas:', response)
+        if (response.success && response.data) {
+          const stats = response.data as { activeProcesses: number; avgTimeToHire: number; totalCandidates: number }
+          console.log('[FRONTEND] Estadísticas recibidas:', stats)
+          setProcessStats(stats)
+        } else {
+          console.warn('[FRONTEND] Respuesta sin éxito o sin datos:', response)
+          // Fallback: usar valores por defecto
+          setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0 })
+        }
+      } catch (error) {
+        console.error("[FRONTEND] Error al cargar estadísticas de procesos:", error)
+        // Fallback: usar valores por defecto
+        setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0 })
+      } finally {
+        setLoadingProcessStats(false)
+      }
+    }
+
+    loadProcessStats()
+  }, [])
+
   const overdueHitos = getOverdueHitosByConsultant()
   const completionStats = getProcessCompletionStats()
-  const serviceTypeData = getProcessesByServiceType()
   const timeToHireData = getTimeToHireData()
-  const candidateSourceData = getCandidateSourceData()
   const performanceData = getConsultantPerformanceData()
   const allProcesses = getAllProcesses()
 
@@ -108,9 +224,10 @@ export default function ReportesPage() {
     { service: "Evaluación Psicolaboral", days: 15, target: 20 },
   ]
 
-  const avgTimeToHire = Math.round(timeToHireData.reduce((sum, item) => sum + item.days, 0) / timeToHireData.length)
-  const totalCandidates = candidateSourceData.reduce((sum, item) => sum + item.candidates, 0)
-  const totalActiveProcesses = Object.values(activeProcesses).reduce((sum, count) => sum + count, 0)
+  // Usar datos reales de la API para las estadísticas
+  const avgTimeToHire = processStats.avgTimeToHire || 0
+  const totalCandidates = processStats.totalCandidates || 0
+  const totalActiveProcesses = processStats.activeProcesses || 0
   const totalProcesses = allProcesses.length
   const completedProcesses = processStatusData.find((p) => p.status === "Completado")?.count || 0
   const completionRate = Math.round((completedProcesses / totalProcesses) * 100)
@@ -224,8 +341,16 @@ export default function ReportesPage() {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalActiveProcesses}</div>
-            <p className="text-xs text-muted-foreground">En curso actualmente</p>
+            {loadingProcessStats ? (
+              <div className="flex items-center justify-center h-12">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{totalActiveProcesses}</div>
+                <p className="text-xs text-muted-foreground">En curso actualmente</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -234,8 +359,16 @@ export default function ReportesPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{avgTimeToHire} días</div>
-            <p className="text-xs text-muted-foreground">Time-to-hire promedio</p>
+            {loadingProcessStats ? (
+              <div className="flex items-center justify-center h-12">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{avgTimeToHire} días</div>
+                <p className="text-xs text-muted-foreground">Time-to-hire promedio</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -244,8 +377,16 @@ export default function ReportesPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalCandidates}</div>
-            <p className="text-xs text-muted-foreground">En todos los procesos</p>
+            {loadingProcessStats ? (
+              <div className="flex items-center justify-center h-12">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{totalCandidates}</div>
+                <p className="text-xs text-muted-foreground">En todos los procesos</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -721,7 +862,6 @@ export default function ReportesPage() {
                       <TableHead>Estado</TableHead>
                       <TableHead>Fecha Inicio</TableHead>
                       <TableHead>Días Transcurridos</TableHead>
-                      <TableHead>Contacto</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -770,9 +910,6 @@ export default function ReportesPage() {
                             <span className={daysSinceStart > 60 ? "text-red-600 font-medium" : ""}>
                               {daysSinceStart} días
                             </span>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {process.contactName || "No asignado"}
                           </TableCell>
                         </TableRow>
                       )
@@ -854,43 +991,88 @@ export default function ReportesPage() {
                 <CardDescription>Procesos activos asignados</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={activeProcessesData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="procesos" fill="#00BCD4" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {loadingActiveProcesses ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={Object.entries(activeProcesses).map(([name, count]) => ({
+                      name,
+                      procesos: count,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="procesos" fill="#00BCD4" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Distribución por Tipo de Servicio</CardTitle>
-                <CardDescription>Procesos por categoría</CardDescription>
+                <CardTitle>Tipo de Servicio Total (En Progreso, Cerrados, Congelados, Cancelados)</CardTitle>
+                <CardDescription>Distribución de procesos por categoría</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={serviceTypeData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ service, percentage }) => `${service}: ${percentage}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="count"
-                    >
-                      {serviceTypeData.map((entry, index) => (
-                        <Cell key={`cell-service-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                {loadingServiceType ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : serviceTypeData.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <PieChart>
+                      <Pie
+                        data={serviceTypeData}
+                        cx="50%"
+                        cy="50%"
+                        startAngle={300}
+                        endAngle={-130}
+                        labelLine={true}
+                        label={({ service, percentage }) => `${service}: ${percentage}%`}
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="count"
+                      >
+                        {serviceTypeData.map((entry, index) => (
+                          <Cell key={`cell-service-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload as { service: string; count: number; percentage: number };
+                            return (
+                              <div className="bg-background border border-border rounded-lg shadow-lg p-3">
+                                <p className="font-semibold text-sm">{data.service}</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  <span className="font-medium">{data.count}</span> {data.count === 1 ? 'proceso' : 'procesos'}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {data.percentage}% del total
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -923,16 +1105,29 @@ export default function ReportesPage() {
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
                   <h4 className="text-sm font-medium mb-4">Volumen de Candidatos por Fuente</h4>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={candidateSourceData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="source" angle={-45} textAnchor="end" height={80} />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="candidates" fill="#00BCD4" name="Candidatos" />
-                      <Bar dataKey="hired" fill="#10b981" name="Contratados" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {loadingCandidateSource ? (
+                    <div className="flex items-center justify-center h-[250px]">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                        <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                      </div>
+                    </div>
+                  ) : candidateSourceData.length === 0 ? (
+                    <div className="flex items-center justify-center h-[250px]">
+                      <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={candidateSourceData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="source" angle={-45} textAnchor="end" height={80} />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="candidates" fill="#00BCD4" name="Candidatos" />
+                        <Bar dataKey="hired" fill="#10b981" name="Contratados" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
                 <div>
                   <h4 className="text-sm font-medium mb-4">Distribución de Candidatos</h4>

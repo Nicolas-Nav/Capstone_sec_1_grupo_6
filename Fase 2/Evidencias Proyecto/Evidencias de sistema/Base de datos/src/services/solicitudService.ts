@@ -14,7 +14,9 @@ import {
     Cargo,
     Comuna,
     Postulacion,
-    EstadoClientePostulacionM5
+    EstadoClientePostulacionM5,
+    PortalPostulacion,
+    EstadoCliente
 } from '@/models';
 import { HitoSolicitudService } from './hitoSolicitudService';
 
@@ -1285,6 +1287,224 @@ export class SolicitudService {
             'Cierre Extraordinario': 'cierre_extraordinario'
         };
         return mapeo[nombreEstado] || 'creado';
+    }
+
+    /**
+     * Obtener procesos activos agrupados por consultor (OPTIMIZADO)
+     * Retorna un objeto con el nombre del consultor como clave y la cantidad de procesos activos como valor
+     * Usa query SQL directa para máximo rendimiento
+     */
+    static async getActiveProcessesByConsultant(): Promise<Record<string, number>> {
+        try {
+            // Query SQL optimizada: solo trae lo necesario
+            // Usa CTE para obtener el estado más reciente de cada solicitud y filtra solo activos
+            const [results] = await sequelize.query(`
+                WITH estado_actual AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        es.nombre_estado_solicitud
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE es.nombre_estado_solicitud IN ('En Progreso', 'Iniciado', 'Abierto')
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                )
+                SELECT 
+                    COALESCE(u.nombre_usuario, 'Sin asignar') as consultor,
+                    COUNT(*) as cantidad
+                FROM solicitud s
+                INNER JOIN estado_actual ea ON s.id_solicitud = ea.id_solicitud
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                WHERE s.rut_usuario IS NOT NULL
+                GROUP BY u.nombre_usuario
+                ORDER BY cantidad DESC
+            `);
+
+            // Convertir resultados a objeto Record<string, number>
+            const resultado: Record<string, number> = {};
+            (results as any[]).forEach((row: any) => {
+                const consultor = row.consultor || 'Sin asignar';
+                resultado[consultor] = parseInt(row.cantidad) || 0;
+            });
+
+            return resultado;
+        } catch (error: any) {
+            console.error('Error al obtener procesos activos por consultor:', error);
+            throw new Error('Error al obtener procesos activos por consultor');
+        }
+    }
+
+    /**
+     * Obtener distribución de procesos por tipo de servicio (OPTIMIZADO)
+     * Retorna un array con servicio, cantidad y porcentaje
+     * Usa query optimizada que solo trae los campos necesarios
+     * Trae TODAS las solicitudes sin filtros (de todos los consultores y estados)
+     */
+    static async getProcessesByServiceType(): Promise<Array<{ service: string; count: number; percentage: number }>> {
+        try {
+            // Query optimizada: solo trae codigo_servicio y el nombre del tipo de servicio
+            // Usa required: false para hacer LEFT JOIN y traer todas las solicitudes
+            const solicitudes = await Solicitud.findAll({
+                attributes: ['codigo_servicio'],
+                include: [
+                    {
+                        model: TipoServicio,
+                        as: 'tipoServicio',
+                        attributes: ['nombre_servicio'], // Columna correcta: nombre_servicio, no nombre_tipo_servicio
+                        required: false // LEFT JOIN para traer todas las solicitudes incluso sin tipo de servicio
+                    }
+                ],
+                raw: false,
+                // Sin filtros: trae TODAS las solicitudes
+            });
+
+            console.log(`[DEBUG] Total de solicitudes encontradas: ${solicitudes.length}`);
+
+            // Contar por tipo de servicio
+            const serviceTypeCounts: Record<string, number> = {};
+            let total = 0;
+            const codigosNoMapeados: Record<string, number> = {};
+
+            solicitudes.forEach((solicitud: any) => {
+                const codigoServicio = solicitud.codigo_servicio || 'sin_servicio';
+                const nombreServicio = solicitud.tipoServicio?.nombre_servicio || codigoServicio; // Columna correcta: nombre_servicio
+
+                // Mapeo de códigos a nombres legibles
+                const serviceMapping: Record<string, string> = {
+                    'PC': 'Proceso Completo',
+                    'LL': 'Long List',
+                    'TR': 'Targeted Recruitment',
+                    'HS': 'Headhunting',
+                    'ES': 'Evaluación Psicolaboral',
+                    'TS': 'Test Psicolaboral',
+                    'AO': 'Filtro Inteligente',
+                };
+
+                const serviceLabel = serviceMapping[codigoServicio] || nombreServicio;
+                
+                // Registrar códigos no mapeados
+                if (!serviceMapping[codigoServicio] && codigoServicio !== 'sin_servicio') {
+                    codigosNoMapeados[codigoServicio] = (codigosNoMapeados[codigoServicio] || 0) + 1;
+                }
+
+                serviceTypeCounts[serviceLabel] = (serviceTypeCounts[serviceLabel] || 0) + 1;
+                total++;
+            });
+
+            console.log(`[DEBUG] Distribución por tipo de servicio:`, serviceTypeCounts);
+            console.log(`[DEBUG] Total de procesos contados: ${total}`);
+            if (Object.keys(codigosNoMapeados).length > 0) {
+                console.log(`[DEBUG] Códigos de servicio no mapeados encontrados:`, codigosNoMapeados);
+            }
+
+            // Convertir a array con porcentajes
+            return Object.entries(serviceTypeCounts).map(([service, count]) => ({
+                service,
+                count,
+                percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+            }));
+        } catch (error: any) {
+            console.error('Error al obtener distribución por tipo de servicio:', error);
+            throw new Error('Error al obtener distribución por tipo de servicio');
+        }
+    }
+
+    /**
+     * Obtener distribución de candidatos por fuente (portal de postulación)
+     * Retorna un array con fuente, cantidad total de candidatos y cantidad de contratados
+     * Usa query optimizada que solo trae los campos necesarios
+     */
+    static async getCandidateSourceData(): Promise<Array<{ source: string; candidates: number; hired: number }>> {
+        try {
+            // Query optimizada usando SQL directo para mejor rendimiento
+            // Contratados: solo aquellos con contratacion donde id_estado_contratacion = 1
+            const [results] = await sequelize.query(`
+                SELECT 
+                    COALESCE(pp.nombre_portal_postulacion, 'Sin fuente') as source,
+                    COUNT(DISTINCT p.id_postulacion) as candidates,
+                    COUNT(DISTINCT CASE 
+                        WHEN c.id_estado_contratacion = 1 THEN p.id_postulacion 
+                        ELSE NULL 
+                    END) as hired
+                FROM postulacion p
+                LEFT JOIN portal_postulacion pp ON p.id_portal_postulacion = pp.id_portal_postulacion
+                LEFT JOIN contratacion c ON p.id_postulacion = c.id_postulacion
+                GROUP BY pp.nombre_portal_postulacion
+                ORDER BY candidates DESC
+            `);
+
+            console.log(`[DEBUG] Fuentes de candidatos encontradas:`, (results as any[]).length);
+
+            // Convertir resultados a formato esperado
+            return (results as any[]).map((row: any) => ({
+                source: row.source || 'Sin fuente',
+                candidates: parseInt(row.candidates) || 0,
+                hired: parseInt(row.hired) || 0
+            }));
+        } catch (error: any) {
+            console.error('Error al obtener fuentes de candidatos:', error);
+            throw new Error('Error al obtener fuentes de candidatos');
+        }
+    }
+
+    /**
+     * Obtener estadísticas generales de procesos
+     * Retorna: procesos activos, tiempo promedio de contratación, total de candidatos
+     */
+    static async getProcessStats(): Promise<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }> {
+        try {
+            // 1. Procesos activos: contar solicitudes con estado más reciente = 1 o 2 (Iniciado/En Progreso)
+            const [activeResult] = await sequelize.query(`
+                WITH ult AS (
+                    SELECT
+                        id_solicitud,
+                        id_estado_solicitud,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY id_solicitud
+                            ORDER BY fecha_cambio_estado_solicitud DESC
+                        ) AS rn
+                    FROM estado_solicitud_hist
+                )
+                SELECT COUNT(*) as activos
+                FROM ult
+                WHERE rn = 1
+                  AND id_estado_solicitud IN (1, 2)
+            `);
+            const activeProcesses = parseInt((activeResult[0] as any)?.activos || '0');
+
+            // 2. Tiempo promedio de contratación: calcular desde fecha_ingreso_solicitud hasta fecha_ingreso_contratacion
+            const [timeResult] = await sequelize.query(`
+                SELECT 
+                    AVG(
+                        EXTRACT(EPOCH FROM (c.fecha_ingreso_contratacion - s.fecha_ingreso_solicitud)) / 86400
+                    ) as avg_days
+                FROM contratacion c
+                INNER JOIN postulacion p ON c.id_postulacion = p.id_postulacion
+                INNER JOIN solicitud s ON p.id_solicitud = s.id_solicitud
+                WHERE c.id_estado_contratacion = 1
+                  AND c.fecha_ingreso_contratacion IS NOT NULL
+                  AND s.fecha_ingreso_solicitud IS NOT NULL
+            `);
+            const avgDays = parseFloat((timeResult[0] as any)?.avg_days || '0');
+            const avgTimeToHire = Math.round(avgDays) || 0;
+
+            // 3. Total de candidatos: contar todas las postulaciones
+            const [candidatesResult] = await sequelize.query(`
+                SELECT COUNT(*) as total
+                FROM postulacion
+            `);
+            const totalCandidates = parseInt((candidatesResult[0] as any)?.total || '0');
+
+            console.log(`[DEBUG] Estadísticas: Activos=${activeProcesses}, TiempoPromedio=${avgTimeToHire}, Candidatos=${totalCandidates}`);
+
+            return {
+                activeProcesses,
+                avgTimeToHire,
+                totalCandidates
+            };
+        } catch (error: any) {
+            console.error('Error al obtener estadísticas de procesos:', error);
+            throw new Error('Error al obtener estadísticas de procesos');
+        }
     }
 }
 

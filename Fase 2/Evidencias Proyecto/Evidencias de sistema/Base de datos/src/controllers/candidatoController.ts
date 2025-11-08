@@ -80,7 +80,9 @@ export class CandidatoController {
             console.log('Body recibido:', JSON.stringify(req.body, null, 2));
             
             const {
-                name,
+                nombre,
+                primer_apellido,
+                segundo_apellido,
                 email,
                 phone,
                 rut,
@@ -101,7 +103,9 @@ export class CandidatoController {
             } = req.body;
 
             const nuevoCandidato = await CandidatoService.createCandidato({
-                name,
+                nombre,
+                primer_apellido,
+                segundo_apellido,
                 email,
                 phone,
                 rut,
@@ -147,7 +151,9 @@ export class CandidatoController {
         try {
             const { id } = req.params;
             const {
-                name,
+                nombre,
+                primer_apellido,
+                segundo_apellido,
                 email,
                 phone,
                 rut,
@@ -167,7 +173,9 @@ export class CandidatoController {
             } = req.body;
 
             const candidatoActualizado = await CandidatoService.updateCandidato(parseInt(id), {
-                name,
+                nombre,
+                primer_apellido,
+                segundo_apellido,
                 email,
                 phone,
                 rut,

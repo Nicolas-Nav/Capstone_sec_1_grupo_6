@@ -458,7 +458,9 @@ export const candidatoService = {
 
   // Crear candidato
   async create(data: {
-    name: string;
+    nombre: string;
+    primer_apellido: string;
+    segundo_apellido?: string;
     email: string;
     phone: string;
     rut?: string;
@@ -467,9 +469,15 @@ export const candidatoService = {
     nacionalidad?: string;
     rubro?: string;
     profession?: string;
+    professions?: Array<{
+      profession: string;
+      institution: string;
+      date?: string;
+    }>;
     english_level?: string;
     software_tools?: string;
     has_disability_credential?: boolean;
+    licencia?: boolean;
     work_experience?: Array<{
       company: string;
       position: string;
@@ -484,6 +492,11 @@ export const candidatoService = {
       completion_date?: string;
     }>;
   }): Promise<ApiResponse<any>> {
+    console.log('🔧 candidatoService.create - data:', data)
+    console.log('🔧 candidatoService.create - data.nombre:', data.nombre)
+    console.log('🔧 candidatoService.create - data.primer_apellido:', data.primer_apellido)
+    console.log('🔧 candidatoService.create - data.segundo_apellido:', data.segundo_apellido)
+    
     return apiRequest('/api/candidatos', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -492,7 +505,9 @@ export const candidatoService = {
 
   // Actualizar candidato
   async update(id: number, data: {
-    name?: string;
+    nombre?: string;
+    primer_apellido?: string;
+    segundo_apellido?: string;
     email?: string;
     phone?: string;
     rut?: string;
@@ -501,12 +516,24 @@ export const candidatoService = {
     nacionalidad?: string;
     rubro?: string;
     profession?: string;
+    professions?: Array<{
+      profession: string;
+      institution: string;
+      date?: string;
+    }>;
     english_level?: string;
     software_tools?: string;
     has_disability_credential?: boolean;
+    licencia?: boolean;
     work_experience?: any[];
     education?: any[];
   }): Promise<ApiResponse<any>> {
+    console.log('🔧 candidatoService.update - id:', id)
+    console.log('🔧 candidatoService.update - data:', data)
+    console.log('🔧 candidatoService.update - data.nombre:', data.nombre)
+    console.log('🔧 candidatoService.update - data.primer_apellido:', data.primer_apellido)
+    console.log('🔧 candidatoService.update - data.segundo_apellido:', data.segundo_apellido)
+    
     return apiRequest(`/api/candidatos/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

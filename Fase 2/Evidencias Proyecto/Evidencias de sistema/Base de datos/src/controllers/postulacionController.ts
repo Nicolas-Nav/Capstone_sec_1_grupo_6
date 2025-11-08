@@ -193,7 +193,8 @@ export class PostulacionController {
                 valoracion, 
                 motivacion, 
                 expectativa_renta, 
-                disponibilidad_postulacion, 
+                disponibilidad_postulacion,
+                situacion_familiar,
                 comentario_no_presentado 
             } = req.body;
 
@@ -213,6 +214,7 @@ export class PostulacionController {
                 motivacion,
                 expectativa_renta: expectativa_renta ? parseFloat(expectativa_renta) : undefined,
                 disponibilidad_postulacion,
+                situacion_familiar,
                 comentario_no_presentado
             }, req.user?.id);
 

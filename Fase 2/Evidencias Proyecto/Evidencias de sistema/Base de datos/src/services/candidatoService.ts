@@ -196,7 +196,9 @@ export class CandidatoService {
      * Crear nuevo candidato con toda su información
      */
     static async createCandidato(data: {
-        name: string;
+        nombre: string;
+        primer_apellido: string;
+        segundo_apellido?: string;
         email: string;
         phone: string;
         rut?: string;
@@ -226,7 +228,9 @@ export class CandidatoService {
 
         try {
             const {
-                name,
+                nombre,
+                primer_apellido,
+                segundo_apellido,
                 email,
                 phone,
                 rut,
@@ -248,8 +252,8 @@ export class CandidatoService {
 
             // Validaciones
             console.log('Validando campos requeridos...');
-            if (!name || !email || !phone) {
-                console.error('Faltan campos requeridos:', { name, email, phone });
+            if (!nombre || !primer_apellido || !email || !phone) {
+                console.error('Faltan campos requeridos:', { nombre, primer_apellido, email, phone });
                 throw new Error('Faltan campos requeridos');
             }
 
@@ -260,12 +264,6 @@ export class CandidatoService {
                 console.error('Candidato ya existe con email:', email);
                 throw new Error('Ya existe un candidato con este email');
             }
-
-            // Separar nombre en partes
-            const nombrePartes = name.trim().split(' ');
-            const nombre = nombrePartes[0];
-            const primerApellido = nombrePartes[1] || '';
-            const segundoApellido = nombrePartes.slice(2).join(' ') || '';
 
             // Buscar comuna por nombre
             let idComuna: number | undefined = undefined;
@@ -305,9 +303,9 @@ export class CandidatoService {
             console.log('Creando candidato en la base de datos...');
             const nuevoCandidato = await Candidato.create({
                 rut_candidato: rut,
-                nombre_candidato: nombre,
-                primer_apellido_candidato: primerApellido,
-                segundo_apellido_candidato: segundoApellido,
+                nombre_candidato: nombre.trim(),
+                primer_apellido_candidato: primer_apellido.trim(),
+                segundo_apellido_candidato: segundo_apellido?.trim() || 'N/A',
                 telefono_candidato: phone.trim(),
                 email_candidato: email.trim(),
                 fecha_nacimiento_candidato: birth_date ? new Date(birth_date) : undefined,
@@ -438,7 +436,9 @@ export class CandidatoService {
      * Actualizar candidato
      */
     static async updateCandidato(id: number, data: {
-        name?: string;
+        nombre?: string;
+        primer_apellido?: string;
+        segundo_apellido?: string;
         email?: string;
         phone?: string;
         rut?: string;
@@ -484,11 +484,17 @@ export class CandidatoService {
 
             const updateData: any = {};
 
-            if (data.name) {
-                const nombrePartes = data.name.trim().split(' ');
-                updateData.nombre_candidato = nombrePartes[0];
-                updateData.primer_apellido_candidato = nombrePartes[1] || '';
-                updateData.segundo_apellido_candidato = nombrePartes.slice(2).join(' ') || '';
+            if (data.nombre) {
+                updateData.nombre_candidato = data.nombre.trim();
+            }
+            if (data.primer_apellido) {
+                updateData.primer_apellido_candidato = data.primer_apellido.trim();
+            }
+            if (data.segundo_apellido !== undefined) {
+                // Si segundo_apellido está vacío o es muy corto, usar "N/A"
+                updateData.segundo_apellido_candidato = data.segundo_apellido && data.segundo_apellido.trim().length >= 2
+                    ? data.segundo_apellido.trim()
+                    : 'N/A';
             }
 
             if (data.email) updateData.email_candidato = data.email.trim();
@@ -540,71 +546,85 @@ export class CandidatoService {
             await candidato.update(updateData, { transaction });
 
             // Actualizar profesiones si se proporciona
-            if (data.professions && data.professions.length > 0) {
+            // Si se envía un array (incluso vacío), se actualizan las profesiones
+            if (data.professions !== undefined) {
                 // Eliminar todas las relaciones de profesión existentes
                 await CandidatoProfesion.destroy({
                     where: { id_candidato: id },
                     transaction
                 });
 
-                // Crear nuevas relaciones de profesión
-                for (const prof of data.professions) {
-                    if (prof.profession && prof.institution) {
-                        // Buscar o crear la profesión
-                        let profesion = await Profesion.findOne({
-                            where: { nombre_profesion: prof.profession.trim() }
-                        });
+                // Crear nuevas relaciones de profesión solo si hay elementos en el array
+                if (data.professions.length > 0) {
+                    for (const prof of data.professions) {
+                        if (prof.profession && prof.institution) {
+                            // Buscar la profesión (por ID si es número, por nombre si es texto)
+                            let profesion;
+                            const professionValue = prof.profession.trim();
+                            
+                            // Si es un número, buscar por ID
+                            if (!isNaN(Number(professionValue))) {
+                                profesion = await Profesion.findByPk(parseInt(professionValue));
+                            } else {
+                                // Si es texto, buscar por nombre
+                                profesion = await Profesion.findOne({
+                                    where: { nombre_profesion: professionValue }
+                                });
+                            }
 
-                        if (!profesion) {
-                            profesion = await Profesion.create({
-                                nombre_profesion: prof.profession.trim()
+                            if (!profesion) {
+                                throw new Error(`Profesión no encontrada: ${professionValue}`);
+                            }
+
+                            // Buscar la institución
+                            let institucion = null;
+                            if (prof.institution) {
+                                institucion = await Institucion.findOne({
+                                    where: { nombre_institucion: prof.institution.trim() }
+                                });
+                            }
+
+                            // Crear la relación
+                            await CandidatoProfesion.create({
+                                id_candidato: id,
+                                id_profesion: profesion.id_profesion,
+                                fecha_obtencion: prof.date ? this.parseDateOnly(prof.date) : undefined,
+                                id_institucion: institucion ? institucion.id_institucion : undefined
                             }, { transaction });
                         }
-
-                        // Buscar la institución
-                        let institucion = null;
-                        if (prof.institution) {
-                            institucion = await Institucion.findOne({
-                                where: { nombre_institucion: prof.institution.trim() }
-                            });
-                        }
-
-                        // Crear la relación
-                        await CandidatoProfesion.create({
-                            id_candidato: id,
-                            id_profesion: profesion.id_profesion,
-                            fecha_obtencion: prof.date ? new Date(prof.date) : undefined,
-                            id_institucion: institucion ? institucion.id_institucion : undefined
-                        }, { transaction });
                     }
                 }
             }
 
             // Actualizar experiencia laboral si se proporciona
-            if (data.work_experience && data.work_experience.length > 0) {
+            // Si se envía un array (incluso vacío), se actualizan las experiencias
+            if (data.work_experience !== undefined) {
                 // Eliminar todas las experiencias existentes
                 await Experiencia.destroy({
                     where: { id_candidato: id },
                     transaction
                 });
 
-                // Crear nuevas experiencias
-                for (const exp of data.work_experience) {
-                    if (exp.company && exp.position) {
-                        await Experiencia.create({
-                            id_candidato: id,
-                            empresa: exp.company.trim(),
-                            cargo: exp.position.trim(),
-                            fecha_inicio_experiencia: exp.start_date ? new Date(exp.start_date) : new Date(),
-                            fecha_fin_experiencia: exp.end_date ? new Date(exp.end_date) : undefined,
-                            descripcion_funciones_experiencia: exp.description || ''
-                        }, { transaction });
+                // Crear nuevas experiencias solo si hay elementos en el array
+                if (data.work_experience.length > 0) {
+                    for (const exp of data.work_experience) {
+                        if (exp.company && exp.position) {
+                            await Experiencia.create({
+                                id_candidato: id,
+                                empresa: exp.company.trim(),
+                                cargo: exp.position.trim(),
+                                fecha_inicio_experiencia: exp.start_date ? this.parseDateOnly(exp.start_date) : new Date(),
+                                fecha_fin_experiencia: exp.end_date ? this.parseDateOnly(exp.end_date) : undefined,
+                                descripcion_funciones_experiencia: exp.description || ''
+                            }, { transaction });
+                        }
                     }
                 }
             }
 
             // Actualizar educación si se proporciona
-            if (data.education && data.education.length > 0) {
+            // Si se envía un array (incluso vacío), se actualizan las capacitaciones
+            if (data.education !== undefined) {
                 console.log('📚 Guardando educación para candidato', id, ':', data.education);
                 
                 // Eliminar todas las relaciones de educación existentes
@@ -613,49 +633,51 @@ export class CandidatoService {
                     transaction
                 });
 
-                // Crear nuevas relaciones de educación
-                for (const edu of data.education) {
-                    console.log('📖 Procesando educación:', edu);
-                    if (edu.title && edu.institution) {
-                        // Buscar o crear el postgrado/capacitación
-                        let postgrado = await PostgradoCapacitacion.findOne({
-                            where: { nombre_postgradocapacitacion: edu.title.trim() }
-                        });
-
-                        if (!postgrado) {
-                            postgrado = await PostgradoCapacitacion.create({
-                                nombre_postgradocapacitacion: edu.title.trim()
-                            }, { transaction });
-                        }
-
-                        // Buscar o crear la institución
-                        let institucion = null;
-                        if (edu.institution) {
-                            institucion = await Institucion.findOne({
-                                where: { nombre_institucion: edu.institution.trim() }
+                // Crear nuevas relaciones de educación solo si hay elementos en el array
+                if (data.education.length > 0) {
+                    for (const edu of data.education) {
+                        console.log('📖 Procesando educación:', edu);
+                        if (edu.title && edu.institution) {
+                            // Buscar o crear el postgrado/capacitación
+                            let postgrado = await PostgradoCapacitacion.findOne({
+                                where: { nombre_postgradocapacitacion: edu.title.trim() }
                             });
-                            
-                            // Si no existe, crearla
-                            if (!institucion) {
-                                institucion = await Institucion.create({
-                                    nombre_institucion: edu.institution.trim()
+
+                            if (!postgrado) {
+                                postgrado = await PostgradoCapacitacion.create({
+                                    nombre_postgradocapacitacion: edu.title.trim()
                                 }, { transaction });
                             }
-                        }
 
-                        // Crear la relación
-                        const relationData = {
-                            id_candidato: id,
-                            id_postgradocapacitacion: postgrado.id_postgradocapacitacion,
-                            fecha_obtencion: edu.completion_date ? new Date(edu.completion_date) : new Date(),
-                            id_institucion: institucion ? institucion.id_institucion : null
-                        };
-                        
-                        console.log('💾 Guardando relación CandidatoPostgradoCapacitacion:', relationData);
-                        await CandidatoPostgradoCapacitacion.create(relationData, { transaction });
-                        console.log('✅ Educación guardada exitosamente');
-                    } else {
-                        console.log('⚠️ Educación NO guardada - falta título o institución');
+                            // Buscar o crear la institución
+                            let institucion = null;
+                            if (edu.institution) {
+                                institucion = await Institucion.findOne({
+                                    where: { nombre_institucion: edu.institution.trim() }
+                                });
+                                
+                                // Si no existe, crearla
+                                if (!institucion) {
+                                    institucion = await Institucion.create({
+                                        nombre_institucion: edu.institution.trim()
+                                    }, { transaction });
+                                }
+                            }
+
+                            // Crear la relación
+                            const relationData = {
+                                id_candidato: id,
+                                id_postgradocapacitacion: postgrado.id_postgradocapacitacion,
+                                fecha_obtencion: edu.completion_date ? this.parseDateOnly(edu.completion_date) : new Date(),
+                                id_institucion: institucion ? institucion.id_institucion : null
+                            };
+                            
+                            console.log('💾 Guardando relación CandidatoPostgradoCapacitacion:', relationData);
+                            await CandidatoPostgradoCapacitacion.create(relationData, { transaction });
+                            console.log('✅ Educación guardada exitosamente');
+                        } else {
+                            console.log('⚠️ Educación NO guardada - falta título o institución');
+                        }
                     }
                 }
             }
@@ -782,8 +804,8 @@ export class CandidatoService {
                 const nuevaExperiencia = await Experiencia.create({
                     empresa: exp.company,
                     cargo: exp.position,
-                    fecha_inicio_experiencia: exp.start_date ? new Date(exp.start_date) : new Date(),
-                    fecha_fin_experiencia: exp.end_date ? new Date(exp.end_date) : undefined,
+                    fecha_inicio_experiencia: exp.start_date ? this.parseDateOnly(exp.start_date) : new Date(),
+                    fecha_fin_experiencia: exp.end_date ? this.parseDateOnly(exp.end_date) : undefined,
                     descripcion_funciones_experiencia: exp.description || '',
                     id_candidato: idCandidato
                 }, { transaction: useTransaction });
@@ -837,8 +859,8 @@ export class CandidatoService {
         await experiencia.update({
             empresa: data.company,
             cargo: data.position,
-            fecha_inicio_experiencia: data.start_date ? new Date(data.start_date) : experiencia.fecha_inicio_experiencia,
-            fecha_fin_experiencia: data.end_date ? new Date(data.end_date) : undefined,
+            fecha_inicio_experiencia: data.start_date ? this.parseDateOnly(data.start_date) : experiencia.fecha_inicio_experiencia,
+            fecha_fin_experiencia: data.end_date ? this.parseDateOnly(data.end_date) : undefined,
             descripcion_funciones_experiencia: data.description || experiencia.descripcion_funciones_experiencia
         });
 
@@ -901,7 +923,7 @@ export class CandidatoService {
                     id_candidato: idCandidato,
                     id_postgradocapacitacion: formacion.id_postgradocapacitacion,
                     id_institucion: institucion.id_institucion, // ✅ AGREGADO
-                    fecha_obtencion: edu.completion_date ? new Date(edu.completion_date) : new Date() // ✅ AGREGADO
+                    fecha_obtencion: edu.completion_date ? this.parseDateOnly(edu.completion_date) : new Date()
                 }, { transaction: useTransaction });
                 console.log('📚 Relación creada exitosamente');
             }
@@ -989,7 +1011,7 @@ export class CandidatoService {
                     id_candidato: idCandidato,
                     id_profesion: profesion.id_profesion,
                     id_institucion: institucion.id_institucion, // ✅ AGREGADO
-                    fecha_obtencion: fechaObtencion ? new Date(fechaObtencion) : new Date() // Usar fecha proporcionada o actual por defecto
+                    fecha_obtencion: fechaObtencion ? this.parseDateOnly(fechaObtencion) : new Date()
                 }, { transaction: useTransaction });
             }
 
@@ -1056,6 +1078,14 @@ export class CandidatoService {
     /**
      * HELPERS
      */
+
+    /**
+     * Convertir string de fecha YYYY-MM-DD a Date sin problemas de zona horaria
+     * Agrega T12:00:00 para usar mediodía y evitar cambios de día por zona horaria
+     */
+    private static parseDateOnly(dateString: string): Date {
+        return new Date(dateString + 'T12:00:00');
+    }
 
     private static calculateAge(birthDate: Date): number {
         const today = new Date();

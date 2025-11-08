@@ -326,9 +326,17 @@ export class PostulacionService {
             let candidato = await CandidatoService.getCandidatoByEmail(email);
 
             if (!candidato) {
+                // Separar nombre completo en partes
+                const nombrePartes = name.trim().split(' ');
+                const nombre = nombrePartes[0] || '';
+                const primerApellido = nombrePartes[1] || '';
+                const segundoApellido = nombrePartes.slice(2).join(' ') || undefined;
+                
                 // Crear candidato usando el servicio
                 const nuevoCandidatoResult = await CandidatoService.createCandidato({
-                    name,
+                    nombre,
+                    primer_apellido: primerApellido,
+                    segundo_apellido: segundoApellido,
                     email,
                     phone,
                     birth_date,
@@ -450,6 +458,7 @@ export class PostulacionService {
         motivacion?: string;
         expectativa_renta?: number;
         disponibilidad_postulacion?: string;
+        situacion_familiar?: string;
         comentario_no_presentado?: string;
     }, usuarioRut?: string) {
         console.log('🔍 === SERVICIO updateValoracion ===');
@@ -483,6 +492,7 @@ export class PostulacionService {
             if (data.motivacion !== undefined) updateData.motivacion = data.motivacion;
             if (data.expectativa_renta !== undefined) updateData.expectativa_renta = data.expectativa_renta;
             if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
+            if (data.situacion_familiar !== undefined) updateData.situacion_familiar = data.situacion_familiar;
             if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
 
             console.log('🔍 Datos a actualizar:', updateData);
@@ -638,8 +648,10 @@ export class PostulacionService {
             profession_institution: '', // Se llenará después con consulta separada
             profession_date: candidato.profesiones?.[0]?.CandidatoProfesion?.fecha_obtencion ? new Date(candidato.profesiones[0].CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0] : '',
             professions: candidato.profesiones?.map((prof: any) => ({
+                id_profesion: prof.id_profesion, // ID de la profesión
                 profession: prof.nombre_profesion,
                 institution: '', // Se llenará después con consulta separada
+                id_institucion: prof.CandidatoProfesion?.id_institucion, // ID de la institución
                 date: prof.CandidatoProfesion?.fecha_obtencion ? new Date(prof.CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0] : ''
             })) || [],
             consultant_comment: postulacion.comentario_no_presentado,
@@ -666,9 +678,12 @@ export class PostulacionService {
             education: candidato.postgradosCapacitaciones?.map((edu: any) => {
                 return {
                     id: edu.id_postgradocapacitacion.toString(),
+                    id_postgradocapacitacion: edu.id_postgradocapacitacion,
                     title: edu.nombre_postgradocapacitacion,
                     institution: '', // Se llenará después con query directo
-                    completion_date: '' // Se llenará después con query directo
+                    id_institucion: null, // Se llenará después con query directo
+                    completion_date: '', // Se llenará después con query directo
+                    start_date: '' // Campo opcional para el frontend
                 };
             }) || [],
             portal_responses: {
@@ -704,6 +719,7 @@ export class PostulacionService {
                     const institucionProf = await Institucion.findByPk(prof.CandidatoProfesion.id_institucion);
                     if (institucionProf) {
                         transformedData.professions[i].institution = institucionProf.nombre_institucion;
+                        transformedData.professions[i].id_institucion = institucionProf.id_institucion;
                     }
                 }
             }
@@ -730,6 +746,7 @@ export class PostulacionService {
                         const institucion = await Institucion.findByPk(throughData.id_institucion);
                         if (institucion) {
                             transformedData.education[i].institution = institucion.nombre_institucion;
+                            transformedData.education[i].id_institucion = throughData.id_institucion;
                         }
                     }
                     

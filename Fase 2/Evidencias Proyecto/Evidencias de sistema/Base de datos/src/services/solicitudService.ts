@@ -1,4 +1,4 @@
-import { Transaction, Op } from 'sequelize';
+import { Transaction, Op, QueryTypes } from 'sequelize';
 import sequelize from '@/config/database';
 import { setDatabaseUser } from '@/utils/databaseUser';
 import {
@@ -1504,6 +1504,131 @@ export class SolicitudService {
         } catch (error: any) {
             console.error('Error al obtener estadísticas de procesos:', error);
             throw new Error('Error al obtener estadísticas de procesos');
+        }
+    }
+
+    /**
+     * Obtener distribución de estados de procesos para un período específico
+     * @param year Año del período
+     * @param month Mes del período (0-11, donde 0 = enero)
+     * @param week Semana del mes (opcional, 1-5)
+     * @param periodType Tipo de período: 'week', 'month', 'quarter'
+     */
+    static async getProcessStatusDistribution(
+        year: number, 
+        month: number, 
+        week?: number, 
+        periodType: 'week' | 'month' | 'quarter' = 'month'
+    ): Promise<Array<{ status: string; count: number }>> {
+        try {
+            let startDate: Date
+            let endDate: Date
+
+            if (periodType === 'week' && week) {
+                // Calcular fechas de la semana específica
+                const firstDayOfMonth = new Date(year, month, 1)
+                const dayOfWeek = firstDayOfMonth.getDay()
+                const daysToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : (8 - dayOfWeek)
+                const firstMonday = new Date(year, month, 1 + daysToMonday)
+                
+                // Avanzar a la semana solicitada (semana 1 = primer lunes, semana 2 = segundo lunes, etc.)
+                const weekStart = new Date(firstMonday)
+                weekStart.setDate(weekStart.getDate() + (week - 1) * 7)
+                
+                startDate = new Date(weekStart)
+                startDate.setHours(0, 0, 0, 0)
+                
+                endDate = new Date(weekStart)
+                endDate.setDate(endDate.getDate() + 6)
+                endDate.setHours(23, 59, 59, 999)
+                
+                // Si la semana termina fuera del mes, ajustar al último día del mes
+                const lastDayOfMonth = new Date(year, month + 1, 0)
+                if (endDate > lastDayOfMonth) {
+                    endDate = lastDayOfMonth
+                    endDate.setHours(23, 59, 59, 999)
+                }
+            } else if (periodType === 'month') {
+                // Todo el mes
+                startDate = new Date(year, month, 1)
+                startDate.setHours(0, 0, 0, 0)
+                endDate = new Date(year, month + 1, 0)
+                endDate.setHours(23, 59, 59, 999)
+            } else {
+                // Quarter (trimestre)
+                const quarterStartMonth = Math.floor(month / 3) * 3
+                startDate = new Date(year, quarterStartMonth, 1)
+                startDate.setHours(0, 0, 0, 0)
+                endDate = new Date(year, quarterStartMonth + 3, 0)
+                endDate.setHours(23, 59, 59, 999)
+            }
+
+            // Query para obtener distribución de estados
+            // Filtrar solicitudes creadas en el período y obtener su estado más reciente
+            console.log(`[DEBUG] Fechas de búsqueda: ${startDate.toISOString()} a ${endDate.toISOString()}`);
+            
+            const results = (await sequelize.query(`
+                WITH estado_actual AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        es.id_estado_solicitud,
+                        es.nombre_estado_solicitud
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                )
+                SELECT 
+                    ea.nombre_estado_solicitud as status,
+                    COUNT(*) as count
+                FROM solicitud s
+                INNER JOIN estado_actual ea ON s.id_solicitud = ea.id_solicitud
+                WHERE s.fecha_ingreso_solicitud >= :startDate
+                  AND s.fecha_ingreso_solicitud <= :endDate
+                GROUP BY ea.nombre_estado_solicitud
+                ORDER BY count DESC
+            `, {
+                replacements: {
+                    startDate: startDate,
+                    endDate: endDate
+                },
+                type: QueryTypes.SELECT
+            })) as Array<{ status?: string; count?: number }>;
+
+            console.log(`[DEBUG] Distribución de estados para período ${periodType}:`, {
+                year,
+                month,
+                week,
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+                totalResults: results.length,
+                results: results
+            });
+
+            // Mapeo de nombres de estados a los que se muestran en el frontend
+            const statusMapping: Record<string, string> = {
+                'Creado': 'Iniciado',
+                'En Progreso': 'En Progreso',
+                'Cerrado': 'Completado',
+                'Congelado': 'Pausado',
+                'Cancelado': 'Cancelado',
+            };
+
+            // Convertir resultados a formato esperado
+            const mappedResults = results.map((row) => {
+                const dbStatus = row.status || 'Desconocido';
+                const frontendStatus = statusMapping[dbStatus] || dbStatus;
+                console.log(`[DEBUG] Mapeando estado: ${dbStatus} -> ${frontendStatus}, count: ${row.count}`);
+                return {
+                    status: frontendStatus,
+                    count: parseInt(String(row.count ?? '0')) || 0
+                };
+            });
+
+            console.log(`[DEBUG] Resultados mapeados:`, mappedResults);
+            return mappedResults;
+        } catch (error: any) {
+            console.error('Error al obtener distribución de estados:', error);
+            throw new Error('Error al obtener distribución de estados');
         }
     }
 }

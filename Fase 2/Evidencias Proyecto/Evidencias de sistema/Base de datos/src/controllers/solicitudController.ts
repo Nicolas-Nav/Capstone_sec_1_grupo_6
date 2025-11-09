@@ -479,6 +479,28 @@ export class SolicitudController {
         }
     }
 
+    /**
+     * GET /api/solicitudes/reportes/distribucion-estados
+     * Obtener distribución de estados de procesos para un período específico
+     * Query params: year, month, week (opcional), periodType (week|month|quarter)
+     */
+    static async getProcessStatusDistribution(req: Request, res: Response): Promise<Response> {
+        try {
+            const year = parseInt(req.query.year as string) || new Date().getFullYear();
+            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const week = req.query.week ? parseInt(req.query.week as string) : undefined;
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+
+            const resultado = await SolicitudService.getProcessStatusDistribution(year, month, week, periodType);
+            
+            Logger.info(`Distribución de estados obtenida para ${periodType}: ${resultado.length} estados`);
+            return sendSuccess(res, resultado, 'Distribución de estados obtenida exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener distribución de estados:', error);
+            return sendError(res, 'Error al obtener distribución de estados', 500);
+        }
+    }
+
 }
 
    

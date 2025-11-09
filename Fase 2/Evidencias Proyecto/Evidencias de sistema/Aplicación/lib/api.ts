@@ -351,6 +351,24 @@ export const solicitudService = {
     return apiRequest('/api/solicitudes/reportes/estadisticas');
   },
 
+  // Obtener distribución de estados de procesos para un período
+  async getProcessStatusDistribution(
+    year: number,
+    month: number,
+    week?: number,
+    periodType: 'week' | 'month' | 'quarter' = 'month'
+  ): Promise<ApiResponse<Array<{ status: string; count: number }>>> {
+    const params = new URLSearchParams({
+      year: year.toString(),
+      month: month.toString(),
+      periodType,
+    });
+    if (week) {
+      params.append('week', week.toString());
+    }
+    return apiRequest(`/api/solicitudes/reportes/distribucion-estados?${params.toString()}`);
+  },
+
   // Cambiar etapa de solicitud
   async cambiarEtapa(id: number, id_etapa: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/etapa`, {

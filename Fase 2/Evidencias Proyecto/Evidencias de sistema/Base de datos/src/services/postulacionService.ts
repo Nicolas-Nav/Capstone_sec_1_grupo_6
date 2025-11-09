@@ -463,38 +463,38 @@ export class PostulacionService {
             if (usuarioRut) {
                 await setDatabaseUser(usuarioRut, transaction);
             }
-            
-            // Validar valoración si se proporciona
-            if (data.valoracion !== undefined && (data.valoracion < 1 || data.valoracion > 5)) {
-                throw new Error('La valoración debe estar entre 1 y 5');
-            }
+        
+        // Validar valoración si se proporciona
+        if (data.valoracion !== undefined && (data.valoracion < 1 || data.valoracion > 5)) {
+            throw new Error('La valoración debe estar entre 1 y 5');
+        }
 
             const postulacion = await Postulacion.findByPk(id, { transaction });
-            if (!postulacion) {
-                throw new Error('Postulación no encontrada');
-            }
+        if (!postulacion) {
+            throw new Error('Postulación no encontrada');
+        }
 
-            console.log('🔍 Postulación encontrada:', postulacion.id_postulacion);
-            console.log('🔍 Valoración actual:', postulacion.valoracion);
+        console.log('🔍 Postulación encontrada:', postulacion.id_postulacion);
+        console.log('🔍 Valoración actual:', postulacion.valoracion);
 
-            // Actualizar solo los campos proporcionados
-            const updateData: any = {};
-            if (data.valoracion !== undefined) updateData.valoracion = data.valoracion;
-            if (data.motivacion !== undefined) updateData.motivacion = data.motivacion;
-            if (data.expectativa_renta !== undefined) updateData.expectativa_renta = data.expectativa_renta;
-            if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
-            if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
+        // Actualizar solo los campos proporcionados
+        const updateData: any = {};
+        if (data.valoracion !== undefined) updateData.valoracion = data.valoracion;
+        if (data.motivacion !== undefined) updateData.motivacion = data.motivacion;
+        if (data.expectativa_renta !== undefined) updateData.expectativa_renta = data.expectativa_renta;
+        if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
+        if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
 
-            console.log('🔍 Datos a actualizar:', updateData);
+        console.log('🔍 Datos a actualizar:', updateData);
 
             await postulacion.update(updateData, { transaction });
 
             await transaction.commit();
-            
-            console.log('🔍 Postulación actualizada exitosamente');
-            console.log('🔍 Nueva valoración:', postulacion.valoracion);
 
-            return { id, ...updateData };
+        console.log('🔍 Postulación actualizada exitosamente');
+        console.log('🔍 Nueva valoración:', postulacion.valoracion);
+
+        return { id, ...updateData };
         } catch (error) {
             await transaction.rollback();
             throw error;

@@ -33,6 +33,7 @@ router.get('/reportes/carga-operativa', SolicitudController.getActiveProcessesBy
 router.get('/reportes/distribucion-tipo-servicio', SolicitudController.getProcessesByServiceType);
 router.get('/reportes/fuentes-candidatos', SolicitudController.getCandidateSourceData);
 router.get('/reportes/estadisticas', SolicitudController.getProcessStats);
+router.get('/reportes/distribucion-estados', SolicitudController.getProcessStatusDistribution);
 
 // Rutas protegidas (requieren autenticación)
 // Todas las operaciones de escritura requieren estar autenticado

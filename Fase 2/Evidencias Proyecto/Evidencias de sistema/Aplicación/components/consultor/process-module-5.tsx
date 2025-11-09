@@ -845,14 +845,14 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                     </Badge>
                   </div>
                 </div>
-                <Button
+                  <Button
                   variant="default"
                   className="hover:opacity-90 hover:scale-105 transition-all duration-200"
                   onClick={() => setShowStatusChange(!showStatusChange)}
                   disabled={isBlocked || loadingEstados}
                 >
                   {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
-                </Button>
+                  </Button>
               </div>
             </div>
 

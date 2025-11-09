@@ -1,0 +1,340 @@
+@startuml Diagrama de Clases - Sistema de Reclutamiento
+
+!pragma layout smetana
+!pragma layout splines polyline
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam linetype ortho
+skinparam ArrowLinetype ortho
+skinparam nodesep 120
+skinparam ranksep 120
+hide empty members
+
+' Mantener clases relacionadas en bloques consecutivos para mejorar el layout
+' Solicitud y Postulacion al centro
+' Clientes y contactos
+' Catálogos y estados
+' Entidades de candidatos
+' Evaluaciones y auditoría
+
+class Solicitud {
+  + plazoMaximo: Date
+  + fechaIngreso: Date
+  + estaVencida(): Boolean
+  + getDiasRestantes(): Integer
+}
+
+class Postulacion {
+  + motivacion: String
+  + expectativaRenta: Decimal
+  + disponibilidad: String
+  + situacionFamiliar: String
+  + valoracion: Integer
+  + fechaEnvio: Date
+  + cvAdjunto: Buffer
+  + tieneCV(): Boolean
+  + getExpectativaRentaFormateada(): String
+  + getDisponibilidadFormateada(): String
+  + getValoracionEstrellas(): String
+}
+
+class DescripcionCargo {
+  + descripcion: String
+  + requisitos: String
+  + vacantes: Integer
+  + fechaIngreso: Date
+  + datosExcel: Object
+  + tieneVacantes(): Boolean
+  + getDescripcionFormateada(): String
+  + esFechaFutura(): Boolean
+  + tieneDatosExcel(): Boolean
+  + getDatosExcel(): Object
+  + getHojaExcel(nombreHoja: String): Array
+}
+
+class EstadoSolicitudHist {
+  + fechaCambio: Date
+  + comentario: String
+}
+
+class HitoSolicitud {
+  + nombre: String
+  + tipoAncla: String
+  + duracionDias: Integer
+  + avisarAntesDias: Integer
+  + descripcion: String
+  + fechaBase: Date
+  + fechaLimite: Date
+  + fechaCumplimiento: Date
+  + esPlantilla(): Boolean
+  + estaActivo(): Boolean
+  + estaVencido(): Boolean
+  + estaCompletado(): Boolean
+  + diasHabilesRestantes(): Integer
+  + debeAvisar(): Boolean
+  + getMensajeAlerta(): String
+  + getEstado(): String
+}
+
+class EstadoClientePostulacion {
+  + fechaFeedback: Date
+  + comentario: String
+}
+
+class EstadoClientePostulacionM5 {
+  + fechaFeedback: Date
+  + comentario: String
+}
+
+class Region {
+  + nombre: String
+}
+
+class Comuna {
+  + nombre: String
+}
+
+class Cliente {
+  + nombre: String
+  + getNombreFormateado(): String
+}
+
+class Contacto {
+  + nombre: String
+  + email: String
+  + telefono: String
+  + cargo: String
+  + getNombreCompleto(): String
+  + isEmailValid(): Boolean
+}
+
+class Usuario {
+  + nombre: String
+  + apellido: String
+  + email: String
+  + rol: String
+  + getNombreCompleto(): String
+  + getNombre(): String
+  + getApellido(): String
+  + isActive(): Boolean
+  + getRolString(): String
+}
+
+class TipoServicio {
+  + codigo: String
+  + nombre: String
+  + getNombreFormateado(): String
+}
+
+class Cargo {
+  + nombre: String
+  + getNombreFormateado(): String
+}
+
+class EtapaSolicitud {
+  + nombre: String
+}
+
+class EstadoSolicitud {
+  + nombre: String
+  + esActivo(): Boolean
+  + esFinal(): Boolean
+  + getEstadosDisponibles(): String[]
+  + puedeCambiarA(nuevoEstado: String): Boolean
+}
+
+class PortalPostulacion {
+  + nombre: String
+}
+
+class Publicacion {
+  + fecha: Date
+  + estado: String
+  + url: String
+}
+
+class Candidato {
+  + rut: String
+  + telefono: String
+  + email: String
+  + fechaNacimiento: Date
+  + discapacidad: Boolean
+  + licencia: Boolean
+  + getNombreCompleto(): String
+  + calcularEdad(): Integer
+  + tieneDiscapacidad(): Boolean
+  + getNivelIngles(): String
+}
+
+class EstadoCandidato {
+  + nombre: String
+  + estaPresentado(): Boolean
+  + puedeSerPresentado(): Boolean
+  + getEstadosDisponibles(): String[]
+  + getEstadoOpuesto(): String
+}
+
+class EstadoCliente {
+  + nombre: String
+  + estaPendiente(): Boolean
+  + rechazo(): Boolean
+  + aprobo(): Boolean
+  + observo(): Boolean
+  + yaRespondio(): Boolean
+  + respuestaPositiva(): Boolean
+  + respuestaNegativa(): Boolean
+  + getNombreFormateado(): String
+  + getInfoInterfaz(): Object
+  + getEstadosDisponibles(): String[]
+  + puedeCambiarA(nuevoEstado: String): Boolean
+  + requiereComentarios(): Boolean
+}
+
+class EstadoClienteM5 {
+  + nombre: String
+  + requiereComentarios(): Boolean
+  + getEstadosDisponibles(): String[]
+}
+
+class Rubro {
+  + nombre: String
+}
+
+class Nacionalidad {
+  + nombre: String
+}
+
+class Experiencia {
+  + empresa: String
+  + cargo: String
+  + fechaInicio: Date
+  + fechaFin: Date
+  + descripcionFunciones: String
+}
+
+class ReferenciaLaboral {
+  + nombre: String
+  + cargo: String
+  + empresa: String
+  + telefono: String
+  + email: String
+  + getReferenciaCompleta(): String
+}
+
+class Profesion {
+  + nombre: String
+}
+
+class PostgradoCapacitacion {
+  + nombre: String
+  + tipo: String
+}
+
+class CandidatoProfesion {
+  + fechaObtencion: Date
+}
+
+class CandidatoPostgradoCapacitacion {
+  + fechaObtencion: Date
+}
+
+class Institucion {
+  + nombre: String
+}
+
+class EstadoContratacion {
+  + nombre: String
+}
+
+class Contratacion {
+  + fechaIngreso: Date
+  + observaciones: String
+  + encuestaSatisfaccion: String
+  + tieneIngresoConfirmado(): Boolean
+  + tieneEncuestaRespondida(): Boolean
+}
+
+class TestPsicolaboral {
+  + nombre: String
+  + descripcion: String
+}
+
+class EvaluacionPsicolaboral {
+  + fechaEvaluacion: Date
+  + fechaEnvioInforme: Date
+  + estadoEvaluacion: String
+  + estadoInforme: String
+  + conclusionGlobal: String
+  + estaRealizada(): Boolean
+  + estaProgramada(): Boolean
+  + estaSinProgramar(): Boolean
+  + estaCancelada(): Boolean
+  + esRecomendable(): Boolean
+  + noEsRecomendable(): Boolean
+  + tieneObservaciones(): Boolean
+}
+
+class EvaluacionTest {
+  + resultado: String
+}
+
+class LogCambios {
+  + tablaAfectada: String
+  + registroReferenciado: String
+  + accion: String
+  + detalleCambio: String
+  + fechaCambio: Date
+  + usuarioResponsable: String
+  + getDescripcionCompleta(): String
+  + esInsercion(): Boolean
+  + esActualizacion(): Boolean
+  + esEliminacion(): Boolean
+}
+
+'=== Relaciones principales ===
+Region *-- Comuna : contiene
+Cliente *-- Contacto : incluye
+Cliente o-- Solicitud : perteneceA
+Comuna *-- Contacto : seEncuentraEn
+TipoServicio o-- Solicitud : clasifica
+Usuario o-- Solicitud : consultor
+EtapaSolicitud o-- Solicitud : etapaActual
+Solicitud *-- DescripcionCargo : describeVacantes
+DescripcionCargo o-- Cargo : cargoAsociado
+DescripcionCargo o-- Comuna : localidad
+Solicitud *-- EstadoSolicitudHist : historial
+EstadoSolicitud o-- EstadoSolicitudHist : estado
+Solicitud *-- HitoSolicitud : hitos
+Solicitud *-- Publicacion : publicaciones
+PortalPostulacion o-- Publicacion : sePublicaEn
+Solicitud *-- Postulacion : incluyePostulaciones
+PortalPostulacion o-- Postulacion : fuente
+Candidato o-- Postulacion : candidato
+Rubro o-- Candidato : sector
+Nacionalidad o-- Candidato : nacionalidad
+Comuna o-- Candidato : residencia
+EstadoCandidato o-- Postulacion : estadoCandidato
+Postulacion *-- EstadoClientePostulacion : feedbackM3
+EstadoCliente o-- EstadoClientePostulacion : decisionCliente
+Postulacion *-- EstadoClientePostulacionM5 : feedbackM5
+EstadoClienteM5 o-- EstadoClientePostulacionM5 : decisionClienteM5
+Candidato *-- Experiencia : experiencias
+Candidato *-- ReferenciaLaboral : referencias
+Candidato o-- CandidatoProfesion : titulaciones
+Profesion o-- CandidatoProfesion : profesion
+Institucion o-- CandidatoProfesion : institución
+Candidato o-- CandidatoPostgradoCapacitacion : postgrados
+PostgradoCapacitacion o-- CandidatoPostgradoCapacitacion : programa
+Institucion o-- CandidatoPostgradoCapacitacion : institución
+Postulacion *-- Contratacion : contratación
+EstadoContratacion o-- Contratacion : estadoContratación
+Postulacion *-- EvaluacionPsicolaboral : evaluaciones
+EvaluacionPsicolaboral *-- EvaluacionTest : resultados
+TestPsicolaboral o-- EvaluacionTest : testAplicado
+
+'=== Dependencias principales ===
+EvaluacionPsicolaboral --> TestPsicolaboral : aplica
+
+@enduml

@@ -951,7 +951,7 @@ export const evaluacionPsicolaboralService = {
   // Crear evaluación
   async create(data: {
     fecha_evaluacion?: Date | string | null;
-    fecha_envio_informe: Date;
+    fecha_envio_informe?: Date | string | null;
     estado_evaluacion: string;
     estado_informe: string;
     conclusion_global: string;
@@ -966,7 +966,7 @@ export const evaluacionPsicolaboralService = {
   // Actualizar evaluación
   async update(id: number, data: Partial<{
     fecha_evaluacion: Date | string | null;
-    fecha_envio_informe: Date;
+    fecha_envio_informe: Date | string | null;
     estado_evaluacion: string;
     estado_informe: string;
     conclusion_global: string;

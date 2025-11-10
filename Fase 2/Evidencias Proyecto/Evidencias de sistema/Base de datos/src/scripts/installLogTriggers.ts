@@ -10,7 +10,7 @@ import { testConnection } from '@/config/database';
 
 const TRIGGERS_SQL_PATH = join(
   __dirname,
-  '../../database/triggers/log_cambios_triggers_ejemplos.sql'
+  '../../database/triggers/log_cambios_triggers_concatenados.sql'
 );
 
 /**
@@ -27,24 +27,24 @@ function cleanSQLContent(sqlContent: string): string {
  */
 async function installTriggers(): Promise<void> {
   try {
-    console.log('🔍 Verificando conexión a la base de datos...');
+    console.log('[TRIGGERS] Verificando conexión a la base de datos...');
     await testConnection();
     
-    console.log('📖 Leyendo archivo SQL...');
+    console.log('[TRIGGERS] Leyendo archivo SQL...');
     const sqlContent = readFileSync(TRIGGERS_SQL_PATH, 'utf-8');
     const cleanedSQL = cleanSQLContent(sqlContent);
     
-    console.log('⚙️  Ejecutando triggers SQL...');
-    console.log(`   (${cleanedSQL.split('\n').length} líneas de SQL)`);
+    console.log('[TRIGGERS] Ejecutando triggers SQL...');
+    console.log(`[TRIGGERS] (${cleanedSQL.split('\n').length} líneas de SQL)`);
     
     // Ejecutar todo el contenido SQL de una vez
     // PostgreSQL puede ejecutar múltiples statements separados por punto y coma
     await sequelize.query(cleanedSQL);
     
-    console.log('✅ Triggers instalados correctamente');
+    console.log('[TRIGGERS] Triggers instalados correctamente');
     
     // Verificar que los triggers fueron creados
-    console.log('\n🔍 Verificando triggers creados...');
+    console.log('\n[TRIGGERS] Verificando triggers creados...');
     const [triggers] = await sequelize.query(`
       SELECT DISTINCT
         trigger_name as nombre_trigger,
@@ -58,12 +58,12 @@ async function installTriggers(): Promise<void> {
     `);
     
     if (Array.isArray(triggers) && triggers.length > 0) {
-      console.log(`\n✅ Se encontraron ${triggers.length} triggers únicos:`);
+      console.log(`\n[TRIGGERS] Se encontraron ${triggers.length} triggers únicos:`);
       triggers.forEach((trigger: any) => {
         console.log(`   - ${trigger.nombre_trigger} en tabla ${trigger.tabla} (eventos: ${trigger.eventos})`);
       });
     } else {
-      console.log('⚠️  No se encontraron triggers. Verifica que el script se ejecutó correctamente.');
+      console.log('[TRIGGERS] ADVERTENCIA: No se encontraron triggers. Verifica que el script se ejecutó correctamente.');
     }
     
     // Verificar funciones creadas
@@ -77,16 +77,16 @@ async function installTriggers(): Promise<void> {
     `);
     
     if (Array.isArray(functions) && functions.length > 0) {
-      console.log(`\n✅ Se encontraron ${functions.length} funciones:`);
+      console.log(`\n[TRIGGERS] Se encontraron ${functions.length} funciones:`);
       functions.forEach((func: any) => {
         console.log(`   - ${func.funcion_trigger}`);
       });
     }
     
   } catch (error: any) {
-    console.error('❌ Error al instalar triggers:', error.message);
+    console.error('[TRIGGERS] ERROR al instalar triggers:', error.message);
     if (error.original) {
-      console.error('   Detalle:', error.original.message);
+      console.error('[TRIGGERS] Detalle:', error.original.message);
     }
     process.exit(1);
   } finally {
@@ -98,11 +98,11 @@ async function installTriggers(): Promise<void> {
 if (require.main === module) {
   installTriggers()
     .then(() => {
-      console.log('\n🎉 Proceso completado exitosamente');
+      console.log('\n[TRIGGERS] Proceso completado exitosamente');
       process.exit(0);
     })
     .catch((error) => {
-      console.error('\n💥 Error fatal:', error);
+      console.error('\n[TRIGGERS] Error fatal:', error);
       process.exit(1);
     });
 }

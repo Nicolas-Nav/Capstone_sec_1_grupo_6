@@ -1,4 +1,4 @@
-import { Transaction, Op } from 'sequelize';
+import { Transaction, Op, QueryTypes } from 'sequelize';
 import sequelize from '@/config/database';
 import { setDatabaseUser } from '@/utils/databaseUser';
 import {
@@ -14,7 +14,9 @@ import {
     Cargo,
     Comuna,
     Postulacion,
-    EstadoClientePostulacionM5
+    EstadoClientePostulacionM5,
+    PortalPostulacion,
+    EstadoCliente
 } from '@/models';
 import { HitoSolicitudService } from './hitoSolicitudService';
 
@@ -1285,6 +1287,349 @@ export class SolicitudService {
             'Cierre Extraordinario': 'cierre_extraordinario'
         };
         return mapeo[nombreEstado] || 'creado';
+    }
+
+    /**
+     * Obtener procesos activos agrupados por consultor (OPTIMIZADO)
+     * Retorna un objeto con el nombre del consultor como clave y la cantidad de procesos activos como valor
+     * Usa query SQL directa para máximo rendimiento
+     */
+    static async getActiveProcessesByConsultant(): Promise<Record<string, number>> {
+        try {
+            // Query SQL optimizada: solo trae lo necesario
+            // Usa CTE para obtener el estado más reciente de cada solicitud y filtra solo activos
+            const [results] = await sequelize.query(`
+                WITH estado_actual AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        es.nombre_estado_solicitud
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE es.nombre_estado_solicitud IN ('En Progreso', 'Iniciado', 'Abierto')
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                )
+                SELECT 
+                    COALESCE(u.nombre_usuario, 'Sin asignar') as consultor,
+                    COUNT(*) as cantidad
+                FROM solicitud s
+                INNER JOIN estado_actual ea ON s.id_solicitud = ea.id_solicitud
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                WHERE s.rut_usuario IS NOT NULL
+                GROUP BY u.nombre_usuario
+                ORDER BY cantidad DESC
+            `);
+
+            // Convertir resultados a objeto Record<string, number>
+            const resultado: Record<string, number> = {};
+            (results as any[]).forEach((row: any) => {
+                const consultor = row.consultor || 'Sin asignar';
+                resultado[consultor] = parseInt(row.cantidad) || 0;
+            });
+
+            return resultado;
+        } catch (error: any) {
+            console.error('Error al obtener procesos activos por consultor:', error);
+            throw new Error('Error al obtener procesos activos por consultor');
+        }
+    }
+
+    /**
+     * Obtener distribución de procesos por tipo de servicio (OPTIMIZADO)
+     * Retorna un array con servicio, cantidad y porcentaje
+     * Usa query optimizada que solo trae los campos necesarios
+     * Trae TODAS las solicitudes sin filtros (de todos los consultores y estados)
+     */
+    static async getProcessesByServiceType(): Promise<Array<{ service: string; count: number; percentage: number }>> {
+        try {
+            // Query optimizada: solo trae codigo_servicio y el nombre del tipo de servicio
+            // Usa required: false para hacer LEFT JOIN y traer todas las solicitudes
+            const solicitudes = await Solicitud.findAll({
+                attributes: ['codigo_servicio'],
+                include: [
+                    {
+                        model: TipoServicio,
+                        as: 'tipoServicio',
+                        attributes: ['nombre_servicio'], // Columna correcta: nombre_servicio, no nombre_tipo_servicio
+                        required: false // LEFT JOIN para traer todas las solicitudes incluso sin tipo de servicio
+                    }
+                ],
+                raw: false,
+                // Sin filtros: trae TODAS las solicitudes
+            });
+
+            console.log(`[DEBUG] Total de solicitudes encontradas: ${solicitudes.length}`);
+
+            // Contar por tipo de servicio
+            const serviceTypeCounts: Record<string, number> = {};
+            let total = 0;
+            const codigosNoMapeados: Record<string, number> = {};
+
+            solicitudes.forEach((solicitud: any) => {
+                const codigoServicio = solicitud.codigo_servicio || 'sin_servicio';
+                const nombreServicio = solicitud.tipoServicio?.nombre_servicio || codigoServicio; // Columna correcta: nombre_servicio
+
+                // Mapeo de códigos a nombres legibles
+                const serviceMapping: Record<string, string> = {
+                    'PC': 'Proceso Completo',
+                    'LL': 'Long List',
+                    'TR': 'Targeted Recruitment',
+                    'HS': 'Headhunting',
+                    'ES': 'Evaluación Psicolaboral',
+                    'TS': 'Test Psicolaboral',
+                    'AO': 'Filtro Inteligente',
+                };
+
+                const serviceLabel = serviceMapping[codigoServicio] || nombreServicio;
+                
+                // Registrar códigos no mapeados
+                if (!serviceMapping[codigoServicio] && codigoServicio !== 'sin_servicio') {
+                    codigosNoMapeados[codigoServicio] = (codigosNoMapeados[codigoServicio] || 0) + 1;
+                }
+
+                serviceTypeCounts[serviceLabel] = (serviceTypeCounts[serviceLabel] || 0) + 1;
+                total++;
+            });
+
+            console.log(`[DEBUG] Distribución por tipo de servicio:`, serviceTypeCounts);
+            console.log(`[DEBUG] Total de procesos contados: ${total}`);
+            if (Object.keys(codigosNoMapeados).length > 0) {
+                console.log(`[DEBUG] Códigos de servicio no mapeados encontrados:`, codigosNoMapeados);
+            }
+
+            // Convertir a array con porcentajes
+            return Object.entries(serviceTypeCounts).map(([service, count]) => ({
+                service,
+                count,
+                percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+            }));
+        } catch (error: any) {
+            console.error('Error al obtener distribución por tipo de servicio:', error);
+            throw new Error('Error al obtener distribución por tipo de servicio');
+        }
+    }
+
+    /**
+     * Obtener distribución de candidatos por fuente (portal de postulación)
+     * Retorna un array con fuente, cantidad total de candidatos y cantidad de contratados
+     * Usa query optimizada que solo trae los campos necesarios
+     */
+    static async getCandidateSourceData(): Promise<Array<{ source: string; candidates: number; hired: number }>> {
+        try {
+            // Query optimizada usando SQL directo para mejor rendimiento
+            // Contratados: solo aquellos con contratacion donde id_estado_contratacion = 1
+            const [results] = await sequelize.query(`
+                SELECT 
+                    COALESCE(pp.nombre_portal_postulacion, 'Sin fuente') as source,
+                    COUNT(DISTINCT p.id_postulacion) as candidates,
+                    COUNT(DISTINCT CASE 
+                        WHEN c.id_estado_contratacion = 1 THEN p.id_postulacion 
+                        ELSE NULL 
+                    END) as hired
+                FROM postulacion p
+                LEFT JOIN portal_postulacion pp ON p.id_portal_postulacion = pp.id_portal_postulacion
+                LEFT JOIN contratacion c ON p.id_postulacion = c.id_postulacion
+                GROUP BY pp.nombre_portal_postulacion
+                ORDER BY candidates DESC
+            `);
+
+            console.log(`[DEBUG] Fuentes de candidatos encontradas:`, (results as any[]).length);
+
+            // Convertir resultados a formato esperado
+            return (results as any[]).map((row: any) => ({
+                source: row.source || 'Sin fuente',
+                candidates: parseInt(row.candidates) || 0,
+                hired: parseInt(row.hired) || 0
+            }));
+        } catch (error: any) {
+            console.error('Error al obtener fuentes de candidatos:', error);
+            throw new Error('Error al obtener fuentes de candidatos');
+        }
+    }
+
+    /**
+     * Obtener estadísticas generales de procesos
+     * Retorna: procesos activos, tiempo promedio de contratación, total de candidatos
+     */
+    static async getProcessStats(): Promise<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }> {
+        try {
+            // 1. Procesos activos: contar solicitudes con estado más reciente = 1 o 2 (Iniciado/En Progreso)
+            const [activeResult] = await sequelize.query(`
+                WITH ult AS (
+                    SELECT
+                        id_solicitud,
+                        id_estado_solicitud,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY id_solicitud
+                            ORDER BY fecha_cambio_estado_solicitud DESC
+                        ) AS rn
+                    FROM estado_solicitud_hist
+                )
+                SELECT COUNT(*) as activos
+                FROM ult
+                WHERE rn = 1
+                  AND id_estado_solicitud IN (1, 2)
+            `);
+            const activeProcesses = parseInt((activeResult[0] as any)?.activos || '0');
+
+            // 2. Tiempo promedio de contratación: calcular desde fecha_ingreso_solicitud hasta fecha_ingreso_contratacion
+            const [timeResult] = await sequelize.query(`
+                SELECT 
+                    AVG(
+                        EXTRACT(EPOCH FROM (c.fecha_ingreso_contratacion - s.fecha_ingreso_solicitud)) / 86400
+                    ) as avg_days
+                FROM contratacion c
+                INNER JOIN postulacion p ON c.id_postulacion = p.id_postulacion
+                INNER JOIN solicitud s ON p.id_solicitud = s.id_solicitud
+                WHERE c.id_estado_contratacion = 1
+                  AND c.fecha_ingreso_contratacion IS NOT NULL
+                  AND s.fecha_ingreso_solicitud IS NOT NULL
+            `);
+            const avgDays = parseFloat((timeResult[0] as any)?.avg_days || '0');
+            const avgTimeToHire = Math.round(avgDays) || 0;
+
+            // 3. Total de candidatos: contar todas las postulaciones
+            const [candidatesResult] = await sequelize.query(`
+                SELECT COUNT(*) as total
+                FROM postulacion
+            `);
+            const totalCandidates = parseInt((candidatesResult[0] as any)?.total || '0');
+
+            console.log(`[DEBUG] Estadísticas: Activos=${activeProcesses}, TiempoPromedio=${avgTimeToHire}, Candidatos=${totalCandidates}`);
+
+            return {
+                activeProcesses,
+                avgTimeToHire,
+                totalCandidates
+            };
+        } catch (error: any) {
+            console.error('Error al obtener estadísticas de procesos:', error);
+            throw new Error('Error al obtener estadísticas de procesos');
+        }
+    }
+
+    /**
+     * Obtener distribución de estados de procesos para un período específico
+     * @param year Año del período
+     * @param month Mes del período (0-11, donde 0 = enero)
+     * @param week Semana del mes (opcional, 1-5)
+     * @param periodType Tipo de período: 'week', 'month', 'quarter'
+     */
+    static async getProcessStatusDistribution(
+        year: number, 
+        month: number, 
+        week?: number, 
+        periodType: 'week' | 'month' | 'quarter' = 'month'
+    ): Promise<Array<{ status: string; count: number }>> {
+        try {
+            let startDate: Date
+            let endDate: Date
+
+            if (periodType === 'week' && week) {
+                // Calcular fechas de la semana específica
+                const firstDayOfMonth = new Date(year, month, 1)
+                const dayOfWeek = firstDayOfMonth.getDay()
+                const daysToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : (8 - dayOfWeek)
+                const firstMonday = new Date(year, month, 1 + daysToMonday)
+                
+                // Avanzar a la semana solicitada (semana 1 = primer lunes, semana 2 = segundo lunes, etc.)
+                const weekStart = new Date(firstMonday)
+                weekStart.setDate(weekStart.getDate() + (week - 1) * 7)
+                
+                startDate = new Date(weekStart)
+                startDate.setHours(0, 0, 0, 0)
+                
+                endDate = new Date(weekStart)
+                endDate.setDate(endDate.getDate() + 6)
+                endDate.setHours(23, 59, 59, 999)
+                
+                // Si la semana termina fuera del mes, ajustar al último día del mes
+                const lastDayOfMonth = new Date(year, month + 1, 0)
+                if (endDate > lastDayOfMonth) {
+                    endDate = lastDayOfMonth
+                    endDate.setHours(23, 59, 59, 999)
+                }
+            } else if (periodType === 'month') {
+                // Todo el mes
+                startDate = new Date(year, month, 1)
+                startDate.setHours(0, 0, 0, 0)
+                endDate = new Date(year, month + 1, 0)
+                endDate.setHours(23, 59, 59, 999)
+            } else {
+                // Quarter (trimestre)
+                const quarterStartMonth = Math.floor(month / 3) * 3
+                startDate = new Date(year, quarterStartMonth, 1)
+                startDate.setHours(0, 0, 0, 0)
+                endDate = new Date(year, quarterStartMonth + 3, 0)
+                endDate.setHours(23, 59, 59, 999)
+            }
+
+            // Query para obtener distribución de estados
+            // Filtrar solicitudes creadas en el período y obtener su estado más reciente
+            console.log(`[DEBUG] Fechas de búsqueda: ${startDate.toISOString()} a ${endDate.toISOString()}`);
+            
+            const results = (await sequelize.query(`
+                WITH estado_actual AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        es.id_estado_solicitud,
+                        es.nombre_estado_solicitud
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                )
+                SELECT 
+                    ea.nombre_estado_solicitud as status,
+                    COUNT(*) as count
+                FROM solicitud s
+                INNER JOIN estado_actual ea ON s.id_solicitud = ea.id_solicitud
+                WHERE s.fecha_ingreso_solicitud >= :startDate
+                  AND s.fecha_ingreso_solicitud <= :endDate
+                GROUP BY ea.nombre_estado_solicitud
+                ORDER BY count DESC
+            `, {
+                replacements: {
+                    startDate: startDate,
+                    endDate: endDate
+                },
+                type: QueryTypes.SELECT
+            })) as Array<{ status?: string; count?: number }>;
+
+            console.log(`[DEBUG] Distribución de estados para período ${periodType}:`, {
+                year,
+                month,
+                week,
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+                totalResults: results.length,
+                results: results
+            });
+
+            // Mapeo de nombres de estados a los que se muestran en el frontend
+            const statusMapping: Record<string, string> = {
+                'Creado': 'Iniciado',
+                'En Progreso': 'En Progreso',
+                'Cerrado': 'Completado',
+                'Congelado': 'Pausado',
+                'Cancelado': 'Cancelado',
+            };
+
+            // Convertir resultados a formato esperado
+            const mappedResults = results.map((row) => {
+                const dbStatus = row.status || 'Desconocido';
+                const frontendStatus = statusMapping[dbStatus] || dbStatus;
+                console.log(`[DEBUG] Mapeando estado: ${dbStatus} -> ${frontendStatus}, count: ${row.count}`);
+                return {
+                    status: frontendStatus,
+                    count: parseInt(String(row.count ?? '0')) || 0
+                };
+            });
+
+            console.log(`[DEBUG] Resultados mapeados:`, mappedResults);
+            return mappedResults;
+        } catch (error: any) {
+            console.error('Error al obtener distribución de estados:', error);
+            throw new Error('Error al obtener distribución de estados');
+        }
     }
 }
 

@@ -331,6 +331,44 @@ export const solicitudService = {
     return apiRequest('/api/solicitudes/estados/disponibles');
   },
 
+  // Obtener procesos activos agrupados por consultor (reportes)
+  async getActiveProcessesByConsultant(): Promise<ApiResponse<Record<string, number>>> {
+    return apiRequest('/api/solicitudes/reportes/carga-operativa');
+  },
+
+  // Obtener distribución por tipo de servicio
+  async getProcessesByServiceType(): Promise<ApiResponse<Array<{ service: string; count: number; percentage: number }>>> {
+    return apiRequest('/api/solicitudes/reportes/distribucion-tipo-servicio');
+  },
+
+  // Obtener fuentes de candidatos
+  async getCandidateSourceData(): Promise<ApiResponse<Array<{ source: string; candidates: number; hired: number }>>> {
+    return apiRequest('/api/solicitudes/reportes/fuentes-candidatos');
+  },
+
+  // Obtener estadísticas generales de procesos
+  async getProcessStats(): Promise<ApiResponse<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }>> {
+    return apiRequest('/api/solicitudes/reportes/estadisticas');
+  },
+
+  // Obtener distribución de estados de procesos para un período
+  async getProcessStatusDistribution(
+    year: number,
+    month: number,
+    week?: number,
+    periodType: 'week' | 'month' | 'quarter' = 'month'
+  ): Promise<ApiResponse<Array<{ status: string; count: number }>>> {
+    const params = new URLSearchParams({
+      year: year.toString(),
+      month: month.toString(),
+      periodType,
+    });
+    if (week) {
+      params.append('week', week.toString());
+    }
+    return apiRequest(`/api/solicitudes/reportes/distribucion-estados?${params.toString()}`);
+  },
+
   // Cambiar etapa de solicitud
   async cambiarEtapa(id: number, id_etapa: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/etapa`, {

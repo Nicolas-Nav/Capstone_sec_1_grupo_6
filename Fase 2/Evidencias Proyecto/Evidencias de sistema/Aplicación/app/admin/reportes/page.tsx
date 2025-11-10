@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import {
-  getActiveProcessesByConsultant,
   getOverdueHitosByConsultant,
   getProcessCompletionStats,
   getProcessesByServiceType,
@@ -17,17 +17,122 @@ import {
   getConsultantPerformanceData,
   getAllProcesses,
 } from "@/lib/mock-data"
+import { solicitudService } from "@/lib/api"
 import { Users, Clock, Target, TrendingUp, AlertTriangle } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
+
+type WeekOption = {
+  id: string
+  label: string
+  start: Date
+  end: Date
+}
+
+const weekLabelFormatter = new Intl.DateTimeFormat("es-CL", {
+  day: "2-digit",
+  month: "short",
+})
+
+const padNumber = (value: number) => value.toString().padStart(2, "0")
+
+const startOfWeek = (date: Date) => {
+  const result = new Date(date)
+  const day = result.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  result.setDate(result.getDate() + diff)
+  result.setHours(0, 0, 0, 0)
+  return result
+}
+
+const addDays = (date: Date, amount: number) => {
+  const result = new Date(date)
+  result.setDate(result.getDate() + amount)
+  return result
+}
+
+const getWeekId = (date: Date) => date.toISOString().split("T")[0]
+
+const formatWeekLabel = (weekNumber: number, start: Date, end: Date) =>
+  `Semana ${padNumber(weekNumber)} (${weekLabelFormatter.format(start)} - ${weekLabelFormatter.format(end)})`
+
+const getWeekOptionsForYear = (year: number): WeekOption[] => {
+  const options: WeekOption[] = []
+  let current = startOfWeek(new Date(year, 0, 1))
+
+  if (current.getFullYear() < year) {
+    current = addDays(current, 7)
+  }
+
+  let weekNumber = 1
+  while (current.getFullYear() === year) {
+    const start = new Date(current)
+    const end = addDays(start, 6)
+    options.push({
+      id: getWeekId(start),
+      label: formatWeekLabel(weekNumber, start, end),
+      start,
+      end,
+    })
+    current = addDays(current, 7)
+    weekNumber += 1
+  }
+
+  return options
+}
+
+const getDefaultWeekInfo = () => {
+  const today = new Date()
+  const thisMonday = startOfWeek(today)
+  const previousWeekStart = addDays(thisMonday, -7)
+
+  return {
+    id: getWeekId(previousWeekStart),
+    year: previousWeekStart.getFullYear(),
+  }
+}
 
 const COLORS = ["#00BCD4", "#1E3A8A", "#10b981", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#84cc16"]
 
 export default function ReportesPage() {
   const { user } = useAuth()
-  const [timePeriod, setTimePeriod] = useState("month")
+  const defaultWeek = getDefaultWeekInfo()
+  const [timePeriod, setTimePeriod] = useState<"month" | "week">("month")
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
-  const [selectedWeek, setSelectedWeek] = useState(1)
+  const [selectedWeek, setSelectedWeek] = useState(defaultWeek.id)
+  const [activeProcesses, setActiveProcesses] = useState<Record<string, number>>({})
+  const [loadingActiveProcesses, setLoadingActiveProcesses] = useState(true)
+  const [serviceTypeData, setServiceTypeData] = useState<Array<{ service: string; count: number; percentage: number }>>([])
+  const [loadingServiceType, setLoadingServiceType] = useState(true)
+  const [candidateSourceData, setCandidateSourceData] = useState<Array<{ source: string; candidates: number; hired: number }>>([])
+  const [loadingCandidateSource, setLoadingCandidateSource] = useState(true)
+  const [processStats, setProcessStats] = useState<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }>({
+    activeProcesses: 0,
+    avgTimeToHire: 0,
+    totalCandidates: 0
+  })
+  const [loadingProcessStats, setLoadingProcessStats] = useState(true)
+  const [statusDistribution, setStatusDistribution] = useState<Array<{ status: string; count: number }>>([])
+  const [loadingStatusDistribution, setLoadingStatusDistribution] = useState(true)
+
+  const weekOptions = useMemo(() => getWeekOptionsForYear(selectedYear), [selectedYear])
+  const selectedWeekOption = useMemo(
+    () => weekOptions.find((option) => option.id === selectedWeek),
+    [weekOptions, selectedWeek],
+  )
+
+  useEffect(() => {
+    if (timePeriod === "week") {
+      if (!weekOptions.some((option) => option.id === selectedWeek)) {
+        const defaultWeekInfo = getDefaultWeekInfo()
+        const fallback =
+          weekOptions.find((option) => option.id === defaultWeekInfo.id) ?? weekOptions[weekOptions.length - 1]
+        if (fallback) {
+          setSelectedWeek(fallback.id)
+        }
+      }
+    }
+  }, [timePeriod, weekOptions, selectedWeek])
 
   if (user?.role !== "admin") {
     return (
@@ -40,22 +145,186 @@ export default function ReportesPage() {
     )
   }
 
-  const activeProcesses = getActiveProcessesByConsultant()
+  // Cargar procesos activos por consultor desde la API (optimizado)
+  useEffect(() => {
+    const loadActiveProcesses = async () => {
+      try {
+        setLoadingActiveProcesses(true)
+        const response = await solicitudService.getActiveProcessesByConsultant()
+        if (response.success && response.data) {
+          setActiveProcesses(response.data as Record<string, number>)
+        } else {
+          // Fallback a mock si falla la API
+          const { getActiveProcessesByConsultant } = await import("@/lib/mock-data")
+          setActiveProcesses(getActiveProcessesByConsultant())
+        }
+      } catch (error) {
+        console.error("Error al cargar procesos activos:", error)
+        // Fallback a mock si hay error
+        const { getActiveProcessesByConsultant } = await import("@/lib/mock-data")
+        setActiveProcesses(getActiveProcessesByConsultant())
+      } finally {
+        setLoadingActiveProcesses(false)
+      }
+    }
+
+    loadActiveProcesses()
+  }, [])
+
+  // Cargar distribución por tipo de servicio desde la API (optimizado)
+  useEffect(() => {
+    const loadServiceTypeData = async () => {
+      try {
+        setLoadingServiceType(true)
+        const response = await solicitudService.getProcessesByServiceType()
+        if (response.success && response.data) {
+          setServiceTypeData(response.data as Array<{ service: string; count: number; percentage: number }>)
+        } else {
+          // Fallback a mock si falla la API
+          const { getProcessesByServiceType } = await import("@/lib/mock-data")
+          setServiceTypeData(getProcessesByServiceType())
+        }
+      } catch (error) {
+        console.error("Error al cargar distribución por tipo de servicio:", error)
+        // Fallback a mock si hay error
+        const { getProcessesByServiceType } = await import("@/lib/mock-data")
+        setServiceTypeData(getProcessesByServiceType())
+      } finally {
+        setLoadingServiceType(false)
+      }
+    }
+
+    loadServiceTypeData()
+  }, [])
+
+  // Cargar fuentes de candidatos desde la API (optimizado)
+  useEffect(() => {
+    const loadCandidateSourceData = async () => {
+      try {
+        setLoadingCandidateSource(true)
+        const response = await solicitudService.getCandidateSourceData()
+        if (response.success && response.data) {
+          setCandidateSourceData(response.data as Array<{ source: string; candidates: number; hired: number }>)
+        } else {
+          // Fallback a mock si falla la API
+          const { getCandidateSourceData } = await import("@/lib/mock-data")
+          setCandidateSourceData(getCandidateSourceData())
+        }
+      } catch (error) {
+        console.error("Error al cargar fuentes de candidatos:", error)
+        // Fallback a mock si hay error
+        const { getCandidateSourceData } = await import("@/lib/mock-data")
+        setCandidateSourceData(getCandidateSourceData())
+      } finally {
+        setLoadingCandidateSource(false)
+      }
+    }
+
+    loadCandidateSourceData()
+  }, [])
+
+  // Cargar estadísticas generales desde la API (optimizado)
+  useEffect(() => {
+    const loadProcessStats = async () => {
+      try {
+        setLoadingProcessStats(true)
+        console.log('[FRONTEND] Cargando estadísticas de procesos...')
+        const response = await solicitudService.getProcessStats()
+        console.log('[FRONTEND] Respuesta de estadísticas:', response)
+        if (response.success && response.data) {
+          const stats = response.data as { activeProcesses: number; avgTimeToHire: number; totalCandidates: number }
+          console.log('[FRONTEND] Estadísticas recibidas:', stats)
+          setProcessStats(stats)
+        } else {
+          console.warn('[FRONTEND] Respuesta sin éxito o sin datos:', response)
+          // Fallback: usar valores por defecto
+          setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0 })
+        }
+      } catch (error) {
+        console.error("[FRONTEND] Error al cargar estadísticas de procesos:", error)
+        // Fallback: usar valores por defecto
+        setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0 })
+      } finally {
+        setLoadingProcessStats(false)
+      }
+    }
+
+    loadProcessStats()
+  }, [])
+
+  // Cargar distribución de estados desde la API según el período seleccionado
+  useEffect(() => {
+    const loadStatusDistribution = async () => {
+      try {
+        setLoadingStatusDistribution(true)
+        const week =
+          timePeriod === "week" && selectedWeekOption
+            ? weekOptions.findIndex((option) => option.id === selectedWeekOption.id) + 1
+            : undefined
+        const periodType = timePeriod === "week" ? "week" : timePeriod === "month" ? "month" : "quarter"
+        
+        console.log('[DEBUG Frontend] Cargando distribución de estados:', {
+          selectedYear,
+          selectedMonth,
+          week,
+          periodType
+        })
+        
+        const response = await solicitudService.getProcessStatusDistribution(
+          selectedYear,
+          selectedMonth,
+          week,
+          periodType
+        )
+        
+        console.log('[DEBUG Frontend] Respuesta de la API:', response)
+        
+        if (response.success && response.data) {
+          console.log('[DEBUG Frontend] Datos recibidos:', response.data)
+          setStatusDistribution(response.data as Array<{ status: string; count: number }>)
+        } else {
+          console.warn('[DEBUG Frontend] No se recibieron datos válidos:', response)
+          // Fallback a datos vacíos si falla
+          setStatusDistribution([])
+        }
+      } catch (error) {
+        console.error("Error al cargar distribución de estados:", error)
+        // Fallback a datos vacíos si hay error
+        setStatusDistribution([])
+      } finally {
+        setLoadingStatusDistribution(false)
+      }
+    }
+
+    loadStatusDistribution()
+  }, [selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod])
+
   const overdueHitos = getOverdueHitosByConsultant()
   const completionStats = getProcessCompletionStats()
-  const serviceTypeData = getProcessesByServiceType()
   const timeToHireData = getTimeToHireData()
-  const candidateSourceData = getCandidateSourceData()
   const performanceData = getConsultantPerformanceData()
   const allProcesses = getAllProcesses()
 
-  const processStatusData = [
-    { status: "Iniciado", count: allProcesses.filter((p) => p.status === "Iniciado").length, color: "#00BCD4" },
-    { status: "En Progreso", count: allProcesses.filter((p) => p.status === "En Progreso").length, color: "#1E3A8A" },
-    { status: "En Revisión", count: allProcesses.filter((p) => p.status === "En Revisión").length, color: "#10b981" },
-    { status: "Completado", count: allProcesses.filter((p) => p.status === "Completado").length, color: "#3b82f6" },
-    { status: "Pausado", count: allProcesses.filter((p) => p.status === "Pausado").length, color: "#f59e0b" },
-  ]
+  // Colores para los estados
+  const statusColors: Record<string, string> = {
+    "Iniciado": "#00BCD4",
+    "En Progreso": "#1E3A8A",
+    "En Revisión": "#10b981",
+    "Completado": "#3b82f6",
+    "Pausado": "#f59e0b",
+    "Cancelado": "#ef4444",
+  }
+
+  // Datos de distribución de estados con colores (usando datos reales de la API)
+  const processStatusData = statusDistribution.map((item) => ({
+    status: item.status,
+    count: item.count,
+    color: statusColors[item.status] || "#8884d8",
+  }))
+
+  // Log para debugging
+  console.log('[DEBUG Frontend] processStatusData:', processStatusData)
+  console.log('[DEBUG Frontend] statusDistribution:', statusDistribution)
 
   const getTemporalData = () => {
     if (timePeriod === "week") {
@@ -108,42 +377,103 @@ export default function ReportesPage() {
     { service: "Evaluación Psicolaboral", days: 15, target: 20 },
   ]
 
-  const avgTimeToHire = Math.round(timeToHireData.reduce((sum, item) => sum + item.days, 0) / timeToHireData.length)
-  const totalCandidates = candidateSourceData.reduce((sum, item) => sum + item.candidates, 0)
-  const totalActiveProcesses = Object.values(activeProcesses).reduce((sum, count) => sum + count, 0)
+  // Usar datos reales de la API para las estadísticas
+  const avgTimeToHire = processStats.avgTimeToHire || 0
+  const totalCandidates = processStats.totalCandidates || 0
+  const totalActiveProcesses = processStats.activeProcesses || 0
   const totalProcesses = allProcesses.length
   const completedProcesses = processStatusData.find((p) => p.status === "Completado")?.count || 0
   const completionRate = Math.round((completedProcesses / totalProcesses) * 100)
 
   const getWeeksInMonth = (month: number, year: number) => {
-    const firstDay = new Date(year, month, 1)
-    const lastDay = new Date(year, month + 1, 0)
-    const weeks = []
+    const weeks: Array<{
+      number: number
+      label: string
+      start: Date
+      end: Date
+      startDay: number
+      endDay: number
+      startMonth: number
+      endMonth: number
+      dateRange: string
+    }> = []
 
-    const currentDate = new Date(firstDay)
+    // Primer día del mes
+    const firstDayOfMonth = new Date(year, month, 1)
+    // Último día del mes
+    const lastDayOfMonth = new Date(year, month + 1, 0)
+
+    // Encontrar el primer lunes del mes
+    // Si el primer día es lunes (1), empezamos ahí
+    // Si es otro día, avanzamos hasta el próximo lunes
+    let currentDate = new Date(firstDayOfMonth)
+    const dayOfWeek = currentDate.getDay() // 0 = domingo, 1 = lunes, ..., 6 = sábado
+    
+    // Calcular cuántos días avanzar hasta el próximo lunes
+    // Si es domingo (0), avanzar 1 día (lunes)
+    // Si es lunes (1), no avanzar (0 días)
+    // Si es martes (2), avanzar 6 días (lunes siguiente)
+    // Si es miércoles (3), avanzar 5 días
+    // Si es jueves (4), avanzar 4 días
+    // Si es viernes (5), avanzar 3 días
+    // Si es sábado (6), avanzar 2 días
+    const daysToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : (8 - dayOfWeek)
+    
+    // Avanzar al primer lunes del mes
+    if (daysToMonday > 0) {
+      currentDate.setDate(currentDate.getDate() + daysToMonday)
+    }
+
+    // Si el lunes calculado está fuera del mes (mes siguiente), no hay semanas en este mes
+    // pero según el ejemplo del usuario, si noviembre empieza sábado, el lunes 3 es semana 1
+    // así que el lunes SÍ debe estar en el mes
+    if (currentDate.getMonth() !== month) {
+      // Si el lunes está en el mes siguiente, significa que el mes no tiene lunes
+      // En ese caso, empezamos desde el primer día y avanzamos hasta el próximo lunes del mes siguiente
+      // Pero esto no debería pasar normalmente
+      return weeks
+    }
+
     let weekNumber = 1
 
-    while (currentDate <= lastDay) {
+    // Generar semanas hasta que pasemos el último día del mes
+    while (currentDate <= lastDayOfMonth && currentDate.getMonth() === month) {
       const weekStart = new Date(currentDate)
       const weekEnd = new Date(currentDate)
-      weekEnd.setDate(weekEnd.getDate() + 6)
+      weekEnd.setDate(weekEnd.getDate() + 6) // Domingo
 
-      // Adjust if week extends beyond month
-      if (weekEnd > lastDay) {
-        weekEnd.setTime(lastDay.getTime())
+      // Si la semana termina fuera del mes, ajustar al último día del mes
+      if (weekEnd > lastDayOfMonth || weekEnd.getMonth() !== month) {
+        weekEnd.setTime(lastDayOfMonth.getTime())
       }
 
       const startDay = weekStart.getDate()
       const endDay = weekEnd.getDate()
+      const startMonth = weekStart.getMonth()
+      const endMonth = weekEnd.getMonth()
+
+      // Formatear el rango de fechas (formato: "3 - 9 de Noviembre")
+      let dateRange = ''
+      if (startMonth === endMonth) {
+        dateRange = `${startDay} - ${endDay} de ${monthNames[startMonth]}`
+      } else {
+        // Si la semana cruza meses (raro pero posible)
+        dateRange = `${startDay} de ${monthNames[startMonth]} - ${endDay} de ${monthNames[endMonth]}`
+      }
 
       weeks.push({
         number: weekNumber,
         label: `Semana ${weekNumber}`,
-        start: startDay,
-        end: endDay,
-        dateRange: `${startDay} - ${endDay} ${monthNames[month]}`,
+        start: weekStart,
+        end: weekEnd,
+        startDay,
+        endDay,
+        startMonth,
+        endMonth,
+        dateRange,
       })
 
+      // Avanzar al próximo lunes (7 días)
       currentDate.setDate(currentDate.getDate() + 7)
       weekNumber++
     }
@@ -152,30 +482,29 @@ export default function ReportesPage() {
   }
 
   const getProcessesForPeriod = () => {
+    if (timePeriod === "week") {
+      if (!selectedWeekOption) {
+        return []
+      }
+
+      const weekStart = new Date(selectedWeekOption.start)
+      const weekEnd = new Date(selectedWeekOption.end)
+      weekStart.setHours(0, 0, 0, 0)
+      weekEnd.setHours(23, 59, 59, 999)
+
+      return allProcesses.filter((process) => {
+        const processDate = new Date(process.startDate)
+        return processDate >= weekStart && processDate <= weekEnd
+      })
+    }
+
     const monthStart = new Date(selectedYear, selectedMonth, 1)
     const monthEnd = new Date(selectedYear, selectedMonth + 1, 0)
 
-    let filteredProcesses = allProcesses.filter((process) => {
+    return allProcesses.filter((process) => {
       const processDate = new Date(process.startDate)
       return processDate >= monthStart && processDate <= monthEnd
     })
-
-    if (timePeriod === "week") {
-      const weeks = getWeeksInMonth(selectedMonth, selectedYear)
-      const selectedWeekData = weeks[selectedWeek - 1]
-
-      if (selectedWeekData) {
-        const weekStart = new Date(selectedYear, selectedMonth, selectedWeekData.start)
-        const weekEnd = new Date(selectedYear, selectedMonth, selectedWeekData.end)
-
-        filteredProcesses = filteredProcesses.filter((process) => {
-          const processDate = new Date(process.startDate)
-          return processDate >= weekStart && processDate <= weekEnd
-        })
-      }
-    }
-
-    return filteredProcesses
   }
 
   const getProcessesInProgress = () => {
@@ -224,8 +553,16 @@ export default function ReportesPage() {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
+            {loadingProcessStats ? (
+              <div className="flex items-center justify-center h-12">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <>
             <div className="text-2xl font-bold">{totalActiveProcesses}</div>
             <p className="text-xs text-muted-foreground">En curso actualmente</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -234,8 +571,16 @@ export default function ReportesPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
+            {loadingProcessStats ? (
+              <div className="flex items-center justify-center h-12">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <>
             <div className="text-2xl font-bold">{avgTimeToHire} días</div>
             <p className="text-xs text-muted-foreground">Time-to-hire promedio</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -244,8 +589,16 @@ export default function ReportesPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
+            {loadingProcessStats ? (
+              <div className="flex items-center justify-center h-12">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <>
             <div className="text-2xl font-bold">{totalCandidates}</div>
             <p className="text-xs text-muted-foreground">En todos los procesos</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -264,14 +617,50 @@ export default function ReportesPage() {
               <CardDescription>Selecciona el período para analizar los procesos</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Período</label>
+                  <ToggleGroup
+                    type="single"
+                    value={timePeriod}
+                    onValueChange={(value) => {
+                      if (!value) return
+                      const next = value as "month" | "week"
+                      setTimePeriod(next)
+                      if (next === "week") {
+                        const defaultInfo = getDefaultWeekInfo()
+                        setSelectedYear(defaultInfo.year)
+                        setSelectedWeek(defaultInfo.id)
+                      }
+                    }}
+                    className="grid grid-cols-2 w-full md:w-fit"
+                  >
+                    <ToggleGroupItem value="month" aria-label="Vista mensual">
+                      Mensual
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="week" aria-label="Vista semanal">
+                      Semanal
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Año</label>
                   <Select
                     value={selectedYear.toString()}
                     onValueChange={(value) => {
-                      setSelectedYear(Number.parseInt(value))
-                      setSelectedWeek(1)
+                      const yearNumber = Number.parseInt(value)
+                      setSelectedYear(yearNumber)
+                      if (timePeriod === "week") {
+                        const options = getWeekOptionsForYear(yearNumber)
+                        const defaultInfo = getDefaultWeekInfo()
+                        const fallback =
+                          options.find((option) => option.id === defaultInfo.id) ??
+                          options[options.length - 1]
+                        if (fallback) {
+                          setSelectedWeek(fallback.id)
+                        }
+                      }
                     }}
                   >
                     <SelectTrigger>
@@ -287,59 +676,46 @@ export default function ReportesPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Mes</label>
-                  <Select
-                    value={selectedMonth.toString()}
-                    onValueChange={(value) => {
-                      setSelectedMonth(Number.parseInt(value))
-                      setSelectedWeek(1)
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {monthNames.map((month, index) => (
-                        <SelectItem key={index} value={index.toString()}>
-                          {month}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {timePeriod === "month" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Mes</label>
+                    <Select
+                      value={selectedMonth.toString()}
+                      onValueChange={(value) => {
+                        setSelectedMonth(Number.parseInt(value))
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {monthNames.map((month, index) => (
+                          <SelectItem key={index} value={index.toString()}>
+                            {month}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Semana</label>
-                  <Select
-                    value={selectedWeek.toString()}
-                    onValueChange={(value) => setSelectedWeek(Number.parseInt(value))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getWeeksInMonth(selectedMonth, selectedYear).map((week) => (
-                        <SelectItem key={week.number} value={week.number.toString()}>
-                          {week.dateRange}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Vista</label>
-                  <Select value={timePeriod} onValueChange={setTimePeriod}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="month">Por Mes</SelectItem>
-                      <SelectItem value="week">Por Semana</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {timePeriod === "week" && (
+                  <div className="space-y-2 md:col-span-2 lg:col-span-2">
+                    <label className="text-sm font-medium">Semana</label>
+                    <Select value={selectedWeek} onValueChange={(value) => setSelectedWeek(value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona una semana" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {weekOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -354,7 +730,7 @@ export default function ReportesPage() {
                 <div className="text-2xl font-bold">{getProcessesForPeriod().length}</div>
                 <p className="text-xs text-muted-foreground">
                   {timePeriod === "week"
-                    ? `Semana ${selectedWeek} de ${monthNames[selectedMonth]}`
+                    ? selectedWeekOption?.label ?? "Semana seleccionada"
                     : `${monthNames[selectedMonth]} ${selectedYear}`}
                 </p>
               </CardContent>
@@ -581,7 +957,7 @@ export default function ReportesPage() {
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 {timePeriod === "week"
-                                  ? `Semana ${selectedWeek} de ${monthNames[selectedMonth]} ${selectedYear}`
+                                  ? selectedWeekOption?.label
                                   : `${monthNames[selectedMonth]} ${selectedYear}`}
                               </p>
                             </div>
@@ -616,25 +992,22 @@ export default function ReportesPage() {
                 <CardDescription>Estados de procesos del período seleccionado</CardDescription>
               </CardHeader>
               <CardContent>
+                {loadingStatusDistribution ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : processStatusData.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-sm text-muted-foreground">No hay datos para el período seleccionado</p>
+                  </div>
+                ) : (
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={getProcessesForPeriod().reduce(
-                        (acc, process) => {
-                          const existing = acc.find((item) => item.status === process.status)
-                          if (existing) {
-                            existing.count += 1
-                          } else {
-                            acc.push({
-                              status: process.status,
-                              count: 1,
-                              color: processStatusData.find((p) => p.status === process.status)?.color || "#8884d8",
-                            })
-                          }
-                          return acc
-                        },
-                        [] as Array<{ status: string; count: number; color: string }>,
-                      )}
+                        data={processStatusData}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -643,30 +1016,14 @@ export default function ReportesPage() {
                       fill="#8884d8"
                       dataKey="count"
                     >
-                      {getProcessesForPeriod()
-                        .reduce(
-                          (acc, process) => {
-                            const existing = acc.find((item) => item.status === process.status)
-                            if (!existing) {
-                              acc.push({
-                                status: process.status,
-                                count: 1,
-                                color:
-                                  processStatusData.find((p) => p.status === process.status)?.color ||
-                                  COLORS[acc.length % COLORS.length],
-                              })
-                            }
-                            return acc
-                          },
-                          [] as Array<{ status: string; count: number; color: string }>,
-                        )
-                        .map((entry, index) => (
+                        {processStatusData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
@@ -696,7 +1053,7 @@ export default function ReportesPage() {
               <CardTitle>
                 Procesos en Curso -{" "}
                 {timePeriod === "week"
-                  ? `Semana ${selectedWeek} de ${monthNames[selectedMonth]} ${selectedYear}`
+                  ? selectedWeekOption?.label ?? "Semana seleccionada"
                   : `${monthNames[selectedMonth]} ${selectedYear}`}
               </CardTitle>
               <CardDescription>Lista detallada de procesos activos en el período seleccionado</CardDescription>
@@ -721,7 +1078,6 @@ export default function ReportesPage() {
                       <TableHead>Estado</TableHead>
                       <TableHead>Fecha Inicio</TableHead>
                       <TableHead>Días Transcurridos</TableHead>
-                      <TableHead>Contacto</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -771,9 +1127,6 @@ export default function ReportesPage() {
                               {daysSinceStart} días
                             </span>
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {process.contactName || "No asignado"}
-                          </TableCell>
                         </TableRow>
                       )
                     })}
@@ -796,8 +1149,10 @@ export default function ReportesPage() {
                   {getWeeksInMonth(selectedMonth, selectedYear).map((week) => {
                     const weekProcesses = allProcesses.filter((process) => {
                       const processDate = new Date(process.startDate)
-                      const weekStart = new Date(selectedYear, selectedMonth, week.start)
-                      const weekEnd = new Date(selectedYear, selectedMonth, week.end)
+                      const weekStart = new Date(week.start)
+                      weekStart.setHours(0, 0, 0, 0)
+                      const weekEnd = new Date(week.end)
+                      weekEnd.setHours(23, 59, 59, 999)
                       return processDate >= weekStart && processDate <= weekEnd
                     })
 
@@ -816,7 +1171,7 @@ export default function ReportesPage() {
                         <div className="space-y-1">
                           <h4 className="font-semibold text-lg">{week.label}</h4>
                           <p className="text-sm text-muted-foreground">
-                            {week.start} - {week.end} de {monthNames[selectedMonth]} {selectedYear}
+                            {week.dateRange}
                           </p>
                         </div>
                         <div className="flex gap-6">
@@ -854,8 +1209,19 @@ export default function ReportesPage() {
                 <CardDescription>Procesos activos asignados</CardDescription>
               </CardHeader>
               <CardContent>
+                {loadingActiveProcesses ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={activeProcessesData}>
+                    <BarChart data={Object.entries(activeProcesses).map(([name, count]) => ({
+                      name,
+                      procesos: count,
+                    }))}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -863,24 +1229,39 @@ export default function ReportesPage() {
                     <Bar dataKey="procesos" fill="#00BCD4" />
                   </BarChart>
                 </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Distribución por Tipo de Servicio</CardTitle>
-                <CardDescription>Procesos por categoría</CardDescription>
+                <CardTitle>Tipo de Servicio Total (En Progreso, Cerrados, Congelados, Cancelados)</CardTitle>
+                <CardDescription>Distribución de procesos por categoría</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+                {loadingServiceType ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : serviceTypeData.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={400}>
                   <PieChart>
                     <Pie
                       data={serviceTypeData}
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
+                        startAngle={300}
+                        endAngle={-130}
+                        labelLine={true}
                       label={({ service, percentage }) => `${service}: ${percentage}%`}
-                      outerRadius={80}
+                        outerRadius={100}
                       fill="#8884d8"
                       dataKey="count"
                     >
@@ -888,9 +1269,28 @@ export default function ReportesPage() {
                         <Cell key={`cell-service-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                      <Tooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload as { service: string; count: number; percentage: number };
+                            return (
+                              <div className="bg-background border border-border rounded-lg shadow-lg p-3">
+                                <p className="font-semibold text-sm">{data.service}</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  <span className="font-medium">{data.count}</span> {data.count === 1 ? 'proceso' : 'procesos'}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {data.percentage}% del total
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
                   </PieChart>
                 </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -923,6 +1323,18 @@ export default function ReportesPage() {
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
                   <h4 className="text-sm font-medium mb-4">Volumen de Candidatos por Fuente</h4>
+                  {loadingCandidateSource ? (
+                    <div className="flex items-center justify-center h-[250px]">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                        <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                      </div>
+                    </div>
+                  ) : candidateSourceData.length === 0 ? (
+                    <div className="flex items-center justify-center h-[250px]">
+                      <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+                    </div>
+                  ) : (
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={candidateSourceData}>
                       <CartesianGrid strokeDasharray="3 3" />
@@ -933,6 +1345,7 @@ export default function ReportesPage() {
                       <Bar dataKey="hired" fill="#10b981" name="Contratados" />
                     </BarChart>
                   </ResponsiveContainer>
+                  )}
                 </div>
                 <div>
                   <h4 className="text-sm font-medium mb-4">Distribución de Candidatos</h4>

@@ -102,11 +102,11 @@ LogCambios.init({
         }
     },
     detalle_cambio: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(1000),
         allowNull: false,
         validate: {
             notEmpty: true,
-            len: [5, 100]
+            len: [5, 1000]
         }
     },
     fecha_cambio: {

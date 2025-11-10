@@ -26,98 +26,74 @@ export interface PlantillaHito {
 }
 
 export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
-    // PROCESO COMPLETO (PC) - 15 días hábiles
+    // PROCESO COMPLETO (PC) - Aproximadamente 21 días hábiles total
     PC: [
         {
-            nombre_hito: "Descripción de cargo",
+            nombre_hito: "Publicación de cargo",
             tipo_ancla: 'inicio_proceso',
-            duracion_dias: 0,
+            duracion_dias: 1,
             avisar_antes_dias: 0,
-            descripcion: "Procesar descripción de cargo subida",
+            descripcion: "Publicar el cargo en portales",
             codigo_servicio: "PC"
         },
         {
-            nombre_hito: "Presentación candidatos",
-            tipo_ancla: 'inicio_proceso',
+            nombre_hito: "Presentación de terna inicial",
+            tipo_ancla: 'publicacion',
             duracion_dias: 5,
             avisar_antes_dias: 2,
-            descripcion: "Presentación de candidatos a cliente",
+            descripcion: "Presentar primera terna de candidatos al cliente",
             codigo_servicio: "PC"
         },
         {
-            nombre_hito: "Esperar feedback del cliente",
+            nombre_hito: "Entrevistas con candidatos aprobados",
             tipo_ancla: 'primera_presentacion',
-            duracion_dias: 2,
-            avisar_antes_dias: 1,
-            descripcion: "Faltan 1 día para recibir feedback del cliente",
-            codigo_servicio: "PC"
-        },
-        {
-            nombre_hito: "Evaluación psicolaboral (Módulo 4)",
-            tipo_ancla: 'feedback_cliente',
             duracion_dias: 5,
             avisar_antes_dias: 2,
-            descripcion: "Faltan 2 días para completar evaluaciones",
+            descripcion: "Realizar entrevistas psicolaborales con candidatos aprobados",
             codigo_servicio: "PC"
         },
         {
-            nombre_hito: "Presentar terna final",
+            nombre_hito: "Presentación de terna final con informe",
             tipo_ancla: 'evaluacion_psicolaboral',
-            duracion_dias: 2,
-            avisar_antes_dias: 1,
-            descripcion: "Faltan 1 día para presentar terna final",
+            duracion_dias: 10,
+            avisar_antes_dias: 5,
+            descripcion: "Entrega de terna final con informes psicolaborales",
             codigo_servicio: "PC"
         }
     ],
 
-    // HEADHUNTING (HH) - 25 días hábiles
+    // HUNTING (HH) - Aproximadamente 26 días hábiles total
     HH: [
         {
-            nombre_hito: "Descripción de cargo",
+            nombre_hito: "Publicación de cargo",
             tipo_ancla: 'inicio_proceso',
-            duracion_dias: 0,
+            duracion_dias: 1,
             avisar_antes_dias: 0,
-            descripcion: "Procesar descripción de cargo subida",
+            descripcion: "Publicar el cargo en portales",
             codigo_servicio: "HH"
         },
         {
-            nombre_hito: "Búsqueda dirigida",
-            tipo_ancla: 'inicio_proceso',
+            nombre_hito: "Presentación de terna inicial",
+            tipo_ancla: 'publicacion',
             duracion_dias: 15,
-            avisar_antes_dias: 2,
-            descripcion: "Faltan 2 días para completar búsqueda dirigida",
+            avisar_antes_dias: 5,
+            descripcion: "Presentar primera terna de candidatos al cliente",
             codigo_servicio: "HH"
         },
         {
-            nombre_hito: "Búsqueda dirigida",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 15,
-            avisar_antes_dias: 1,
-            descripcion: "Falta 1 día para completar búsqueda dirigida",
-            codigo_servicio: "HH"
-        },
-        {
-            nombre_hito: "Búsqueda dirigida",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 15,
-            avisar_antes_dias: 0,
-            descripcion: "Debe completarse hoy la búsqueda dirigida",
-            codigo_servicio: "HH"
-        },
-        {
-            nombre_hito: "Esperar feedback del cliente",
+            nombre_hito: "Entrevistas con candidatos aprobados",
             tipo_ancla: 'primera_presentacion',
             duracion_dias: 5,
-            avisar_antes_dias: 1,
-            descripcion: "Faltan 1 día para recibir feedback",
+            avisar_antes_dias: 2,
+            descripcion: "Realizar entrevistas psicolaborales con candidatos aprobados",
             codigo_servicio: "HH"
         },
         {
-            nombre_hito: "Presentar terna final",
-            tipo_ancla: 'feedback_cliente',
+            nombre_hito: "Presentación de terna final con informe",
+            tipo_ancla: 'evaluacion_psicolaboral',
             duracion_dias: 5,
-            avisar_antes_dias: 2,
-            descripcion: "Faltan 2 días para terna final",
+            avisar_antes_dias: 5,
+            descripcion: "Entrega de terna final con informes psicolaborales",
             codigo_servicio: "HH"
         }
     ],
@@ -125,145 +101,139 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
     // LONG LIST (LL) - 10 días hábiles
     LL: [
         {
-            nombre_hito: "Descripción de cargo",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 0,
-            avisar_antes_dias: 0,
-            descripcion: "Procesar descripción de cargo subida",
-            codigo_servicio: "LL"
-        },
-        {
-            nombre_hito: "Crear lista larga",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 7,
-            avisar_antes_dias: 2,
-            descripcion: "Faltan 2 días para completar lista larga",
-            codigo_servicio: "LL"
-        },
-        {
-            nombre_hito: "Crear lista larga",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 7,
-            avisar_antes_dias: 1,
-            descripcion: "Falta 1 día para completar lista larga",
-            codigo_servicio: "LL"
-        },
-        {
-            nombre_hito: "Crear lista larga",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 7,
-            avisar_antes_dias: 0,
-            descripcion: "Debe completarse hoy la lista larga",
-            codigo_servicio: "LL"
-        }
-    ],
-
-    // TARGET RECRUITMENT (TR) - 10 días hábiles
-    TR: [
-        {
-            nombre_hito: "Descripción de cargo",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 0,
-            avisar_antes_dias: 0,
-            descripcion: "Procesar descripción de cargo subida",
-            codigo_servicio: "TR"
-        },
-        {
-            nombre_hito: "Publicar en portales (Módulo 2)",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 2,
-            avisar_antes_dias: 1,
-            descripcion: "Faltan 1 día para publicar en portales",
-            codigo_servicio: "TR"
-        },
-        {
-            nombre_hito: "Primera presentación (Módulo 3)",
-            tipo_ancla: 'publicacion',
-            duracion_dias: 5,
-            avisar_antes_dias: 2,
-            descripcion: "Faltan 2 días para primera presentación",
-            codigo_servicio: "TR"
-        },
-        {
-            nombre_hito: "Esperar feedback del cliente",
-            tipo_ancla: 'primera_presentacion',
-            duracion_dias: 2,
-            avisar_antes_dias: 1,
-            descripcion: "Faltan 1 día para recibir feedback",
-            codigo_servicio: "TR"
-        },
-        {
-            nombre_hito: "Presentar terna final",
-            tipo_ancla: 'feedback_cliente',
-            duracion_dias: 3,
-            avisar_antes_dias: 1,
-            descripcion: "Faltan 1 día para presentar terna final",
-            codigo_servicio: "TR"
-        }
-    ],
-
-    // SERVICIOS SIMPLES
-    AO: [{
-        nombre_hito: "Procesar filtro inteligente",
-        tipo_ancla: 'filtro_inteligente',
-        duracion_dias: 5,
-        avisar_antes_dias: 1,
-        descripcion: "Faltan 1 día para completar filtro inteligente",
-        codigo_servicio: "AO"
-    }],
-
-    PP: [{
-        nombre_hito: "Publicar en portales",
-        tipo_ancla: 'publicacion_portales',
-        duracion_dias: 5,
-        avisar_antes_dias: 1,
-        descripcion: "Faltan 1 día para completar publicación",
-        codigo_servicio: "PP"
-    }],
-
-    ES: [
-        {
-            nombre_hito: "Descripción de cargo",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 0,
-            avisar_antes_dias: 0,
-            descripcion: "Procesar descripción de cargo subida",
-            codigo_servicio: "ES"
-        },
-        {
-            nombre_hito: "Completar evaluación psicolaboral",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 2,
-            avisar_antes_dias: 1,
-            descripcion: "Faltan 1 día para completar evaluación",
-            codigo_servicio: "ES"
-        }
-    ],
-
-    AP: [{
-        nombre_hito: "Completar evaluación de potencial",
-        tipo_ancla: 'evaluacion_potencial',
-        duracion_dias: 4,
-        avisar_antes_dias: 1,
-        descripcion: "Faltan 1 día para completar evaluación",
-        codigo_servicio: "AP"
-    }],
-
-    TS: [
-        {
-            nombre_hito: "Descripción de cargo",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 0,
-            avisar_antes_dias: 0,
-            descripcion: "Procesar descripción de cargo subida",
-            codigo_servicio: "TS"
-        },
-        {
-            nombre_hito: "Procesar test psicolaboral",
+            nombre_hito: "Publicación de cargo",
             tipo_ancla: 'inicio_proceso',
             duracion_dias: 1,
             avisar_antes_dias: 0,
-            descripcion: "Debe completarse hoy el test",
+            descripcion: "Publicar el cargo al día siguiente del ingreso",
+            codigo_servicio: "LL"
+        },
+        {
+            nombre_hito: "Presentación de candidatos",
+            tipo_ancla: 'publicacion',
+            duracion_dias: 10,
+            avisar_antes_dias: 5,
+            descripcion: "Presentar candidatos al cliente",
+            codigo_servicio: "LL"
+        }
+    ],
+
+    // TARGET RECRUITMENT (TR) - 10 días hábiles (proceso abierto)
+    TR: [
+        {
+            nombre_hito: "Publicación de cargo",
+            tipo_ancla: 'inicio_proceso',
+            duracion_dias: 1,
+            avisar_antes_dias: 0,
+            descripcion: "Publicar el cargo",
+            codigo_servicio: "TR"
+        },
+        {
+            nombre_hito: "Presentación de terna final con informe",
+            tipo_ancla: 'publicacion',
+            duracion_dias: 10,
+            avisar_antes_dias: 5,
+            descripcion: "Entrega de terna final con informes",
+            codigo_servicio: "TR"
+        }
+    ],
+
+    // FILTRO INTELIGENTE (AO) - 8 días hábiles
+    AO: [
+        {
+            nombre_hito: "Publicación de cargo",
+            tipo_ancla: 'inicio_proceso',
+            duracion_dias: 1,
+            avisar_antes_dias: 0,
+            descripcion: "Publicar el cargo al día siguiente del ingreso",
+            codigo_servicio: "AO"
+        },
+        {
+            nombre_hito: "Presentación de candidatos",
+            tipo_ancla: 'publicacion',
+            duracion_dias: 8,
+            avisar_antes_dias: 5,
+            descripcion: "Presentar candidatos al cliente",
+            codigo_servicio: "AO"
+        }
+    ],
+
+    // PUBLICACIÓN EN PORTALES (PP) - 5 días hábiles
+    PP: [
+        {
+            nombre_hito: "Publicación de cargo",
+            tipo_ancla: 'inicio_proceso',
+            duracion_dias: 1,
+            avisar_antes_dias: 0,
+            descripcion: "Publicar el cargo",
+            codigo_servicio: "PP"
+        },
+        {
+            nombre_hito: "Entrega de perfiles y cierre",
+            tipo_ancla: 'publicacion',
+            duracion_dias: 5,
+            avisar_antes_dias: 2,
+            descripcion: "Entregar perfiles y finalizar proceso",
+            codigo_servicio: "PP"
+        }
+    ],
+
+    // EVALUACIÓN PSICOLABORAL Y REMOTA (ES) - 2 días hábiles
+    ES: [
+        {
+            nombre_hito: "Agendar entrevista",
+            tipo_ancla: 'inicio_proceso',
+            duracion_dias: 0,
+            avisar_antes_dias: 0,
+            descripcion: "Agendar entrevista dentro de 4 horas del mismo día",
+            codigo_servicio: "ES"
+        },
+        {
+            nombre_hito: "Envío de informe",
+            tipo_ancla: 'entrevista',
+            duracion_dias: 2,
+            avisar_antes_dias: 1,
+            descripcion: "Entregar informe psicolaboral (2 días hábiles desde la entrevista)",
+            codigo_servicio: "ES"
+        }
+    ],
+
+    // EVALUACIÓN POTENCIAL (AP) - 4 días hábiles
+    AP: [
+        {
+            nombre_hito: "Agendar entrevista",
+            tipo_ancla: 'inicio_proceso',
+            duracion_dias: 0,
+            avisar_antes_dias: 0,
+            descripcion: "Agendar entrevista dentro de 4 horas del mismo día",
+            codigo_servicio: "AP"
+        },
+        {
+            nombre_hito: "Envío de informe",
+            tipo_ancla: 'entrevista',
+            duracion_dias: 4,
+            avisar_antes_dias: 2,
+            descripcion: "Entregar informe de evaluación de potencial (4 días hábiles desde la entrevista)",
+            codigo_servicio: "AP"
+        }
+    ],
+
+    // TEST PSICOLABORAL (TS) - 1 día hábil
+    TS: [
+        {
+            nombre_hito: "Agendar test",
+            tipo_ancla: 'inicio_proceso',
+            duracion_dias: 0,
+            avisar_antes_dias: 0,
+            descripcion: "Agendar aplicación del test dentro de 4 horas del mismo día",
+            codigo_servicio: "TS"
+        },
+        {
+            nombre_hito: "Entrega de resultado",
+            tipo_ancla: 'test_psicolaboral',
+            duracion_dias: 1,
+            avisar_antes_dias: 0,
+            descripcion: "Entregar resultado del test (1 día hábil desde la aplicación)",
             codigo_servicio: "TS"
         }
     ]

@@ -8,8 +8,17 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, History, User, FileText, Calendar, Loader2 } from "lucide-react"
+import { Search, History, User, FileText, Calendar, Loader2, Eye } from "lucide-react"
 import { formatDateTime } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 // Interfaces para enriquecimiento de datos
 interface LogEnriquecido extends LogCambio {
@@ -184,6 +193,50 @@ export default function HistorialPage() {
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="text-muted-foreground">Cargando historial de cambios...</p>
         </div>
+      </div>
+    )
+  }
+
+  // Componente para mostrar el detalle con opción de expandir
+  const DetalleCell = ({ detalle }: { detalle: string }) => {
+    const MAX_LENGTH = 80
+    const cambios = detalle.split(' | ')
+    const isLong = detalle.length > MAX_LENGTH
+
+    if (!isLong) {
+      return <div className="text-sm">{detalle}</div>
+    }
+
+    return (
+      <div className="flex items-center gap-2">
+        <div className="text-sm truncate max-w-[300px]" title={detalle}>
+          {detalle}
+        </div>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <Eye className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Detalle del cambio</DialogTitle>
+              <DialogDescription>
+                Información completa de los campos modificados
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 mt-4">
+              {cambios.map((cambio, index) => (
+                <div 
+                  key={index} 
+                  className="p-3 bg-muted rounded-md text-sm font-mono border"
+                >
+                  {cambio.trim()}
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }
@@ -429,9 +482,7 @@ export default function HistorialPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="max-w-[400px] truncate" title={log.detalle_cambio}>
-                            {log.detalle_cambio}
-                          </div>
+                          <DetalleCell detalle={log.detalle_cambio} />
                         </TableCell>
                       </TableRow>
                     ))}

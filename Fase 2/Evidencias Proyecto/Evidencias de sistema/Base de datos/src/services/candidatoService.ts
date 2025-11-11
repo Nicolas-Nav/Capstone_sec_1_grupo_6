@@ -1137,7 +1137,8 @@ export class CandidatoService {
             const statusMapping: { [key: string]: number } = {
                 'presentado': 1,    // "Presentado"
                 'no_presentado': 2, // "No presentado" 
-                'rechazado': 3      // "Rechazado"
+                'rechazado': 3,     // "Rechazado"
+                'agregado': 6       // "Agregado"
             };
 
             const idEstadoCandidato = statusMapping[status];

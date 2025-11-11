@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { candidatoService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
-import { UserCheck, AlertCircle, XCircle } from "lucide-react"
+import { UserCheck, AlertCircle, XCircle, Plus } from "lucide-react"
 import type { Candidate } from "@/lib/types"
 
 interface CandidateStatusDialogProps {
@@ -29,8 +29,13 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
   // Cargar datos del candidato cuando se abre el diálogo
   useEffect(() => {
     if (open && candidate) {
+      // Si el estado es "agregado", usar "presentado" como valor inicial por defecto
+      const initialStatus = candidate.presentation_status === "agregado" 
+        ? "presentado" 
+        : (candidate.presentation_status || "presentado")
+      
       setFormData({
-        status: candidate.presentation_status || "no_presentado",
+        status: initialStatus,
         comment: candidate.rejection_reason || ""
       })
     }
@@ -40,6 +45,16 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
     e.preventDefault()
     
     if (!candidate) return
+
+    // Validar que no se permita enviar con estado "agregado"
+    if (formData.status === "agregado") {
+      toast({
+        title: "Estado no válido",
+        description: "No puede cambiar a estado 'Agregado'. Por favor seleccione 'Presentado' o 'No Presentado'.",
+        variant: "destructive",
+      })
+      return
+    }
 
     // Validar que si es "no_presentado" debe tener comentario
     if (formData.status === "no_presentado" && !formData.comment?.trim()) {
@@ -104,6 +119,8 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
 
   const getStatusIcon = (status: string) => {
     switch (status) {
+      case "agregado":
+        return <Plus className="h-4 w-4 text-blue-600" />
       case "presentado":
         return <UserCheck className="h-4 w-4 text-green-600" />
       case "no_presentado":
@@ -115,6 +132,8 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
 
   const getStatusLabel = (status: string) => {
     switch (status) {
+      case "agregado":
+        return "Agregado"
       case "presentado":
         return "Presentado"
       case "no_presentado":

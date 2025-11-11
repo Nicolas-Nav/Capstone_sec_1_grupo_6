@@ -419,13 +419,15 @@ export class PostulacionService {
             }
 
             // Mapear estado
-            let nombreEstado = 'Postulado';
+            let nombreEstado = 'Agregado';
             if (presentation_status === 'presentado') {
                 nombreEstado = 'Presentado';
             } else if (presentation_status === 'no_presentado') {
                 nombreEstado = 'No Presentado';
             } else if (presentation_status === 'rechazado') {
                 nombreEstado = 'Rechazado';
+            } else if (presentation_status === 'agregado') {
+                nombreEstado = 'Agregado';
             }
 
             const nuevoEstado = await EstadoCandidato.findOne({
@@ -764,21 +766,36 @@ export class PostulacionService {
      * Helpers
      */
     private static mapEstadoToFrontend(nombreEstado?: string): string {
+        if (!nombreEstado) return 'postulado';
+        
+        const estadoLower = nombreEstado.toLowerCase().trim();
+        
         const mapeo: { [key: string]: string } = {
-            'Postulado': 'postulado',
-            'Presentado': 'presentado',
-            'Aprobado': 'aprobado',
-            'Rechazado': 'rechazado',
-            'Contratado': 'contratado'
+            'postulado': 'postulado',
+            'presentado': 'presentado',
+            'aprobado': 'aprobado',
+            'rechazado': 'rechazado',
+            'contratado': 'contratado',
+            'agregado': 'agregado',
+            'no presentado': 'no_presentado',
+            'no_presentado': 'no_presentado'
         };
-        return mapeo[nombreEstado || ''] || 'postulado';
+        
+        return mapeo[estadoLower] || 'postulado';
     }
 
     private static mapPresentationStatus(nombreEstado?: string): string {
-        if (nombreEstado === 'Presentado') return 'presentado';
-        if (nombreEstado === 'No Presentado') return 'no_presentado';
-        if (nombreEstado === 'Rechazado') return 'rechazado';
-        return 'no_presentado';
+        if (!nombreEstado) return 'agregado';
+        
+        const estadoLower = nombreEstado.toLowerCase().trim();
+        
+        if (estadoLower === 'presentado') return 'presentado';
+        if (estadoLower === 'no presentado' || estadoLower === 'no_presentado') return 'no_presentado';
+        if (estadoLower === 'rechazado') return 'rechazado';
+        if (estadoLower === 'agregado') return 'agregado';
+        if (estadoLower === 'postulado') return 'agregado'; // Mapear "Postulado" a "agregado"
+        
+        return 'agregado'; // Por defecto "agregado" para nuevos candidatos
     }
 
     private static calculateAge(birthDate: Date): number {

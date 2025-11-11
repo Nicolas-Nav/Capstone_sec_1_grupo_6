@@ -118,7 +118,7 @@ export interface Candidate {
   // Consultant comment about the candidate
   consultant_comment?: string
   // Presentation status and reason
-  presentation_status?: "presentado" | "no_presentado" | "rechazado"
+  presentation_status?: "agregado" | "presentado" | "no_presentado" | "rechazado"
   rejection_reason?: string
   // Disability credential
   has_disability_credential?: boolean

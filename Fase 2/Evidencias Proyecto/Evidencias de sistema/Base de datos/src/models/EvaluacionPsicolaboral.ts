@@ -8,14 +8,14 @@ import sequelize from '@/config/database';
 interface EvaluacionPsicolaboralAttributes {
     id_evaluacion_psicolaboral: number;
     fecha_evaluacion: Date | null;
-    fecha_envio_informe: Date;
+    fecha_envio_informe: Date | null;
     estado_evaluacion: string;
     estado_informe: string;
     conclusion_global: string;
     id_postulacion: number;
 }
 
-interface EvaluacionPsicolaboralCreationAttributes extends Optional<EvaluacionPsicolaboralAttributes, 'id_evaluacion_psicolaboral'> { }
+interface EvaluacionPsicolaboralCreationAttributes extends Optional<EvaluacionPsicolaboralAttributes, 'id_evaluacion_psicolaboral' | 'fecha_envio_informe'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -24,7 +24,7 @@ interface EvaluacionPsicolaboralCreationAttributes extends Optional<EvaluacionPs
 class EvaluacionPsicolaboral extends Model<EvaluacionPsicolaboralAttributes, EvaluacionPsicolaboralCreationAttributes> implements EvaluacionPsicolaboralAttributes {
     public id_evaluacion_psicolaboral!: number;
     public fecha_evaluacion!: Date | null;
-    public fecha_envio_informe!: Date;
+    public fecha_envio_informe!: Date | null;
     public estado_evaluacion!: string;
     public estado_informe!: string;
     public conclusion_global!: string;
@@ -104,7 +104,7 @@ EvaluacionPsicolaboral.init({
     },
     fecha_envio_informe: {
         type: DataTypes.DATE,
-        allowNull: false,
+        allowNull: true,
         validate: {
             isDate: true
         }

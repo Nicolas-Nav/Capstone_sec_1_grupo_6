@@ -43,6 +43,7 @@ import {
   AlertCircle,
   Edit,
   Save,
+  Loader2,
 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 
@@ -268,6 +269,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const [showReferencesDialog, setShowReferencesDialog] = useState(false)
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
+  const [isSavingInterview, setIsSavingInterview] = useState(false)
   const [candidateConclusions, setCandidateConclusions] = useState<{ [key: string]: string }>({})
 
   const [candidateReports, setCandidateReports] = useState<{ [candidateId: string]: CandidateReport }>({})
@@ -563,6 +565,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleSaveInterview = async () => {
     if (!selectedCandidate) return
     
+    setIsSavingInterview(true)
     try {
       // Verificar si ya existe una evaluación para este candidato
       const existingEvaluation = evaluations[selectedCandidate.id]
@@ -636,6 +639,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         description: "Error al guardar el estado de entrevista",
         variant: "destructive",
       })
+    } finally {
+      setIsSavingInterview(false)
     }
   }
 
@@ -1839,10 +1844,20 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowInterviewDialog(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowInterviewDialog(false)}
+              disabled={isSavingInterview}
+            >
               Cancelar
             </Button>
-            <Button onClick={handleSaveInterview}>Guardar</Button>
+            <Button 
+              onClick={handleSaveInterview}
+              disabled={isSavingInterview}
+            >
+              {isSavingInterview && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSavingInterview ? "Guardando..." : "Guardar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

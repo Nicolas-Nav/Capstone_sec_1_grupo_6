@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 import { Button } from "@/components/ui/button"
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+
 import { Input } from "@/components/ui/input"
 
 import { Label } from "@/components/ui/label"
@@ -19,6 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 import { Badge } from "@/components/ui/badge"
+
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import {
 
@@ -155,6 +159,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
+
+  // Verificar si hay al menos un candidato presentado
+  const hasPresentedCandidates = useMemo(() => {
+    return candidates.some(candidate => candidate.presentation_status === 'presentado')
+  }, [candidates])
 
   // Cargar datos reales desde el backend
 
@@ -939,7 +948,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
             id_candidato: parseInt(response.data.id),
             id_solicitud: processIdForPostulation,
             id_portal_postulacion: formData.source_portal ? parseInt(formData.source_portal) : 1, // Por defecto: 1 = LinkedIn
-            id_estado_candidato: 1, // 1 = "Presentado" (estado inicial)
+            id_estado_candidato: 6, // 6 = "Agregado" (estado inicial al crear candidato en módulo 2)
             motivacion: formData.portal_responses?.motivation || formData.motivation,
             expectativa_renta: formData.portal_responses?.salary_expectation 
               ? parseFloat(formData.portal_responses.salary_expectation) 
@@ -1438,6 +1447,16 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const handleAdvanceToModule3 = async () => {
+    // Validar que haya al menos un candidato presentado
+    if (!hasPresentedCandidates) {
+      toast({
+        title: "No se puede avanzar",
+        description: "Debe tener al menos un candidato con estado 'Presentado' para avanzar al Módulo 3",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsAdvancingToModule3(true)
     try {
       const response = await solicitudService.avanzarAModulo3(parseInt(process.id))
@@ -2362,14 +2381,27 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
         <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
         </div>
-        <Button
-          onClick={handleAdvanceToModule3}
-          className="bg-primary hover:bg-primary/90"
-          disabled={isBlocked || isAdvancingToModule3}
-        >
-          {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Pasar a Módulo 3
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <Button
+                  onClick={handleAdvanceToModule3}
+                  className="bg-primary hover:bg-primary/90"
+                  disabled={isBlocked || isAdvancingToModule3 || !hasPresentedCandidates}
+                >
+                  {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Pasar a Módulo 3
+                </Button>
+              </div>
+            </TooltipTrigger>
+            {!hasPresentedCandidates && !isBlocked && (
+              <TooltipContent>
+                <p>Debe tener al menos un candidato con estado &quot;Presentado&quot;</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {/* Componente de bloqueo si el proceso está en estado final */}
@@ -2896,6 +2928,16 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         <CardContent>
 
+          {/* Alerta cuando no hay candidatos presentados */}
+          {candidates.length > 0 && !hasPresentedCandidates && (
+            <Alert className="mb-4 bg-yellow-50 border-yellow-200">
+              <AlertDescription className="text-yellow-800">
+                ⚠️ Para avanzar al Módulo 3, debe tener al menos un candidato con estado &quot;Presentado&quot;. 
+                Cambie el estado de los candidatos agregados usando el botón &quot;Cambiar Estado&quot;.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {candidates.length > 0 ? (
 
             <Table>
@@ -2952,6 +2994,12 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                         {/* Mostrar estado actual */}
                           <div className="flex items-center gap-2">
 
+                          {candidate.presentation_status === "agregado" && (
+                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                              <span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+                              Agregado
+                            </Badge>
+                          )}
                           {candidate.presentation_status === "presentado" && (
                             <Badge variant="default" className="text-xs bg-green-600">
                               <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>

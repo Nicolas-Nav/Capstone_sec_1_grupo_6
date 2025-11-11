@@ -217,7 +217,9 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         id: "modulo-3", 
         label: "Presentación de Candidatos", 
         icon: Target, 
-        enabled: currentStage === "Módulo 3: Presentación de Candidatos" || currentStage === "Módulo 4: Evaluación Psicolaboral",
+        enabled: currentStage === "Módulo 3: Presentación de Candidatos" || 
+                  currentStage === "Módulo 4: Evaluación Psicolaboral" ||
+                  currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral",
         isActive: activeTab === "modulo-3"
       })
     }

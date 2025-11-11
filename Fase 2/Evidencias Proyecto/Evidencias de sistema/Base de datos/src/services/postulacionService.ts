@@ -629,6 +629,9 @@ export class PostulacionService {
             id_postulacion: postulacion.id_postulacion, // ✅ ID de la postulación (número)
             process_id: postulacion.id_solicitud.toString(),
             name: candidato.getNombreCompleto(),
+            nombre: candidato.nombre_candidato || '',
+            primer_apellido: candidato.primer_apellido_candidato || '',
+            segundo_apellido: candidato.segundo_apellido_candidato || '',
             email: candidato.email_candidato,
             phone: candidato.telefono_candidato,
             rut: candidato.rut_candidato || undefined,

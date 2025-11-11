@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { SolicitudController } from '@/controllers/solicitudController';
+import { SolicitudEvaluacionController } from '@/controllers/solicitudEvaluacionController';
 import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
@@ -41,6 +42,12 @@ router.use(authenticateToken); // ← Aplica autenticación a todas las rutas si
 
 // Crear nueva solicitud
 router.post('/', SolicitudController.create);
+
+// Crear solicitud de evaluación con candidatos (transacción atómica)
+router.post('/con-candidatos', SolicitudEvaluacionController.crearConCandidatos);
+
+// Actualizar solicitud de evaluación con candidatos nuevos (transacción atómica)
+router.put('/con-candidatos/:id', SolicitudEvaluacionController.actualizarConCandidatos);
 
 // Actualizar estado de solicitud
 router.put('/:id/estado', SolicitudController.updateEstado);

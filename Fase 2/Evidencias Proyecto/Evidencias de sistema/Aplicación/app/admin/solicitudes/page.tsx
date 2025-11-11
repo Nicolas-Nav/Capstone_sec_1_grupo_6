@@ -56,6 +56,7 @@ export default function SolicitudesPage() {
     nextPage,
     prevPage,
     handlePageSizeChange,
+    refreshData,
   } = useSolicitudes()
 
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -365,6 +366,7 @@ export default function SolicitudesPage() {
         open={showCreateDialog} 
         onOpenChange={handleCloseDialog}
         solicitudToEdit={solicitudToEdit}
+        onSuccess={refreshData}
       />
 
       {/* Upload Excel Dialog */}

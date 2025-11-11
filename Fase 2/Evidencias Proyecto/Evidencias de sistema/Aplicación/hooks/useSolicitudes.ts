@@ -228,6 +228,35 @@ export function useSolicitudes() {
     setCurrentPage(1) // Reset to first page when changing page size
   }
 
+  // Función para refrescar todos los datos (solicitudes y estadísticas)
+  const refreshData = async () => {
+    await fetchSolicitudes()
+    // También recargar tipos de servicio por si se agregó uno nuevo
+    try {
+      const res = await fetch(`${API_URL}/api/solicitudes?page=1&limit=1000`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
+        },
+      })
+
+      const data = await res.json()
+      
+      if (res.ok && data?.success) {
+        const serviceTypes = Array.from(
+          new Set(
+            data.data.solicitudes
+              .map((s: any) => s.service_type || s.tipo_servicio)
+              .filter(Boolean)
+          )
+        ).sort() as string[]
+        
+        setAllServiceTypes(serviceTypes)
+      }
+    } catch (error) {
+      console.error("Error refreshing service types:", error)
+    }
+  }
+
   // Calcular estadísticas
   const stats = {
     total: totalSolicitudes,
@@ -261,6 +290,7 @@ export function useSolicitudes() {
     
     // Funciones
     fetchSolicitudes,
+    refreshData,
     deleteSolicitud,
     goToPage,
     nextPage,

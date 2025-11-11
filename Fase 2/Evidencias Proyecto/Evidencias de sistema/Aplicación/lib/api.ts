@@ -376,6 +376,58 @@ export const solicitudService = {
       body: JSON.stringify({ id_etapa }),
     });
   },
+
+  // Crear solicitud de evaluación con candidatos (transacción atómica)
+  async crearConCandidatos(data: {
+    contact_id: number;
+    service_type: string;
+    position_title: string;
+    ciudad?: string;
+    description?: string;
+    requirements?: string;
+    consultant_id: string;
+    deadline_days?: number;
+    candidatos: Array<{
+      nombre: string;
+      primer_apellido: string;
+      segundo_apellido?: string;
+      email: string;
+      phone: string;
+      rut?: string;
+      has_disability_credential?: boolean;
+    }>;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/solicitudes/con-candidatos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar solicitud de evaluación con candidatos nuevos (transacción atómica)
+  async actualizarConCandidatos(id: number, data: {
+    contact_id?: number;
+    service_type?: string;
+    position_title?: string;
+    ciudad?: string;
+    description?: string;
+    requirements?: string;
+    consultant_id?: string;
+    deadline_days?: number;
+    candidatos?: Array<{
+      nombre: string;
+      primer_apellido: string;
+      segundo_apellido?: string;
+      email: string;
+      phone: string;
+      rut?: string;
+      has_disability_credential?: boolean;
+    }>;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/con-candidatos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // ===========================================
@@ -780,19 +832,40 @@ export const postulacionService = {
 
   // Subir/Actualizar CV
   async uploadCV(id: number, file: File): Promise<ApiResponse<any>> {
-    const formData = new FormData();
-    formData.append('cv', file);
+    try {
+      const formData = new FormData();
+      formData.append('cv_file', file);
 
-    const token = localStorage.getItem('llc_token');
-    const response = await fetch(`${API_BASE_URL}/api/postulaciones/${id}/cv`, {
-      method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
-    });
+      const token = localStorage.getItem('llc_token');
+      const response = await fetch(`${API_BASE_URL}/api/postulaciones/${id}/cv`, {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: formData,
+      });
 
-    return await response.json();
+      if (!response.ok) {
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // Si no se puede parsear el JSON, usar el mensaje por defecto
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error: any) {
+      console.error('Error en uploadCV:', error);
+      // Si es un error de red, proporcionar un mensaje más claro
+      if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        throw new Error('Error de conexión. Verifica que el servidor esté ejecutándose y accesible.');
+      }
+      throw error;
+    }
   },
 
   // Descargar CV

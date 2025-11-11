@@ -73,6 +73,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const { toast } = useToast()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isAdvancingToModule5, setIsAdvancingToModule5] = useState(false)
   
   // Función para calcular días hábiles
   const addBusinessDays = (date: Date, days: number): Date => {
@@ -1103,6 +1104,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       return
     }
 
+    setIsAdvancingToModule5(true)
     try {
       // Primero, actualizar la etapa de la solicitud al módulo 5
       try {
@@ -1155,6 +1157,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           description: `${failed.length} candidato(s) no pudieron avanzar: ${failed.map(f => f.error).join(', ')}`,
           variant: "destructive",
         })
+        setIsAdvancingToModule5(false)
       }
 
       // Actualizar estado local para reflejar los cambios
@@ -1174,6 +1177,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         description: "Error al avanzar candidatos al módulo 5",
         variant: "destructive",
       })
+      setIsAdvancingToModule5(false)
     }
   }
 
@@ -1313,11 +1317,20 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                     </div>
                     <Button 
                       onClick={handleAdvanceToModule5}
-                      disabled={!canAdvanceToModule5}
+                      disabled={!canAdvanceToModule5 || isAdvancingToModule5}
                       className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
                     >
-                      <Send className="mr-2 h-4 w-4" />
-                      Avanzar al Módulo 5
+                      {isAdvancingToModule5 ? (
+                        <>
+                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+                          Avanzando...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="mr-2 h-4 w-4" />
+                          Avanzar al Módulo 5
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>

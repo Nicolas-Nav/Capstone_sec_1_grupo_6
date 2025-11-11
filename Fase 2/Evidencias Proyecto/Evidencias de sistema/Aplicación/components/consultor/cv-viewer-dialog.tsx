@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -143,6 +144,9 @@ export default function CVViewerDialog({ candidate, isOpen, onClose }: CVViewerD
             <Eye className="h-5 w-5" />
             CV de {candidate.name}
           </DialogTitle>
+          <DialogDescription>
+            Visualiza y descarga el currículum vitae del candidato
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

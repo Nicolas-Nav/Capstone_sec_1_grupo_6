@@ -49,6 +49,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [selectedEstado, setSelectedEstado] = useState<string>("")
   const [statusChangeReason, setStatusChangeReason] = useState("")
+  const [isAdvancingToModule4, setIsAdvancingToModule4] = useState(false)
   
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
@@ -354,6 +355,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       return
     }
 
+    setIsAdvancingToModule4(true)
     try {
       const response = await solicitudService.avanzarAModulo4(parseInt(process.id))
 
@@ -373,6 +375,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
           description: "Error al avanzar al Módulo 4",
           variant: "destructive",
         })
+        setIsAdvancingToModule4(false)
       }
     } catch (error) {
       console.error("Error al avanzar al Módulo 4:", error)
@@ -381,6 +384,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         description: "Error al avanzar al Módulo 4",
         variant: "destructive",
       })
+      setIsAdvancingToModule4(false)
     }
   }
 
@@ -599,8 +603,9 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule4}
-                disabled={isBlocked}
+                disabled={isBlocked || isAdvancingToModule4}
               >
+                {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Avanzar a Módulo 4
               </Button>
             </div>

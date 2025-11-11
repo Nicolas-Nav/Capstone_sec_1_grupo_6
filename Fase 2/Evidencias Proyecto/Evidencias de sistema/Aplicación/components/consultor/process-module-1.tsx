@@ -21,7 +21,7 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet, Trash2, Plus, Pencil } from "lucide-react"
+import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet, Trash2, Plus, Pencil, Loader2 } from "lucide-react"
 import type { Process, ProcessStatus, Candidate, WorkExperience, Education } from "@/lib/types"
 import { useState, useEffect } from "react"
 import { descripcionCargoService, solicitudService, regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, institucionService } from "@/lib/api"
@@ -80,6 +80,8 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   const [instituciones, setInstituciones] = useState<any[]>([])
   const [loadingLists, setLoadingLists] = useState(false)
   const [savingCandidate, setSavingCandidate] = useState(false)
+  const [isAdvancingToModule2, setIsAdvancingToModule2] = useState(false)
+  const [isAdvancingToModule4, setIsAdvancingToModule4] = useState(false)
 
   // Estados para experiencia laboral y educación
   const [workExperience, setWorkExperience] = useState<WorkExperience[]>([])
@@ -764,6 +766,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       return
     }
 
+    setIsAdvancingToModule2(true)
     try {
       const response = await solicitudService.avanzarAModulo2(parseInt(process.id))
 
@@ -783,6 +786,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           description: "Error al avanzar al Módulo 2",
           variant: "destructive",
         })
+        setIsAdvancingToModule2(false)
       }
     } catch (error) {
       console.error("Error al avanzar al Módulo 2:", error)
@@ -791,6 +795,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         description: "Error al avanzar al Módulo 2",
         variant: "destructive",
       })
+      setIsAdvancingToModule2(false)
     }
   }
 
@@ -805,6 +810,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       return
     }
 
+    setIsAdvancingToModule4(true)
     try {
       const response = await solicitudService.avanzarAModulo4(parseInt(process.id))
 
@@ -824,6 +830,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           description: "Error al avanzar al Módulo 4",
           variant: "destructive",
         })
+        setIsAdvancingToModule4(false)
       }
     } catch (error) {
       console.error("Error al avanzar al Módulo 4:", error)
@@ -832,6 +839,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         description: "Error al avanzar al Módulo 4",
         variant: "destructive",
       })
+      setIsAdvancingToModule4(false)
     }
   }
 
@@ -863,16 +871,18 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           <Button
             onClick={handleAdvanceToModule4}
             className="bg-primary hover:bg-primary/90"
-            disabled={isProcessBlocked(processStatus)}
+            disabled={isProcessBlocked(processStatus) || isAdvancingToModule4}
           >
+            {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Pasar a Módulo 4
           </Button>
         ) : (
         <Button
           onClick={handleAdvanceToModule2}
           className="bg-primary hover:bg-primary/90"
-          disabled={isProcessBlocked(processStatus)}
+          disabled={isProcessBlocked(processStatus) || isAdvancingToModule2}
         >
+          {isAdvancingToModule2 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Pasar a Módulo 2
         </Button>
         )}

@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Trash2, Star } from "lucide-react"
+import { Plus, Trash2, Star, Loader2 } from "lucide-react"
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import { registerLocale } from "react-datepicker"
@@ -1552,7 +1552,14 @@ export function CandidateForm({
           Cancelar
         </Button>
         <Button onClick={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? "Guardando..." : mode === 'create' ? "Agregar Candidato" : "Guardar Cambios"}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Guardando...
+            </>
+          ) : (
+            mode === 'create' ? "Agregar Candidato" : "Guardar Cambios"
+          )}
         </Button>
       </div>
     </div>

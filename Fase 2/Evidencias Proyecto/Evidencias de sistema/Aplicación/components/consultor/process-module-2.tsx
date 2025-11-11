@@ -50,7 +50,7 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X } from "lucide-react"
+import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2 } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
@@ -112,7 +112,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [postgrados, setPostgrados] = useState<any[]>([])
 
   const [loadingLists, setLoadingLists] = useState(true)
-
+  const [isAdvancingToModule3, setIsAdvancingToModule3] = useState(false)
 
   // Estados para diálogos
   const [statusDialogOpen, setStatusDialogOpen] = useState(false)
@@ -1438,6 +1438,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const handleAdvanceToModule3 = async () => {
+    setIsAdvancingToModule3(true)
     try {
       const response = await solicitudService.avanzarAModulo3(parseInt(process.id))
 
@@ -1457,6 +1458,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           description: "Error al avanzar al Módulo 3",
           variant: "destructive",
         })
+        setIsAdvancingToModule3(false)
       }
     } catch (error) {
       console.error("Error al avanzar al Módulo 3:", error)
@@ -1465,6 +1467,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         description: "Error al avanzar al Módulo 3",
         variant: "destructive",
       })
+      setIsAdvancingToModule3(false)
     }
   }
 
@@ -2362,8 +2365,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         <Button
           onClick={handleAdvanceToModule3}
           className="bg-primary hover:bg-primary/90"
-          disabled={isBlocked}
+          disabled={isBlocked || isAdvancingToModule3}
         >
+          {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Pasar a Módulo 3
         </Button>
       </div>

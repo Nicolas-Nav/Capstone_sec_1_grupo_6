@@ -21,10 +21,11 @@ export class SolicitudController {
             const status = (req.query.status as "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario") || undefined;
             const service_type = (req.query.service_type as string) || undefined;
             const consultor_id = (req.query.consultor_id as string) || undefined;
+            const exclude_status = (req.query.exclude_status as "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario") || undefined;
             const sortBy = (req.query.sortBy as "fecha" | "cargo" | "cliente") || "fecha";
             const sortOrder = (req.query.sortOrder as "ASC" | "DESC") || "DESC";
 
-            const result = await SolicitudService.getSolicitudes(page, limit, search, status, service_type, consultor_id, sortBy, sortOrder);
+            const result = await SolicitudService.getSolicitudes(page, limit, search, status, service_type, consultor_id, exclude_status, sortBy, sortOrder);
             return sendSuccess(res, result, "Solicitudes obtenidas correctamente");
         } catch (error: any) {
             Logger.error('Error al obtener solicitudes:', error);

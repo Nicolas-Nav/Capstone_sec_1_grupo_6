@@ -36,6 +36,7 @@ export class SolicitudService {
         status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
         service_type?: string,
         consultor_id?: string,
+        exclude_status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
         sortBy: "fecha" | "cargo" | "cliente" = "fecha",
         sortOrder: "ASC" | "DESC" = "DESC"
     ) {
@@ -115,9 +116,76 @@ export class SolicitudService {
             }
         }
 
-        // Filtro por tipo de servicio
+        // Filtro para EXCLUIR un estado específico
+        if (exclude_status) {
+            // Mapear el parámetro de estado a los nombres exactos en la base de datos
+            const estadoMapping: { [key: string]: string } = {
+                'creado': 'Creado',
+                'en_progreso': 'En Progreso', 
+                'cerrado': 'Cerrado',
+                'congelado': 'Congelado',
+                'cancelado': 'Cancelado',
+                'cierre_extraordinario': 'Cierre Extraordinario'
+            };
+
+            const nombreEstadoAExcluir = estadoMapping[exclude_status];
+            
+            if (nombreEstadoAExcluir) {
+                // Obtener todas las solicitudes con su historial de estados
+                const todasLasSolicitudes = await EstadoSolicitudHist.findAll({
+                    include: [
+                        {
+                            model: EstadoSolicitud,
+                            as: 'estado',
+                            attributes: ['nombre_estado_solicitud']
+                        }
+                    ],
+                    attributes: ['id_solicitud', 'fecha_cambio_estado_solicitud'],
+                    order: [['id_solicitud', 'ASC'], ['fecha_cambio_estado_solicitud', 'DESC']]
+                });
+
+                // Agrupar por solicitud y obtener el estado más reciente
+                const estadoPorSolicitud = new Map<number, string>();
+                todasLasSolicitudes.forEach((item: any) => {
+                    if (!estadoPorSolicitud.has(item.id_solicitud)) {
+                        estadoPorSolicitud.set(item.id_solicitud, item.estado.nombre_estado_solicitud);
+                    }
+                });
+
+                // Filtrar EXCLUYENDO las solicitudes que tienen el estado a excluir
+                const idsParaIncluir: number[] = [];
+                estadoPorSolicitud.forEach((estadoActual: string, idSolicitud: number) => {
+                    if (estadoActual !== nombreEstadoAExcluir) {
+                        idsParaIncluir.push(idSolicitud);
+                    }
+                });
+
+                console.log(`🔍 Filtro EXCLUYENDO estado "${nombreEstadoAExcluir}":`, {
+                    totalSolicitudes: estadoPorSolicitud.size,
+                    idsParaIncluir: idsParaIncluir.length,
+                });
+
+                if (idsParaIncluir.length > 0) {
+                    andConditions.push({ id_solicitud: { [Op.in]: idsParaIncluir } });
+                } else {
+                    // Si no hay solicitudes para incluir, devolver array vacío
+                    andConditions.push({ id_solicitud: { [Op.in]: [] } });
+                }
+            }
+        }
+
+        // Filtro por tipo de servicio (puede ser código o nombre)
         if (service_type) {
-            andConditions.push({ codigo_servicio: service_type });
+            // Si es un código corto (2-3 caracteres), buscar por código
+            // Si es un nombre largo, buscar por nombre del servicio en la relación
+            if (service_type.length <= 5) {
+                // Es probablemente un código (PC, PE, PAL, etc.)
+                andConditions.push({ codigo_servicio: service_type });
+            } else {
+                // Es probablemente un nombre ("Personal Calificado", etc.)
+                // Buscar por nombre en la tabla relacionada TipoServicio
+                andConditions.push({ '$tipoServicio.nombre_servicio$': service_type });
+            }
         }
 
         // Filtro por consultor

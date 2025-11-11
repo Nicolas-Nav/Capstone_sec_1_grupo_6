@@ -1,16 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import type { KeyboardEvent } from "react"
 import { useAuth } from "@/hooks/auth"
+import { useConsultorProcesses } from "@/hooks/useConsultorProcesses"
 import { solicitudService } from "@/lib/api"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle } from "lucide-react"
+import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -31,39 +34,55 @@ import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 export default function ConsultorPage() {
   const { user } = useAuth()
   const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
   const [startingProcess, setStartingProcess] = useState<string | null>(null)
-  const [myProcesses, setMyProcesses] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  
+  // Estado local para el término de búsqueda (antes de aplicarlo)
+  const [localSearchTerm, setLocalSearchTerm] = useState("")
 
-  // Cargar solicitudes del consultor
-  useEffect(() => {
-    if (user?.id && user?.role === "consultor") {
-      loadMyProcesses()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user])
-
-  const loadMyProcesses = async () => {
-    try {
-      setIsLoading(true)
-      const response = await solicitudService.getAll({ consultor_id: user?.id || '' })
-      
-      if (response.success && response.data) {
-        // La respuesta tiene estructura: { solicitudes: [...], pagination: {...} }
-        const solicitudes = (response.data as any).solicitudes || response.data
-        setMyProcesses(Array.isArray(solicitudes) ? solicitudes : [])
-      } else {
-        setMyProcesses([])
-        toast.error("Error al cargar procesos")
-      }
-    } catch (error) {
-      console.error("Error al cargar procesos:", error)
-      setMyProcesses([])
-      toast.error("Error al cargar procesos")
-    } finally {
-      setIsLoading(false)
+  // Usar el hook personalizado para manejar procesos del consultor
+  const {
+    pendingProcesses,
+    otherProcesses,
+    isLoading,
+    stats,
+    serviceTypes,
+    searchTerm,
+    statusFilter,
+    serviceFilter,
+    setSearchTerm,
+    setStatusFilter,
+    setServiceFilter,
+    currentPage,
+    pageSize,
+    totalPages,
+    totalProcesses,
+    goToPage,
+    nextPage,
+    prevPage,
+    handlePageSizeChange,
+    refreshData
+  } = useConsultorProcesses(user?.id)
+  
+  // Detectar si hay filtros aplicados
+  const hasFiltersApplied = searchTerm !== "" || statusFilter !== "all" || serviceFilter !== "all"
+  
+  // Función para aplicar la búsqueda
+  const handleSearch = () => {
+    setSearchTerm(localSearchTerm)
+  }
+  
+  // Función para limpiar todos los filtros
+  const handleClearFilters = () => {
+    setLocalSearchTerm("")
+    setSearchTerm("")
+    setStatusFilter("all")
+    setServiceFilter("all")
+  }
+  
+  // Manejar Enter en el campo de búsqueda
+  const handleSearchKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch()
     }
   }
 
@@ -89,33 +108,6 @@ export default function ConsultorPage() {
     )
   }
 
-  const filteredProcesses = (Array.isArray(myProcesses) ? myProcesses : []).filter((process) => {
-    const matchesSearch =
-      process.position_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.cargo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.cliente?.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesStatus = statusFilter === "all" || 
-      process.status === statusFilter || 
-      process.estado_solicitud === statusFilter ||
-      (statusFilter === "creado" && process.estado_solicitud === "Creado") ||
-      (statusFilter === "en_progreso" && process.estado_solicitud === "En Progreso") ||
-      (statusFilter === "cerrado" && process.estado_solicitud === "Cerrado") ||
-      (statusFilter === "congelado" && process.estado_solicitud === "Congelado") ||
-      (statusFilter === "cancelado" && process.estado_solicitud === "Cancelado") ||
-      (statusFilter === "cierre_extraordinario" && process.estado_solicitud === "Cierre Extraordinario")
-
-    return matchesSearch && matchesStatus
-  })
-
-  const pendingProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Creado" || p.status === "creado")
-  const activeProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "En Progreso" || p.status === "en_progreso")
-  const completedProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cerrado" || p.status === "cerrado")
-  const frozenProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Congelado" || p.status === "congelado")
-  const cancelledProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cancelado" || p.status === "cancelado")
-  const extraordinaryClosureProcesses = filteredProcesses.filter((p) => p.estado_solicitud === "Cierre Extraordinario" || p.status === "cierre_extraordinario")
-  
-
   const handleStartProcess = async (processId: string) => {
     try {
       setStartingProcess(processId)
@@ -124,7 +116,7 @@ export default function ConsultorPage() {
       
       if (response.success) {
         toast.success("Proceso iniciado exitosamente")
-        await loadMyProcesses() // Recargar procesos
+        await refreshData() // Recargar procesos usando el hook
         router.push(`/consultor/proceso/${processId}`)
       } else {
         toast.error("Error al iniciar proceso")
@@ -155,7 +147,7 @@ export default function ConsultorPage() {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{myProcesses.length}</div>
+            <div className="text-2xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
         <Card>
@@ -164,7 +156,7 @@ export default function ConsultorPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{pendingProcesses.length}</div>
+            <div className="text-2xl font-bold text-blue-600">{stats.pendientes}</div>
           </CardContent>
         </Card>
         <Card>
@@ -173,7 +165,7 @@ export default function ConsultorPage() {
             <Play className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-cyan-600">{activeProcesses.length}</div>
+            <div className="text-2xl font-bold text-cyan-600">{stats.en_progreso}</div>
           </CardContent>
         </Card>
         <Card>
@@ -182,7 +174,7 @@ export default function ConsultorPage() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{completedProcesses.length}</div>
+            <div className="text-2xl font-bold text-green-600">{stats.completados}</div>
           </CardContent>
         </Card>
         <Card>
@@ -191,7 +183,7 @@ export default function ConsultorPage() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-600">{frozenProcesses.length}</div>
+            <div className="text-2xl font-bold text-gray-600">{stats.congelados}</div>
           </CardContent>
         </Card>
         <Card>
@@ -200,7 +192,7 @@ export default function ConsultorPage() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{cancelledProcesses.length}</div>
+            <div className="text-2xl font-bold text-red-600">{stats.cancelados}</div>
           </CardContent>
         </Card>
         <Card>
@@ -209,46 +201,10 @@ export default function ConsultorPage() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{extraordinaryClosureProcesses.length}</div>
+            <div className="text-2xl font-bold text-orange-600">{stats.cierre_extraordinario}</div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por cargo o cliente..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="creado">Creado</SelectItem>
-                <SelectItem value="en_progreso">En Progreso</SelectItem>
-                <SelectItem value="cerrado">Cerrado</SelectItem>
-                <SelectItem value="congelado">Congelado</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
-                <SelectItem value="cierre_extraordinario">Cierre Extraordinario</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
 
       {pendingProcesses.length > 0 && (
         <Card>
@@ -317,16 +273,106 @@ export default function ConsultorPage() {
         </Card>
       )}
 
-      {activeProcesses.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Play className="h-5 w-5 text-cyan-600" />
-              Procesos en Curso
-            </CardTitle>
-            <CardDescription>Procesos iniciados con su etapa actual específica</CardDescription>
-          </CardHeader>
-          <CardContent>
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtros</CardTitle>
+          <CardDescription>Los filtros solo se aplican a la tabla "Mis Procesos", no afectan a los procesos pendientes de iniciar</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            <div className="flex-1 flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por cargo o cliente..."
+                  value={localSearchTerm}
+                  onChange={(e) => setLocalSearchTerm(e.target.value)}
+                  onKeyPress={handleSearchKeyPress}
+                  className="pl-8"
+                />
+              </div>
+              <Button onClick={handleSearch} variant="secondary">
+                <Search className="mr-2 h-4 w-4" />
+                Buscar
+              </Button>
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="en_progreso">En Progreso</SelectItem>
+                <SelectItem value="cerrado">Cerrado</SelectItem>
+                <SelectItem value="congelado">Congelado</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
+                <SelectItem value="cierre_extraordinario">Cierre Extraordinario</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={serviceFilter} onValueChange={setServiceFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Tipo de servicio" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los servicios</SelectItem>
+                {serviceTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button 
+              onClick={handleClearFilters} 
+              variant="outline"
+              disabled={!hasFiltersApplied}
+            >
+              Limpiar Filtros
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabla unificada de Procesos en Curso, Completados, Congelados, Cancelados y Cierre Extraordinario */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-primary" />
+            Mis Procesos
+          </CardTitle>
+          <CardDescription>
+            {totalProcesses > 0 ? `${totalProcesses} procesos encontrados` : 'Sin resultados'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Cargando procesos...</p>
+              </div>
+            </div>
+          ) : otherProcesses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Target className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No se encontraron procesos</h3>
+              <p className="text-muted-foreground max-w-md">
+                {searchTerm || statusFilter !== "all" || serviceFilter !== "all"
+                  ? "No hay procesos que coincidan con los filtros aplicados. Intenta ajustar los filtros para ver más resultados."
+                  : "No tienes procesos en curso, completados o en otros estados en este momento."}
+              </p>
+              {hasFiltersApplied && (
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={handleClearFilters}
+                >
+                  Limpiar filtros
+                </Button>
+              )}
+            </div>
+          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -336,12 +382,12 @@ export default function ConsultorPage() {
                   <TableHead>Tipo de Servicio</TableHead>
                   <TableHead>Estado Actual</TableHead>
                   <TableHead>Etapa Específica</TableHead>
-                  <TableHead>Fecha Inicio</TableHead>
+                  <TableHead>Fecha</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {activeProcesses.map((process) => (
+                {otherProcesses.map((process) => (
                   <TableRow key={process.id}>
                     <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
                     <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
@@ -357,284 +403,108 @@ export default function ConsultorPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(process.status)}>{process.estado_solicitud || processStatusLabels[process.status]}</Badge>
+                      <Badge className={getStatusColor(process.status)}>
+                        {process.estado_solicitud || processStatusLabels[process.status]}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm text-muted-foreground">{process.etapa || 'Sin etapa'}</div>
                     </TableCell>
-                    <TableCell>{new Date(process.started_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button asChild size="sm">
-                          <Link href={`/consultor/proceso/${process.id}`}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            Gestionar
-                          </Link>
+                      {new Date(process.started_at || process.completed_at || process.fecha_creacion).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <Button asChild size="sm" variant={process.estado_solicitud === "Cerrado" ? "outline" : "default"}>
+                        <Link href={`/consultor/proceso/${process.id}`}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          {process.estado_solicitud === "Cerrado" ? "Ver Detalle" : "Gestionar"}
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Controles de Paginación - Solo mostrar si hay resultados */}
+      {otherProcesses.length > 0 && (
+        <Card>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="pageSize">Filas por página:</Label>
+                    <Select value={pageSize.toString()} onValueChange={(value) => handlePageSizeChange(parseInt(value))}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Mostrando {((currentPage - 1) * pageSize) + 1} a {Math.min(currentPage * pageSize, totalProcesses)} de {totalProcesses} procesos
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={prevPage}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Anterior
+                  </Button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => goToPage(pageNum)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {pageNum}
                         </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {completedProcesses.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-green-600" />
-              Procesos Completados
-            </CardTitle>
-            <CardDescription>Procesos finalizados exitosamente</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Solicitud</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo de Servicio</TableHead>
-                  <TableHead>Fecha Inicio</TableHead>
-                  <TableHead>Fecha Finalización</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {completedProcesses.map((process) => (
-                  <TableRow key={process.id}>
-                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
-                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {process.cliente}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{new Date(process.started_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
-                    <TableCell>{process.completed_at ? new Date(process.completed_at).toLocaleDateString() : "-"}</TableCell>
-                    <TableCell>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/consultor/proceso/${process.id}`}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Ver Detalle
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {frozenProcesses.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-gray-600" />
-              Procesos Congelados
-            </CardTitle>
-            <CardDescription>Procesos que han sido pausados temporalmente</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Solicitud</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo de Servicio</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Fecha Creación</TableHead>
-                  <TableHead>Fecha Congelamiento</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {frozenProcesses.map((process) => (
-                  <TableRow key={process.id}>
-                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
-                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {process.cliente}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(process.status)}>
-                        {processStatusLabels[process.status] || process.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{new Date(process.fecha_creacion).toLocaleDateString()}</TableCell>
-                    <TableCell>{process.completed_at ? new Date(process.completed_at).toLocaleDateString() : "-"}</TableCell>
-                    <TableCell>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/consultor/proceso/${process.id}`}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Ver Detalle
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {cancelledProcesses.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              Procesos Cancelados
-            </CardTitle>
-            <CardDescription>Procesos que han sido cancelados</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Solicitud</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo de Servicio</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Fecha Creación</TableHead>
-                  <TableHead>Fecha Cancelación</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cancelledProcesses.map((process) => (
-                  <TableRow key={process.id}>
-                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
-                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {process.cliente}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(process.status)}>
-                        {processStatusLabels[process.status] || process.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{new Date(process.fecha_creacion).toLocaleDateString()}</TableCell>
-                    <TableCell>{process.completed_at ? new Date(process.completed_at).toLocaleDateString() : "-"}</TableCell>
-                    <TableCell>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/consultor/proceso/${process.id}`}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Ver Detalle
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {extraordinaryClosureProcesses.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-600" />
-              Procesos con Cierre Extraordinario
-            </CardTitle>
-            <CardDescription>Procesos que han sido cerrados de manera extraordinaria</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Solicitud</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo de Servicio</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Fecha Creación</TableHead>
-                  <TableHead>Fecha Cierre</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {extraordinaryClosureProcesses.map((process) => (
-                  <TableRow key={process.id}>
-                    <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
-                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {process.cliente}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(process.status)}>
-                        {processStatusLabels[process.status] || process.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{new Date(process.fecha_creacion).toLocaleDateString()}</TableCell>
-                    <TableCell>{process.completed_at ? new Date(process.completed_at).toLocaleDateString() : "-"}</TableCell>
-                    <TableCell>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/consultor/proceso/${process.id}`}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Ver Detalle
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {filteredProcesses.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Target className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No se encontraron procesos</h3>
-            <p className="text-muted-foreground text-center">
-              {searchTerm || statusFilter !== "all"
-                ? "Intenta ajustar los filtros para ver más resultados."
-                : "No tienes procesos asignados en este momento."}
-            </p>
-          </CardContent>
-        </Card>
+                      );
+                    })}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={nextPage}
+                    disabled={currentPage === totalPages}
+                  >
+                    Siguiente
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
       )}
     </div>
   )

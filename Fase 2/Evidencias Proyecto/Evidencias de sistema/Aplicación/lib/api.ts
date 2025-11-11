@@ -190,6 +190,8 @@ export const descripcionCargoService = {
 
   // Obtener datos de Excel
   async getExcelData(id: number): Promise<ApiResponse<any>> {
+    // El backend ahora retorna 200 incluso cuando no hay datos de Excel
+    // (con success: false), así que podemos usar apiRequest normalmente
     return apiRequest(`/api/descripciones-cargo/${id}/excel`);
   },
 

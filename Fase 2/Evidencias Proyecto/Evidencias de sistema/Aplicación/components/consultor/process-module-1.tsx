@@ -184,14 +184,19 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
           if (response.success && response.data) {
             setExcelData(response.data)
-          } else {
           }
-        } catch (error) {
-          console.error('❌ Error al cargar datos del Excel:', error)
+          // Si no hay datos, simplemente no establecer excelData (es un caso válido)
+        } catch (error: any) {
+          // Solo mostrar error si no es el caso esperado de "no tiene datos de Excel"
+          const errorMessage = error?.message || ''
+          if (!errorMessage.includes('no tiene datos de Excel asociados') && 
+              !errorMessage.includes('404')) {
+            console.error('❌ Error al cargar datos del Excel:', error)
+          }
+          // Si no hay datos de Excel, simplemente no establecer excelData (es un caso válido)
         } finally {
           setLoadingExcel(false)
         }
-      } else {
       }
     }
     loadExcelData()

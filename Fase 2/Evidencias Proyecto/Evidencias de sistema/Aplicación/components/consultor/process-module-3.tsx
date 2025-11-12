@@ -19,6 +19,8 @@ import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Ca
 import type { Process, Candidate, ProcessStatus } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { ProcessBlocked } from "./ProcessBlocked"
+import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
+import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
 interface ProcessModule3Props {
   process: Process
@@ -26,6 +28,7 @@ interface ProcessModule3Props {
 
 export function ProcessModule3({ process }: ProcessModule3Props) {
   const { toast } = useToast()
+  const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [estadosCliente, setEstadosCliente] = useState<any[]>([])
@@ -146,6 +149,9 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       client_comments: candidate.client_comments || ""
     })
     
+    // Limpiar errores previos
+    clearAllErrors()
+    
     // Validar si hay fecha pero el estado es pendiente
     if (clientFeedbackDate && clientResponse === "pendiente") {
       setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
@@ -166,6 +172,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       client_comments: ""
     })
     setFeedbackDateError("")
+    clearAllErrors()
   }
 
   const handleUpdateFormChange = (field: string, value: string) => {
@@ -174,6 +181,9 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         ...prev,
         [field]: value
       }
+      
+      // Validar el campo usando useFormValidation
+      validateField(field, value, validationSchemas.module3UpdateCandidateForm, newData)
       
       // Validar fecha de feedback si se está actualizando
       if (field === "client_feedback_date") {
@@ -205,6 +215,18 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       toast({
         title: "Acción Bloqueada",
         description: "No se puede actualizar candidatos en un proceso finalizado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validar todos los campos usando useFormValidation
+    const isValid = validateAllFields(updateFormData, validationSchemas.module3UpdateCandidateForm)
+    
+    if (!isValid) {
+      toast({
+        title: "Faltan campos por completar",
+        description: "Por favor, corrija los errores en el formulario",
         variant: "destructive",
       })
       return
@@ -1027,7 +1049,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                 type="date"
                 value={updateFormData.presentation_date}
                 onChange={(e) => handleUpdateFormChange("presentation_date", e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className={errors.presentation_date ? "border-destructive" : ""}
               />
+              <ValidationErrorDisplay error={errors.presentation_date} />
             </div>
 
             {/* Fecha de Feedback del Cliente */}
@@ -1038,13 +1063,15 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                 type="date"
                 value={updateFormData.client_feedback_date}
                 onChange={(e) => handleUpdateFormChange("client_feedback_date", e.target.value)}
-                className={feedbackDateError ? "border-red-500 focus:border-red-500" : ""}
+                max={new Date().toISOString().split('T')[0]}
+                className={errors.client_feedback_date || feedbackDateError ? "border-destructive" : ""}
               />
               {feedbackDateError && (
                 <p className="text-destructive text-sm">
                   {feedbackDateError}
                 </p>
               )}
+              <ValidationErrorDisplay error={errors.client_feedback_date} />
             </div>
 
             {/* Comentarios */}
@@ -1067,19 +1094,26 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                     : "Comentarios adicionales del cliente..."
                 }
                 rows={4}
+                maxLength={1000}
                 className={
-                  updateFormData.client_response === "observado"
+                  errors.client_comments
+                    ? "border-destructive"
+                    : updateFormData.client_response === "observado"
                     ? "border-yellow-300 focus:border-yellow-500"
                     : updateFormData.client_response === "rechazado"
                     ? "border-red-300 focus:border-red-500"
                     : ""
                 }
               />
+              <div className="text-sm text-muted-foreground text-right">
+                {(updateFormData.client_comments || "").length}/1000 caracteres
+              </div>
               {(updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && (
                 <p className="text-xs text-muted-foreground">
                   Los comentarios son obligatorios para este estado
                 </p>
               )}
+              <ValidationErrorDisplay error={errors.client_comments} />
             </div>
           </div>
 

@@ -369,6 +369,55 @@ export const validationSchemas = {
         return null
       }
     }
+  },
+
+  // Validaciones para formulario de actualización de estado de candidato (Módulo 3)
+  module3UpdateCandidateForm: {
+    presentation_date: {
+      required: false,
+      custom: (value: string) => {
+        // Es opcional, pero si se proporciona, no puede ser después del día actual
+        if (!value || !value.trim()) {
+          return null // Campo opcional, no hay error si está vacío
+        }
+        
+        const selectedDate = new Date(value)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0) // Resetear horas para comparar solo fechas
+        selectedDate.setHours(0, 0, 0, 0)
+        
+        if (selectedDate > today) {
+          return 'La fecha de envío al cliente no puede ser después del día actual'
+        }
+        
+        return null
+      }
+    },
+    client_feedback_date: {
+      required: false,
+      custom: (value: string) => {
+        // Es opcional, pero si se proporciona, no puede ser después del día actual
+        if (!value || !value.trim()) {
+          return null // Campo opcional, no hay error si está vacío
+        }
+        
+        const selectedDate = new Date(value)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0) // Resetear horas para comparar solo fechas
+        selectedDate.setHours(0, 0, 0, 0)
+        
+        if (selectedDate > today) {
+          return 'La fecha de feedback del cliente no puede ser después del día actual'
+        }
+        
+        return null
+      }
+    },
+    client_comments: {
+      required: false,
+      maxLength: 1000,
+      message: 'Los comentarios no pueden exceder 1000 caracteres'
+    }
   }
 }
 

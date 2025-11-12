@@ -162,7 +162,7 @@ export class PostulacionController {
             await PostulacionService.updateEstado(parseInt(id), {
                 presentation_status,
                 rejection_reason
-            });
+            }, req.user?.id);
 
             Logger.info(`Estado actualizado para postulación ${id}`);
             return sendSuccess(res, null, 'Estado actualizado exitosamente');

@@ -407,13 +407,18 @@ export class PostulacionService {
     /**
      * Actualizar estado de postulación
      */
-    static async updateEstado(id: number, data: { presentation_status: string; rejection_reason?: string }) {
+    static async updateEstado(id: number, data: { presentation_status: string; rejection_reason?: string }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const { presentation_status, rejection_reason } = data;
 
-            const postulacion = await Postulacion.findByPk(id);
+            const postulacion = await Postulacion.findByPk(id, { transaction });
             if (!postulacion) {
                 throw new Error('Postulación no encontrada');
             }

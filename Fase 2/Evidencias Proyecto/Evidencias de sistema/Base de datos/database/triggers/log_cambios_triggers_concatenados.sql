@@ -238,24 +238,37 @@ BEGIN
         v_detalle := 'Nueva postulación registrada';
         
     ELSIF TG_OP = 'UPDATE' THEN
-        IF OLD.valoracion IS DISTINCT FROM NEW.valoracion THEN
+        -- Solo registrar cambios reales (no NULL a NULL, no mismo valor, no vacío a vacío)
+        IF OLD.valoracion IS DISTINCT FROM NEW.valoracion AND 
+           NOT (OLD.valoracion IS NULL AND NEW.valoracion IS NULL) THEN
             v_cambios := array_append(v_cambios, 
                 'Valoración: ' || COALESCE(OLD.valoracion::TEXT, 'sin') || '→' || 
                 COALESCE(NEW.valoracion::TEXT, 'sin'));
         END IF;
         
-        IF OLD.expectativa_renta IS DISTINCT FROM NEW.expectativa_renta THEN
+        IF OLD.expectativa_renta IS DISTINCT FROM NEW.expectativa_renta AND 
+           NOT (OLD.expectativa_renta IS NULL AND NEW.expectativa_renta IS NULL) THEN
             v_cambios := array_append(v_cambios, 
-                'Expectativa renta: $' || COALESCE(NEW.expectativa_renta::TEXT, '0'));
+                'Expectativa renta: $' || COALESCE(OLD.expectativa_renta::TEXT, 'sin') || '→$' || 
+                COALESCE(NEW.expectativa_renta::TEXT, 'sin'));
         END IF;
         
-        IF OLD.motivacion IS DISTINCT FROM NEW.motivacion THEN
-            v_cambios := array_append(v_cambios, 'Motivación actualizada');
+        -- Solo registrar motivación si realmente cambió y no es vacío a vacío
+        IF OLD.motivacion IS DISTINCT FROM NEW.motivacion AND 
+           NOT (COALESCE(OLD.motivacion, '') = '' AND COALESCE(NEW.motivacion, '') = '') AND
+           NOT (OLD.motivacion = NEW.motivacion) THEN
+            v_cambios := array_append(v_cambios, 
+                'Motivación: ' || COALESCE(LEFT(OLD.motivacion, 50), 'sin') || '→' || 
+                COALESCE(LEFT(NEW.motivacion, 50), 'sin'));
         END IF;
         
-        IF OLD.disponibilidad_postulacion IS DISTINCT FROM NEW.disponibilidad_postulacion THEN
+        -- Solo registrar disponibilidad si realmente cambió y no es vacío a vacío
+        IF OLD.disponibilidad_postulacion IS DISTINCT FROM NEW.disponibilidad_postulacion AND 
+           NOT (COALESCE(OLD.disponibilidad_postulacion, '') = '' AND COALESCE(NEW.disponibilidad_postulacion, '') = '') AND
+           NOT (OLD.disponibilidad_postulacion = NEW.disponibilidad_postulacion) THEN
             v_cambios := array_append(v_cambios, 
-                'Disponibilidad: ' || COALESCE(NEW.disponibilidad_postulacion, 'sin especificar'));
+                'Disponibilidad: ' || COALESCE(OLD.disponibilidad_postulacion, 'sin') || '→' || 
+                COALESCE(NEW.disponibilidad_postulacion, 'sin'));
         END IF;
         
         IF OLD.cv_postulacion IS DISTINCT FROM NEW.cv_postulacion THEN
@@ -266,12 +279,22 @@ BEGIN
                 END);
         END IF;
         
-        IF OLD.comentario_no_presentado IS DISTINCT FROM NEW.comentario_no_presentado THEN
-            v_cambios := array_append(v_cambios, 'Comentario no presentado actualizado');
+        -- Solo registrar comentario_no_presentado si realmente cambió
+        IF OLD.comentario_no_presentado IS DISTINCT FROM NEW.comentario_no_presentado AND 
+           NOT (COALESCE(OLD.comentario_no_presentado, '') = '' AND COALESCE(NEW.comentario_no_presentado, '') = '') AND
+           NOT (OLD.comentario_no_presentado = NEW.comentario_no_presentado) THEN
+            v_cambios := array_append(v_cambios, 
+                'Comentario no presentado: ' || COALESCE(LEFT(OLD.comentario_no_presentado, 50), 'sin') || '→' || 
+                COALESCE(LEFT(NEW.comentario_no_presentado, 50), 'sin'));
         END IF;
         
-        IF OLD.situacion_familiar IS DISTINCT FROM NEW.situacion_familiar THEN
-            v_cambios := array_append(v_cambios, 'Situación familiar actualizada');
+        -- Solo registrar situacion_familiar si realmente cambió
+        IF OLD.situacion_familiar IS DISTINCT FROM NEW.situacion_familiar AND 
+           NOT (COALESCE(OLD.situacion_familiar, '') = '' AND COALESCE(NEW.situacion_familiar, '') = '') AND
+           NOT (OLD.situacion_familiar = NEW.situacion_familiar) THEN
+            v_cambios := array_append(v_cambios, 
+                'Situación familiar: ' || COALESCE(OLD.situacion_familiar, 'sin') || '→' || 
+                COALESCE(NEW.situacion_familiar, 'sin'));
         END IF;
         
         IF OLD.id_estado_candidato IS DISTINCT FROM NEW.id_estado_candidato THEN

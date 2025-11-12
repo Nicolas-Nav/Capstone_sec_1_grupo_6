@@ -36,7 +36,8 @@ export class EstadoClienteController {
                     comentarios,
                     fecha_presentacion,
                     fecha_feedback_cliente
-                }
+                },
+                req.user?.id
             );
 
             Logger.info(`Estado de cliente cambiado para postulación ${id_postulacion}`);

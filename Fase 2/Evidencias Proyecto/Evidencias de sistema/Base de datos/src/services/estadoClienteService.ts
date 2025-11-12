@@ -4,6 +4,7 @@ import EstadoCliente from '@/models/EstadoCliente';
 import EstadoClientePostulacion from '@/models/EstadoClientePostulacion';
 import EstadoCandidato from '@/models/EstadoCandidato';
 import Postulacion from '@/models/Postulacion';
+import { setDatabaseUser } from '@/utils/databaseUser';
 
 export class EstadoClienteService {
     /**
@@ -31,11 +32,17 @@ export class EstadoClienteService {
             comentarios?: string;
             fecha_presentacion?: string;
             fecha_feedback_cliente?: string;
-        }
+        },
+        usuarioRut?: string
     ) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const { id_estado_cliente, comentarios, fecha_presentacion, fecha_feedback_cliente } = data;
 
             // Verificar que la postulación existe

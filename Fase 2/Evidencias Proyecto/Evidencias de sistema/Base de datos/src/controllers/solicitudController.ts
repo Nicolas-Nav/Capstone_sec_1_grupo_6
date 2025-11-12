@@ -502,6 +502,114 @@ export class SolicitudController {
         }
     }
 
+    /**
+     * GET /api/solicitudes/reportes/tiempo-promedio-servicio
+     * Obtener tiempo promedio de cierre por servicio (PC y HS)
+     */
+    static async getAverageProcessTimeByService(req: Request, res: Response): Promise<Response> {
+        try {
+            const year = parseInt(req.query.year as string) || new Date().getFullYear();
+            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const week = req.query.week ? parseInt(req.query.week as string) : undefined;
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+
+            const resultado = await SolicitudService.getAverageProcessTimeByService(year, month, week, periodType);
+
+            Logger.info(`Tiempo promedio por servicio obtenido (${resultado.length} servicios)`);
+            return sendSuccess(res, resultado, 'Tiempo promedio por servicio obtenido exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener tiempo promedio por servicio:', error);
+            return sendError(res, 'Error al obtener tiempo promedio por servicio', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/overview
+     * Obtener resumen de procesos para el período seleccionado
+     */
+    static async getProcessOverview(req: Request, res: Response): Promise<Response> {
+        try {
+            const year = parseInt(req.query.year as string) || new Date().getFullYear();
+            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const week = req.query.week ? parseInt(req.query.week as string) : undefined;
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+
+            const resultado = await SolicitudService.getProcessesOverview(year, month, week, periodType);
+
+            Logger.info(`Overview de procesos obtenido: ${resultado.processes.length} procesos`);
+            return sendSuccess(res, resultado, 'Overview de procesos obtenido exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener overview de procesos:', error);
+            return sendError(res, 'Error al obtener overview de procesos', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/procesos-cerrados-exitosos
+     * Obtener procesos cerrados exitosos con detalles de candidatos
+     */
+    static async getClosedSuccessfulProcesses(req: Request, res: Response): Promise<Response> {
+        try {
+            const year = parseInt(req.query.year as string) || new Date().getFullYear();
+            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const week = req.query.week ? parseInt(req.query.week as string) : undefined;
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+
+            const resultado = await SolicitudService.getClosedSuccessfulProcesses(year, month, week, periodType);
+
+            Logger.info(`Procesos cerrados exitosos obtenidos: ${resultado.length} procesos`);
+            return sendSuccess(res, resultado, 'Procesos cerrados exitosos obtenidos exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener procesos cerrados exitosos:', error);
+            return sendError(res, 'Error al obtener procesos cerrados exitosos', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/rendimiento-consultor
+     * Obtener rendimiento por consultor (procesos completados, tiempo promedio, eficiencia)
+     */
+    static async getConsultantPerformance(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getConsultantPerformance();
+            Logger.info(`Rendimiento por consultor obtenido: ${resultado.length} consultores`);
+            return sendSuccess(res, resultado, 'Rendimiento por consultor obtenido exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener rendimiento por consultor:', error);
+            return sendError(res, 'Error al obtener rendimiento por consultor', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/cumplimiento-consultor
+     * Obtener estadísticas de cumplimiento de plazos por consultor
+     */
+    static async getConsultantCompletionStats(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getConsultantCompletionStats();
+            Logger.info(`Estadísticas de cumplimiento obtenidas: ${resultado.length} consultores`);
+            return sendSuccess(res, resultado, 'Estadísticas de cumplimiento obtenidas exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener estadísticas de cumplimiento:', error);
+            return sendError(res, 'Error al obtener estadísticas de cumplimiento', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/retrasos-consultor
+     * Obtener hitos vencidos por consultor
+     */
+    static async getConsultantOverdueHitos(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getConsultantOverdueHitos();
+            Logger.info(`Hitos vencidos por consultor obtenidos: ${Object.keys(resultado).length} consultores`);
+            return sendSuccess(res, resultado, 'Hitos vencidos por consultor obtenidos exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener hitos vencidos por consultor:', error);
+            return sendError(res, 'Error al obtener hitos vencidos por consultor', 500);
+        }
+    }
+
 }
 
    

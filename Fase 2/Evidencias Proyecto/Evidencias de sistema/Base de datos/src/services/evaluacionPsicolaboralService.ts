@@ -139,7 +139,7 @@ export class EvaluacionPsicolaboralService {
      */
     static async createEvaluacion(data: {
         fecha_evaluacion?: Date | string | null;
-        fecha_envio_informe: Date;
+        fecha_envio_informe?: Date | string | null;
         estado_evaluacion: string;
         estado_informe: string;
         conclusion_global: string;
@@ -175,21 +175,26 @@ export class EvaluacionPsicolaboralService {
 
             // Formatear fecha_evaluacion como string SQL sin zona horaria
             const fechaEvaluacionSQL = formatDateForSQL(data.fecha_evaluacion);
+            const fechaEnvioInformeSQL = formatDateForSQL(data.fecha_envio_informe ?? null);
 
             // Crear la evaluación usando Sequelize.literal para evitar conversión UTC
             const createData: any = {
-                fecha_envio_informe: data.fecha_envio_informe,
                 estado_evaluacion: data.estado_evaluacion,
                 estado_informe: data.estado_informe,
                 conclusion_global: data.conclusion_global,
                 id_postulacion: data.id_postulacion
             };
 
-            // Si hay fecha, usar literal SQL para evitar conversión UTC
             if (fechaEvaluacionSQL) {
                 createData.fecha_evaluacion = Sequelize.literal(`'${fechaEvaluacionSQL}'::timestamp`);
             } else {
                 createData.fecha_evaluacion = null;
+            }
+
+            if (fechaEnvioInformeSQL) {
+                createData.fecha_envio_informe = Sequelize.literal(`'${fechaEnvioInformeSQL}'::timestamp`);
+            } else {
+                createData.fecha_envio_informe = null;
             }
 
             const evaluacion = await EvaluacionPsicolaboral.create(createData, { transaction });
@@ -245,7 +250,7 @@ export class EvaluacionPsicolaboralService {
      */
     static async updateEvaluacion(id: number, data: Partial<{
         fecha_evaluacion: Date | string | null;
-        fecha_envio_informe: Date;
+        fecha_envio_informe: Date | string | null;
         estado_evaluacion: string;
         estado_informe: string;
         conclusion_global: string;
@@ -286,7 +291,6 @@ export class EvaluacionPsicolaboralService {
             if (data.fecha_evaluacion !== undefined) {
                 const fechaEvaluacionSQL = formatDateForSQL(data.fecha_evaluacion);
                 if (fechaEvaluacionSQL) {
-                    // Usar literal SQL para evitar conversión UTC
                     updateData.fecha_evaluacion = Sequelize.literal(`'${fechaEvaluacionSQL}'::timestamp`);
                     // Si no había fecha previa y ahora sí, marcar hito
                     if (!fechaPreviaExiste) {
@@ -294,6 +298,15 @@ export class EvaluacionPsicolaboralService {
                     }
                 } else {
                     updateData.fecha_evaluacion = null;
+                }
+            }
+
+            if (data.fecha_envio_informe !== undefined) {
+                const fechaEnvioInformeSQL = formatDateForSQL(data.fecha_envio_informe);
+                if (fechaEnvioInformeSQL) {
+                    updateData.fecha_envio_informe = Sequelize.literal(`'${fechaEnvioInformeSQL}'::timestamp`);
+                } else {
+                    updateData.fecha_envio_informe = null;
                 }
             }
 
@@ -478,7 +491,7 @@ export class EvaluacionPsicolaboralService {
     /**
      * Actualizar estado del informe y conclusión global
      */
-    static async actualizarInformeCompleto(id: number, estadoInforme: 'Pendiente' | 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones', conclusionGlobal: string, fechaEnvioInforme?: Date) {
+    static async actualizarInformeCompleto(id: number, estadoInforme: 'Pendiente' | 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones', conclusionGlobal: string, fechaEnvioInforme?: Date | string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
@@ -487,10 +500,19 @@ export class EvaluacionPsicolaboralService {
                 throw new Error('Evaluación no encontrada');
             }
 
+            let fechaEnvio: Date | null = null;
+            if (fechaEnvioInforme !== undefined) {
+                const parsed = typeof fechaEnvioInforme === 'string' ? new Date(fechaEnvioInforme) : fechaEnvioInforme;
+                if (isNaN(parsed.getTime())) {
+                    throw new Error('Fecha de envío del informe inválida');
+                }
+                fechaEnvio = parsed;
+            }
+
             await evaluacion.update({
                 estado_informe: estadoInforme,
                 conclusion_global: conclusionGlobal,
-                fecha_envio_informe: fechaEnvioInforme || new Date()
+                fecha_envio_informe: fechaEnvio ?? new Date()
             }, { transaction });
 
             await transaction.commit();

@@ -8,24 +8,60 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
-import {
-  getOverdueHitosByConsultant,
-  getProcessCompletionStats,
-  getProcessesByServiceType,
-  getTimeToHireData,
-  getCandidateSourceData,
-  getConsultantPerformanceData,
-  getAllProcesses,
-} from "@/lib/mock-data"
 import { solicitudService } from "@/lib/api"
-import { Users, Clock, Target, TrendingUp, AlertTriangle } from "lucide-react"
-import { useState, useEffect, useMemo } from "react"
+import { Users, Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useState, useEffect, useMemo, Fragment } from "react"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 type WeekOption = {
   id: string
   label: string
   start: Date
   end: Date
+}
+
+type AverageTimeItem = {
+  serviceCode: string
+  serviceName: string
+  averageDays: number
+  sampleSize: number
+}
+
+type ProcessOverviewProcess = {
+  id: number
+  client: string
+  position: string
+  serviceCode: string
+  serviceName: string
+  consultant: string
+  status: string
+  statusRaw: string
+  startDate: string | null
+  deadline: string | null
+  closedAt: string | null
+  daysOpen: number | null
+  daysUntilDeadline: number | null
+  urgency: "no_deadline" | "on_track" | "due_soon" | "overdue" | "closed_on_time" | "closed_overdue"
+}
+
+type ProcessOverviewData = {
+  processes: ProcessOverviewProcess[]
+  totals: {
+    total: number
+    inProgress: number
+    completed: number
+    paused: number
+    cancelled: number
+  }
+  statusCounts: Record<string, number>
+  urgencySummary: {
+    dueSoonCount: number
+    overdueCount: number
+    dueSoonProcesses: number[]
+    overdueProcesses: number[]
+  }
 }
 
 const weekLabelFormatter = new Intl.DateTimeFormat("es-CL", {
@@ -112,8 +148,54 @@ export default function ReportesPage() {
     totalCandidates: 0
   })
   const [loadingProcessStats, setLoadingProcessStats] = useState(true)
-  const [statusDistribution, setStatusDistribution] = useState<Array<{ status: string; count: number }>>([])
-  const [loadingStatusDistribution, setLoadingStatusDistribution] = useState(true)
+  const [averageTimeData, setAverageTimeData] = useState<AverageTimeItem[]>([])
+  const [loadingAverageTime, setLoadingAverageTime] = useState(true)
+  const [processOverview, setProcessOverview] = useState<ProcessOverviewData | null>(null)
+  const [loadingProcessOverview, setLoadingProcessOverview] = useState(true)
+  const [currentProcessesPage, setCurrentProcessesPage] = useState(1)
+  const [performanceData, setPerformanceData] = useState<Array<{
+    consultant: string;
+    processesCompleted: number;
+    avgTimeToHire: number;
+    efficiency: number;
+  }>>([])
+  const [loadingPerformance, setLoadingPerformance] = useState(true)
+  const [completionStats, setCompletionStats] = useState<Array<{
+    consultant: string;
+    completed: number;
+    onTime: number;
+    delayed: number;
+    completionRate: number;
+  }>>([])
+  const [loadingCompletion, setLoadingCompletion] = useState(true)
+  const [overdueHitos, setOverdueHitos] = useState<Record<string, number>>({})
+  const [loadingOverdue, setLoadingOverdue] = useState(true)
+  const [closedSuccessfulProcesses, setClosedSuccessfulProcesses] = useState<
+    Array<{
+      id_solicitud: number
+      tipo_servicio: string
+      nombre_servicio: string
+      cliente: string
+      contacto: string | null
+      comuna: string | null
+      total_candidatos: number
+      candidatos_exitosos: Array<{ nombre: string; rut: string }>
+    }>
+  >([])
+  const [loadingClosedProcesses, setLoadingClosedProcesses] = useState(true)
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
+  
+  // Filtros específicos para la tabla de procesos cerrados exitosos
+  const [closedProcessesTimePeriod, setClosedProcessesTimePeriod] = useState<"month" | "week">("month")
+  const [closedProcessesYear, setClosedProcessesYear] = useState<number>(new Date().getFullYear())
+  const [closedProcessesMonth, setClosedProcessesMonth] = useState<number>(new Date().getMonth())
+  const [closedProcessesWeek, setClosedProcessesWeek] = useState<string>("")
+  
+  const closedProcessesWeekOptions = useMemo(() => getWeekOptionsForYear(closedProcessesYear), [closedProcessesYear])
+  const selectedClosedProcessesWeekOption = useMemo(
+    () => closedProcessesWeekOptions.find((option) => option.id === closedProcessesWeek),
+    [closedProcessesWeekOptions, closedProcessesWeek],
+  )
 
   const weekOptions = useMemo(() => getWeekOptionsForYear(selectedYear), [selectedYear])
   const selectedWeekOption = useMemo(
@@ -154,15 +236,11 @@ export default function ReportesPage() {
         if (response.success && response.data) {
           setActiveProcesses(response.data as Record<string, number>)
         } else {
-          // Fallback a mock si falla la API
-          const { getActiveProcessesByConsultant } = await import("@/lib/mock-data")
-          setActiveProcesses(getActiveProcessesByConsultant())
+          setActiveProcesses({})
         }
       } catch (error) {
         console.error("Error al cargar procesos activos:", error)
-        // Fallback a mock si hay error
-        const { getActiveProcessesByConsultant } = await import("@/lib/mock-data")
-        setActiveProcesses(getActiveProcessesByConsultant())
+        setActiveProcesses({})
       } finally {
         setLoadingActiveProcesses(false)
       }
@@ -179,16 +257,12 @@ export default function ReportesPage() {
         const response = await solicitudService.getProcessesByServiceType()
         if (response.success && response.data) {
           setServiceTypeData(response.data as Array<{ service: string; count: number; percentage: number }>)
-        } else {
-          // Fallback a mock si falla la API
-          const { getProcessesByServiceType } = await import("@/lib/mock-data")
-          setServiceTypeData(getProcessesByServiceType())
+    } else {
+          setServiceTypeData([])
         }
       } catch (error) {
         console.error("Error al cargar distribución por tipo de servicio:", error)
-        // Fallback a mock si hay error
-        const { getProcessesByServiceType } = await import("@/lib/mock-data")
-        setServiceTypeData(getProcessesByServiceType())
+        setServiceTypeData([])
       } finally {
         setLoadingServiceType(false)
       }
@@ -206,15 +280,11 @@ export default function ReportesPage() {
         if (response.success && response.data) {
           setCandidateSourceData(response.data as Array<{ source: string; candidates: number; hired: number }>)
         } else {
-          // Fallback a mock si falla la API
-          const { getCandidateSourceData } = await import("@/lib/mock-data")
-          setCandidateSourceData(getCandidateSourceData())
+          setCandidateSourceData([])
         }
       } catch (error) {
         console.error("Error al cargar fuentes de candidatos:", error)
-        // Fallback a mock si hay error
-        const { getCandidateSourceData } = await import("@/lib/mock-data")
-        setCandidateSourceData(getCandidateSourceData())
+        setCandidateSourceData([])
       } finally {
         setLoadingCandidateSource(false)
       }
@@ -228,15 +298,11 @@ export default function ReportesPage() {
     const loadProcessStats = async () => {
       try {
         setLoadingProcessStats(true)
-        console.log('[FRONTEND] Cargando estadísticas de procesos...')
         const response = await solicitudService.getProcessStats()
-        console.log('[FRONTEND] Respuesta de estadísticas:', response)
         if (response.success && response.data) {
           const stats = response.data as { activeProcesses: number; avgTimeToHire: number; totalCandidates: number }
-          console.log('[FRONTEND] Estadísticas recibidas:', stats)
           setProcessStats(stats)
         } else {
-          console.warn('[FRONTEND] Respuesta sin éxito o sin datos:', response)
           // Fallback: usar valores por defecto
           setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0 })
         }
@@ -252,58 +318,216 @@ export default function ReportesPage() {
     loadProcessStats()
   }, [])
 
-  // Cargar distribución de estados desde la API según el período seleccionado
   useEffect(() => {
-    const loadStatusDistribution = async () => {
+    const loadAverageTime = async () => {
       try {
-        setLoadingStatusDistribution(true)
+        setLoadingAverageTime(true)
         const week =
           timePeriod === "week" && selectedWeekOption
             ? weekOptions.findIndex((option) => option.id === selectedWeekOption.id) + 1
             : undefined
-        const periodType = timePeriod === "week" ? "week" : timePeriod === "month" ? "month" : "quarter"
-        
-        console.log('[DEBUG Frontend] Cargando distribución de estados:', {
-          selectedYear,
-          selectedMonth,
-          week,
-          periodType
-        })
-        
-        const response = await solicitudService.getProcessStatusDistribution(
+        const periodType = timePeriod === "week" ? "week" : "month"
+
+        const response = await solicitudService.getAverageProcessTimeByService(
           selectedYear,
           selectedMonth,
           week,
           periodType
         )
-        
-        console.log('[DEBUG Frontend] Respuesta de la API:', response)
-        
+
         if (response.success && response.data) {
-          console.log('[DEBUG Frontend] Datos recibidos:', response.data)
-          setStatusDistribution(response.data as Array<{ status: string; count: number }>)
+          setAverageTimeData(response.data as AverageTimeItem[])
         } else {
-          console.warn('[DEBUG Frontend] No se recibieron datos válidos:', response)
-          // Fallback a datos vacíos si falla
-          setStatusDistribution([])
+          setAverageTimeData([])
         }
       } catch (error) {
-        console.error("Error al cargar distribución de estados:", error)
-        // Fallback a datos vacíos si hay error
-        setStatusDistribution([])
+        console.error("Error al cargar tiempo promedio por servicio:", error)
+        setAverageTimeData([])
       } finally {
-        setLoadingStatusDistribution(false)
+        setLoadingAverageTime(false)
       }
     }
 
-    loadStatusDistribution()
+    loadAverageTime()
   }, [selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod])
 
-  const overdueHitos = getOverdueHitosByConsultant()
-  const completionStats = getProcessCompletionStats()
-  const timeToHireData = getTimeToHireData()
-  const performanceData = getConsultantPerformanceData()
-  const allProcesses = getAllProcesses()
+  useEffect(() => {
+    const loadProcessOverview = async () => {
+      try {
+        setLoadingProcessOverview(true)
+        const week =
+          timePeriod === "week" && selectedWeekOption
+            ? weekOptions.findIndex((option) => option.id === selectedWeekOption.id) + 1
+            : undefined
+        const periodType = timePeriod === "week" ? "week" : "month"
+
+        const response = await solicitudService.getProcessOverview(
+          selectedYear,
+          selectedMonth,
+          week,
+          periodType
+        )
+
+        if (response.success && response.data) {
+          setProcessOverview(response.data as ProcessOverviewData)
+        } else {
+          setProcessOverview({
+            processes: [],
+            totals: { total: 0, inProgress: 0, completed: 0, paused: 0, cancelled: 0 },
+            statusCounts: {},
+            urgencySummary: { dueSoonCount: 0, overdueCount: 0, dueSoonProcesses: [], overdueProcesses: [] },
+          })
+        }
+      } catch (error) {
+        console.error("Error al cargar overview de procesos:", error)
+        setProcessOverview({
+          processes: [],
+          totals: { total: 0, inProgress: 0, completed: 0, paused: 0, cancelled: 0 },
+          statusCounts: {},
+          urgencySummary: { dueSoonCount: 0, overdueCount: 0, dueSoonProcesses: [], overdueProcesses: [] },
+        })
+        } finally {
+          setLoadingProcessOverview(false)
+        }
+      }
+
+      loadProcessOverview()
+    }, [selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod])
+
+  // useEffect separado para cargar procesos cerrados exitosos con sus propios filtros
+  useEffect(() => {
+    const loadClosedSuccessfulProcesses = async () => {
+      try {
+        setLoadingClosedProcesses(true)
+        
+        // Inicializar semana si es necesario
+        if (closedProcessesTimePeriod === "week" && !closedProcessesWeek && closedProcessesWeekOptions.length > 0) {
+          const defaultInfo = getDefaultWeekInfo()
+          const fallback = closedProcessesWeekOptions.find((option) => option.id === defaultInfo.id) ?? closedProcessesWeekOptions[closedProcessesWeekOptions.length - 1]
+          if (fallback) {
+            setClosedProcessesWeek(fallback.id)
+            return // Se ejecutará de nuevo con el nuevo valor
+          }
+        }
+        
+        const week =
+          closedProcessesTimePeriod === "week" && selectedClosedProcessesWeekOption
+            ? closedProcessesWeekOptions.findIndex((option) => option.id === selectedClosedProcessesWeekOption.id) + 1
+            : undefined
+        const periodType = closedProcessesTimePeriod === "week" ? "week" : "month"
+
+        console.log('[DEBUG] Cargando procesos cerrados exitosos:', {
+          year: closedProcessesYear,
+          month: closedProcessesMonth,
+          week,
+          periodType
+        })
+
+        const response = await solicitudService.getClosedSuccessfulProcesses(
+          closedProcessesYear,
+          closedProcessesMonth,
+          week,
+          periodType
+        )
+
+        console.log('[DEBUG] Respuesta de procesos cerrados exitosos:', {
+          success: response.success,
+          dataLength: response.data?.length || 0,
+          data: response.data
+        })
+
+        if (response.success && response.data) {
+          setClosedSuccessfulProcesses(response.data)
+        } else {
+          setClosedSuccessfulProcesses([])
+        }
+      } catch (error) {
+        console.error("Error al cargar procesos cerrados exitosos:", error)
+        setClosedSuccessfulProcesses([])
+      } finally {
+        setLoadingClosedProcesses(false)
+      }
+    }
+
+    loadClosedSuccessfulProcesses()
+  }, [closedProcessesYear, closedProcessesMonth, closedProcessesWeek, selectedClosedProcessesWeekOption, closedProcessesWeekOptions, closedProcessesTimePeriod])
+
+  // Cargar datos de rendimiento por consultor
+  useEffect(() => {
+    const loadPerformanceData = async () => {
+      try {
+        setLoadingPerformance(true)
+        const response = await solicitudService.getConsultantPerformance()
+        if (response.success && response.data) {
+          setPerformanceData(response.data as Array<{
+            consultant: string;
+            processesCompleted: number;
+            avgTimeToHire: number;
+            efficiency: number;
+          }>)
+        } else {
+          setPerformanceData([])
+        }
+      } catch (error) {
+        console.error("Error al cargar rendimiento por consultor:", error)
+        setPerformanceData([])
+      } finally {
+        setLoadingPerformance(false)
+      }
+    }
+
+    loadPerformanceData()
+  }, [])
+
+  // Cargar estadísticas de cumplimiento
+  useEffect(() => {
+    const loadCompletionStats = async () => {
+      try {
+        setLoadingCompletion(true)
+        const response = await solicitudService.getConsultantCompletionStats()
+        if (response.success && response.data) {
+          setCompletionStats(response.data as Array<{
+            consultant: string;
+            completed: number;
+            onTime: number;
+            delayed: number;
+            completionRate: number;
+          }>)
+        } else {
+          setCompletionStats([])
+        }
+      } catch (error) {
+        console.error("Error al cargar estadísticas de cumplimiento:", error)
+        setCompletionStats([])
+      } finally {
+        setLoadingCompletion(false)
+      }
+    }
+
+    loadCompletionStats()
+  }, [])
+
+  // Cargar hitos vencidos por consultor
+  useEffect(() => {
+    const loadOverdueHitos = async () => {
+      try {
+        setLoadingOverdue(true)
+        const response = await solicitudService.getConsultantOverdueHitos()
+        if (response.success && response.data) {
+          setOverdueHitos(response.data as Record<string, number>)
+        } else {
+          setOverdueHitos({})
+        }
+      } catch (error) {
+        console.error("Error al cargar hitos vencidos:", error)
+        setOverdueHitos({})
+      } finally {
+        setLoadingOverdue(false)
+      }
+    }
+
+    loadOverdueHitos()
+  }, [])
 
   // Colores para los estados
   const statusColors: Record<string, string> = {
@@ -315,75 +539,82 @@ export default function ReportesPage() {
     "Cancelado": "#ef4444",
   }
 
-  // Datos de distribución de estados con colores (usando datos reales de la API)
-  const processStatusData = statusDistribution.map((item) => ({
-    status: item.status,
-    count: item.count,
-    color: statusColors[item.status] || "#8884d8",
-  }))
+  const statusDisplayOrder = ["Iniciado", "En Progreso", "En Revisión", "Pausado", "Completado", "Cancelado"]
 
-  // Log para debugging
-  console.log('[DEBUG Frontend] processStatusData:', processStatusData)
-  console.log('[DEBUG Frontend] statusDistribution:', statusDistribution)
-
-  const getTemporalData = () => {
-    if (timePeriod === "week") {
-      return [
-        { period: "Sem 1", iniciados: 3, completados: 2, enProgreso: 8 },
-        { period: "Sem 2", iniciados: 5, completados: 3, enProgreso: 10 },
-        { period: "Sem 3", iniciados: 2, completados: 4, enProgreso: 8 },
-        { period: "Sem 4", iniciados: 4, completados: 3, enProgreso: 9 },
-      ]
-    } else if (timePeriod === "month") {
-      return [
-        { period: "Ene", iniciados: 12, completados: 8, enProgreso: 15 },
-        { period: "Feb", iniciados: 15, completados: 10, enProgreso: 18 },
-        { period: "Mar", iniciados: 10, completados: 12, enProgreso: 16 },
-        { period: "Abr", iniciados: 14, completados: 9, enProgreso: 21 },
-        { period: "May", iniciados: 11, completados: 13, enProgreso: 19 },
-      ]
-    } else {
-      return [
-        { period: "Q1", iniciados: 37, completados: 30, enProgreso: 49 },
-        { period: "Q2", iniciados: 42, completados: 35, enProgreso: 56 },
-        { period: "Q3", iniciados: 38, completados: 40, enProgreso: 54 },
-        { period: "Q4", iniciados: 45, completados: 38, enProgreso: 62 },
-      ]
-    }
+  const periodProcesses = processOverview?.processes ?? []
+  const periodTotals = processOverview?.totals ?? {
+    total: 0,
+    inProgress: 0,
+    completed: 0,
+    paused: 0,
+    cancelled: 0,
   }
+  const statusCounts = processOverview?.statusCounts ?? {}
+  const urgencySummary = processOverview?.urgencySummary ?? {
+    dueSoonCount: 0,
+    overdueCount: 0,
+    dueSoonProcesses: [],
+    overdueProcesses: [],
+  }
+
+  const processStatusData = statusDisplayOrder
+    .map((status) => ({
+      status,
+      count: statusCounts[status] ?? 0,
+      color: statusColors[status] || "#8884d8",
+    }))
+    .filter((item) => item.count > 0)
+
+  const urgencyChartData = [
+    { label: "Por vencer", value: urgencySummary.dueSoonCount },
+    { label: "Vencidos", value: urgencySummary.overdueCount },
+  ]
+
+  const processesInProgress = useMemo(
+    () =>
+      periodProcesses.filter((process) =>
+        ["Iniciado", "En Progreso", "En Revisión"].includes(process.status),
+      ),
+    [periodProcesses],
+  )
+
+  const ITEMS_PER_PAGE = 10
+  const totalProcessesPages = Math.ceil(processesInProgress.length / ITEMS_PER_PAGE)
+  const paginatedProcessesInProgress = useMemo(() => {
+    const startIndex = (currentProcessesPage - 1) * ITEMS_PER_PAGE
+    const endIndex = startIndex + ITEMS_PER_PAGE
+    return processesInProgress.slice(startIndex, endIndex)
+  }, [processesInProgress, currentProcessesPage])
+
+  // Resetear a la página 1 cuando cambian los procesos
+  useEffect(() => {
+    setCurrentProcessesPage(1)
+  }, [processesInProgress.length])
+
+  const averageTimeChartData = useMemo(
+    () =>
+      averageTimeData
+        .filter((item) => item.sampleSize > 0 && item.averageDays > 0)
+        .map((item) => ({
+          service: item.serviceName,
+          days: item.averageDays,
+          sampleSize: item.sampleSize,
+        })),
+    [averageTimeData],
+  )
 
   const activeProcessesData = Object.entries(activeProcesses).map(([name, count]) => ({
     name,
     procesos: count,
   }))
 
-  const overdueData = Object.entries(overdueHitos).map(([name, count]) => ({
-    name,
-    vencidos: count,
-  }))
-
-  const completionData = completionStats.map((stat) => ({
-    name: stat.consultant,
-    completados: stat.completed,
-    aTiempo: stat.onTime,
-    retrasados: stat.delayed,
-    porcentaje: stat.completionRate,
-  }))
-
-  const timeToHireByService = [
-    { service: "Proceso Completo", days: 45, target: 60 },
-    { service: "Long List", days: 25, target: 30 },
-    { service: "Targeted Recruitment", days: 35, target: 45 },
-    { service: "Evaluación Psicolaboral", days: 15, target: 20 },
-  ]
-
   // Usar datos reales de la API para las estadísticas
   const avgTimeToHire = processStats.avgTimeToHire || 0
   const totalCandidates = processStats.totalCandidates || 0
   const totalActiveProcesses = processStats.activeProcesses || 0
-  const totalProcesses = allProcesses.length
+  const totalProcesses = periodTotals.total
   const completedProcesses = processStatusData.find((p) => p.status === "Completado")?.count || 0
-  const completionRate = Math.round((completedProcesses / totalProcesses) * 100)
+  const completionRate = totalProcesses > 0 ? Math.round((completedProcesses / totalProcesses) * 100) : 0
 
   const getWeeksInMonth = (month: number, year: number) => {
     const weeks: Array<{
@@ -479,40 +710,6 @@ export default function ReportesPage() {
     }
 
     return weeks
-  }
-
-  const getProcessesForPeriod = () => {
-    if (timePeriod === "week") {
-      if (!selectedWeekOption) {
-        return []
-      }
-
-      const weekStart = new Date(selectedWeekOption.start)
-      const weekEnd = new Date(selectedWeekOption.end)
-      weekStart.setHours(0, 0, 0, 0)
-      weekEnd.setHours(23, 59, 59, 999)
-
-      return allProcesses.filter((process) => {
-        const processDate = new Date(process.startDate)
-        return processDate >= weekStart && processDate <= weekEnd
-      })
-    }
-
-    const monthStart = new Date(selectedYear, selectedMonth, 1)
-    const monthEnd = new Date(selectedYear, selectedMonth + 1, 0)
-
-    return allProcesses.filter((process) => {
-      const processDate = new Date(process.startDate)
-      return processDate >= monthStart && processDate <= monthEnd
-    })
-  }
-
-  const getProcessesInProgress = () => {
-    const periodProcesses = getProcessesForPeriod()
-    return periodProcesses.filter(
-      (process) =>
-        process.status === "En Progreso" || process.status === "Iniciado" || process.status === "En Revisión",
-    )
   }
 
   const monthNames = [
@@ -677,44 +874,44 @@ export default function ReportesPage() {
                 </div>
 
                 {timePeriod === "month" && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Mes</label>
-                    <Select
-                      value={selectedMonth.toString()}
-                      onValueChange={(value) => {
-                        setSelectedMonth(Number.parseInt(value))
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {monthNames.map((month, index) => (
-                          <SelectItem key={index} value={index.toString()}>
-                            {month}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Mes</label>
+                  <Select
+                    value={selectedMonth.toString()}
+                    onValueChange={(value) => {
+                      setSelectedMonth(Number.parseInt(value))
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {monthNames.map((month, index) => (
+                        <SelectItem key={index} value={index.toString()}>
+                          {month}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 )}
 
                 {timePeriod === "week" && (
                   <div className="space-y-2 md:col-span-2 lg:col-span-2">
-                    <label className="text-sm font-medium">Semana</label>
+                  <label className="text-sm font-medium">Semana</label>
                     <Select value={selectedWeek} onValueChange={(value) => setSelectedWeek(value)}>
-                      <SelectTrigger>
+                    <SelectTrigger>
                         <SelectValue placeholder="Selecciona una semana" />
-                      </SelectTrigger>
-                      <SelectContent>
+                    </SelectTrigger>
+                    <SelectContent>
                         {weekOptions.map((option) => (
                           <SelectItem key={option.id} value={option.id}>
                             {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 )}
               </div>
             </CardContent>
@@ -727,7 +924,7 @@ export default function ReportesPage() {
                 <Target className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{getProcessesForPeriod().length}</div>
+                <div className="text-2xl font-bold">{periodTotals.total}</div>
                 <p className="text-xs text-muted-foreground">
                   {timePeriod === "week"
                     ? selectedWeekOption?.label ?? "Semana seleccionada"
@@ -742,7 +939,7 @@ export default function ReportesPage() {
                 <TrendingUp className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600">{getProcessesInProgress().length}</div>
+                <div className="text-2xl font-bold text-blue-600">{periodTotals.inProgress}</div>
                 <p className="text-xs text-muted-foreground">Procesos activos</p>
               </CardContent>
             </Card>
@@ -754,7 +951,7 @@ export default function ReportesPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {getProcessesForPeriod().filter((p) => p.status === "Completado").length}
+                  {periodTotals.completed}
                 </div>
                 <p className="text-xs text-muted-foreground">Finalizados</p>
               </CardContent>
@@ -767,232 +964,57 @@ export default function ReportesPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-orange-600">
-                  {getProcessesForPeriod().filter((p) => p.status === "Pausado").length}
+                  {periodTotals.paused}
                 </div>
                 <p className="text-xs text-muted-foreground">Requieren atención</p>
               </CardContent>
             </Card>
           </div>
 
+          <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Distribución por Tipo de Proceso</CardTitle>
-              <CardDescription>Análisis detallado por tipo de servicio en el período seleccionado</CardDescription>
+                <CardTitle>Tiempo Promedio por Servicio</CardTitle>
+                <CardDescription>Comparación entre procesos Hunting y Proceso Completo</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <h4 className="text-sm font-medium mb-4">Procesos por Tipo</h4>
+                {loadingAverageTime ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : averageTimeChartData.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-sm text-muted-foreground">No hay procesos cerrados en el período seleccionado</p>
+                  </div>
+                ) : (
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart
-                      data={(() => {
-                        const periodProcesses = getProcessesForPeriod()
-                        const serviceTypes = [
-                          { key: "Proceso Completo", label: "Proceso Completo" },
-                          { key: "Long List", label: "Long List" },
-                          { key: "Targeted Recruitment", label: "Targeted Recruitment" },
-                          { key: "Evaluación Psicolaboral", label: "Evaluación Psicolaboral" },
-                          { key: "Test Psicolaboral", label: "Test Psicolaboral" },
-                        ]
-
-                        return serviceTypes
-                          .map((type) => {
-                            const typeProcesses = periodProcesses.filter((p) => p.serviceType === type.key)
-                            const inProgress = typeProcesses.filter(
-                              (p) =>
-                                p.status === "En Progreso" || p.status === "Iniciado" || p.status === "En Revisión",
-                            ).length
-                            const completed = typeProcesses.filter((p) => p.status === "Completado").length
-                            const paused = typeProcesses.filter((p) => p.status === "Pausado").length
-
-                            return {
-                              type: type.label.length > 15 ? type.label.substring(0, 12) + "..." : type.label,
-                              fullType: type.label,
-                              total: typeProcesses.length,
-                              enCurso: inProgress,
-                              completados: completed,
-                              pausados: paused,
-                            }
-                          })
-                          .filter((item) => item.total > 0)
-                      })()}
-                    >
+                    <BarChart data={averageTimeChartData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="type" angle={-45} textAnchor="end" height={100} fontSize={12} interval={0} />
+                      <XAxis dataKey="service" />
                       <YAxis />
                       <Tooltip
-                        formatter={(value, name) => [value, name]}
-                        labelFormatter={(label) => {
-                          const item = (() => {
-                            const periodProcesses = getProcessesForPeriod()
-                            const serviceTypes = [
-                              { key: "Proceso Completo", label: "Proceso Completo" },
-                              { key: "Long List", label: "Long List" },
-                              { key: "Targeted Recruitment", label: "Targeted Recruitment" },
-                              { key: "Evaluación Psicolaboral", label: "Evaluación Psicolaboral" },
-                              { key: "Test Psicolaboral", label: "Test Psicolaboral" },
-                            ]
-
-                            return serviceTypes
-                              .map((type) => {
-                                const typeProcesses = periodProcesses.filter((p) => p.serviceType === type.key)
-                                return {
-                                  type: type.label.length > 15 ? type.label.substring(0, 12) + "..." : type.label,
-                                  fullType: type.label,
-                                  total: typeProcesses.length,
-                                }
-                              })
-                              .find((item) => item.type === label)
-                          })()
-                          return item?.fullType || label
-                        }}
+                        formatter={(value: number, _name, payload) => [
+                          `${value} días`,
+                          `Promedio (${payload.payload.sampleSize} procesos)`,
+                        ]}
                       />
-                      <Bar dataKey="enCurso" fill="#00BCD4" name="En Curso" />
-                      <Bar dataKey="completados" fill="#10b981" name="Completados" />
-                      <Bar dataKey="pausados" fill="#f59e0b" name="Pausados" />
+                      <Bar dataKey="days" fill="#1E3A8A" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium mb-4">Distribución Total</h4>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={(() => {
-                          const periodProcesses = getProcessesForPeriod()
-                          const serviceTypes = [
-                            { key: "Proceso Completo", label: "Proceso Completo" },
-                            { key: "Long List", label: "Long List" },
-                            { key: "Targeted Recruitment", label: "Targeted Recruitment" },
-                            { key: "Evaluación Psicolaboral", label: "Evaluación Psicolaboral" },
-                            { key: "Test Psicolaboral", label: "Test Psicolaboral" },
-                          ]
-
-                          return serviceTypes
-                            .map((type, index) => ({
-                              name: type.label,
-                              shortName: type.label.length > 12 ? type.label.substring(0, 10) + "..." : type.label,
-                              value: periodProcesses.filter((p) => p.serviceType === type.key).length,
-                              color: COLORS[index % COLORS.length],
-                            }))
-                            .filter((item) => item.value > 0)
-                        })()}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ shortName, value }) => `${shortName}: ${value}`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {(() => {
-                          const periodProcesses = getProcessesForPeriod()
-                          const serviceTypes = [
-                            { key: "Proceso Completo", label: "Proceso Completo" },
-                            { key: "Long List", label: "Long List" },
-                            { key: "Targeted Recruitment", label: "Targeted Recruitment" },
-                            { key: "Evaluación Psicolaboral", label: "Evaluación Psicolaboral" },
-                            { key: "Test Psicolaboral", label: "Test Psicolaboral" },
-                          ]
-
-                          return serviceTypes
-                            .map((type, index) =>
-                              periodProcesses.filter((p) => p.serviceType === type.key).length > 0 ? (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ) : null,
-                            )
-                            .filter(Boolean)
-                        })()}
-                      </Pie>
-                      <Tooltip formatter={(value, name, props) => [value, props.payload.name]} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <h4 className="text-sm font-medium mb-3">Detalle por Tipo de Proceso</h4>
-                <div className="grid gap-3">
-                  {(() => {
-                    const periodProcesses = getProcessesForPeriod()
-                    const serviceTypes = [
-                      { key: "Proceso Completo", label: "Proceso Completo", color: "bg-blue-100 text-blue-800" },
-                      { key: "Long List", label: "Long List", color: "bg-green-100 text-green-800" },
-                      {
-                        key: "Targeted Recruitment",
-                        label: "Targeted Recruitment",
-                        color: "bg-purple-100 text-purple-800",
-                      },
-                      {
-                        key: "Evaluación Psicolaboral",
-                        label: "Evaluación Psicolaboral",
-                        color: "bg-orange-100 text-orange-800",
-                      },
-                      { key: "Test Psicolaboral", label: "Test Psicolaboral", color: "bg-pink-100 text-pink-800" },
-                    ]
-
-                    return serviceTypes
-                      .map((type) => {
-                        const typeProcesses = periodProcesses.filter((p) => p.serviceType === type.key)
-                        if (typeProcesses.length === 0) return null
-
-                        const inProgress = typeProcesses.filter(
-                          (p) => p.status === "En Progreso" || p.status === "Iniciado" || p.status === "En Revisión",
-                        ).length
-                        const completed = typeProcesses.filter((p) => p.status === "Completado").length
-                        const paused = typeProcesses.filter((p) => p.status === "Pausado").length
-
-                        return (
-                          <div
-                            key={type.key}
-                            className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                          >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className={type.color}>
-                                  {type.label}
-                                </Badge>
-                                <span className="text-sm font-medium">{typeProcesses.length} procesos</span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {timePeriod === "week"
-                                  ? selectedWeekOption?.label
-                                  : `${monthNames[selectedMonth]} ${selectedYear}`}
-                              </p>
-                            </div>
-                            <div className="flex gap-4">
-                              <div className="text-center">
-                                <div className="text-lg font-bold text-blue-600">{inProgress}</div>
-                                <div className="text-xs text-muted-foreground">En Curso</div>
-                              </div>
-                              <div className="text-center">
-                                <div className="text-lg font-bold text-green-600">{completed}</div>
-                                <div className="text-xs text-muted-foreground">Completados</div>
-                              </div>
-                              <div className="text-center">
-                                <div className="text-lg font-bold text-orange-600">{paused}</div>
-                                <div className="text-xs text-muted-foreground">Pausados</div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })
-                      .filter(Boolean)
-                  })()}
-                </div>
-              </div>
+                )}
             </CardContent>
           </Card>
 
-          <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Distribución de Estados</CardTitle>
-                <CardDescription>Estados de procesos del período seleccionado</CardDescription>
+                <CardTitle>Estados de Procesos</CardTitle>
+                <CardDescription>Distribución del período seleccionado</CardDescription>
               </CardHeader>
               <CardContent>
-                {loadingStatusDistribution ? (
+                {loadingProcessOverview ? (
                   <div className="flex items-center justify-center h-[300px]">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
@@ -1005,48 +1027,157 @@ export default function ReportesPage() {
                   </div>
                 ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                        data={processStatusData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ status, count }) => `${status}: ${count}`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="count"
-                    >
+                    <BarChart data={processStatusData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="status" />
+                      <YAxis />
+                      <Tooltip formatter={(value: number) => [`${value} procesos`, "Cantidad"]} />
+                      <Bar dataKey="count">
                         {processStatusData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                          <Cell key={`status-${index}`} fill={entry.color} />
                         ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
+                      </Bar>
+                    </BarChart>
                 </ResponsiveContainer>
                 )}
               </CardContent>
             </Card>
+          </div>
 
             <Card>
               <CardHeader>
-                <CardTitle>Evolución Temporal</CardTitle>
-                <CardDescription>Tendencia de procesos por estado</CardDescription>
+              <CardTitle>Procesos con Urgencia</CardTitle>
+              <CardDescription>Basado en el plazo máximo de cierre definido para cada proceso</CardDescription>
               </CardHeader>
               <CardContent>
+              {loadingProcessOverview ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={getTemporalData()}>
+                    <BarChart data={urgencyChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="period" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="iniciados" fill="#00BCD4" name="Iniciados" />
-                    <Bar dataKey="enProgreso" fill="#1E3A8A" name="En Progreso" />
-                    <Bar dataKey="completados" fill="#10b981" name="Completados" />
+                      <XAxis dataKey="label" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip formatter={(value: number, name) => [`${value} procesos`, name]} />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="#dc2626" />
                   </BarChart>
                 </ResponsiveContainer>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="border rounded-md p-4">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <span className="inline-block h-2 w-2 rounded-full bg-amber-500"></span>
+                        Procesos por vencer ({urgencySummary.dueSoonCount})
+                      </h4>
+                      {urgencySummary.dueSoonProcesses.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No hay procesos próximos a vencer.</p>
+                      ) : (
+                        <ul className="space-y-3 text-xs">
+                          {periodProcesses
+                            .filter((process) => urgencySummary.dueSoonProcesses.includes(process.id))
+                            .slice(0, 5)
+                            .map((process) => (
+                              <li key={`due-soon-${process.id}`} className="border-b pb-2 last:border-0 last:pb-0">
+                                <div className="space-y-1">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="font-semibold text-foreground">{process.client}</span>
+                                    <span className="text-amber-600 font-medium whitespace-nowrap">
+                                      {process.daysUntilDeadline !== null
+                                        ? `${process.daysUntilDeadline} días`
+                                        : "Sin plazo"}
+                                    </span>
+                                  </div>
+                                  <div className="text-muted-foreground space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">Cargo:</span>
+                                      <span>{process.position}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">Tipo:</span>
+                                      <span>{process.serviceName}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">Consultor:</span>
+                                      <span>{process.consultant}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">Vence:</span>
+                                      <span>
+                                        {process.deadline
+                                          ? format(new Date(process.deadline), "dd-MM-yyyy", { locale: es })
+                                          : "Sin fecha"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className="border rounded-md p-4">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <span className="inline-block h-2 w-2 rounded-full bg-red-600"></span>
+                        Procesos vencidos ({urgencySummary.overdueCount})
+                      </h4>
+                      {urgencySummary.overdueProcesses.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No hay procesos vencidos en el período.</p>
+                      ) : (
+                        <ul className="space-y-3 text-xs">
+                          {periodProcesses
+                            .filter((process) => urgencySummary.overdueProcesses.includes(process.id))
+                            .slice(0, 5)
+                            .map((process) => (
+                              <li key={`overdue-${process.id}`} className="border-b pb-2 last:border-0 last:pb-0">
+                                <div className="space-y-1">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="font-semibold text-foreground">{process.client}</span>
+                                    <span className="text-red-600 font-medium whitespace-nowrap">
+                                      {process.daysUntilDeadline !== null
+                                        ? `Vencido hace ${Math.abs(process.daysUntilDeadline)} días`
+                                        : "Sin plazo"}
+                                    </span>
+                                  </div>
+                                  <div className="text-muted-foreground space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">Cargo:</span>
+                                      <span>{process.position}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">Tipo:</span>
+                                      <span>{process.serviceName}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">Consultor:</span>
+                                      <span>{process.consultant}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">Vencía:</span>
+                                      <span>
+                                        {process.deadline
+                                          ? format(new Date(process.deadline), "dd-MM-yyyy", { locale: es })
+                                          : "Sin fecha"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               </CardContent>
             </Card>
-          </div>
 
           <Card>
             <CardHeader>
@@ -1059,7 +1190,7 @@ export default function ReportesPage() {
               <CardDescription>Lista detallada de procesos activos en el período seleccionado</CardDescription>
             </CardHeader>
             <CardContent>
-              {getProcessesInProgress().length === 0 ? (
+              {processesInProgress.length === 0 ? (
                 <div className="text-center py-12">
                   <Target className="mx-auto h-12 w-12 text-muted-foreground/50" />
                   <h3 className="mt-4 text-lg font-semibold">No hay procesos en curso</h3>
@@ -1068,6 +1199,7 @@ export default function ReportesPage() {
                   </p>
                 </div>
               ) : (
+                <>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1081,21 +1213,12 @@ export default function ReportesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {getProcessesInProgress().map((process) => {
-                      const daysSinceStart = Math.floor(
-                        (new Date().getTime() - new Date(process.startDate).getTime()) / (1000 * 60 * 60 * 24),
-                      )
-
-                      const getServiceTypeLabel = (serviceType: string) => {
-                        const types = {
-                          proceso_completo: "Proceso Completo",
-                          long_list: "Long List",
-                          targeted_recruitment: "Targeted Recruitment",
-                          evaluacion_psicolaboral: "Evaluación Psicolaboral",
-                          test_psicolaboral: "Test Psicolaboral",
-                        }
-                        return types[serviceType as keyof typeof types] || serviceType
-                      }
+                      {paginatedProcessesInProgress.map((process) => {
+                        const startDate = process.startDate ? new Date(process.startDate) : null
+                        const daysSinceStart =
+                          startDate !== null
+                            ? Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+                            : 0
 
                       return (
                         <TableRow key={process.id}>
@@ -1103,7 +1226,7 @@ export default function ReportesPage() {
                           <TableCell>{process.position}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">
-                              {getServiceTypeLabel(process.serviceType)}
+                                {process.serviceName}
                             </Badge>
                           </TableCell>
                           <TableCell>{process.consultant}</TableCell>
@@ -1121,7 +1244,7 @@ export default function ReportesPage() {
                               {process.status}
                             </Badge>
                           </TableCell>
-                          <TableCell>{new Date(process.startDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{startDate ? startDate.toLocaleDateString() : "Sin fecha"}</TableCell>
                           <TableCell>
                             <span className={daysSinceStart > 60 ? "text-red-600 font-medium" : ""}>
                               {daysSinceStart} días
@@ -1132,6 +1255,37 @@ export default function ReportesPage() {
                     })}
                   </TableBody>
                 </Table>
+                  {totalProcessesPages > 1 && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Mostrando {((currentProcessesPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentProcessesPage * ITEMS_PER_PAGE, processesInProgress.length)} de {processesInProgress.length} procesos
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentProcessesPage((prev) => Math.max(1, prev - 1))}
+                          disabled={currentProcessesPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Anterior
+                        </Button>
+                        <div className="text-sm font-medium">
+                          Página {currentProcessesPage} de {totalProcessesPages}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentProcessesPage((prev) => Math.min(totalProcessesPages, prev + 1))}
+                          disabled={currentProcessesPage === totalProcessesPages}
+                        >
+                          Siguiente
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
@@ -1147,8 +1301,9 @@ export default function ReportesPage() {
               <CardContent>
                 <div className="grid gap-4">
                   {getWeeksInMonth(selectedMonth, selectedYear).map((week) => {
-                    const weekProcesses = allProcesses.filter((process) => {
-                      const processDate = new Date(process.startDate)
+                    const weekProcesses = periodProcesses.filter((process) => {
+                      const processDate = process.startDate ? new Date(process.startDate) : null
+                      if (!processDate) return false
                       const weekStart = new Date(week.start)
                       weekStart.setHours(0, 0, 0, 0)
                       const weekEnd = new Date(week.end)
@@ -1156,10 +1311,9 @@ export default function ReportesPage() {
                       return processDate >= weekStart && processDate <= weekEnd
                     })
 
-                    const inProgress = weekProcesses.filter(
-                      (p) => p.status === "En Progreso" || p.status === "Iniciado" || p.status === "En Revisión",
+                    const inProgress = weekProcesses.filter((p) =>
+                      ["En Progreso", "Iniciado", "En Revisión"].includes(p.status),
                     ).length
-
                     const completed = weekProcesses.filter((p) => p.status === "Completado").length
                     const paused = weekProcesses.filter((p) => p.status === "Pausado").length
 
@@ -1297,25 +1451,6 @@ export default function ReportesPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Tiempo de Contratación vs Objetivo por Tipo de Servicio</CardTitle>
-              <CardDescription>Comparación de tiempos reales vs objetivos por tipo de proceso</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={timeToHireByService}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="service" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="days" fill="#00BCD4" name="Días Reales" />
-                  <Bar dataKey="target" fill="#4b5563" name="Objetivo" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle>Fuentes de Candidatos</CardTitle>
               <CardDescription>Efectividad por canal de reclutamiento</CardDescription>
             </CardHeader>
@@ -1400,17 +1535,29 @@ export default function ReportesPage() {
               <CardDescription>Métricas de desempeño individual</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Consultor</TableHead>
-                    <TableHead>Procesos Completados</TableHead>
-                    <TableHead>Tiempo Promedio</TableHead>
-                    <TableHead>Eficiencia</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {performanceData.map((consultant) => (
+              {loadingPerformance ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                  </div>
+                </div>
+              ) : performanceData.length === 0 ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <p className="text-sm text-muted-foreground">No hay datos de rendimiento disponibles</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Consultor</TableHead>
+                      <TableHead>Procesos Completados</TableHead>
+                      <TableHead>Tiempo Promedio</TableHead>
+                      <TableHead>Eficiencia</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {performanceData.map((consultant) => (
                     <TableRow key={consultant.consultant}>
                       <TableCell className="font-medium">{consultant.consultant}</TableCell>
                       <TableCell>{consultant.processesCompleted}</TableCell>
@@ -1424,9 +1571,10 @@ export default function ReportesPage() {
                         </Badge>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
 
@@ -1437,16 +1585,33 @@ export default function ReportesPage() {
                 <CardDescription>Análisis detallado por consultor</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={completionData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="aTiempo" fill="#10b981" name="A Tiempo" />
-                    <Bar dataKey="retrasados" fill="#dc2626" name="Retrasados" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {loadingCompletion ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : completionStats.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-sm text-muted-foreground">No hay datos de cumplimiento disponibles</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={completionStats.map((stat) => ({
+                      name: stat.consultant,
+                      aTiempo: stat.onTime,
+                      retrasados: stat.delayed,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="aTiempo" fill="#10b981" name="A Tiempo" />
+                      <Bar dataKey="retrasados" fill="#dc2626" name="Retrasados" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
@@ -1456,18 +1621,243 @@ export default function ReportesPage() {
                 <CardDescription>Hitos vencidos que requieren atención</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={overdueData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="vencidos" fill="#dc2626" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {loadingOverdue ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : Object.keys(overdueHitos).length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-sm text-muted-foreground">No hay hitos vencidos</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={Object.entries(overdueHitos).map(([name, vencidos]) => ({
+                      name,
+                      vencidos,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="vencidos" fill="#dc2626" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Filtros de Período</CardTitle>
+              <CardDescription>Selecciona el período para la tabla de procesos cerrados exitosos</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Período</label>
+                  <ToggleGroup
+                    type="single"
+                    value={closedProcessesTimePeriod}
+                    onValueChange={(value) => {
+                      if (!value) return
+                      const next = value as "month" | "week"
+                      setClosedProcessesTimePeriod(next)
+                      if (next === "week") {
+                        const defaultInfo = getDefaultWeekInfo()
+                        setClosedProcessesYear(defaultInfo.year)
+                        setClosedProcessesWeek(defaultInfo.id)
+                      }
+                    }}
+                    className="grid grid-cols-2 w-full md:w-fit"
+                  >
+                    <ToggleGroupItem value="month" aria-label="Vista mensual">
+                      Mensual
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="week" aria-label="Vista semanal">
+                      Semanal
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Año</label>
+                  <Select
+                    value={closedProcessesYear.toString()}
+                    onValueChange={(value) => {
+                      const yearNumber = Number.parseInt(value)
+                      setClosedProcessesYear(yearNumber)
+                      if (closedProcessesTimePeriod === "week") {
+                        const options = getWeekOptionsForYear(yearNumber)
+                        const defaultInfo = getDefaultWeekInfo()
+                        const fallback =
+                          options.find((option) => option.id === defaultInfo.id) ?? options[options.length - 1]
+                        if (fallback) {
+                          setClosedProcessesWeek(fallback.id)
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {closedProcessesTimePeriod === "month" ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Mes</label>
+                    <Select
+                      value={closedProcessesMonth.toString()}
+                      onValueChange={(value) => setClosedProcessesMonth(Number.parseInt(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 12 }, (_, i) => i).map((month) => (
+                          <SelectItem key={month} value={month.toString()}>
+                            {format(new Date(closedProcessesYear, month, 1), "MMMM", { locale: es })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Semana</label>
+                    <Select
+                      value={closedProcessesWeek}
+                      onValueChange={(value) => setClosedProcessesWeek(value)}
+                      disabled={closedProcessesWeekOptions.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona una semana" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {closedProcessesWeekOptions.map((week) => (
+                          <SelectItem key={week.id} value={week.id}>
+                            {week.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Procesos Cerrados Exitosos</CardTitle>
+              <CardDescription>
+                Procesos cerrados en el período seleccionado con detalles de candidatos exitosos
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingClosedProcesses ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                  </div>
+                </div>
+              ) : closedSuccessfulProcesses.length === 0 ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <p className="text-sm text-muted-foreground">No hay procesos cerrados exitosos en el período seleccionado</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[50px]"></TableHead>
+                        <TableHead>Tipo de Servicio</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Contacto</TableHead>
+                        <TableHead>Comuna</TableHead>
+                        <TableHead className="text-center">Total Candidatos</TableHead>
+                        <TableHead className="text-center">Candidatos Exitosos</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {closedSuccessfulProcesses.map((process) => {
+                        const isExpanded = expandedRows.has(process.id_solicitud)
+                        return (
+                          <Fragment key={process.id_solicitud}>
+                            <TableRow>
+                              <TableCell>
+                                <button
+                                  onClick={() => {
+                                    const newExpanded = new Set(expandedRows)
+                                    if (isExpanded) {
+                                      newExpanded.delete(process.id_solicitud)
+                                    } else {
+                                      newExpanded.add(process.id_solicitud)
+                                    }
+                                    setExpandedRows(newExpanded)
+                                  }}
+                                  className="p-1 hover:bg-muted rounded"
+                                >
+                                  {isExpanded ? (
+                                    <span className="text-sm">▼</span>
+                                  ) : (
+                                    <span className="text-sm">▶</span>
+                                  )}
+                                </button>
+                              </TableCell>
+                              <TableCell className="font-medium">{process.nombre_servicio}</TableCell>
+                              <TableCell>{process.cliente}</TableCell>
+                              <TableCell>{process.contacto || "Sin contacto"}</TableCell>
+                              <TableCell>{process.comuna || "Sin comuna"}</TableCell>
+                              <TableCell className="text-center">{process.total_candidatos}</TableCell>
+                              <TableCell className="text-center">
+                                {process.candidatos_exitosos.length > 0 ? (
+                                  <Badge variant="default" className="bg-green-100 text-green-800">
+                                    {process.candidatos_exitosos.length}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">0</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                            {isExpanded && process.candidatos_exitosos.length > 0 && (
+                              <TableRow>
+                                <TableCell colSpan={7} className="bg-muted/50">
+                                  <div className="p-4 space-y-2">
+                                    <h4 className="font-semibold text-sm mb-3">Candidatos Exitosos:</h4>
+                                    <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                                      {process.candidatos_exitosos.map((candidato, idx) => (
+                                        <div key={idx} className="border rounded-md p-2 text-sm">
+                                          <p className="font-medium">{candidato.nombre}</p>
+                                          <p className="text-muted-foreground">RUT: {candidato.rut}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

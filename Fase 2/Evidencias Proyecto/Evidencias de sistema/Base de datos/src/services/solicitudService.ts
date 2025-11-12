@@ -27,6 +27,8 @@ import { HitoHelperService } from './hitoHelperService';
  */
 
 export class SolicitudService {
+    private static readonly DUE_SOON_THRESHOLD_DAYS = 7;
+
     /**
      * Obtener solicitudes paginadas con filtros opcionales y orden
      */
@@ -1496,11 +1498,11 @@ export class SolicitudService {
                 WHERE s.rut_usuario IS NOT NULL
                 GROUP BY u.nombre_usuario
                 ORDER BY cantidad DESC
-            `);
+            `, { skipUserContext: true } as any);
 
             // Convertir resultados a objeto Record<string, number>
             const resultado: Record<string, number> = {};
-            (results as any[]).forEach((row: any) => {
+            ((results as unknown as any[]) || []).forEach((row: any) => {
                 const consultor = row.consultor || 'Sin asignar';
                 resultado[consultor] = parseInt(row.cantidad) || 0;
             });
@@ -1609,12 +1611,12 @@ export class SolicitudService {
                 LEFT JOIN contratacion c ON p.id_postulacion = c.id_postulacion
                 GROUP BY pp.nombre_portal_postulacion
                 ORDER BY candidates DESC
-            `);
+            `, { skipUserContext: true } as any);
 
-            console.log(`[DEBUG] Fuentes de candidatos encontradas:`, (results as any[]).length);
+            console.log(`[DEBUG] Fuentes de candidatos encontradas:`, ((results as unknown as any[]) || []).length);
 
             // Convertir resultados a formato esperado
-            return (results as any[]).map((row: any) => ({
+            return ((results as unknown as any[]) || []).map((row: any) => ({
                 source: row.source || 'Sin fuente',
                 candidates: parseInt(row.candidates) || 0,
                 hired: parseInt(row.hired) || 0
@@ -1629,6 +1631,54 @@ export class SolicitudService {
      * Obtener estadísticas generales de procesos
      * Retorna: procesos activos, tiempo promedio de contratación, total de candidatos
      */
+    private static calculatePeriodRange(
+        year: number,
+        month: number,
+        week?: number,
+        periodType: 'week' | 'month' | 'quarter' = 'month'
+    ): { startDate: Date; endDate: Date } {
+        let startDate: Date;
+        let endDate: Date;
+
+        if (periodType === 'week' && week) {
+            const firstDayOfMonth = new Date(year, month, 1);
+            const dayOfWeek = firstDayOfMonth.getDay();
+            const daysToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : (8 - dayOfWeek);
+            const firstMonday = new Date(year, month, 1 + daysToMonday);
+
+            const weekStart = new Date(firstMonday);
+            weekStart.setDate(weekStart.getDate() + (week - 1) * 7);
+
+            startDate = new Date(weekStart);
+            startDate.setHours(0, 0, 0, 0);
+
+            endDate = new Date(weekStart);
+            endDate.setDate(endDate.getDate() + 6);
+            endDate.setHours(23, 59, 59, 999);
+
+            const lastDayOfMonth = new Date(year, month + 1, 0);
+            if (endDate > lastDayOfMonth) {
+                endDate = lastDayOfMonth;
+                endDate.setHours(23, 59, 59, 999);
+            }
+        } else if (periodType === 'month') {
+            startDate = new Date(year, month, 1);
+            startDate.setHours(0, 0, 0, 0);
+
+            endDate = new Date(year, month + 1, 0);
+            endDate.setHours(23, 59, 59, 999);
+        } else {
+            const quarterStartMonth = Math.floor(month / 3) * 3;
+            startDate = new Date(year, quarterStartMonth, 1);
+            startDate.setHours(0, 0, 0, 0);
+
+            endDate = new Date(year, quarterStartMonth + 3, 0);
+            endDate.setHours(23, 59, 59, 999);
+        }
+
+        return { startDate, endDate };
+    }
+
     static async getProcessStats(): Promise<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }> {
         try {
             // 1. Procesos activos: contar solicitudes con estado más reciente = 1 o 2 (Iniciado/En Progreso)
@@ -1647,8 +1697,8 @@ export class SolicitudService {
                 FROM ult
                 WHERE rn = 1
                   AND id_estado_solicitud IN (1, 2)
-            `);
-            const activeProcesses = parseInt((activeResult[0] as any)?.activos || '0');
+            `, { skipUserContext: true } as any);
+            const activeProcesses = parseInt((activeResult?.[0] as any)?.activos || '0');
 
             // 2. Tiempo promedio de contratación: calcular desde fecha_ingreso_solicitud hasta fecha_ingreso_contratacion
             const [timeResult] = await sequelize.query(`
@@ -1662,16 +1712,16 @@ export class SolicitudService {
                 WHERE c.id_estado_contratacion = 1
                   AND c.fecha_ingreso_contratacion IS NOT NULL
                   AND s.fecha_ingreso_solicitud IS NOT NULL
-            `);
-            const avgDays = parseFloat((timeResult[0] as any)?.avg_days || '0');
+            `, { skipUserContext: true } as any);
+            const avgDays = parseFloat((timeResult?.[0] as any)?.avg_days || '0');
             const avgTimeToHire = Math.round(avgDays) || 0;
 
             // 3. Total de candidatos: contar todas las postulaciones
             const [candidatesResult] = await sequelize.query(`
                 SELECT COUNT(*) as total
                 FROM postulacion
-            `);
-            const totalCandidates = parseInt((candidatesResult[0] as any)?.total || '0');
+            `, { skipUserContext: true } as any);
+            const totalCandidates = parseInt((candidatesResult?.[0] as any)?.total || '0');
 
             console.log(`[DEBUG] Estadísticas: Activos=${activeProcesses}, TiempoPromedio=${avgTimeToHire}, Candidatos=${totalCandidates}`);
 
@@ -1700,47 +1750,7 @@ export class SolicitudService {
         periodType: 'week' | 'month' | 'quarter' = 'month'
     ): Promise<Array<{ status: string; count: number }>> {
         try {
-            let startDate: Date
-            let endDate: Date
-
-            if (periodType === 'week' && week) {
-                // Calcular fechas de la semana específica
-                const firstDayOfMonth = new Date(year, month, 1)
-                const dayOfWeek = firstDayOfMonth.getDay()
-                const daysToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : (8 - dayOfWeek)
-                const firstMonday = new Date(year, month, 1 + daysToMonday)
-                
-                // Avanzar a la semana solicitada (semana 1 = primer lunes, semana 2 = segundo lunes, etc.)
-                const weekStart = new Date(firstMonday)
-                weekStart.setDate(weekStart.getDate() + (week - 1) * 7)
-                
-                startDate = new Date(weekStart)
-                startDate.setHours(0, 0, 0, 0)
-                
-                endDate = new Date(weekStart)
-                endDate.setDate(endDate.getDate() + 6)
-                endDate.setHours(23, 59, 59, 999)
-                
-                // Si la semana termina fuera del mes, ajustar al último día del mes
-                const lastDayOfMonth = new Date(year, month + 1, 0)
-                if (endDate > lastDayOfMonth) {
-                    endDate = lastDayOfMonth
-                    endDate.setHours(23, 59, 59, 999)
-                }
-            } else if (periodType === 'month') {
-                // Todo el mes
-                startDate = new Date(year, month, 1)
-                startDate.setHours(0, 0, 0, 0)
-                endDate = new Date(year, month + 1, 0)
-                endDate.setHours(23, 59, 59, 999)
-            } else {
-                // Quarter (trimestre)
-                const quarterStartMonth = Math.floor(month / 3) * 3
-                startDate = new Date(year, quarterStartMonth, 1)
-                startDate.setHours(0, 0, 0, 0)
-                endDate = new Date(year, quarterStartMonth + 3, 0)
-                endDate.setHours(23, 59, 59, 999)
-            }
+            const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
 
             // Query para obtener distribución de estados
             // Filtrar solicitudes creadas en el período y obtener su estado más reciente
@@ -1761,8 +1771,11 @@ export class SolicitudService {
                     COUNT(*) as count
                 FROM solicitud s
                 INNER JOIN estado_actual ea ON s.id_solicitud = ea.id_solicitud
-                WHERE s.fecha_ingreso_solicitud >= :startDate
-                  AND s.fecha_ingreso_solicitud <= :endDate
+                WHERE s.fecha_ingreso_solicitud <= :endDate
+                  AND (
+                      cierre.fecha_cierre IS NULL
+                      OR cierre.fecha_cierre >= :startDate
+                  )
                 GROUP BY ea.nombre_estado_solicitud
                 ORDER BY count DESC
             `, {
@@ -1770,8 +1783,9 @@ export class SolicitudService {
                     startDate: startDate,
                     endDate: endDate
                 },
-                type: QueryTypes.SELECT
-            })) as Array<{ status?: string; count?: number }>;
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any)) as Array<{ status?: string; count?: number }>;
 
             console.log(`[DEBUG] Distribución de estados para período ${periodType}:`, {
                 year,
@@ -1808,6 +1822,768 @@ export class SolicitudService {
         } catch (error: any) {
             console.error('Error al obtener distribución de estados:', error);
             throw new Error('Error al obtener distribución de estados');
+        }
+    }
+
+    static async getAverageProcessTimeByService(
+        year: number,
+        month: number,
+        week?: number,
+        periodType: 'week' | 'month' | 'quarter' = 'month'
+    ): Promise<Array<{ serviceCode: string; serviceName: string; averageDays: number; sampleSize: number }>> {
+        try {
+            const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
+
+            const runQuery = async (applyFilter: boolean) => {
+                const query = `
+                WITH closures AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cierre,
+                        DATE(esh.fecha_cambio_estado_solicitud) AS fecha_cierre_date
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE es.nombre_estado_solicitud = 'Cerrado'
+                      ${applyFilter ? `AND DATE(esh.fecha_cambio_estado_solicitud) >= DATE(:startDate) AND DATE(esh.fecha_cambio_estado_solicitud) <= DATE(:endDate)` : ''}
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                ),
+                durations AS (
+                    SELECT
+                        s.id_solicitud,
+                        s.codigo_servicio,
+                        c.fecha_cierre_date,
+                        EXTRACT(EPOCH FROM (c.fecha_cierre - s.fecha_ingreso_solicitud)) / 86400 AS dias
+                    FROM solicitud s
+                    INNER JOIN closures c ON c.id_solicitud = s.id_solicitud
+                    WHERE s.codigo_servicio IN ('PC', 'HH')
+                      AND c.fecha_cierre IS NOT NULL
+                      AND s.fecha_ingreso_solicitud IS NOT NULL
+                )
+                SELECT 
+                    d.codigo_servicio,
+                    AVG(d.dias) AS avg_days,
+                    COUNT(*) AS total
+                FROM durations d
+                GROUP BY d.codigo_servicio
+            `;
+                
+                const startDateStr = startDate.toISOString().split('T')[0];
+                const endDateStr = endDate.toISOString().split('T')[0];
+                
+                return (await sequelize.query(query, {
+                    replacements: { startDate: startDateStr, endDate: endDateStr },
+                    type: QueryTypes.SELECT,
+                    skipUserContext: true
+                } as any)) as Array<{ codigo_servicio?: string; avg_days?: number; total?: number }>;
+            };
+
+            let results = await runQuery(true);
+
+            if (results.length === 0) {
+                results = await runQuery(false);
+            }
+
+            const serviceMapping: Record<string, string> = {
+                'PC': 'Proceso Completo',
+                'HH': 'Hunting'
+            };
+
+            const aggregated: Record<string, { avgDays: number; total: number }> = {};
+            results.forEach(row => {
+                if (!row.codigo_servicio) {
+                    return;
+                }
+                // Convertir avg_days a número (PostgreSQL puede devolverlo como string)
+                const avgDaysNum = typeof row.avg_days === 'string' ? parseFloat(row.avg_days) : (row.avg_days ?? 0);
+                const totalNum = typeof row.total === 'string' ? parseInt(String(row.total)) : (row.total ?? 0);
+                
+                aggregated[row.codigo_servicio] = {
+                    avgDays: Number.isFinite(avgDaysNum) ? avgDaysNum : 0,
+                    total: Number.isFinite(totalNum) ? totalNum : 0
+                };
+            });
+
+            return Object.entries(serviceMapping).map(([serviceCode, serviceName]) => {
+                const data = aggregated[serviceCode] || { avgDays: 0, total: 0 };
+                return {
+                    serviceCode,
+                    serviceName,
+                    averageDays: Number.isFinite(data.avgDays) && data.avgDays > 0 ? Math.round(data.avgDays * 10) / 10 : 0,
+                    sampleSize: Number.isFinite(data.total) && data.total > 0 ? parseInt(String(data.total)) : 0
+                };
+            });
+        } catch (error: any) {
+            throw new Error('Error al obtener tiempo promedio por servicio');
+        }
+    }
+
+    static async getProcessesOverview(
+        year: number,
+        month: number,
+        week?: number,
+        periodType: 'week' | 'month' | 'quarter' = 'month'
+    ): Promise<{
+        processes: Array<{
+            id: number;
+            client: string;
+            position: string;
+            serviceCode: string;
+            serviceName: string;
+            consultant: string;
+            status: string;
+            statusRaw: string;
+            startDate: string | null;
+            deadline: string | null;
+            closedAt: string | null;
+            daysOpen: number | null;
+            daysUntilDeadline: number | null;
+            urgency: 'no_deadline' | 'on_track' | 'due_soon' | 'overdue' | 'closed_on_time' | 'closed_overdue';
+        }>;
+        totals: {
+            total: number;
+            inProgress: number;
+            completed: number;
+            paused: number;
+            cancelled: number;
+        };
+        statusCounts: Record<string, number>;
+        urgencySummary: {
+            dueSoonCount: number;
+            overdueCount: number;
+            dueSoonProcesses: Array<number>;
+            overdueProcesses: Array<number>;
+        };
+    }> {
+        try {
+            const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
+
+            const runOverviewQuery = async (applyFilter: boolean) => {
+                const queryResult = await sequelize.query(`
+                SELECT
+                    s.id_solicitud,
+                    s.fecha_ingreso_solicitud,
+                    s.plazo_maximo_solicitud,
+                    s.codigo_servicio,
+                    COALESCE(ts.nombre_servicio, s.codigo_servicio) AS nombre_servicio,
+                    c.nombre_cliente,
+                    dc.descripcion_cargo,
+                    u.nombre_usuario AS consultor,
+                    estado_actual.nombre_estado_solicitud AS estado_actual,
+                    estado_actual.fecha_cambio AS fecha_estado,
+                    cierre.fecha_cierre
+                FROM solicitud s
+                LEFT JOIN contacto co ON s.id_contacto = co.id_contacto
+                LEFT JOIN cliente c ON co.id_cliente = c.id_cliente
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                LEFT JOIN tiposervicio ts ON ts.codigo_servicio = s.codigo_servicio
+                LEFT JOIN LATERAL (
+                    SELECT dc.descripcion_cargo
+                    FROM descripcioncargo dc
+                    WHERE dc.id_solicitud = s.id_solicitud
+                    ORDER BY dc.id_descripcioncargo DESC
+                    LIMIT 1
+                ) dc ON true
+                LEFT JOIN LATERAL (
+                    SELECT 
+                        es.nombre_estado_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cambio
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE esh.id_solicitud = s.id_solicitud
+                    ORDER BY esh.fecha_cambio_estado_solicitud DESC
+                    LIMIT 1
+                ) estado_actual ON true
+                LEFT JOIN LATERAL (
+                    SELECT 
+                        esh.fecha_cambio_estado_solicitud AS fecha_cierre
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE esh.id_solicitud = s.id_solicitud
+                      AND es.nombre_estado_solicitud = 'Cerrado'
+                    ORDER BY esh.fecha_cambio_estado_solicitud DESC
+                    LIMIT 1
+                ) cierre ON true
+                ${applyFilter ? `
+                WHERE s.fecha_ingreso_solicitud <= :endDate
+                  AND (
+                      cierre.fecha_cierre IS NULL
+                      OR cierre.fecha_cierre >= :startDate
+                  )
+                ` : ''}
+            `, {
+                replacements: { startDate, endDate },
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any) as any;
+                // sequelize.query() con QueryTypes.SELECT retorna directamente el array
+                // Pero cuando usamos 'as any', TypeScript puede no inferir correctamente
+                // Verificar si es array directamente o si está envuelto
+                const resultsArray = Array.isArray(queryResult) ? queryResult : [];
+                console.log('[DEBUG] getProcessesOverview - queryResult:', {
+                    queryResultType: typeof queryResult,
+                    isArray: Array.isArray(queryResult),
+                    queryResultLength: Array.isArray(queryResult) ? queryResult.length : 'not array',
+                    resultsArrayLength: resultsArray.length,
+                    firstElement: resultsArray[0] || null
+                });
+                return resultsArray as unknown as Array<{
+                    id_solicitud: number;
+                    fecha_ingreso_solicitud: Date | string | null;
+                    plazo_maximo_solicitud: Date | string | null;
+                    codigo_servicio: string | null;
+                    nombre_servicio: string | null;
+                    nombre_cliente: string | null;
+                    descripcion_cargo: string | null;
+                    consultor: string | null;
+                    estado_actual: string | null;
+                    fecha_estado: Date | string | null;
+                    fecha_cierre: Date | string | null;
+                }>;
+            };
+
+            let rows = await runOverviewQuery(true);
+            console.log('[DEBUG] getProcessesOverview - rows after first query:', {
+                rowsType: typeof rows,
+                isArray: Array.isArray(rows),
+                rowsLength: Array.isArray(rows) ? rows.length : 'not array'
+            });
+
+            if (!Array.isArray(rows) || rows.length === 0) {
+                rows = await runOverviewQuery(false);
+                console.log('[DEBUG] getProcessesOverview - rows after fallback query:', {
+                    rowsType: typeof rows,
+                    isArray: Array.isArray(rows),
+                    rowsLength: Array.isArray(rows) ? rows.length : 'not array'
+                });
+            }
+            
+            // Asegurar que rows es siempre un array
+            if (!Array.isArray(rows)) {
+                console.error('[ERROR] getProcessesOverview - rows is not an array:', rows);
+                rows = [];
+            }
+
+            const statusMapping: Record<string, { label: string; category: 'active' | 'completed' | 'paused' | 'cancelled' }> = {
+                'Creado': { label: 'Iniciado', category: 'active' },
+                'Iniciado': { label: 'Iniciado', category: 'active' },
+                'En Progreso': { label: 'En Progreso', category: 'active' },
+                'Abierto': { label: 'En Progreso', category: 'active' },
+                'En Revisión': { label: 'En Revisión', category: 'active' },
+                'Cerrado': { label: 'Completado', category: 'completed' },
+                'Completado': { label: 'Completado', category: 'completed' },
+                'Congelado': { label: 'Pausado', category: 'paused' },
+                'Pausado': { label: 'Pausado', category: 'paused' },
+                'Cancelado': { label: 'Cancelado', category: 'cancelled' }
+            };
+
+            const now = new Date();
+
+            const processes = rows.map(row => {
+                const startDateValue = row.fecha_ingreso_solicitud ? new Date(row.fecha_ingreso_solicitud) : null;
+                const deadlineValue = row.plazo_maximo_solicitud ? new Date(row.plazo_maximo_solicitud) : null;
+                const closedAtValue = row.fecha_cierre ? new Date(row.fecha_cierre) : null;
+                const statusRaw = row.estado_actual || 'Creado';
+                const statusInfo = statusMapping[statusRaw] || { label: statusRaw, category: 'active' as const };
+                const isClosed = statusInfo.category === 'completed';
+                const referenceEnd = closedAtValue ?? now;
+                const daysOpen = startDateValue
+                    ? Math.round((referenceEnd.getTime() - startDateValue.getTime()) / (1000 * 60 * 60 * 24))
+                    : null;
+
+                let daysUntilDeadline: number | null = null;
+                let urgency: 'no_deadline' | 'on_track' | 'due_soon' | 'overdue' | 'closed_on_time' | 'closed_overdue' = 'no_deadline';
+
+                if (deadlineValue) {
+                    if (isClosed) {
+                        if (closedAtValue) {
+                            const diff = closedAtValue.getTime() - deadlineValue.getTime();
+                            urgency = diff > 0 ? 'closed_overdue' : 'closed_on_time';
+                            daysUntilDeadline = Math.round(diff / (1000 * 60 * 60 * 24));
+                        } else {
+                            urgency = 'no_deadline';
+                        }
+                    } else {
+                        const diffMs = deadlineValue.getTime() - now.getTime();
+                        daysUntilDeadline = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+                        if (diffMs < 0) {
+                            urgency = 'overdue';
+                        } else if (diffMs <= SolicitudService.DUE_SOON_THRESHOLD_DAYS * 24 * 60 * 60 * 1000) {
+                            urgency = 'due_soon';
+                        } else {
+                            urgency = 'on_track';
+                        }
+                    }
+                }
+
+                return {
+                    id: row.id_solicitud,
+                    client: row.nombre_cliente || 'Sin cliente',
+                    position: row.descripcion_cargo || 'Sin cargo',
+                    serviceCode: row.codigo_servicio || 'sin_servicio',
+                    serviceName: row.nombre_servicio || row.codigo_servicio || 'Sin servicio',
+                    consultant: row.consultor || 'Sin asignar',
+                    status: statusInfo.label,
+                    statusRaw,
+                    startDate: startDateValue ? startDateValue.toISOString() : null,
+                    deadline: deadlineValue ? deadlineValue.toISOString() : null,
+                    closedAt: closedAtValue ? closedAtValue.toISOString() : null,
+                    daysOpen,
+                    daysUntilDeadline,
+                    urgency
+                };
+            });
+
+            const totals = {
+                total: processes.length,
+                inProgress: 0,
+                completed: 0,
+                paused: 0,
+                cancelled: 0
+            };
+
+            const statusCounts: Record<string, number> = {};
+            let dueSoonCount = 0;
+            let overdueCount = 0;
+            const dueSoonProcesses: number[] = [];
+            const overdueProcesses: number[] = [];
+
+            processes.forEach(process => {
+                statusCounts[process.status] = (statusCounts[process.status] || 0) + 1;
+
+                const statusInfo = statusMapping[process.statusRaw] || { category: 'active' as const };
+                switch (statusInfo.category) {
+                    case 'completed':
+                        totals.completed += 1;
+                        break;
+                    case 'paused':
+                        totals.paused += 1;
+                        break;
+                    case 'cancelled':
+                        totals.cancelled += 1;
+                        break;
+                    default:
+                        totals.inProgress += 1;
+                        break;
+                }
+
+                if (process.urgency === 'due_soon') {
+                    dueSoonCount += 1;
+                    dueSoonProcesses.push(process.id);
+                } else if (process.urgency === 'overdue' || process.urgency === 'closed_overdue') {
+                    overdueCount += 1;
+                    overdueProcesses.push(process.id);
+                }
+            });
+
+            return {
+                processes,
+                totals,
+                statusCounts,
+                urgencySummary: {
+                    dueSoonCount,
+                    overdueCount,
+                    dueSoonProcesses,
+                    overdueProcesses
+                }
+            };
+        } catch (error: any) {
+            console.error('Error al obtener overview de procesos:', error);
+            throw new Error('Error al obtener overview de procesos');
+        }
+    }
+
+    /**
+     * Obtener procesos cerrados exitosos con detalles de candidatos
+     */
+    static async getClosedSuccessfulProcesses(
+        year: number,
+        month: number,
+        week?: number,
+        periodType: 'week' | 'month' | 'quarter' = 'month'
+    ): Promise<Array<{
+        id_solicitud: number;
+        tipo_servicio: string;
+        nombre_servicio: string;
+        cliente: string;
+        contacto: string | null;
+        comuna: string | null;
+        total_candidatos: number;
+        candidatos_exitosos: Array<{ nombre: string; rut: string }>;
+    }>> {
+        try {
+            const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
+            console.log('[DEBUG] getClosedSuccessfulProcesses - Parámetros:', {
+                year,
+                month,
+                week,
+                periodType,
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString()
+            });
+
+            // Obtener procesos cerrados en el período
+            const procesosCerradosQueryResult = await sequelize.query(`
+                WITH ultimo_cierre AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cierre
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE es.id_estado_solicitud = 3
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                ),
+                procesos_cerrados AS (
+                    SELECT 
+                        s.id_solicitud,
+                        s.codigo_servicio,
+                        COALESCE(ts.nombre_servicio, s.codigo_servicio) AS nombre_servicio,
+                        c.nombre_cliente,
+                        co.nombre_contacto,
+                        com.nombre_comuna,
+                        uc.fecha_cierre
+                    FROM solicitud s
+                    INNER JOIN ultimo_cierre uc ON s.id_solicitud = uc.id_solicitud
+                    LEFT JOIN contacto co ON s.id_contacto = co.id_contacto
+                    LEFT JOIN cliente c ON co.id_cliente = c.id_cliente
+                    LEFT JOIN tiposervicio ts ON ts.codigo_servicio = s.codigo_servicio
+                    LEFT JOIN LATERAL (
+                        SELECT dc.id_comuna
+                        FROM descripcioncargo dc
+                        WHERE dc.id_solicitud = s.id_solicitud
+                        ORDER BY dc.id_descripcioncargo DESC
+                        LIMIT 1
+                    ) dc ON true
+                    LEFT JOIN comuna com ON dc.id_comuna = com.id_comuna
+                    WHERE DATE(uc.fecha_cierre) >= DATE(:startDate)
+                      AND DATE(uc.fecha_cierre) <= DATE(:endDate)
+                ),
+                total_candidatos AS (
+                    SELECT 
+                        p.id_solicitud,
+                        COUNT(DISTINCT p.id_postulacion) AS total
+                    FROM postulacion p
+                    INNER JOIN procesos_cerrados pc ON p.id_solicitud = pc.id_solicitud
+                    GROUP BY p.id_solicitud
+                ),
+                candidatos_exitosos_pc_hh AS (
+                    SELECT DISTINCT
+                        p.id_solicitud,
+                        cand.nombre_candidato || ' ' || cand.primer_apellido_candidato || COALESCE(' ' || cand.segundo_apellido_candidato, '') AS nombre,
+                        cand.rut_candidato AS rut
+                    FROM estado_cliente_postulacion_m5 ecm5
+                    INNER JOIN postulacion p ON ecm5.id_postulacion = p.id_postulacion
+                    INNER JOIN candidato cand ON p.id_candidato = cand.id_candidato
+                    INNER JOIN procesos_cerrados pc ON p.id_solicitud = pc.id_solicitud
+                    WHERE pc.codigo_servicio IN ('PC', 'HH')
+                ),
+                candidatos_exitosos_ll AS (
+                    SELECT DISTINCT
+                        p.id_solicitud,
+                        cand.nombre_candidato || ' ' || cand.primer_apellido_candidato || COALESCE(' ' || cand.segundo_apellido_candidato, '') AS nombre,
+                        cand.rut_candidato AS rut
+                    FROM estado_cliente_postulacion ecp
+                    INNER JOIN postulacion p ON ecp.id_postulacion = p.id_postulacion
+                    INNER JOIN candidato cand ON p.id_candidato = cand.id_candidato
+                    INNER JOIN procesos_cerrados pc ON p.id_solicitud = pc.id_solicitud
+                    WHERE pc.codigo_servicio = 'LL'
+                      AND ecp.id_estado_cliente = 3
+                ),
+                candidatos_exitosos_es_ts AS (
+                    SELECT DISTINCT
+                        p.id_solicitud,
+                        cand.nombre_candidato || ' ' || cand.primer_apellido_candidato || COALESCE(' ' || cand.segundo_apellido_candidato, '') AS nombre,
+                        cand.rut_candidato AS rut
+                    FROM evaluacion_psicolaboral ep
+                    INNER JOIN postulacion p ON ep.id_postulacion = p.id_postulacion
+                    INNER JOIN candidato cand ON p.id_candidato = cand.id_candidato
+                    INNER JOIN procesos_cerrados pc ON p.id_solicitud = pc.id_solicitud
+                    WHERE pc.codigo_servicio IN ('ES', 'TS')
+                      AND ep.estado_evaluacion = 'Realizada'
+                ),
+                todos_candidatos_exitosos AS (
+                    SELECT * FROM candidatos_exitosos_pc_hh
+                    UNION
+                    SELECT * FROM candidatos_exitosos_ll
+                    UNION
+                    SELECT * FROM candidatos_exitosos_es_ts
+                )
+                SELECT 
+                    pc.id_solicitud,
+                    pc.codigo_servicio AS tipo_servicio,
+                    pc.nombre_servicio,
+                    pc.nombre_cliente AS cliente,
+                    pc.nombre_contacto AS contacto,
+                    pc.nombre_comuna AS comuna,
+                    COALESCE(tc.total, 0) AS total_candidatos,
+                    COALESCE(
+                        json_agg(
+                            json_build_object(
+                                'nombre', ce.nombre,
+                                'rut', ce.rut
+                            ) ORDER BY ce.nombre
+                        ) FILTER (WHERE ce.nombre IS NOT NULL),
+                        '[]'::json
+                    ) AS candidatos_exitosos
+                FROM procesos_cerrados pc
+                LEFT JOIN total_candidatos tc ON pc.id_solicitud = tc.id_solicitud
+                LEFT JOIN todos_candidatos_exitosos ce ON pc.id_solicitud = ce.id_solicitud
+                GROUP BY 
+                    pc.id_solicitud,
+                    pc.codigo_servicio,
+                    pc.nombre_servicio,
+                    pc.nombre_cliente,
+                    pc.nombre_contacto,
+                    pc.nombre_comuna,
+                    pc.fecha_cierre,
+                    tc.total
+                ORDER BY pc.fecha_cierre DESC, pc.nombre_cliente
+            `, {
+                replacements: {
+                    startDate: startDate.toISOString().split('T')[0],
+                    endDate: endDate.toISOString().split('T')[0]
+                },
+                type: QueryTypes.SELECT,
+                skipUserContext: true // Evitar que el hook ejecute queries adicionales
+            } as any) as any;
+            // sequelize.query() con QueryTypes.SELECT retorna directamente el array
+            // Pero cuando usamos 'as any', TypeScript puede no inferir correctamente
+            // Verificar si es array directamente o si está envuelto
+            const procesosCerradosArray = Array.isArray(procesosCerradosQueryResult) ? procesosCerradosQueryResult : [];
+            console.log('[DEBUG] getClosedSuccessfulProcesses - queryResult:', {
+                queryResultType: typeof procesosCerradosQueryResult,
+                isArray: Array.isArray(procesosCerradosQueryResult),
+                queryResultLength: Array.isArray(procesosCerradosQueryResult) ? procesosCerradosQueryResult.length : 'not array',
+                rawLength: procesosCerradosArray.length,
+                firstElement: procesosCerradosArray[0] || null
+            });
+            const procesosCerrados = procesosCerradosArray as Array<{
+                id_solicitud: number;
+                tipo_servicio: string;
+                nombre_servicio: string;
+                cliente: string;
+                contacto: string | null;
+                comuna: string | null;
+                total_candidatos: number | string;
+                candidatos_exitosos: string | Array<{ nombre: string; rut: string }>;
+            }>;
+
+            console.log('[DEBUG] getClosedSuccessfulProcesses - Resultados SQL:', {
+                totalRows: procesosCerrados.length,
+                firstRow: procesosCerrados[0] || null
+            });
+
+            // Procesar resultados y convertir JSON strings a arrays
+            const processed = procesosCerrados.map(row => ({
+                id_solicitud: row.id_solicitud,
+                tipo_servicio: row.tipo_servicio,
+                nombre_servicio: row.nombre_servicio,
+                cliente: row.cliente || 'Sin cliente',
+                contacto: row.contacto || null,
+                comuna: row.comuna || null,
+                total_candidatos: typeof row.total_candidatos === 'string' 
+                    ? parseInt(row.total_candidatos) 
+                    : (row.total_candidatos || 0),
+                candidatos_exitosos: typeof row.candidatos_exitosos === 'string'
+                    ? JSON.parse(row.candidatos_exitosos)
+                    : (Array.isArray(row.candidatos_exitosos) ? row.candidatos_exitosos : [])
+            }));
+
+            console.log('[DEBUG] getClosedSuccessfulProcesses - Resultados procesados:', {
+                totalProcessed: processed.length,
+                firstProcessed: processed[0] || null
+            });
+
+            return processed;
+        } catch (error: any) {
+            console.error('[ERROR] getClosedSuccessfulProcesses:', error);
+            throw new Error('Error al obtener procesos cerrados exitosos');
+        }
+    }
+
+    /**
+     * Obtener rendimiento por consultor
+     * Retorna procesos completados, tiempo promedio y eficiencia por consultor
+     */
+    static async getConsultantPerformance(): Promise<Array<{
+        consultant: string;
+        processesCompleted: number;
+        avgTimeToHire: number;
+        efficiency: number;
+    }>> {
+        try {
+            const queryResult = await sequelize.query(`
+                WITH procesos_cerrados AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cierre,
+                        s.rut_usuario,
+                        s.fecha_ingreso_solicitud,
+                        s.plazo_maximo_solicitud,
+                        u.nombre_usuario AS consultor
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    INNER JOIN solicitud s ON esh.id_solicitud = s.id_solicitud
+                    LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                    WHERE es.nombre_estado_solicitud = 'Cerrado'
+                      AND s.rut_usuario IS NOT NULL
+                      AND s.fecha_ingreso_solicitud IS NOT NULL
+                      AND esh.fecha_cambio_estado_solicitud IS NOT NULL
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                ),
+                tiempos_contratacion AS (
+                    SELECT
+                        pc.rut_usuario,
+                        pc.consultor,
+                        COUNT(*) AS procesos_completados,
+                        AVG(
+                            EXTRACT(EPOCH FROM (pc.fecha_cierre - pc.fecha_ingreso_solicitud)) / 86400
+                        ) AS tiempo_promedio
+                    FROM procesos_cerrados pc
+                    GROUP BY pc.rut_usuario, pc.consultor
+                ),
+                procesos_a_tiempo AS (
+                    SELECT
+                        pc.rut_usuario,
+                        COUNT(*) AS procesos_a_tiempo
+                    FROM procesos_cerrados pc
+                    WHERE pc.plazo_maximo_solicitud IS NOT NULL
+                      AND pc.fecha_cierre <= pc.plazo_maximo_solicitud
+                    GROUP BY pc.rut_usuario
+                )
+                SELECT
+                    tc.consultor,
+                    tc.procesos_completados::integer AS processes_completed,
+                    ROUND(tc.tiempo_promedio::numeric, 1) AS avg_time_to_hire,
+                    CASE
+                        WHEN tc.procesos_completados > 0 THEN
+                            ROUND(
+                                (COALESCE(pat.procesos_a_tiempo, 0)::numeric / tc.procesos_completados::numeric) * 100
+                            )
+                        ELSE 0
+                    END AS efficiency
+                FROM tiempos_contratacion tc
+                LEFT JOIN procesos_a_tiempo pat ON tc.rut_usuario = pat.rut_usuario
+                ORDER BY tc.procesos_completados DESC, efficiency DESC
+            `, {
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any) as any;
+
+            const results = Array.isArray(queryResult) ? queryResult : [];
+            
+            return results.map((row: any) => ({
+                consultant: row.consultor || 'Sin asignar',
+                processesCompleted: parseInt(row.processes_completed) || 0,
+                avgTimeToHire: parseFloat(row.avg_time_to_hire) || 0,
+                efficiency: parseInt(row.efficiency) || 0
+            }));
+        } catch (error: any) {
+            console.error('[ERROR] getConsultantPerformance:', error);
+            throw new Error('Error al obtener rendimiento por consultor');
+        }
+    }
+
+    /**
+     * Obtener cumplimiento de plazos por consultor (basado en hitos)
+     * Retorna hitos completados a tiempo vs retrasados por consultor
+     */
+    static async getConsultantCompletionStats(): Promise<Array<{
+        consultant: string;
+        completed: number;
+        onTime: number;
+        delayed: number;
+        completionRate: number;
+    }>> {
+        try {
+            const queryResult = await sequelize.query(`
+                SELECT
+                    COALESCE(u.nombre_usuario, 'Sin asignar') AS consultor,
+                    COUNT(*)::integer AS completed,
+                    COUNT(CASE WHEN hs.fecha_cumplimiento IS NOT NULL 
+                               AND hs.fecha_limite IS NOT NULL
+                               AND hs.fecha_cumplimiento <= hs.fecha_limite 
+                          THEN 1 END)::integer AS on_time,
+                    COUNT(CASE WHEN (
+                               (hs.fecha_cumplimiento IS NOT NULL AND hs.fecha_limite IS NOT NULL AND hs.fecha_cumplimiento > hs.fecha_limite)
+                               OR (hs.fecha_limite IS NOT NULL AND hs.fecha_limite < CURRENT_DATE AND hs.fecha_cumplimiento IS NULL)
+                          ) THEN 1 END)::integer AS delayed,
+                    CASE
+                        WHEN COUNT(*) > 0 THEN
+                            ROUND(
+                                (COUNT(CASE WHEN hs.fecha_cumplimiento IS NOT NULL 
+                                           AND hs.fecha_limite IS NOT NULL
+                                           AND hs.fecha_cumplimiento <= hs.fecha_limite 
+                                      THEN 1 END)::numeric / COUNT(*)::numeric) * 100
+                            )
+                        ELSE 0
+                    END AS completion_rate
+                FROM hito_solicitud hs
+                INNER JOIN solicitud s ON hs.id_solicitud = s.id_solicitud
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                WHERE hs.id_solicitud IS NOT NULL
+                  AND hs.fecha_limite IS NOT NULL
+                  AND s.rut_usuario IS NOT NULL
+                GROUP BY u.nombre_usuario
+                ORDER BY completed DESC
+            `, {
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any) as any;
+
+            const results = Array.isArray(queryResult) ? queryResult : [];
+            
+            return results.map((row: any) => ({
+                consultant: row.consultor || 'Sin asignar',
+                completed: parseInt(row.completed) || 0,
+                onTime: parseInt(row.on_time) || 0,
+                delayed: parseInt(row.delayed) || 0,
+                completionRate: parseInt(row.completion_rate) || 0
+            }));
+        } catch (error: any) {
+            console.error('[ERROR] getConsultantCompletionStats:', error);
+            throw new Error('Error al obtener estadísticas de cumplimiento');
+        }
+    }
+
+    /**
+     * Obtener retrasos (hitos vencidos) por consultor
+     * Retorna cantidad de hitos vencidos por consultor
+     * Un hito está vencido si: fecha_limite < CURRENT_DATE AND fecha_cumplimiento IS NULL
+     */
+    static async getConsultantOverdueHitos(): Promise<Record<string, number>> {
+        try {
+            const queryResult = await sequelize.query(`
+                SELECT
+                    COALESCE(u.nombre_usuario, 'Sin asignar') AS consultor,
+                    COUNT(*)::integer AS vencidos
+                FROM hito_solicitud hs
+                INNER JOIN solicitud s ON hs.id_solicitud = s.id_solicitud
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                WHERE hs.fecha_limite IS NOT NULL
+                  AND hs.fecha_limite < CURRENT_DATE
+                  AND hs.fecha_cumplimiento IS NULL
+                  AND hs.id_solicitud IS NOT NULL
+                  AND s.rut_usuario IS NOT NULL
+                GROUP BY u.nombre_usuario
+                ORDER BY vencidos DESC
+            `, {
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any) as any;
+
+            const results = Array.isArray(queryResult) ? queryResult : [];
+            const overdueHitos: Record<string, number> = {};
+            
+            results.forEach((row: any) => {
+                const consultor = row.consultor || 'Sin asignar';
+                overdueHitos[consultor] = parseInt(row.vencidos) || 0;
+            });
+
+            return overdueHitos;
+        } catch (error: any) {
+            console.error('[ERROR] getConsultantOverdueHitos:', error);
+            throw new Error('Error al obtener hitos vencidos por consultor');
         }
     }
 }

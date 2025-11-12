@@ -48,43 +48,43 @@ const sequelize = new Sequelize({
 /**
  * Hook que se ejecuta antes de cada query para configurar el usuario responsable
  * Lee el contexto del usuario establecido por el middleware captureUserContext
+ * IMPORTANTE: No ejecutar queries dentro del hook para evitar conexiones adicionales
  */
-sequelize.addHook('beforeQuery', async (options) => {
+sequelize.addHook('beforeQuery', async (options: any) => {
   const currentUser = getCurrentUserContext();
   
-  if (currentUser && options.transaction) {
+  // Solo configurar usuario si hay contexto y no es una query de configuración interna
+  if (currentUser && !options.skipUserContext) {
     try {
       // Escapar el RUT para prevenir SQL injection
       const rutEscapado = currentUser.replace(/'/g, "''");
       
-      // Configurar variable de sesión LOCAL para esta transacción
-      await sequelize.query(
-        `SET LOCAL app.current_user = '${rutEscapado}'`,
-        { transaction: options.transaction }
-      );
-      
-      // Log solo en desarrollo
-      if (NODE_ENV === 'development') {
-        console.log(`📝 [LOG] Usuario ${currentUser} configurado para query en transacción`);
+      if (options.transaction) {
+        // Configurar variable de sesión LOCAL para esta transacción
+        // Usar la misma conexión de la transacción sin crear una nueva
+        await sequelize.query(
+          `SET LOCAL app.current_user = '${rutEscapado}'`,
+          { 
+            transaction: options.transaction,
+            skipUserContext: true // Evitar recursión
+          } as any
+        );
+      } else {
+        // Si no hay transacción, usar SET normal (dura toda la conexión)
+        // Usar la misma conexión del pool sin crear una nueva
+        await sequelize.query(
+          `SET app.current_user = '${rutEscapado}'`,
+          { 
+            skipUserContext: true // Evitar recursión
+          } as any
+        );
       }
     } catch (error) {
       // No interrumpir la query si falla la configuración del usuario
-      console.error('⚠️ Error configurando usuario en query:', error);
-    }
-  } else if (currentUser && !options.transaction) {
-    try {
-      // Si no hay transacción, usar SET normal (dura toda la conexión)
-      const rutEscapado = currentUser.replace(/'/g, "''");
-      
-      await sequelize.query(
-        `SET app.current_user = '${rutEscapado}'`
-      );
-      
+      // Solo loguear en desarrollo para no saturar logs
       if (NODE_ENV === 'development') {
-        console.log(`📝 [LOG] Usuario ${currentUser} configurado para query sin transacción`);
+        console.error('⚠️ Error configurando usuario en query:', error);
       }
-    } catch (error) {
-      console.error('⚠️ Error configurando usuario en query:', error);
     }
   }
 });

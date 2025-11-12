@@ -23,9 +23,6 @@ router.get('/etapas/disponibles', SolicitudController.getEtapas);
 // Obtener estados de solicitud disponibles
 router.get('/estados/disponibles', SolicitudController.getEstadosSolicitud);
 
-// Obtener una solicitud específica
-router.get('/:id', SolicitudController.getById);
-
 // Obtener solicitudes por consultor
 router.get('/consultor/:rutUsuario', SolicitudController.getByConsultor);
 
@@ -35,6 +32,15 @@ router.get('/reportes/distribucion-tipo-servicio', SolicitudController.getProces
 router.get('/reportes/fuentes-candidatos', SolicitudController.getCandidateSourceData);
 router.get('/reportes/estadisticas', SolicitudController.getProcessStats);
 router.get('/reportes/distribucion-estados', SolicitudController.getProcessStatusDistribution);
+router.get('/reportes/tiempo-promedio-servicio', (SolicitudController as any).getAverageProcessTimeByService);
+router.get('/reportes/overview', (SolicitudController as any).getProcessOverview);
+router.get('/reportes/procesos-cerrados-exitosos', (SolicitudController as any).getClosedSuccessfulProcesses);
+router.get('/reportes/rendimiento-consultor', (SolicitudController as any).getConsultantPerformance);
+router.get('/reportes/cumplimiento-consultor', (SolicitudController as any).getConsultantCompletionStats);
+router.get('/reportes/retrasos-consultor', (SolicitudController as any).getConsultantOverdueHitos);
+
+// Obtener una solicitud específica
+router.get('/:id(\\d+)', SolicitudController.getById);
 
 // Rutas protegidas (requieren autenticación)
 // Todas las operaciones de escritura requieren estar autenticado

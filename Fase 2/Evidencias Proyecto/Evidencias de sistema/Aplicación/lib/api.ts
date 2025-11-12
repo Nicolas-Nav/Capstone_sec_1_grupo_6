@@ -371,6 +371,136 @@ export const solicitudService = {
     return apiRequest(`/api/solicitudes/reportes/distribucion-estados?${params.toString()}`);
   },
 
+  async getAverageProcessTimeByService(
+    year: number,
+    month: number,
+    week?: number,
+    periodType: 'week' | 'month' | 'quarter' = 'month'
+  ): Promise<ApiResponse<Array<{ serviceCode: string; serviceName: string; averageDays: number; sampleSize: number }>>> {
+    const params = new URLSearchParams({
+      year: year.toString(),
+      month: month.toString(),
+      periodType,
+    });
+    if (week) {
+      params.append('week', week.toString());
+    }
+    return apiRequest(`/api/solicitudes/reportes/tiempo-promedio-servicio?${params.toString()}`);
+  },
+
+  async getProcessOverview(
+    year: number,
+    month: number,
+    week?: number,
+    periodType: 'week' | 'month' | 'quarter' = 'month'
+  ): Promise<
+    ApiResponse<{
+      processes: Array<{
+        id: number;
+        client: string;
+        position: string;
+        serviceCode: string;
+        serviceName: string;
+        consultant: string;
+        status: string;
+        statusRaw: string;
+        startDate: string | null;
+        deadline: string | null;
+        closedAt: string | null;
+        daysOpen: number | null;
+        daysUntilDeadline: number | null;
+        urgency: 'no_deadline' | 'on_track' | 'due_soon' | 'overdue' | 'closed_on_time' | 'closed_overdue';
+      }>;
+      totals: {
+        total: number;
+        inProgress: number;
+        completed: number;
+        paused: number;
+        cancelled: number;
+      };
+      statusCounts: Record<string, number>;
+      urgencySummary: {
+        dueSoonCount: number;
+        overdueCount: number;
+        dueSoonProcesses: Array<number>;
+        overdueProcesses: Array<number>;
+      };
+    }>
+  > {
+    const params = new URLSearchParams({
+      year: year.toString(),
+      month: month.toString(),
+      periodType,
+    });
+    if (week) {
+      params.append('week', week.toString());
+    }
+    return apiRequest(`/api/solicitudes/reportes/overview?${params.toString()}`);
+  },
+
+  async getClosedSuccessfulProcesses(
+    year: number,
+    month: number,
+    week?: number,
+    periodType: 'week' | 'month' | 'quarter' = 'month'
+  ): Promise<
+    ApiResponse<
+      Array<{
+        id_solicitud: number;
+        tipo_servicio: string;
+        nombre_servicio: string;
+        cliente: string;
+        contacto: string | null;
+        comuna: string | null;
+        total_candidatos: number;
+        candidatos_exitosos: Array<{ nombre: string; rut: string }>;
+      }>
+    >
+  > {
+    const params = new URLSearchParams({
+      year: year.toString(),
+      month: month.toString(),
+      periodType,
+    });
+    if (week) {
+      params.append('week', week.toString());
+    }
+    return apiRequest(`/api/solicitudes/reportes/procesos-cerrados-exitosos?${params.toString()}`);
+  },
+
+  async getConsultantPerformance(): Promise<
+    ApiResponse<
+      Array<{
+        consultant: string;
+        processesCompleted: number;
+        avgTimeToHire: number;
+        efficiency: number;
+      }>
+    >
+  > {
+    return apiRequest(`/api/solicitudes/reportes/rendimiento-consultor`);
+  },
+
+  async getConsultantCompletionStats(): Promise<
+    ApiResponse<
+      Array<{
+        consultant: string;
+        completed: number;
+        onTime: number;
+        delayed: number;
+        completionRate: number;
+      }>
+    >
+  > {
+    return apiRequest(`/api/solicitudes/reportes/cumplimiento-consultor`);
+  },
+
+  async getConsultantOverdueHitos(): Promise<
+    ApiResponse<Record<string, number>>
+  > {
+    return apiRequest(`/api/solicitudes/reportes/retrasos-consultor`);
+  },
+
   // Cambiar etapa de solicitud
   async cambiarEtapa(id: number, id_etapa: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/etapa`, {
@@ -1053,7 +1183,7 @@ export const evaluacionPsicolaboralService = {
   // Crear evaluación
   async create(data: {
     fecha_evaluacion?: Date | string | null;
-    fecha_envio_informe: Date;
+    fecha_envio_informe?: Date | string | null;
     estado_evaluacion: string;
     estado_informe: string;
     conclusion_global: string;
@@ -1068,7 +1198,7 @@ export const evaluacionPsicolaboralService = {
   // Actualizar evaluación
   async update(id: number, data: Partial<{
     fecha_evaluacion: Date | string | null;
-    fecha_envio_informe: Date;
+    fecha_envio_informe: Date | string | null;
     estado_evaluacion: string;
     estado_informe: string;
     conclusion_global: string;

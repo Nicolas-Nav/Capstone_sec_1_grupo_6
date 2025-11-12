@@ -30,12 +30,14 @@ export const authenticateToken = (
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
+    console.warn('[AUTH] Solicitud sin token', req.method, req.originalUrl);
     sendUnauthorized(res, 'Token de acceso requerido');
     return;
   }
 
   jwt.verify(token, config.jwt.secret, (err, decoded) => {
     if (err) {
+      console.warn('[AUTH] Token inválido o expirado:', err?.message, req.method, req.originalUrl);
       sendUnauthorized(res, 'Token inválido o expirado');
       return;
     }

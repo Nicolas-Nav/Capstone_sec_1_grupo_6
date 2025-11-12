@@ -91,7 +91,8 @@ export class HitoSolicitudController {
             const hitos = await HitoSolicitudService.activarHitosPorEvento(
                 parseInt(id_solicitud),
                 tipo_ancla,
-                new Date(fecha_evento)
+                new Date(fecha_evento),
+                req.user?.id
             );
             
             return sendSuccess(res, hitos, 'Hitos activados exitosamente');
@@ -108,10 +109,17 @@ export class HitoSolicitudController {
     /**
      * GET /api/hitos-solicitud/vencidos
      * Obtener hitos vencidos/atrasados
+     * Si el usuario es admin, muestra todos los hitos vencidos
      */
     static async getVencidos(req: Request, res: Response): Promise<Response> {
         try {
-            const hitos = await HitoSolicitudService.getHitosVencidos();
+            const { consultor_id } = req.query;
+            const isAdmin = req.user?.role === 'admin';
+            
+            // Si es admin, ignorar consultor_id y mostrar todos
+            const consultorIdFiltro = isAdmin ? undefined : (consultor_id as string | undefined);
+            
+            const hitos = await HitoSolicitudService.getHitosVencidos(consultorIdFiltro);
             return sendSuccess(res, hitos, 'Hitos vencidos obtenidos exitosamente');
         } catch (error) {
             Logger.error('Error al obtener hitos vencidos:', error);
@@ -122,10 +130,17 @@ export class HitoSolicitudController {
     /**
      * GET /api/hitos-solicitud/por-vencer
      * Obtener hitos por vencer (en período de aviso)
+     * Si el usuario es admin, muestra todos los hitos por vencer
      */
     static async getPorVencer(req: Request, res: Response): Promise<Response> {
         try {
-            const hitos = await HitoSolicitudService.getHitosPorVencer();
+            const { consultor_id } = req.query;
+            const isAdmin = req.user?.role === 'admin';
+            
+            // Si es admin, ignorar consultor_id y mostrar todos
+            const consultorIdFiltro = isAdmin ? undefined : (consultor_id as string | undefined);
+            
+            const hitos = await HitoSolicitudService.getHitosPorVencer(consultorIdFiltro);
             return sendSuccess(res, hitos, 'Hitos por vencer obtenidos exitosamente');
         } catch (error) {
             Logger.error('Error al obtener hitos por vencer:', error);
@@ -136,13 +151,17 @@ export class HitoSolicitudController {
     /**
      * GET /api/hitos-solicitud/pendientes
      * Obtener hitos pendientes (no activados)
+     * Si el usuario es admin, muestra todos los hitos pendientes
      */
     static async getPendientes(req: Request, res: Response): Promise<Response> {
         try {
-            const { id_solicitud } = req.query;
-            const hitos = await HitoSolicitudService.getHitosPendientes(
-                id_solicitud ? parseInt(id_solicitud as string) : undefined
-            );
+            const { consultor_id } = req.query;
+            const isAdmin = req.user?.role === 'admin';
+            
+            // Si es admin, ignorar consultor_id y mostrar todos
+            const consultorIdFiltro = isAdmin ? undefined : (consultor_id as string | undefined);
+            
+            const hitos = await HitoSolicitudService.getHitosPendientes(consultorIdFiltro);
             return sendSuccess(res, hitos, 'Hitos pendientes obtenidos exitosamente');
         } catch (error) {
             Logger.error('Error al obtener hitos pendientes:', error);
@@ -153,13 +172,17 @@ export class HitoSolicitudController {
     /**
      * GET /api/hitos-solicitud/completados
      * Obtener hitos completados
+     * Si el usuario es admin, muestra todos los hitos completados
      */
     static async getCompletados(req: Request, res: Response): Promise<Response> {
         try {
-            const { id_solicitud } = req.query;
-            const hitos = await HitoSolicitudService.getHitosCompletados(
-                id_solicitud ? parseInt(id_solicitud as string) : undefined
-            );
+            const { consultor_id } = req.query;
+            const isAdmin = req.user?.role === 'admin';
+            
+            // Si es admin, ignorar consultor_id y mostrar todos
+            const consultorIdFiltro = isAdmin ? undefined : (consultor_id as string | undefined);
+            
+            const hitos = await HitoSolicitudService.getHitosCompletados(consultorIdFiltro);
             return sendSuccess(res, hitos, 'Hitos completados obtenidos exitosamente');
         } catch (error) {
             Logger.error('Error al obtener hitos completados:', error);
@@ -184,17 +207,23 @@ export class HitoSolicitudController {
     /**
      * GET /api/hitos-solicitud/alertas
      * Obtener hitos con alertas en tiempo real
+     * Si el usuario es admin, muestra todas las alertas de todos los consultores
      */
     static async getAlertas(req: Request, res: Response): Promise<Response> {
         try {
             const { consultor_id } = req.query;
+            const isAdmin = req.user?.role === 'admin';
             
-            Logger.info(`🔔 Obteniendo alertas para consultor_id: ${consultor_id}`);
+            // Si es admin, ignorar el consultor_id y mostrar todas las alertas
+            const consultorIdFiltro = isAdmin ? undefined : (consultor_id as string | undefined);
             
-            // Obtener hitos por vencer y vencidos (ya filtrados por consultor en el servicio)
+            Logger.info(`🔔 Obteniendo alertas - Usuario: ${req.user?.id}, Rol: ${req.user?.role}, Consultor filtro: ${consultorIdFiltro || 'TODOS (admin)'}`);
+            
+            // Obtener hitos por vencer y vencidos
+            // Si es admin, no se filtra por consultor (consultorIdFiltro = undefined)
             const [hitosPorVencer, hitosVencidos] = await Promise.all([
-                HitoSolicitudService.getHitosPorVencer(consultor_id as string | undefined),
-                HitoSolicitudService.getHitosVencidos(consultor_id as string | undefined)
+                HitoSolicitudService.getHitosPorVencer(consultorIdFiltro),
+                HitoSolicitudService.getHitosVencidos(consultorIdFiltro)
             ]);
 
             Logger.info(`📊 Hitos por vencer: ${hitosPorVencer.length}, Vencidos: ${hitosVencidos.length}`);
@@ -222,10 +251,15 @@ export class HitoSolicitudController {
     /**
      * GET /api/hitos-solicitud/dashboard/:consultor_id
      * Dashboard de hitos para consultores
+     * Si el usuario es admin, muestra todas las alertas de todos los consultores
      */
     static async getDashboard(req: Request, res: Response): Promise<Response> {
         try {
             const { consultor_id } = req.params;
+            const isAdmin = req.user?.role === 'admin';
+            
+            // Si es admin o consultor_id es 'all', usar undefined para obtener todos los hitos
+            const consultorIdFiltro = (isAdmin || consultor_id === 'all') ? undefined : consultor_id;
             
             // Obtener todos los datos del dashboard en paralelo
             const [
@@ -235,15 +269,21 @@ export class HitoSolicitudController {
                 hitosCompletados,
                 estadisticas
             ] = await Promise.all([
-                HitoSolicitudService.getHitosPorVencer(),
-                HitoSolicitudService.getHitosVencidos(),
-                HitoSolicitudService.getHitosPendientes(),
-                HitoSolicitudService.getHitosCompletados(),
+                HitoSolicitudService.getHitosPorVencer(consultorIdFiltro),
+                HitoSolicitudService.getHitosVencidos(consultorIdFiltro),
+                HitoSolicitudService.getHitosPendientes(consultorIdFiltro),
+                HitoSolicitudService.getHitosCompletados(consultorIdFiltro),
                 HitoSolicitudService.getEstadisticas()
             ]);
 
-            // Filtrar por consultor
-            const hitosFiltrados = {
+            // Si es admin, no filtrar (ya vienen filtrados del servicio)
+            // Si es consultor, filtrar por consultor_id
+            const hitosFiltrados = isAdmin ? {
+                por_vencer: hitosPorVencer,
+                vencidos: hitosVencidos,
+                pendientes: hitosPendientes,
+                completados: hitosCompletados
+            } : {
                 por_vencer: hitosPorVencer.filter(h => h.solicitud?.rut_usuario === consultor_id),
                 vencidos: hitosVencidos.filter(h => h.solicitud?.rut_usuario === consultor_id),
                 pendientes: hitosPendientes.filter(h => h.solicitud?.rut_usuario === consultor_id),

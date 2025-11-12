@@ -1,6 +1,8 @@
 import { Transaction } from 'sequelize';
 import sequelize from '@/config/database';
 import { Publicacion, PortalPostulacion, Solicitud } from '@/models';
+import { HitoHelperService } from '@/services/hitoHelperService';
+import { setDatabaseUser } from '@/utils/databaseUser';
 
 /**
  * Servicio para gestión de Publicaciones
@@ -79,10 +81,15 @@ export class PublicacionService {
         url_publicacion: string;
         estado_publicacion?: string;
         fecha_publicacion?: Date;
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const {
                 id_solicitud,
                 id_portal_postulacion,
@@ -116,6 +123,9 @@ export class PublicacionService {
                 estado_publicacion,
                 fecha_publicacion
             }, { transaction });
+
+            // Marcar el Hito 1 "Publicación de cargo" como cumplido
+            await HitoHelperService.marcarHitoPublicacion(id_solicitud, transaction);
 
             await transaction.commit();
 

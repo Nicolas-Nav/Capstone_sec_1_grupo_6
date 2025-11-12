@@ -16,7 +16,7 @@ import { toast } from "sonner"
 
 export default function AlertasPage() {
   const { user } = useAuth()
-  const { markAsRead, loadNotifications, unreadCount: notificationsUnreadCount } = useNotifications(user?.id)
+  const { markAsRead, loadNotifications, unreadCount: notificationsUnreadCount } = useNotifications(user?.id, user?.role)
   const [searchTerm, setSearchTerm] = useState("")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
   const [hitosAlertas, setHitosAlertas] = useState<HitoAlert[]>([])
@@ -102,16 +102,21 @@ export default function AlertasPage() {
       console.log('Cargando hitos para usuario:', user.id)
       console.log('Usuario completo:', user)
       
-      // Probar con el RUT específico que sabemos que funciona
-      const consultorId = user.id || '209942917'
-      console.log('Usando consultor_id:', consultorId)
+      // Si es admin, no pasar consultorId para ver todas las alertas
+      // Si es consultor, pasar su RUT para ver solo sus alertas
+      const isAdmin = user.role === 'admin'
+      const consultorId = isAdmin ? undefined : (user.id || '209942917')
       
-      // Obtener alertas de hitos para el usuario actual
+      console.log(`Usando consultor_id: ${consultorId || 'TODOS (admin)'}`)
+      
+      // Obtener alertas de hitos
+      // Si es admin, no se pasa consultorId y el backend devuelve todas las alertas
       const alertas = await getHitosAlertas(consultorId)
       console.log('Hitos cargados:', alertas.length, alertas)
       setHitosAlertas(alertas)
       
       // Obtener dashboard completo
+      // Si es admin, pasar undefined (se convertirá a 'all' en la función)
       const dashboardData = await getHitosDashboard(consultorId)
       console.log('Dashboard cargado:', dashboardData)
       setDashboard(dashboardData)

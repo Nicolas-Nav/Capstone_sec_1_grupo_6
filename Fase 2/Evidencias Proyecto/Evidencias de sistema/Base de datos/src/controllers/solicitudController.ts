@@ -501,6 +501,69 @@ export class SolicitudController {
         }
     }
 
+    /**
+     * GET /api/solicitudes/reportes/tiempo-promedio-servicio
+     * Obtener tiempo promedio de cierre por servicio (PC y HS)
+     */
+    static async getAverageProcessTimeByService(req: Request, res: Response): Promise<Response> {
+        try {
+            const year = parseInt(req.query.year as string) || new Date().getFullYear();
+            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const week = req.query.week ? parseInt(req.query.week as string) : undefined;
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+
+            const resultado = await SolicitudService.getAverageProcessTimeByService(year, month, week, periodType);
+
+            Logger.info(`Tiempo promedio por servicio obtenido (${resultado.length} servicios)`);
+            return sendSuccess(res, resultado, 'Tiempo promedio por servicio obtenido exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener tiempo promedio por servicio:', error);
+            return sendError(res, 'Error al obtener tiempo promedio por servicio', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/overview
+     * Obtener resumen de procesos para el período seleccionado
+     */
+    static async getProcessOverview(req: Request, res: Response): Promise<Response> {
+        try {
+            const year = parseInt(req.query.year as string) || new Date().getFullYear();
+            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const week = req.query.week ? parseInt(req.query.week as string) : undefined;
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+
+            const resultado = await SolicitudService.getProcessesOverview(year, month, week, periodType);
+
+            Logger.info(`Overview de procesos obtenido: ${resultado.processes.length} procesos`);
+            return sendSuccess(res, resultado, 'Overview de procesos obtenido exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener overview de procesos:', error);
+            return sendError(res, 'Error al obtener overview de procesos', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/procesos-cerrados-exitosos
+     * Obtener procesos cerrados exitosos con detalles de candidatos
+     */
+    static async getClosedSuccessfulProcesses(req: Request, res: Response): Promise<Response> {
+        try {
+            const year = parseInt(req.query.year as string) || new Date().getFullYear();
+            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const week = req.query.week ? parseInt(req.query.week as string) : undefined;
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+
+            const resultado = await SolicitudService.getClosedSuccessfulProcesses(year, month, week, periodType);
+
+            Logger.info(`Procesos cerrados exitosos obtenidos: ${resultado.length} procesos`);
+            return sendSuccess(res, resultado, 'Procesos cerrados exitosos obtenidos exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener procesos cerrados exitosos:', error);
+            return sendError(res, 'Error al obtener procesos cerrados exitosos', 500);
+        }
+    }
+
 }
 
    

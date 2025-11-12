@@ -445,9 +445,78 @@ export const validationSchemas = {
   // Validaciones para formulario de test (Módulo 4)
   module4TestForm: {
     result: {
+      required: true,
+      maxLength: 300,
+      message: 'El resultado es obligatorio y no puede exceder 300 caracteres'
+    }
+  },
+
+  // Validaciones para formulario de referencias laborales (Módulo 4)
+  module4ReferenceForm: {
+    nombre_referencia: {
+      required: false,
+      maxLength: 100,
+      message: 'El nombre de la referencia no puede exceder 100 caracteres'
+    },
+    cargo_referencia: {
+      required: false,
+      maxLength: 100,
+      message: 'El cargo de la referencia no puede exceder 100 caracteres'
+    },
+    relacion_postulante_referencia: {
       required: false,
       maxLength: 300,
-      message: 'El resultado no puede exceder 300 caracteres'
+      message: 'La relación con el postulante no puede exceder 300 caracteres'
+    },
+    empresa_referencia: {
+      required: false,
+      maxLength: 100,
+      message: 'El nombre de la empresa no puede exceder 100 caracteres'
+    },
+    telefono_referencia: {
+      required: false,
+      custom: (value: string) => {
+        if (!value || !value.trim()) {
+          return null // Campo opcional
+        }
+        // Validar formato básico (números, espacios, guiones, paréntesis, signo +)
+        const phonePattern = /^[\+]?[0-9\s\-\(\)]+$/
+        if (!phonePattern.test(value.trim())) {
+          return 'Formato de teléfono inválido'
+        }
+        // Validar longitud (máximo 12 caracteres según BD)
+        const length = value.trim().length
+        if (length < 8) {
+          return 'El teléfono debe tener al menos 8 caracteres'
+        }
+        if (length > 12) {
+          return 'El teléfono no puede exceder 12 caracteres'
+        }
+        return null
+      }
+    },
+    email_referencia: {
+      required: false,
+      custom: (value: string) => {
+        if (!value || !value.trim()) {
+          return null // Campo opcional
+        }
+        // Validar formato de email
+        const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+        if (!emailPattern.test(value.trim())) {
+          return 'Ingrese un email válido'
+        }
+        // Validar longitud máxima (256 caracteres según BD)
+        if (value.trim().length > 256) {
+          return 'El email no puede exceder 256 caracteres'
+        }
+        return null
+      }
+    },
+    comentario_referencia: {
+      required: false,
+      maxLength: 800,
+      message: 'Los comentarios no pueden exceder 800 caracteres'
     }
   }
 }

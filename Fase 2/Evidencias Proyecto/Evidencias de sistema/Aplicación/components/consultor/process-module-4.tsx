@@ -46,6 +46,7 @@ import {
   Edit,
   Save,
   Loader2,
+  RotateCcw,
 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 
@@ -74,7 +75,7 @@ interface ProcessModule4Props {
 
 export function ProcessModule4({ process }: ProcessModule4Props) {
   const { toast } = useToast()
-  const { errors, validateField, validateAllFields, clearAllErrors } = useFormValidation()
+  const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAdvancingToModule5, setIsAdvancingToModule5] = useState(false)
@@ -212,7 +213,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   // Cargar estado del proceso y estados disponibles para finalización (solo ES y TS)
   useEffect(() => {
     // Inicializar estado desde el proceso
-    const initialStatus = (process.estado_solicitud || process.status || process.estado || "") as string
+    const initialStatus = (process.estado_solicitud || process.status || "") as string
     setProcessStatus(initialStatus)
 
     const loadProcessStatus = async () => {
@@ -303,6 +304,33 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     email_referencia: "",
     comentario_referencia: "",
   })
+  
+  // Estado para múltiples formularios de referencias (similar a profesiones)
+  // referenceId es el ID de la base de datos (si existe), id es el ID temporal del formulario
+  const [referenceForms, setReferenceForms] = useState<Array<{
+    id: string
+    referenceId?: string // ID de la BD si es una referencia existente
+    markedForDeletion?: boolean // Marca si la referencia debe eliminarse al guardar
+    nombre_referencia: string
+    cargo_referencia: string
+    relacion_postulante_referencia: string
+    empresa_referencia: string
+    telefono_referencia: string
+    email_referencia: string
+    comentario_referencia: string
+  }>>([{
+    id: `ref_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    nombre_referencia: "",
+    cargo_referencia: "",
+    relacion_postulante_referencia: "",
+    empresa_referencia: "",
+    telefono_referencia: "",
+    email_referencia: "",
+    comentario_referencia: "",
+  }])
+  
+  const [hasAttemptedSubmitReference, setHasAttemptedSubmitReference] = useState(false)
+  const [isSavingReference, setIsSavingReference] = useState(false)
 
   // Estados para finalizar solicitud (solo ES y TS)
   const [showStatusChange, setShowStatusChange] = useState(false)
@@ -527,7 +555,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     // Validar el campo resultado si se está modificando
     if (field === "result") {
       const testData = updatedTests[index]
-      validateField(`test_result_${index}`, value, validationSchemas.module4TestForm, testData)
+      validateField(`test_result_${index}`, value, validationSchemas.module4TestForm, { result: value })
     }
   }
 
@@ -675,14 +703,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleSaveTest = async () => {
     if (!selectedCandidate) return
 
-    // Validar todos los campos de resultado de los tests
+    // Validar todos los campos de resultado de los tests (siempre validar, incluso si está vacío)
     let hasErrors = false
     testForm.tests.forEach((test, index) => {
-      if (test.result) {
-        const isValid = validateAllFields({ result: test.result }, validationSchemas.module4TestForm)
-        if (!isValid) {
-          hasErrors = true
-        }
+      // Validar cada campo individualmente para mostrar errores específicos
+      validateField(`test_result_${index}`, test.result || "", validationSchemas.module4TestForm, { result: test.result || "" })
+      
+      // Verificar si hay errores después de validar
+      const isValid = validateAllFields({ result: test.result || "" }, validationSchemas.module4TestForm)
+      if (!isValid) {
+        hasErrors = true
       }
     })
 
@@ -851,18 +881,19 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleSaveEditTest = async () => {
     if (!selectedCandidate || !editingTest) return
 
-    // Validar el campo de resultado
+    // Validar el campo de resultado (siempre validar, incluso si está vacío)
     const test = testForm.tests[0]
-    if (test.result) {
-      const isValid = validateAllFields({ result: test.result }, validationSchemas.module4TestForm)
-      if (!isValid) {
-        toast({
-          title: "Error de validación",
-          description: "Por favor, corrija los errores en el formulario",
-          variant: "destructive",
-        })
-        return
-      }
+    // Validar el campo individualmente para mostrar el error específico
+    validateField(`test_result_${0}`, test.result || "", validationSchemas.module4TestForm, { result: test.result || "" })
+    
+    const isValid = validateAllFields({ result: test.result || "" }, validationSchemas.module4TestForm)
+    if (!isValid) {
+      toast({
+        title: "Error de validación",
+        description: "Por favor, corrija los errores en el formulario",
+        variant: "destructive",
+      })
+      return
     }
     
     try {
@@ -931,9 +962,259 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
   }
 
-  const openReferencesDialog = (candidate: Candidate) => {
+  const openReferencesDialog = async (candidate: Candidate) => {
     setSelectedCandidate(candidate)
+    
+    // Cargar referencias existentes del candidato
+    try {
+      const response = await referenciaLaboralService.getByCandidato(Number(candidate.id))
+      
+      if (response.success && response.data && response.data.length > 0) {
+        // Convertir referencias existentes en formularios editables (sin agregar uno vacío)
+        const existingForms = response.data.map((ref: any) => {
+          // El ID puede venir como 'id' o 'id_referencia_laboral' dependiendo de cómo Sequelize lo devuelva
+          const referenceId = ref.id_referencia_laboral || ref.id
+          return {
+            id: `ref_${referenceId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            referenceId: String(referenceId), // ID de la BD (convertir a string para consistencia)
+            nombre_referencia: ref.nombre_referencia || "",
+            cargo_referencia: ref.cargo_referencia || "",
+            relacion_postulante_referencia: ref.relacion_postulante_referencia || "",
+            empresa_referencia: ref.empresa_referencia || "",
+            telefono_referencia: ref.telefono_referencia || "",
+            email_referencia: ref.email_referencia || "",
+            comentario_referencia: ref.comentario_referencia || "",
+          }
+        })
+        
+        setReferenceForms(existingForms)
+      } else {
+        // Si no hay referencias, inicializar con un formulario vacío
+        setReferenceForms([{
+          id: `ref_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          nombre_referencia: "",
+          cargo_referencia: "",
+          relacion_postulante_referencia: "",
+          empresa_referencia: "",
+          telefono_referencia: "",
+          email_referencia: "",
+          comentario_referencia: "",
+        }])
+      }
+    } catch (error) {
+      console.error('Error al cargar referencias:', error)
+      // En caso de error, inicializar con un formulario vacío
+      setReferenceForms([{
+        id: `ref_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        nombre_referencia: "",
+        cargo_referencia: "",
+        relacion_postulante_referencia: "",
+        empresa_referencia: "",
+        telefono_referencia: "",
+        email_referencia: "",
+        comentario_referencia: "",
+      }])
+    }
+    
+    setHasAttemptedSubmitReference(false)
+    clearAllErrors()
+    
     setShowReferencesDialog(true)
+  }
+
+  // Funciones para manejar múltiples formularios de referencias
+  const addReferenceForm = () => {
+    const newForm = {
+      id: `ref_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      nombre_referencia: "",
+      cargo_referencia: "",
+      relacion_postulante_referencia: "",
+      empresa_referencia: "",
+      telefono_referencia: "",
+      email_referencia: "",
+      comentario_referencia: "",
+    }
+    setReferenceForms([...referenceForms, newForm])
+  }
+  
+  const removeReferenceForm = (id: string) => {
+    // Limpiar errores del formulario que se elimina
+    const form = referenceForms.find(f => f.id === id)
+    if (form) {
+      clearError(`reference_${id}_nombre_referencia`)
+      clearError(`reference_${id}_cargo_referencia`)
+      clearError(`reference_${id}_relacion_postulante_referencia`)
+      clearError(`reference_${id}_empresa_referencia`)
+      clearError(`reference_${id}_telefono_referencia`)
+      clearError(`reference_${id}_email_referencia`)
+      clearError(`reference_${id}_comentario_referencia`)
+    }
+    
+    setReferenceForms(forms => forms.filter(form => form.id !== id))
+  }
+
+  const updateReferenceForm = (id: string, field: string, value: string) => {
+    setReferenceForms(forms => {
+      const updatedForms = forms.map(form => 
+        form.id === id ? { ...form, [field]: value } : form
+      )
+      
+      const updatedForm = updatedForms.find(f => f.id === id)
+      
+      if (updatedForm) {
+        validateReferenceField(id, field, value, updatedForm)
+      }
+      
+      return updatedForms
+    })
+  }
+
+
+  // Función para validar un campo de referencia
+  const validateReferenceField = (formId: string, field: string, value: string, formData: any) => {
+    const fieldKey = `reference_${formId}_${field}`
+    
+    // Validar campos opcionales (teléfono, email, comentario) siempre, independientemente de otros campos
+    if (field === 'telefono_referencia' || field === 'email_referencia' || field === 'comentario_referencia') {
+      // Si el campo está vacío, limpiar el error (es opcional)
+      if (!value || !value.trim()) {
+        clearError(fieldKey)
+      } else {
+        // Si tiene valor, validar directamente usando la lógica del esquema
+        const schemaFieldName = field // 'telefono_referencia', 'email_referencia', etc.
+        const rule = validationSchemas.module4ReferenceForm[schemaFieldName]
+        
+        if (rule) {
+          let errorMessage: string | null = null
+          
+          // Ejecutar validación personalizada si existe (para teléfono y email)
+          if ('custom' in rule && rule.custom) {
+            errorMessage = rule.custom(value)
+          }
+          // Validación de longitud máxima (para comentarios)
+          else if ('maxLength' in rule && rule.maxLength && typeof value === 'string' && value.length > rule.maxLength) {
+            errorMessage = rule.message || `No puede exceder ${rule.maxLength} caracteres`
+          }
+          
+          // Actualizar el error con el fieldKey correcto para mostrarlo en el UI
+          if (errorMessage) {
+            setFieldError(fieldKey, errorMessage)
+          } else {
+            clearError(fieldKey)
+          }
+        }
+      }
+    }
+    
+    // Validar relacion_postulante_referencia siempre (es opcional pero tiene límite de caracteres)
+    if (field === 'relacion_postulante_referencia') {
+      const fieldValue = value?.trim() || ''
+      if (fieldValue.length > 300) {
+        setFieldError(fieldKey, `La relación con el postulante no puede exceder 300 caracteres`)
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    // Verificar si hay al menos un campo obligatorio con valor
+    // Nota: relacion_postulante_referencia no es obligatorio según la BD (no tiene NOT NULL)
+    const hasAnyRequiredField = !!(
+      formData.nombre_referencia?.trim() || 
+      formData.cargo_referencia?.trim() || 
+      formData.empresa_referencia?.trim()
+    )
+    
+    if (!hasAnyRequiredField) {
+      // Si todos los campos obligatorios están vacíos, limpiar errores de campos obligatorios
+      clearError(`reference_${formId}_nombre_referencia`)
+      clearError(`reference_${formId}_cargo_referencia`)
+      clearError(`reference_${formId}_empresa_referencia`)
+      // No retornar aquí, permitir que continúe para validar campos opcionales
+    }
+    
+    // Validar longitud máxima de campos obligatorios siempre (incluso antes de enviar)
+    if (field === 'nombre_referencia' || field === 'cargo_referencia' || field === 'empresa_referencia') {
+      const fieldValue = value?.trim() || ''
+      if (fieldValue.length > 100) {
+        setFieldError(fieldKey, `El campo no puede exceder 100 caracteres`)
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    // Solo mostrar errores obligatorios si se ha intentado enviar
+    if (hasAttemptedSubmitReference) {
+      if (!formData.nombre_referencia?.trim()) {
+        setFieldError(`reference_${formId}_nombre_referencia`, 'El nombre de la referencia es obligatorio')
+      } else if (formData.nombre_referencia.trim().length > 100) {
+        setFieldError(`reference_${formId}_nombre_referencia`, 'El nombre de la referencia no puede exceder 100 caracteres')
+      } else {
+        clearError(`reference_${formId}_nombre_referencia`)
+      }
+      
+      if (!formData.cargo_referencia?.trim()) {
+        setFieldError(`reference_${formId}_cargo_referencia`, 'El cargo de la referencia es obligatorio')
+      } else if (formData.cargo_referencia.trim().length > 100) {
+        setFieldError(`reference_${formId}_cargo_referencia`, 'El cargo de la referencia no puede exceder 100 caracteres')
+      } else {
+        clearError(`reference_${formId}_cargo_referencia`)
+      }
+      
+      if (formData.relacion_postulante_referencia?.trim() && formData.relacion_postulante_referencia.trim().length > 300) {
+        setFieldError(`reference_${formId}_relacion_postulante_referencia`, 'La relación con el postulante no puede exceder 300 caracteres')
+      } else {
+        clearError(`reference_${formId}_relacion_postulante_referencia`)
+      }
+      
+      if (!formData.empresa_referencia?.trim()) {
+        setFieldError(`reference_${formId}_empresa_referencia`, 'El nombre de la empresa es obligatorio')
+      } else if (formData.empresa_referencia.trim().length > 100) {
+        setFieldError(`reference_${formId}_empresa_referencia`, 'El nombre de la empresa no puede exceder 100 caracteres')
+      } else {
+        clearError(`reference_${formId}_empresa_referencia`)
+      }
+    } else {
+      // Si no se ha intentado enviar, solo validar longitud máxima y limpiar errores cuando se completan campos
+      if (field === 'nombre_referencia' && value?.trim() && value.trim().length <= 100) {
+        clearError(fieldKey)
+      }
+      if (field === 'cargo_referencia' && value?.trim() && value.trim().length <= 100) {
+        clearError(fieldKey)
+      }
+      if (field === 'relacion_postulante_referencia' && value?.trim() && value.trim().length <= 300) {
+        clearError(fieldKey)
+      }
+      if (field === 'empresa_referencia' && value?.trim() && value.trim().length <= 100) {
+        clearError(fieldKey)
+      }
+    }
+  }
+
+  const handleDiscardSingleReference = (formId: string) => {
+    if (referenceForms.length > 1) {
+      removeReferenceForm(formId)
+    } else {
+      // Si solo hay un formulario, limpiar sus campos
+      setReferenceForms([{
+        id: formId,
+        nombre_referencia: "",
+        cargo_referencia: "",
+        relacion_postulante_referencia: "",
+        empresa_referencia: "",
+        telefono_referencia: "",
+        email_referencia: "",
+        comentario_referencia: "",
+      }])
+      
+      // Limpiar errores
+      clearError(`reference_${formId}_nombre_referencia`)
+      clearError(`reference_${formId}_cargo_referencia`)
+      clearError(`reference_${formId}_relacion_postulante_referencia`)
+      clearError(`reference_${formId}_empresa_referencia`)
+      clearError(`reference_${formId}_telefono_referencia`)
+      clearError(`reference_${formId}_email_referencia`)
+      clearError(`reference_${formId}_comentario_referencia`)
+    }
   }
 
   const openReportDialog = (candidate: Candidate) => {
@@ -1081,24 +1362,159 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleAddReference = async () => {
     if (!selectedCandidate) return
 
-    try {
-      const response = await referenciaLaboralService.create({
-        nombre_referencia: newReference.nombre_referencia,
-        cargo_referencia: newReference.cargo_referencia,
-        empresa_referencia: newReference.empresa_referencia,
-        telefono_referencia: newReference.telefono_referencia,
-        email_referencia: newReference.email_referencia,
-        id_candidato: Number(selectedCandidate.id),
-        relacion_postulante_referencia: newReference.relacion_postulante_referencia,
-        comentario_referencia: newReference.comentario_referencia,
-      })
+    setHasAttemptedSubmitReference(true)
 
-      if (response.success) {
-        // Recargar las referencias del candidato
-        await loadReferencesForCandidate(Number(selectedCandidate.id))
+    // Validar todos los formularios de referencias
+    let hasErrors = false
+    referenceForms.forEach(form => {
+      // Nota: relacion_postulante_referencia no es obligatorio según la BD (no tiene NOT NULL)
+      const hasAnyRequiredField = !!(
+        form.nombre_referencia?.trim() || 
+        form.cargo_referencia?.trim() || 
+        form.empresa_referencia?.trim()
+      )
+      
+      if (hasAnyRequiredField) {
+        // Validar todos los campos obligatorios
+        validateReferenceField(form.id, 'nombre_referencia', form.nombre_referencia || '', form)
+        validateReferenceField(form.id, 'cargo_referencia', form.cargo_referencia || '', form)
+        validateReferenceField(form.id, 'empresa_referencia', form.empresa_referencia || '', form)
         
-        // Limpiar el formulario
-    setNewReference({
+        // Validar relacion_postulante_referencia si tiene valor (es opcional)
+        if (form.relacion_postulante_referencia?.trim()) {
+          validateReferenceField(form.id, 'relacion_postulante_referencia', form.relacion_postulante_referencia, form)
+        }
+        
+        // Validar campos opcionales si tienen valor
+        if (form.telefono_referencia?.trim()) {
+          validateReferenceField(form.id, 'telefono_referencia', form.telefono_referencia, form)
+        }
+        if (form.email_referencia?.trim()) {
+          validateReferenceField(form.id, 'email_referencia', form.email_referencia, form)
+        }
+        if (form.comentario_referencia?.trim()) {
+          validateReferenceField(form.id, 'comentario_referencia', form.comentario_referencia, form)
+        }
+        
+        // Verificar directamente si los campos obligatorios están completos
+        // Nota: relacion_postulante_referencia no es obligatorio según la BD
+        if (!form.nombre_referencia?.trim() || 
+            !form.cargo_referencia?.trim() || 
+            !form.empresa_referencia?.trim() ||
+            (form.nombre_referencia?.trim() && form.nombre_referencia.trim().length > 100) ||
+            (form.cargo_referencia?.trim() && form.cargo_referencia.trim().length > 100) ||
+            (form.empresa_referencia?.trim() && form.empresa_referencia.trim().length > 100) ||
+            (form.relacion_postulante_referencia?.trim() && form.relacion_postulante_referencia.trim().length > 300)) {
+          hasErrors = true
+        }
+      }
+    })
+
+    if (hasErrors) {
+      toast({
+        title: "Error de validación",
+        description: "Por favor, corrija los errores en el formulario",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Filtrar solo formularios con al menos un campo obligatorio completado
+    // Nota: relacion_postulante_referencia no es obligatorio según la BD
+    // Excluir formularios marcados para eliminación
+    const validForms = referenceForms.filter(form => 
+      !form.markedForDeletion && (
+        form.nombre_referencia?.trim() || 
+        form.cargo_referencia?.trim() || 
+        form.empresa_referencia?.trim()
+      )
+    )
+
+    if (validForms.length === 0) {
+      toast({
+        title: "Error",
+        description: "Debe completar al menos un formulario de referencia",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSavingReference(true)
+
+    try {
+      // Primero, eliminar las referencias marcadas para eliminación
+      const referencesToDelete = referenceForms.filter(form => form.markedForDeletion && form.referenceId)
+      for (const form of referencesToDelete) {
+        if (form.referenceId) {
+          const response = await referenciaLaboralService.delete(Number(form.referenceId))
+          if (!response.success) {
+            throw new Error(response.message || 'Error al eliminar la referencia')
+          }
+        }
+      }
+
+      // Filtrar las referencias marcadas para eliminación antes de procesar
+      const formsToProcess = validForms.filter(form => !form.markedForDeletion)
+
+      // Procesar todas las referencias válidas (actualizar existentes o crear nuevas)
+      for (const form of formsToProcess) {
+        const referenceData = {
+          nombre_referencia: form.nombre_referencia,
+          cargo_referencia: form.cargo_referencia,
+          empresa_referencia: form.empresa_referencia,
+          telefono_referencia: form.telefono_referencia || "",
+          email_referencia: form.email_referencia || "",
+          relacion_postulante_referencia: form.relacion_postulante_referencia,
+          comentario_referencia: form.comentario_referencia || undefined,
+        }
+        
+        if (form.referenceId) {
+          // Actualizar referencia existente
+          const response = await referenciaLaboralService.update(Number(form.referenceId), referenceData)
+          if (!response.success) {
+            throw new Error(response.message || 'Error al actualizar la referencia')
+          }
+        } else {
+          // Crear nueva referencia
+          const response = await referenciaLaboralService.create({
+            ...referenceData,
+            id_candidato: Number(selectedCandidate.id),
+          })
+          if (!response.success) {
+            throw new Error(response.message || 'Error al guardar la referencia')
+          }
+        }
+      }
+
+      // Recargar las referencias del candidato
+      await loadReferencesForCandidate(Number(selectedCandidate.id))
+      
+      // Recargar el diálogo con las referencias actualizadas (sin agregar formulario vacío)
+      const updatedResponse = await referenciaLaboralService.getByCandidato(Number(selectedCandidate.id))
+      
+      if (updatedResponse.success && updatedResponse.data && updatedResponse.data.length > 0) {
+        // Convertir referencias existentes en formularios editables
+        const existingForms = updatedResponse.data.map((ref: any) => {
+          // El ID puede venir como 'id' o 'id_referencia_laboral' dependiendo de cómo Sequelize lo devuelva
+          const referenceId = ref.id_referencia_laboral || ref.id
+          return {
+            id: `ref_${referenceId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            referenceId: String(referenceId), // ID de la BD (convertir a string para consistencia)
+            nombre_referencia: ref.nombre_referencia || "",
+            cargo_referencia: ref.cargo_referencia || "",
+            relacion_postulante_referencia: ref.relacion_postulante_referencia || "",
+            empresa_referencia: ref.empresa_referencia || "",
+            telefono_referencia: ref.telefono_referencia || "",
+            email_referencia: ref.email_referencia || "",
+            comentario_referencia: ref.comentario_referencia || "",
+          }
+        })
+        
+        setReferenceForms(existingForms)
+      } else {
+        // Si no hay referencias, inicializar con un formulario vacío
+        setReferenceForms([{
+          id: `ref_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           nombre_referencia: "",
           cargo_referencia: "",
           relacion_postulante_referencia: "",
@@ -1106,33 +1522,62 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           telefono_referencia: "",
           email_referencia: "",
           comentario_referencia: "",
-        })
-
-        toast({
-          title: "Referencia guardada",
-          description: "La referencia laboral se ha guardado exitosamente.",
-        })
-      } else {
-        throw new Error(response.message || 'Error al guardar la referencia')
+        }])
       }
+      
+      setHasAttemptedSubmitReference(false)
+      clearAllErrors()
+
+      const savedCount = formsToProcess.length
+      const deletedCount = referencesToDelete.length
+      let description = ""
+      if (savedCount > 0 && deletedCount > 0) {
+        description = `Se han guardado ${savedCount} referencia(s) y eliminado ${deletedCount} referencia(s) exitosamente.`
+      } else if (savedCount > 0) {
+        description = `Se han guardado ${savedCount} referencia(s) laboral(es) exitosamente.`
+      } else if (deletedCount > 0) {
+        description = `Se han eliminado ${deletedCount} referencia(s) exitosamente.`
+      } else {
+        description = "No se realizaron cambios."
+      }
+
+      toast({
+        title: "Referencias guardadas",
+        description,
+      })
     } catch (error) {
-      console.error('Error al guardar referencia:', error)
+      console.error('Error al guardar referencias:', error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Error al guardar la referencia",
+        description: error instanceof Error ? error.message : "Error al guardar las referencias",
         variant: "destructive",
       })
+    } finally {
+      setIsSavingReference(false)
     }
   }
 
   const handleDeleteReference = (candidateId: string, referenceId: string) => {
-    const reference = workReferences[candidateId]?.find(r => r.id === referenceId)
-    setDeleteConfirm({
-      type: 'reference',
-      candidateId,
-      referenceId,
-      referenceName: reference?.nombre_referencia || 'esta referencia'
-    })
+    // Si estamos en el diálogo de referencias, marcar para eliminación
+    if (showReferencesDialog && selectedCandidate?.id === candidateId) {
+      // Marcar la referencia para eliminación (no eliminar inmediatamente)
+      setReferenceForms(forms => 
+        forms.map(form => 
+          form.referenceId === referenceId 
+            ? { ...form, markedForDeletion: true }
+            : form
+        )
+      )
+    } else {
+      // Si no estamos en el diálogo, usar el flujo de confirmación
+      const reference = workReferences[candidateId]?.find(r => r.id === referenceId)
+      setDeleteConfirm({
+        type: 'reference',
+        candidateId,
+        referenceId,
+        referenceName: reference?.nombre_referencia || 'esta referencia'
+      })
+    }
   }
 
   const confirmDeleteReference = async () => {
@@ -1989,7 +2434,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor={`test_result_${index}`}>Resultado</Label>
+                    <Label htmlFor={`test_result_${index}`}>Resultado <span className="text-red-500">*</span></Label>
                     <Textarea
                       id={`test_result_${index}`}
                       value={test.result}
@@ -2063,7 +2508,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor={`edit_test_result_${index}`}>Resultado</Label>
+                  <Label htmlFor={`edit_test_result_${index}`}>Resultado <span className="text-red-500">*</span></Label>
                   <Textarea
                     id={`edit_test_result_${index}`}
                     value={test.result}
@@ -2094,7 +2539,17 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showReferencesDialog} onOpenChange={setShowReferencesDialog}>
+      <Dialog open={showReferencesDialog} onOpenChange={(open) => {
+        setShowReferencesDialog(open)
+        if (!open) {
+          clearAllErrors()
+          setHasAttemptedSubmitReference(false)
+          // Limpiar las marcas de eliminación al cerrar sin guardar
+          setReferenceForms(forms => 
+            forms.map(form => ({ ...form, markedForDeletion: false }))
+          )
+        }
+      }}>
         <DialogContent className="!max-w-[60vw] !w-[690vw] max-h-[95vh] overflow-y-auto" style={{ maxWidth: '70vw', width: '70vw' }}>
           <DialogHeader>
             <DialogTitle>Referencias Laborales</DialogTitle>
@@ -2108,178 +2563,229 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Add New Reference Form */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Agregar Nueva Referencia</CardTitle>
-                  <Button type="button" variant="outline" size="sm" onClick={() => {
-                    // Agregar nueva referencia vacía
-                    setNewReference({
-                      nombre_referencia: "",
-                      cargo_referencia: "",
-                      relacion_postulante_referencia: "",
-                      empresa_referencia: "",
-                      telefono_referencia: "",
-                      email_referencia: "",
-                      comentario_referencia: "",
-                    });
-                  }}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Agregar otra referencias
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nombre_referencia">Nombre de la Referencia</Label>
-                    <Input
-                      id="nombre_referencia"
-                      value={newReference.nombre_referencia}
-                      onChange={(e) => setNewReference({ ...newReference, nombre_referencia: e.target.value })}
-                      placeholder="Nombre completo de la referencia"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cargo_referencia">Cargo de la Referencia</Label>
-                    <Input
-                      id="cargo_referencia"
-                      value={newReference.cargo_referencia}
-                      onChange={(e) => setNewReference({ ...newReference, cargo_referencia: e.target.value })}
-                      placeholder="Cargo que ocupa la referencia"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="relacion_postulante_referencia">Relación con el Postulante</Label>
-                    <Input
-                      id="relacion_postulante_referencia"
-                      value={newReference.relacion_postulante_referencia}
-                      onChange={(e) => setNewReference({ ...newReference, relacion_postulante_referencia: e.target.value })}
-                      placeholder="Ej: Jefe directo, compañero de trabajo, etc."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="empresa_referencia">Empresa</Label>
-                    <Input
-                      id="empresa_referencia"
-                      value={newReference.empresa_referencia}
-                      onChange={(e) => setNewReference({ ...newReference, empresa_referencia: e.target.value })}
-                      placeholder="Nombre de la empresa"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="telefono_referencia">Teléfono (Opcional)</Label>
-                    <Input
-                      id="telefono_referencia"
-                      value={newReference.telefono_referencia}
-                      onChange={(e) => setNewReference({ ...newReference, telefono_referencia: e.target.value })}
-                      placeholder="+56 9 1234 5678"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email_referencia">Email (Opcional)</Label>
-                    <Input
-                      id="email_referencia"
-                      type="email"
-                      value={newReference.email_referencia}
-                      onChange={(e) => setNewReference({ ...newReference, email_referencia: e.target.value })}
-                      placeholder="referencia@empresa.com"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="comentario_referencia">Comentarios Adicionales (Opcional)</Label>
-                  <Textarea
-                    id="comentario_referencia"
-                    value={newReference.comentario_referencia}
-                    onChange={(e) => setNewReference({ ...newReference, comentario_referencia: e.target.value })}
-                    placeholder="Observaciones, comentarios o información adicional sobre la referencia"
-                    rows={3}
-                  />
-                </div>
-
-                <Button
-                  onClick={handleAddReference}
-                  disabled={
-                    !newReference.nombre_referencia ||
-                    !newReference.cargo_referencia ||
-                    !newReference.relacion_postulante_referencia ||
-                    !newReference.empresa_referencia
-                  }
-                  className="w-full"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar Referencia
+            {/* Add New Reference Forms */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Agregar Referencias Laborales</CardTitle>
+                <Button type="button" variant="outline" size="sm" onClick={addReferenceForm}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar Otra Referencia
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Existing References List */}
-            {selectedCandidate &&
-              workReferences[selectedCandidate.id] &&
-              workReferences[selectedCandidate.id].length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Referencias Registradas</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {workReferences[selectedCandidate.id].map((reference) => (
-                        <Card key={reference.id} className="border-l-4 border-l-blue-500">
-                          <CardContent className="pt-4">
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1 grid grid-cols-2 gap-4">
-                                <div>
-                                  <h4 className="font-semibold text-lg">{reference.nombre_referencia}</h4>
-                                  <p className="text-sm text-muted-foreground">{reference.cargo_referencia}</p>
-                                  <p className="text-sm text-muted-foreground">
-                                    <strong>Relación:</strong> {reference.relacion_postulante_referencia}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="font-medium">{reference.empresa_referencia}</p>
-                                  {reference.telefono_referencia && (
-                                    <p className="text-sm text-muted-foreground">
-                                      <Phone className="inline h-3 w-3 mr-1" />
-                                      {reference.telefono_referencia}
-                                    </p>
-                                  )}
-                                  {reference.email_referencia && (
-                                    <p className="text-sm text-muted-foreground">{reference.email_referencia}</p>
-                                  )}
-                                </div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteReference(selectedCandidate.id, reference.id)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            {reference.comentario_referencia && (
-                              <div className="mt-3 pt-3 border-t">
-                                <p className="text-sm text-muted-foreground">
-                                  <strong>Comentarios:</strong> {reference.comentario_referencia}
-                                </p>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {referenceForms.map((form, index) => {
+                const hasFormFields = !!(
+                  form.nombre_referencia?.trim() || 
+                  form.cargo_referencia?.trim() || 
+                  form.empresa_referencia?.trim() ||
+                  form.relacion_postulante_referencia?.trim() ||
+                  form.telefono_referencia?.trim() ||
+                  form.email_referencia?.trim() ||
+                  form.comentario_referencia?.trim()
+                )
+                const isExistingReference = !!form.referenceId
+                
+                // Lógica para mostrar el botón de descartar/eliminar:
+                // - Si es una referencia existente: siempre mostrar (se puede eliminar)
+                // - Si es una nueva referencia: mostrar si tiene campos completados O si hay más de un formulario
+                const showDiscardButton = isExistingReference 
+                  ? true 
+                  : (hasFormFields || referenceForms.length > 1)
+                
+                const isMarkedForDeletion = form.markedForDeletion === true
+                
+                return (
+                  <Card key={form.id} className={`${isExistingReference ? "border-l-4 border-l-blue-500" : ""} ${isMarkedForDeletion ? "opacity-50 bg-gray-100" : ""}`}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">
+                          {isMarkedForDeletion ? (
+                            <span className="text-destructive line-through">
+                              {isExistingReference ? `Referencia ${referenceForms.filter(f => f.referenceId).indexOf(form) + 1} (Existente) - Se eliminará al guardar` : `Nueva Referencia ${referenceForms.filter(f => !f.referenceId).indexOf(form) + 1} - Se eliminará al guardar`}
+                            </span>
+                          ) : (
+                            <>
+                              {isExistingReference ? `Referencia ${referenceForms.filter(f => f.referenceId).indexOf(form) + 1} (Existente)` : `Nueva Referencia ${referenceForms.filter(f => !f.referenceId).indexOf(form) + 1}`}
+                            </>
+                          )}
+                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          {isMarkedForDeletion ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // Deshacer la eliminación
+                                setReferenceForms(forms => 
+                                  forms.map(f => 
+                                    f.id === form.id 
+                                      ? { ...f, markedForDeletion: false }
+                                      : f
+                                  )
+                                )
+                              }}
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <RotateCcw className="mr-2 h-4 w-4" />
+                              Deshacer
+                            </Button>
+                          ) : showDiscardButton ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                if (isExistingReference && form.referenceId) {
+                                  // Si es una referencia existente, marcarla para eliminación
+                                  handleDeleteReference(selectedCandidate?.id || "", form.referenceId)
+                                } else {
+                                  // Si es una nueva referencia, solo remover el formulario
+                                  handleDiscardSingleReference(form.id)
+                                }
+                              }}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {isExistingReference ? "Eliminar" : "Descartar"}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className={`space-y-4 ${isMarkedForDeletion ? "pointer-events-none" : ""}`}>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor={`reference_${form.id}_nombre_referencia`}>
+                            Nombre de la Referencia <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            id={`reference_${form.id}_nombre_referencia`}
+                            value={form.nombre_referencia}
+                            onChange={(e) => updateReferenceForm(form.id, "nombre_referencia", e.target.value)}
+                            placeholder="Nombre completo de la referencia"
+                            maxLength={100}
+                            className={errors[`reference_${form.id}_nombre_referencia`] ? "border-destructive" : ""}
+                          />
+                          <ValidationErrorDisplay error={errors[`reference_${form.id}_nombre_referencia`]} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`reference_${form.id}_cargo_referencia`}>
+                            Cargo de la Referencia <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            id={`reference_${form.id}_cargo_referencia`}
+                            value={form.cargo_referencia}
+                            onChange={(e) => updateReferenceForm(form.id, "cargo_referencia", e.target.value)}
+                            placeholder="Cargo que ocupa la referencia"
+                            maxLength={100}
+                            className={errors[`reference_${form.id}_cargo_referencia`] ? "border-destructive" : ""}
+                          />
+                          <ValidationErrorDisplay error={errors[`reference_${form.id}_cargo_referencia`]} />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor={`reference_${form.id}_relacion_postulante_referencia`}>
+                            Relación con el Postulante (Opcional)
+                          </Label>
+                          <Input
+                            id={`reference_${form.id}_relacion_postulante_referencia`}
+                            value={form.relacion_postulante_referencia}
+                            onChange={(e) => updateReferenceForm(form.id, "relacion_postulante_referencia", e.target.value)}
+                            placeholder="Ej: Jefe directo, compañero de trabajo, etc."
+                            maxLength={300}
+                            className={errors[`reference_${form.id}_relacion_postulante_referencia`] ? "border-destructive" : ""}
+                          />
+                          <ValidationErrorDisplay error={errors[`reference_${form.id}_relacion_postulante_referencia`]} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`reference_${form.id}_empresa_referencia`}>
+                            Empresa <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            id={`reference_${form.id}_empresa_referencia`}
+                            value={form.empresa_referencia}
+                            onChange={(e) => updateReferenceForm(form.id, "empresa_referencia", e.target.value)}
+                            placeholder="Nombre de la empresa"
+                            maxLength={100}
+                            className={errors[`reference_${form.id}_empresa_referencia`] ? "border-destructive" : ""}
+                          />
+                          <ValidationErrorDisplay error={errors[`reference_${form.id}_empresa_referencia`]} />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor={`reference_${form.id}_telefono_referencia`}>Teléfono (Opcional)</Label>
+                          <Input
+                            id={`reference_${form.id}_telefono_referencia`}
+                            value={form.telefono_referencia}
+                            onChange={(e) => updateReferenceForm(form.id, "telefono_referencia", e.target.value)}
+                            placeholder="+56 9 1234 5678"
+                            maxLength={12}
+                            className={errors[`reference_${form.id}_telefono_referencia`] ? "border-destructive" : ""}
+                          />
+                          <ValidationErrorDisplay error={errors[`reference_${form.id}_telefono_referencia`]} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`reference_${form.id}_email_referencia`}>Email (Opcional)</Label>
+                          <Input
+                            id={`reference_${form.id}_email_referencia`}
+                            type="email"
+                            value={form.email_referencia}
+                            onChange={(e) => updateReferenceForm(form.id, "email_referencia", e.target.value)}
+                            placeholder="referencia@empresa.com"
+                            maxLength={256}
+                            className={errors[`reference_${form.id}_email_referencia`] ? "border-destructive" : ""}
+                          />
+                          <ValidationErrorDisplay error={errors[`reference_${form.id}_email_referencia`]} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`reference_${form.id}_comentario_referencia`}>Comentarios Adicionales (Opcional)</Label>
+                        <Textarea
+                          id={`reference_${form.id}_comentario_referencia`}
+                          value={form.comentario_referencia}
+                          onChange={(e) => updateReferenceForm(form.id, "comentario_referencia", e.target.value)}
+                          placeholder="Observaciones, comentarios o información adicional sobre la referencia"
+                          rows={3}
+                          maxLength={800}
+                          className={errors[`reference_${form.id}_comentario_referencia`] ? "border-destructive" : ""}
+                        />
+                        <div className="text-sm text-muted-foreground text-right">
+                          {(form.comentario_referencia || "").length}/800 caracteres
+                        </div>
+                        <ValidationErrorDisplay error={errors[`reference_${form.id}_comentario_referencia`]} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleAddReference}
+                disabled={isSavingReference}
+                className="w-full sm:w-auto"
+              >
+                {isSavingReference ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Guardar Referencias
+                  </>
+                )}
+              </Button>
+            </div>
+
           </div>
 
           <DialogFooter>

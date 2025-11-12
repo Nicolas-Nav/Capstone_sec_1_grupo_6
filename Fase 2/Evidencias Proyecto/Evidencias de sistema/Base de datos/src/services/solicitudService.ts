@@ -2221,5 +2221,191 @@ export class SolicitudService {
             throw new Error('Error al obtener procesos cerrados exitosos');
         }
     }
+
+    /**
+     * Obtener rendimiento por consultor
+     * Retorna procesos completados, tiempo promedio y eficiencia por consultor
+     */
+    static async getConsultantPerformance(): Promise<Array<{
+        consultant: string;
+        processesCompleted: number;
+        avgTimeToHire: number;
+        efficiency: number;
+    }>> {
+        try {
+            const queryResult = await sequelize.query(`
+                WITH procesos_cerrados AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cierre,
+                        s.rut_usuario,
+                        s.fecha_ingreso_solicitud,
+                        s.plazo_maximo_solicitud,
+                        u.nombre_usuario AS consultor
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    INNER JOIN solicitud s ON esh.id_solicitud = s.id_solicitud
+                    LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                    WHERE es.nombre_estado_solicitud = 'Cerrado'
+                      AND s.rut_usuario IS NOT NULL
+                      AND s.fecha_ingreso_solicitud IS NOT NULL
+                      AND esh.fecha_cambio_estado_solicitud IS NOT NULL
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                ),
+                tiempos_contratacion AS (
+                    SELECT
+                        pc.rut_usuario,
+                        pc.consultor,
+                        COUNT(*) AS procesos_completados,
+                        AVG(
+                            EXTRACT(EPOCH FROM (pc.fecha_cierre - pc.fecha_ingreso_solicitud)) / 86400
+                        ) AS tiempo_promedio
+                    FROM procesos_cerrados pc
+                    GROUP BY pc.rut_usuario, pc.consultor
+                ),
+                procesos_a_tiempo AS (
+                    SELECT
+                        pc.rut_usuario,
+                        COUNT(*) AS procesos_a_tiempo
+                    FROM procesos_cerrados pc
+                    WHERE pc.plazo_maximo_solicitud IS NOT NULL
+                      AND pc.fecha_cierre <= pc.plazo_maximo_solicitud
+                    GROUP BY pc.rut_usuario
+                )
+                SELECT
+                    tc.consultor,
+                    tc.procesos_completados::integer AS processes_completed,
+                    ROUND(tc.tiempo_promedio::numeric, 1) AS avg_time_to_hire,
+                    CASE
+                        WHEN tc.procesos_completados > 0 THEN
+                            ROUND(
+                                (COALESCE(pat.procesos_a_tiempo, 0)::numeric / tc.procesos_completados::numeric) * 100
+                            )
+                        ELSE 0
+                    END AS efficiency
+                FROM tiempos_contratacion tc
+                LEFT JOIN procesos_a_tiempo pat ON tc.rut_usuario = pat.rut_usuario
+                ORDER BY tc.procesos_completados DESC, efficiency DESC
+            `, {
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any) as any;
+
+            const results = Array.isArray(queryResult) ? queryResult : [];
+            
+            return results.map((row: any) => ({
+                consultant: row.consultor || 'Sin asignar',
+                processesCompleted: parseInt(row.processes_completed) || 0,
+                avgTimeToHire: parseFloat(row.avg_time_to_hire) || 0,
+                efficiency: parseInt(row.efficiency) || 0
+            }));
+        } catch (error: any) {
+            console.error('[ERROR] getConsultantPerformance:', error);
+            throw new Error('Error al obtener rendimiento por consultor');
+        }
+    }
+
+    /**
+     * Obtener cumplimiento de plazos por consultor (basado en hitos)
+     * Retorna hitos completados a tiempo vs retrasados por consultor
+     */
+    static async getConsultantCompletionStats(): Promise<Array<{
+        consultant: string;
+        completed: number;
+        onTime: number;
+        delayed: number;
+        completionRate: number;
+    }>> {
+        try {
+            const queryResult = await sequelize.query(`
+                SELECT
+                    COALESCE(u.nombre_usuario, 'Sin asignar') AS consultor,
+                    COUNT(*)::integer AS completed,
+                    COUNT(CASE WHEN hs.fecha_cumplimiento IS NOT NULL 
+                               AND hs.fecha_limite IS NOT NULL
+                               AND hs.fecha_cumplimiento <= hs.fecha_limite 
+                          THEN 1 END)::integer AS on_time,
+                    COUNT(CASE WHEN (
+                               (hs.fecha_cumplimiento IS NOT NULL AND hs.fecha_limite IS NOT NULL AND hs.fecha_cumplimiento > hs.fecha_limite)
+                               OR (hs.fecha_limite IS NOT NULL AND hs.fecha_limite < CURRENT_DATE AND hs.fecha_cumplimiento IS NULL)
+                          ) THEN 1 END)::integer AS delayed,
+                    CASE
+                        WHEN COUNT(*) > 0 THEN
+                            ROUND(
+                                (COUNT(CASE WHEN hs.fecha_cumplimiento IS NOT NULL 
+                                           AND hs.fecha_limite IS NOT NULL
+                                           AND hs.fecha_cumplimiento <= hs.fecha_limite 
+                                      THEN 1 END)::numeric / COUNT(*)::numeric) * 100
+                            )
+                        ELSE 0
+                    END AS completion_rate
+                FROM hito_solicitud hs
+                INNER JOIN solicitud s ON hs.id_solicitud = s.id_solicitud
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                WHERE hs.id_solicitud IS NOT NULL
+                  AND hs.fecha_limite IS NOT NULL
+                  AND s.rut_usuario IS NOT NULL
+                GROUP BY u.nombre_usuario
+                ORDER BY completed DESC
+            `, {
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any) as any;
+
+            const results = Array.isArray(queryResult) ? queryResult : [];
+            
+            return results.map((row: any) => ({
+                consultant: row.consultor || 'Sin asignar',
+                completed: parseInt(row.completed) || 0,
+                onTime: parseInt(row.on_time) || 0,
+                delayed: parseInt(row.delayed) || 0,
+                completionRate: parseInt(row.completion_rate) || 0
+            }));
+        } catch (error: any) {
+            console.error('[ERROR] getConsultantCompletionStats:', error);
+            throw new Error('Error al obtener estadísticas de cumplimiento');
+        }
+    }
+
+    /**
+     * Obtener retrasos (hitos vencidos) por consultor
+     * Retorna cantidad de hitos vencidos por consultor
+     * Un hito está vencido si: fecha_limite < CURRENT_DATE AND fecha_cumplimiento IS NULL
+     */
+    static async getConsultantOverdueHitos(): Promise<Record<string, number>> {
+        try {
+            const queryResult = await sequelize.query(`
+                SELECT
+                    COALESCE(u.nombre_usuario, 'Sin asignar') AS consultor,
+                    COUNT(*)::integer AS vencidos
+                FROM hito_solicitud hs
+                INNER JOIN solicitud s ON hs.id_solicitud = s.id_solicitud
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                WHERE hs.fecha_limite IS NOT NULL
+                  AND hs.fecha_limite < CURRENT_DATE
+                  AND hs.fecha_cumplimiento IS NULL
+                  AND hs.id_solicitud IS NOT NULL
+                  AND s.rut_usuario IS NOT NULL
+                GROUP BY u.nombre_usuario
+                ORDER BY vencidos DESC
+            `, {
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any) as any;
+
+            const results = Array.isArray(queryResult) ? queryResult : [];
+            const overdueHitos: Record<string, number> = {};
+            
+            results.forEach((row: any) => {
+                const consultor = row.consultor || 'Sin asignar';
+                overdueHitos[consultor] = parseInt(row.vencidos) || 0;
+            });
+
+            return overdueHitos;
+        } catch (error: any) {
+            console.error('[ERROR] getConsultantOverdueHitos:', error);
+            throw new Error('Error al obtener hitos vencidos por consultor');
+        }
+    }
 }
 

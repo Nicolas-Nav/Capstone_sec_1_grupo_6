@@ -153,6 +153,23 @@ export default function ReportesPage() {
   const [processOverview, setProcessOverview] = useState<ProcessOverviewData | null>(null)
   const [loadingProcessOverview, setLoadingProcessOverview] = useState(true)
   const [currentProcessesPage, setCurrentProcessesPage] = useState(1)
+  const [performanceData, setPerformanceData] = useState<Array<{
+    consultant: string;
+    processesCompleted: number;
+    avgTimeToHire: number;
+    efficiency: number;
+  }>>([])
+  const [loadingPerformance, setLoadingPerformance] = useState(true)
+  const [completionStats, setCompletionStats] = useState<Array<{
+    consultant: string;
+    completed: number;
+    onTime: number;
+    delayed: number;
+    completionRate: number;
+  }>>([])
+  const [loadingCompletion, setLoadingCompletion] = useState(true)
+  const [overdueHitos, setOverdueHitos] = useState<Record<string, number>>({})
+  const [loadingOverdue, setLoadingOverdue] = useState(true)
   const [closedSuccessfulProcesses, setClosedSuccessfulProcesses] = useState<
     Array<{
       id_solicitud: number
@@ -240,7 +257,7 @@ export default function ReportesPage() {
         const response = await solicitudService.getProcessesByServiceType()
         if (response.success && response.data) {
           setServiceTypeData(response.data as Array<{ service: string; count: number; percentage: number }>)
-        } else {
+    } else {
           setServiceTypeData([])
         }
       } catch (error) {
@@ -435,9 +452,82 @@ export default function ReportesPage() {
     loadClosedSuccessfulProcesses()
   }, [closedProcessesYear, closedProcessesMonth, closedProcessesWeek, selectedClosedProcessesWeekOption, closedProcessesWeekOptions, closedProcessesTimePeriod])
 
-  const overdueHitos: Record<string, number> = {}
-  const completionStats: Array<any> = []
-  const performanceData: Array<any> = []
+  // Cargar datos de rendimiento por consultor
+  useEffect(() => {
+    const loadPerformanceData = async () => {
+      try {
+        setLoadingPerformance(true)
+        const response = await solicitudService.getConsultantPerformance()
+        if (response.success && response.data) {
+          setPerformanceData(response.data as Array<{
+            consultant: string;
+            processesCompleted: number;
+            avgTimeToHire: number;
+            efficiency: number;
+          }>)
+        } else {
+          setPerformanceData([])
+        }
+      } catch (error) {
+        console.error("Error al cargar rendimiento por consultor:", error)
+        setPerformanceData([])
+      } finally {
+        setLoadingPerformance(false)
+      }
+    }
+
+    loadPerformanceData()
+  }, [])
+
+  // Cargar estadísticas de cumplimiento
+  useEffect(() => {
+    const loadCompletionStats = async () => {
+      try {
+        setLoadingCompletion(true)
+        const response = await solicitudService.getConsultantCompletionStats()
+        if (response.success && response.data) {
+          setCompletionStats(response.data as Array<{
+            consultant: string;
+            completed: number;
+            onTime: number;
+            delayed: number;
+            completionRate: number;
+          }>)
+        } else {
+          setCompletionStats([])
+        }
+      } catch (error) {
+        console.error("Error al cargar estadísticas de cumplimiento:", error)
+        setCompletionStats([])
+      } finally {
+        setLoadingCompletion(false)
+      }
+    }
+
+    loadCompletionStats()
+  }, [])
+
+  // Cargar hitos vencidos por consultor
+  useEffect(() => {
+    const loadOverdueHitos = async () => {
+      try {
+        setLoadingOverdue(true)
+        const response = await solicitudService.getConsultantOverdueHitos()
+        if (response.success && response.data) {
+          setOverdueHitos(response.data as Record<string, number>)
+        } else {
+          setOverdueHitos({})
+        }
+      } catch (error) {
+        console.error("Error al cargar hitos vencidos:", error)
+        setOverdueHitos({})
+      } finally {
+        setLoadingOverdue(false)
+      }
+    }
+
+    loadOverdueHitos()
+  }, [])
 
   // Colores para los estados
   const statusColors: Record<string, string> = {
@@ -517,26 +607,6 @@ export default function ReportesPage() {
     name,
     procesos: count,
   }))
-
-  const overdueData = Object.entries(overdueHitos).map(([name, count]) => ({
-    name,
-    vencidos: count,
-  }))
-
-  const completionData = completionStats.map((stat) => ({
-    name: stat.consultant,
-    completados: stat.completed,
-    aTiempo: stat.onTime,
-    retrasados: stat.delayed,
-    porcentaje: stat.completionRate,
-  }))
-
-  const timeToHireByService = [
-    { service: "Proceso Completo", days: 45, target: 60 },
-    { service: "Long List", days: 25, target: 30 },
-    { service: "Targeted Recruitment", days: 35, target: 45 },
-    { service: "Evaluación Psicolaboral", days: 15, target: 20 },
-  ]
 
   // Usar datos reales de la API para las estadísticas
   const avgTimeToHire = processStats.avgTimeToHire || 0
@@ -804,44 +874,44 @@ export default function ReportesPage() {
                 </div>
 
                 {timePeriod === "month" && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Mes</label>
-                    <Select
-                      value={selectedMonth.toString()}
-                      onValueChange={(value) => {
-                        setSelectedMonth(Number.parseInt(value))
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {monthNames.map((month, index) => (
-                          <SelectItem key={index} value={index.toString()}>
-                            {month}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Mes</label>
+                  <Select
+                    value={selectedMonth.toString()}
+                    onValueChange={(value) => {
+                      setSelectedMonth(Number.parseInt(value))
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {monthNames.map((month, index) => (
+                        <SelectItem key={index} value={index.toString()}>
+                          {month}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 )}
 
                 {timePeriod === "week" && (
                   <div className="space-y-2 md:col-span-2 lg:col-span-2">
-                    <label className="text-sm font-medium">Semana</label>
+                  <label className="text-sm font-medium">Semana</label>
                     <Select value={selectedWeek} onValueChange={(value) => setSelectedWeek(value)}>
-                      <SelectTrigger>
+                    <SelectTrigger>
                         <SelectValue placeholder="Selecciona una semana" />
-                      </SelectTrigger>
-                      <SelectContent>
+                    </SelectTrigger>
+                    <SelectContent>
                         {weekOptions.map((option) => (
                           <SelectItem key={option.id} value={option.id}>
                             {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 )}
               </div>
             </CardContent>
@@ -902,12 +972,12 @@ export default function ReportesPage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
+          <Card>
+            <CardHeader>
                 <CardTitle>Tiempo Promedio por Servicio</CardTitle>
                 <CardDescription>Comparación entre procesos Hunting y Proceso Completo</CardDescription>
-              </CardHeader>
-              <CardContent>
+            </CardHeader>
+            <CardContent>
                 {loadingAverageTime ? (
                   <div className="flex items-center justify-center h-[300px]">
                     <div className="text-center">
@@ -935,8 +1005,8 @@ export default function ReportesPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 )}
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
 
             <Card>
               <CardHeader>
@@ -956,7 +1026,7 @@ export default function ReportesPage() {
                     <p className="text-sm text-muted-foreground">No hay datos para el período seleccionado</p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={processStatusData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="status" />
@@ -968,18 +1038,18 @@ export default function ReportesPage() {
                         ))}
                       </Bar>
                     </BarChart>
-                  </ResponsiveContainer>
+                </ResponsiveContainer>
                 )}
               </CardContent>
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
+            <Card>
+              <CardHeader>
               <CardTitle>Procesos con Urgencia</CardTitle>
               <CardDescription>Basado en el plazo máximo de cierre definido para cada proceso</CardDescription>
-            </CardHeader>
-            <CardContent>
+              </CardHeader>
+              <CardContent>
               {loadingProcessOverview ? (
                 <div className="flex items-center justify-center h-[300px]">
                   <div className="text-center">
@@ -989,15 +1059,15 @@ export default function ReportesPage() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={urgencyChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
+                    <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="label" />
                       <YAxis allowDecimals={false} />
                       <Tooltip formatter={(value: number, name) => [`${value} procesos`, name]} />
                       <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="#dc2626" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  </BarChart>
+                </ResponsiveContainer>
 
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="border rounded-md p-4">
@@ -1106,8 +1176,8 @@ export default function ReportesPage() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
           <Card>
             <CardHeader>
@@ -1130,19 +1200,19 @@ export default function ReportesPage() {
                 </div>
               ) : (
                 <>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Posición</TableHead>
-                        <TableHead>Tipo de Proceso</TableHead>
-                        <TableHead>Consultor</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Fecha Inicio</TableHead>
-                        <TableHead>Días Transcurridos</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Posición</TableHead>
+                      <TableHead>Tipo de Proceso</TableHead>
+                      <TableHead>Consultor</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Fecha Inicio</TableHead>
+                      <TableHead>Días Transcurridos</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                       {paginatedProcessesInProgress.map((process) => {
                         const startDate = process.startDate ? new Date(process.startDate) : null
                         const daysSinceStart =
@@ -1150,41 +1220,41 @@ export default function ReportesPage() {
                             ? Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
                             : 0
 
-                        return (
-                          <TableRow key={process.id}>
-                            <TableCell className="font-medium">{process.client}</TableCell>
-                            <TableCell>{process.position}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs">
+                      return (
+                        <TableRow key={process.id}>
+                          <TableCell className="font-medium">{process.client}</TableCell>
+                          <TableCell>{process.position}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
                                 {process.serviceName}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>{process.consultant}</TableCell>
-                            <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={
-                                  process.status === "En Progreso"
-                                    ? "bg-blue-100 text-blue-800 border-blue-300"
-                                    : process.status === "Iniciado"
-                                      ? "bg-cyan-100 text-cyan-800 border-cyan-300"
-                                      : "bg-purple-100 text-purple-800 border-purple-300"
-                                }
-                              >
-                                {process.status}
-                              </Badge>
-                            </TableCell>
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{process.consultant}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={
+                                process.status === "En Progreso"
+                                  ? "bg-blue-100 text-blue-800 border-blue-300"
+                                  : process.status === "Iniciado"
+                                    ? "bg-cyan-100 text-cyan-800 border-cyan-300"
+                                    : "bg-purple-100 text-purple-800 border-purple-300"
+                              }
+                            >
+                              {process.status}
+                            </Badge>
+                          </TableCell>
                             <TableCell>{startDate ? startDate.toLocaleDateString() : "Sin fecha"}</TableCell>
-                            <TableCell>
-                              <span className={daysSinceStart > 60 ? "text-red-600 font-medium" : ""}>
-                                {daysSinceStart} días
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
+                          <TableCell>
+                            <span className={daysSinceStart > 60 ? "text-red-600 font-medium" : ""}>
+                              {daysSinceStart} días
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
                   {totalProcessesPages > 1 && (
                     <div className="flex items-center justify-between mt-4 pt-4 border-t">
                       <div className="text-sm text-muted-foreground">
@@ -1381,25 +1451,6 @@ export default function ReportesPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Tiempo de Contratación vs Objetivo por Tipo de Servicio</CardTitle>
-              <CardDescription>Comparación de tiempos reales vs objetivos por tipo de proceso</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={timeToHireByService}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="service" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="days" fill="#00BCD4" name="Días Reales" />
-                  <Bar dataKey="target" fill="#4b5563" name="Objetivo" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle>Fuentes de Candidatos</CardTitle>
               <CardDescription>Efectividad por canal de reclutamiento</CardDescription>
             </CardHeader>
@@ -1484,17 +1535,29 @@ export default function ReportesPage() {
               <CardDescription>Métricas de desempeño individual</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Consultor</TableHead>
-                    <TableHead>Procesos Completados</TableHead>
-                    <TableHead>Tiempo Promedio</TableHead>
-                    <TableHead>Eficiencia</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {performanceData.map((consultant) => (
+              {loadingPerformance ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                  </div>
+                </div>
+              ) : performanceData.length === 0 ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <p className="text-sm text-muted-foreground">No hay datos de rendimiento disponibles</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Consultor</TableHead>
+                      <TableHead>Procesos Completados</TableHead>
+                      <TableHead>Tiempo Promedio</TableHead>
+                      <TableHead>Eficiencia</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {performanceData.map((consultant) => (
                     <TableRow key={consultant.consultant}>
                       <TableCell className="font-medium">{consultant.consultant}</TableCell>
                       <TableCell>{consultant.processesCompleted}</TableCell>
@@ -1508,9 +1571,10 @@ export default function ReportesPage() {
                         </Badge>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
 
@@ -1521,16 +1585,33 @@ export default function ReportesPage() {
                 <CardDescription>Análisis detallado por consultor</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={completionData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="aTiempo" fill="#10b981" name="A Tiempo" />
-                    <Bar dataKey="retrasados" fill="#dc2626" name="Retrasados" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {loadingCompletion ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : completionStats.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-sm text-muted-foreground">No hay datos de cumplimiento disponibles</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={completionStats.map((stat) => ({
+                      name: stat.consultant,
+                      aTiempo: stat.onTime,
+                      retrasados: stat.delayed,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="aTiempo" fill="#10b981" name="A Tiempo" />
+                      <Bar dataKey="retrasados" fill="#dc2626" name="Retrasados" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
@@ -1540,15 +1621,31 @@ export default function ReportesPage() {
                 <CardDescription>Hitos vencidos que requieren atención</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={overdueData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="vencidos" fill="#dc2626" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {loadingOverdue ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : Object.keys(overdueHitos).length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-sm text-muted-foreground">No hay hitos vencidos</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={Object.entries(overdueHitos).map(([name, vencidos]) => ({
+                      name,
+                      vencidos,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="vencidos" fill="#dc2626" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
           </div>

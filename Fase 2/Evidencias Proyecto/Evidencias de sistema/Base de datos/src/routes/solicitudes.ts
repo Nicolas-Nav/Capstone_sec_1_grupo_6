@@ -34,6 +34,9 @@ router.get('/reportes/distribucion-estados', SolicitudController.getProcessStatu
 router.get('/reportes/tiempo-promedio-servicio', (SolicitudController as any).getAverageProcessTimeByService);
 router.get('/reportes/overview', (SolicitudController as any).getProcessOverview);
 router.get('/reportes/procesos-cerrados-exitosos', (SolicitudController as any).getClosedSuccessfulProcesses);
+router.get('/reportes/rendimiento-consultor', (SolicitudController as any).getConsultantPerformance);
+router.get('/reportes/cumplimiento-consultor', (SolicitudController as any).getConsultantCompletionStats);
+router.get('/reportes/retrasos-consultor', (SolicitudController as any).getConsultantOverdueHitos);
 
 // Obtener una solicitud específica
 router.get('/:id(\\d+)', SolicitudController.getById);

@@ -564,6 +564,51 @@ export class SolicitudController {
         }
     }
 
+    /**
+     * GET /api/solicitudes/reportes/rendimiento-consultor
+     * Obtener rendimiento por consultor (procesos completados, tiempo promedio, eficiencia)
+     */
+    static async getConsultantPerformance(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getConsultantPerformance();
+            Logger.info(`Rendimiento por consultor obtenido: ${resultado.length} consultores`);
+            return sendSuccess(res, resultado, 'Rendimiento por consultor obtenido exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener rendimiento por consultor:', error);
+            return sendError(res, 'Error al obtener rendimiento por consultor', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/cumplimiento-consultor
+     * Obtener estadísticas de cumplimiento de plazos por consultor
+     */
+    static async getConsultantCompletionStats(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getConsultantCompletionStats();
+            Logger.info(`Estadísticas de cumplimiento obtenidas: ${resultado.length} consultores`);
+            return sendSuccess(res, resultado, 'Estadísticas de cumplimiento obtenidas exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener estadísticas de cumplimiento:', error);
+            return sendError(res, 'Error al obtener estadísticas de cumplimiento', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/retrasos-consultor
+     * Obtener hitos vencidos por consultor
+     */
+    static async getConsultantOverdueHitos(req: Request, res: Response): Promise<Response> {
+        try {
+            const resultado = await SolicitudService.getConsultantOverdueHitos();
+            Logger.info(`Hitos vencidos por consultor obtenidos: ${Object.keys(resultado).length} consultores`);
+            return sendSuccess(res, resultado, 'Hitos vencidos por consultor obtenidos exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener hitos vencidos por consultor:', error);
+            return sendError(res, 'Error al obtener hitos vencidos por consultor', 500);
+        }
+    }
+
 }
 
    

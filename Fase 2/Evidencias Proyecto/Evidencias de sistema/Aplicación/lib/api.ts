@@ -466,6 +466,39 @@ export const solicitudService = {
     return apiRequest(`/api/solicitudes/reportes/procesos-cerrados-exitosos?${params.toString()}`);
   },
 
+  async getConsultantPerformance(): Promise<
+    ApiResponse<
+      Array<{
+        consultant: string;
+        processesCompleted: number;
+        avgTimeToHire: number;
+        efficiency: number;
+      }>
+    >
+  > {
+    return apiRequest(`/api/solicitudes/reportes/rendimiento-consultor`);
+  },
+
+  async getConsultantCompletionStats(): Promise<
+    ApiResponse<
+      Array<{
+        consultant: string;
+        completed: number;
+        onTime: number;
+        delayed: number;
+        completionRate: number;
+      }>
+    >
+  > {
+    return apiRequest(`/api/solicitudes/reportes/cumplimiento-consultor`);
+  },
+
+  async getConsultantOverdueHitos(): Promise<
+    ApiResponse<Record<string, number>>
+  > {
+    return apiRequest(`/api/solicitudes/reportes/retrasos-consultor`);
+  },
+
   // Cambiar etapa de solicitud
   async cambiarEtapa(id: number, id_etapa: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/etapa`, {

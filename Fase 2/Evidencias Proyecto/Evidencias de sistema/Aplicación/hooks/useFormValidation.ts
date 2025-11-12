@@ -418,6 +418,37 @@ export const validationSchemas = {
       maxLength: 1000,
       message: 'Los comentarios no pueden exceder 1000 caracteres'
     }
+  },
+
+  // Validaciones para formulario de entrevista (Módulo 4)
+  module4InterviewForm: {
+    interview_date: {
+      required: false,
+      custom: (value: string) => {
+        // Es opcional, pero si se proporciona, no puede ser después del día/hora actual
+        if (!value || !value.trim()) {
+          return null // Campo opcional, no hay error si está vacío
+        }
+        
+        const selectedDateTime = new Date(value)
+        const now = new Date()
+        
+        if (selectedDateTime > now) {
+          return 'La fecha de entrevista no puede ser después del día y hora actual'
+        }
+        
+        return null
+      }
+    }
+  },
+
+  // Validaciones para formulario de test (Módulo 4)
+  module4TestForm: {
+    result: {
+      required: false,
+      maxLength: 300,
+      message: 'El resultado no puede exceder 300 caracteres'
+    }
   }
 }
 

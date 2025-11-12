@@ -25,6 +25,8 @@ import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM
 import { formatDate, processStatusLabels, getStatusColor } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { ProcessBlocked } from "@/components/consultor/ProcessBlocked"
+import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
+import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 import {
   Plus,
   ChevronDown,
@@ -72,6 +74,7 @@ interface ProcessModule4Props {
 
 export function ProcessModule4({ process }: ProcessModule4Props) {
   const { toast } = useToast()
+  const { errors, validateField, validateAllFields, clearAllErrors } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAdvancingToModule5, setIsAdvancingToModule5] = useState(false)
@@ -520,6 +523,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleTestChange = (index: number, field: "test_name" | "result", value: string) => {
     const updatedTests = testForm.tests.map((test, i) => (i === index ? { ...test, [field]: value } : test))
     setTestForm({ ...testForm, tests: updatedTests })
+    
+    // Validar el campo resultado si se está modificando
+    if (field === "result") {
+      const testData = updatedTests[index]
+      validateField(`test_result_${index}`, value, validationSchemas.module4TestForm, testData)
+    }
   }
 
 
@@ -548,6 +557,9 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       })
     }
     
+    // Limpiar errores previos
+    clearAllErrors()
+    
     setShowInterviewDialog(true)
   }
 
@@ -559,11 +571,26 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       tests: [{ test_name: "", result: "" }],
     })
     
+    // Limpiar errores previos
+    clearAllErrors()
+    
     setShowTestDialog(true)
   }
 
   const handleSaveInterview = async () => {
     if (!selectedCandidate) return
+    
+    // Validar todos los campos usando useFormValidation
+    const isValid = validateAllFields(interviewForm, validationSchemas.module4InterviewForm)
+    
+    if (!isValid) {
+      toast({
+        title: "Error de validación",
+        description: "Por favor, corrija los errores en el formulario",
+        variant: "destructive",
+      })
+      return
+    }
     
     setIsSavingInterview(true)
     try {
@@ -626,6 +653,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         interview_status: "programada",
     })
     setSelectedCandidate(null)
+    clearAllErrors()
       
       toast({
         title: "¡Éxito!",
@@ -646,6 +674,26 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
   const handleSaveTest = async () => {
     if (!selectedCandidate) return
+
+    // Validar todos los campos de resultado de los tests
+    let hasErrors = false
+    testForm.tests.forEach((test, index) => {
+      if (test.result) {
+        const isValid = validateAllFields({ result: test.result }, validationSchemas.module4TestForm)
+        if (!isValid) {
+          hasErrors = true
+        }
+      }
+    })
+
+    if (hasErrors) {
+      toast({
+        title: "Error de validación",
+        description: "Por favor, corrija los errores en el formulario",
+        variant: "destructive",
+      })
+      return
+    }
     
     try {
       const { evaluacionPsicolaboralService } = await import('@/lib/api')
@@ -698,6 +746,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         tests: [{ test_name: "", result: "" }],
       })
       setSelectedCandidate(null)
+      clearAllErrors()
     } catch (error) {
       console.error('Error al guardar tests:', error)
       toast({
@@ -721,6 +770,9 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         result: test.result 
       }],
     })
+    
+    // Limpiar errores previos
+    clearAllErrors()
     
     setShowEditTestDialog(true)
   }
@@ -798,6 +850,20 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
   const handleSaveEditTest = async () => {
     if (!selectedCandidate || !editingTest) return
+
+    // Validar el campo de resultado
+    const test = testForm.tests[0]
+    if (test.result) {
+      const isValid = validateAllFields({ result: test.result }, validationSchemas.module4TestForm)
+      if (!isValid) {
+        toast({
+          title: "Error de validación",
+          description: "Por favor, corrija los errores en el formulario",
+          variant: "destructive",
+        })
+        return
+      }
+    }
     
     try {
       const { evaluacionPsicolaboralService } = await import('@/lib/api')
@@ -854,6 +920,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         tests: [{ test_name: "", result: "" }],
       })
       setSelectedCandidate(null)
+      clearAllErrors()
     } catch (error) {
       console.error('Error al actualizar test:', error)
       toast({
@@ -1818,8 +1885,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                   id="interview_date"
                   type="datetime-local"
                   value={interviewForm.interview_date}
-                  onChange={(e) => setInterviewForm({ ...interviewForm, interview_date: e.target.value })}
+                  onChange={(e) => {
+                    setInterviewForm({ ...interviewForm, interview_date: e.target.value })
+                    validateField('interview_date', e.target.value, validationSchemas.module4InterviewForm, { ...interviewForm, interview_date: e.target.value })
+                  }}
+                  max={new Date().toISOString().slice(0, 16)}
+                  className={errors.interview_date ? "border-destructive" : ""}
                 />
+                <ValidationErrorDisplay error={errors.interview_date} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="interview_status">Estado de la Entrevista</Label>
@@ -1846,7 +1919,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={() => setShowInterviewDialog(false)}
+              onClick={() => {
+                setShowInterviewDialog(false)
+                clearAllErrors()
+              }}
               disabled={isSavingInterview}
             >
               Cancelar
@@ -1920,8 +1996,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                       onChange={(e) => handleTestChange(index, "result", e.target.value)}
                       placeholder="Ej: Alto dominio en habilidades de liderazgo, muestra capacidad para..."
                       rows={4}
-                      className="min-h-[100px]"
+                      maxLength={300}
+                      className={`min-h-[100px] ${errors[`test_result_${index}`] ? "border-destructive" : ""}`}
                     />
+                    <div className="text-sm text-muted-foreground text-right">
+                      {(test.result || "").length}/300 caracteres
+                    </div>
+                    <ValidationErrorDisplay error={errors[`test_result_${index}`]} />
                   </div>
                 </div>
               ))}
@@ -1929,7 +2010,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTestDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowTestDialog(false)
+              clearAllErrors()
+            }}>
               Cancelar
             </Button>
             <Button onClick={handleSaveTest}>Guardar</Button>
@@ -1986,15 +2070,23 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                     onChange={(e) => handleTestChange(index, "result", e.target.value)}
                     placeholder="Ingresa el resultado del test"
                     rows={4}
-                    className="min-h-[100px]"
+                    maxLength={300}
+                    className={`min-h-[100px] ${errors[`test_result_${index}`] ? "border-destructive" : ""}`}
                   />
+                  <div className="text-sm text-muted-foreground text-right">
+                    {(test.result || "").length}/300 caracteres
+                  </div>
+                  <ValidationErrorDisplay error={errors[`test_result_${index}`]} />
                 </div>
               </div>
             ))}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditTestDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowEditTestDialog(false)
+              clearAllErrors()
+            }}>
               Cancelar
             </Button>
             <Button onClick={handleSaveEditTest}>Actualizar</Button>

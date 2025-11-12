@@ -1,6 +1,7 @@
 import { Transaction, Sequelize } from 'sequelize';
 import sequelize from '@/config/database';
-import { EvaluacionPsicolaboral, EvaluacionTest, TestPsicolaboral, Postulacion } from '@/models';
+import { EvaluacionPsicolaboral, EvaluacionTest, TestPsicolaboral, Postulacion, Solicitud, TipoServicio } from '@/models';
+import { HitoHelperService } from './hitoHelperService';
 
 /**
  * Función para convertir fecha a string SQL sin zona horaria
@@ -150,8 +151,18 @@ export class EvaluacionPsicolaboralService {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            // Verificar que la postulación existe
-            const postulacion = await Postulacion.findByPk(data.id_postulacion);
+            // Verificar que la postulación existe y obtener la solicitud con su tipo de servicio
+            const postulacion = await Postulacion.findByPk(data.id_postulacion, {
+                include: [{
+                    model: Solicitud,
+                    as: 'solicitud',
+                    include: [{
+                        model: TipoServicio,
+                        as: 'tipoServicio'
+                    }]
+                }],
+                transaction
+            });
             if (!postulacion) {
                 throw new Error('Postulación no encontrada');
             }
@@ -194,6 +205,25 @@ export class EvaluacionPsicolaboralService {
                 }
             }
 
+            // Si se agregó una fecha de entrevista/test, marcar el Hito 1 (Agendar entrevista/test)
+            if (fechaEvaluacionSQL) {
+                const solicitud = (postulacion as any).get('solicitud') as any;
+                if (solicitud) {
+                    const tipoServicio = solicitud.get('tipoServicio') as any;
+                    if (tipoServicio) {
+                        const codigoServicio = tipoServicio.codigo_servicio;
+                        // Solo marcar para servicios de evaluación/test (ES, AP, TS)
+                        if (['ES', 'AP', 'TS'].includes(codigoServicio)) {
+                            await HitoHelperService.marcarHitoAgendarEntrevista(
+                                solicitud.id_solicitud,
+                                codigoServicio,
+                                transaction
+                            );
+                        }
+                    }
+                }
+            }
+
             await transaction.commit();
             
             // Retornar la evaluación con sus tests
@@ -217,10 +247,28 @@ export class EvaluacionPsicolaboralService {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            const evaluacion = await EvaluacionPsicolaboral.findByPk(id);
+            const evaluacion = await EvaluacionPsicolaboral.findByPk(id, {
+                include: [{
+                    model: Postulacion,
+                    as: 'postulacion',
+                    include: [{
+                        model: Solicitud,
+                        as: 'solicitud',
+                        include: [{
+                            model: TipoServicio,
+                            as: 'tipoServicio'
+                        }]
+                    }]
+                }],
+                transaction
+            });
             if (!evaluacion) {
                 throw new Error('Evaluación no encontrada');
             }
+
+            // Verificar si estamos agregando una fecha de entrevista por primera vez
+            const fechaPreviaExiste = evaluacion.fecha_evaluacion != null;
+            let marcarHito = false;
 
             // Formatear fecha_evaluacion como string SQL sin zona horaria
             const updateData: any = { ...data };
@@ -229,12 +277,38 @@ export class EvaluacionPsicolaboralService {
                 if (fechaEvaluacionSQL) {
                     // Usar literal SQL para evitar conversión UTC
                     updateData.fecha_evaluacion = Sequelize.literal(`'${fechaEvaluacionSQL}'::timestamp`);
+                    // Si no había fecha previa y ahora sí, marcar hito
+                    if (!fechaPreviaExiste) {
+                        marcarHito = true;
+                    }
                 } else {
                     updateData.fecha_evaluacion = null;
                 }
             }
 
             await evaluacion.update(updateData, { transaction });
+
+            // Marcar el Hito 1 (Agendar entrevista/test) si se agregó la fecha por primera vez
+            if (marcarHito) {
+                const postulacion = (evaluacion as any).get('postulacion') as any;
+                if (postulacion) {
+                    const solicitud = postulacion.get('solicitud') as any;
+                    if (solicitud) {
+                        const tipoServicio = solicitud.get('tipoServicio') as any;
+                        if (tipoServicio) {
+                            const codigoServicio = tipoServicio.codigo_servicio;
+                            // Solo marcar para servicios de evaluación/test (ES, AP, TS)
+                            if (['ES', 'AP', 'TS'].includes(codigoServicio)) {
+                                await HitoHelperService.marcarHitoAgendarEntrevista(
+                                    solicitud.id_solicitud,
+                                    codigoServicio,
+                                    transaction
+                                );
+                            }
+                        }
+                    }
+                }
+            }
 
             await transaction.commit();
             return evaluacion;

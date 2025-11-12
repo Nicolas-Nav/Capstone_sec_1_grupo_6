@@ -1,6 +1,7 @@
 import { Transaction } from 'sequelize';
 import sequelize from '@/config/database';
 import { Publicacion, PortalPostulacion, Solicitud } from '@/models';
+import { HitoHelperService } from '@/services/hitoHelperService';
 
 /**
  * Servicio para gestión de Publicaciones
@@ -116,6 +117,9 @@ export class PublicacionService {
                 estado_publicacion,
                 fecha_publicacion
             }, { transaction });
+
+            // Marcar el Hito 1 "Publicación de cargo" como cumplido
+            await HitoHelperService.marcarHitoPublicacion(id_solicitud, transaction);
 
             await transaction.commit();
 

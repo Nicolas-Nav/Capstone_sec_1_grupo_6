@@ -17,6 +17,7 @@ import {
     EstadoClientePostulacionM5
 } from '@/models';
 import { HitoSolicitudService } from './hitoSolicitudService';
+import { HitoHelperService } from './hitoHelperService';
 
 /**
  * Servicio para gestión de Solicitudes
@@ -753,7 +754,10 @@ export class SolicitudService {
                 await setDatabaseUser(usuarioRut, transaction);
             }
 
-            const solicitud = await Solicitud.findByPk(id, { transaction });
+            const solicitud = await Solicitud.findByPk(id, {
+                include: [{ model: TipoServicio, as: 'tipoServicio' }],
+                transaction
+            });
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
             }
@@ -763,7 +767,24 @@ export class SolicitudService {
                 throw new Error('Etapa no encontrada');
             }
 
+            // Guardar el id_etapa anterior
+            const idEtapaAnterior = solicitud.id_etapa_solicitud;
+
+            // Actualizar la etapa
             await solicitud.update({ id_etapa_solicitud: id_etapa }, { transaction });
+
+            // Marcar cumplimiento de hitos según el cambio de etapa
+            const tipoServicio = (solicitud as any).get('tipoServicio') as any;
+            if (tipoServicio && idEtapaAnterior) {
+                await HitoHelperService.marcarHitoPorCambioEtapa(
+                    id,
+                    idEtapaAnterior,
+                    id_etapa,
+                    tipoServicio.codigo_servicio,
+                    transaction
+                );
+            }
+
             await transaction.commit();
 
             return { id, etapa: etapa.nombre_etapa };
@@ -1082,7 +1103,10 @@ export class SolicitudService {
                 await setDatabaseUser(usuarioRut, transaction);
             }
             
-            const solicitud = await Solicitud.findByPk(id);
+            const solicitud = await Solicitud.findByPk(id, {
+                include: [{ model: TipoServicio, as: 'tipoServicio' }],
+                transaction
+            });
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
             }
@@ -1099,6 +1123,18 @@ export class SolicitudService {
                 fecha_cambio_estado_solicitud: new Date(),
                 comentario_estado_solicitud_hist: reason || null
             }, { transaction });
+
+            // Si el estado es "Cerrado" o "Cierre exitoso" (id_estado = 3), marcar hitos finales
+            if (id_estado === 3) {
+                const tipoServicio = (solicitud as any).get('tipoServicio') as any;
+                if (tipoServicio) {
+                    await HitoHelperService.marcarHitoCierreProces(
+                        id,
+                        tipoServicio.codigo_servicio,
+                        transaction
+                    );
+                }
+            }
 
             await transaction.commit();
 

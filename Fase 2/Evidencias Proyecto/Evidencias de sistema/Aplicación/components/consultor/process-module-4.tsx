@@ -111,9 +111,17 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     try {
       const response = await referenciaLaboralService.getByCandidato(candidateId)
       if (response.success && response.data) {
+        // Asegurar que todas las referencias tengan un ID único
+        const referencesWithId = response.data.map((ref: any, index: number) => {
+          const referenceId = ref.id_referencia_laboral || ref.id
+          return {
+            ...ref,
+            id: referenceId ? String(referenceId) : `ref_${candidateId}_${index}_${Date.now()}`
+          }
+        })
         setWorkReferences(prev => ({
           ...prev,
-          [candidateId]: response.data
+          [candidateId]: referencesWithId
         }))
       }
     } catch (error) {
@@ -177,7 +185,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               
               // Cargar tests de la evaluación
               if (evaluation.tests && evaluation.tests.length > 0) {
-                testsData[candidate.id] = evaluation.tests.map((test: any) => ({
+                testsData[candidate.id] = evaluation.tests.map((test: any, idx: number) => ({
+                  id: test.id_test_psicolaboral ? String(test.id_test_psicolaboral) : `test_${candidate.id}_${idx}_${Date.now()}`,
                   test_name: test.nombre_test_psicolaboral,
                   result: test.EvaluacionTest?.resultado_test || ''
                 }))
@@ -756,6 +765,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         .map(test => {
           const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === test.test_name)
           return {
+            id: testInfo?.id_test_psicolaboral || `test_${selectedCandidate.id}_${test.test_name}`,
             test_name: testInfo?.nombre_test_psicolaboral || test.test_name,
             result: test.result
           }
@@ -931,6 +941,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === test.test_name)
       const updatedTests = [...candidateTests[selectedCandidate.id]]
       updatedTests[editingTest.index] = {
+        id: testInfo?.id_test_psicolaboral || updatedTests[editingTest.index]?.id || `test_${selectedCandidate.id}_${test.test_name}`,
         test_name: testInfo?.nombre_test_psicolaboral || test.test_name,
         result: test.result
       }
@@ -2089,8 +2100,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             </CollapsibleTrigger>
                             <CollapsibleContent className="mt-4">
                               <div className="bg-muted/30 rounded-lg p-4 space-y-3">
-                                {candidateReferences.map((reference) => (
-                                  <Card key={reference.id} className="bg-background">
+                                {candidateReferences.map((reference, refIndex) => {
+                                  const refKey = reference.id ? String(reference.id) : `ref-${candidate.id}-${refIndex}`
+                                  return (
+                                  <Card key={refKey} className="bg-background">
                                     <CardContent className="pt-4">
                                       <div className="space-y-4">
                                         {/* Información principal - alineada horizontalmente */}
@@ -2155,7 +2168,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                       </div>
                                     </CardContent>
                                   </Card>
-                                ))}
+                                  )
+                                })}
                               </div>
                             </CollapsibleContent>
                           </Collapsible>
@@ -2186,8 +2200,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             </CollapsibleTrigger>
                             <CollapsibleContent className="mt-4">
                               <div className="bg-muted/30 rounded-lg p-4 space-y-3">
-                                {candidateTestsList.map((test, index) => (
-                                  <Card key={index} className="bg-background">
+                                {candidateTestsList.map((test, index) => {
+                                  const testKey = test.id ? String(test.id) : `test-${candidate.id}-${index}-${test.test_name || 'unknown'}`
+                                  return (
+                                  <Card key={testKey} className="bg-background">
                                     <CardContent className="pt-4">
                                   <div className="space-y-3">
                                         <div className="flex justify-between items-start">
@@ -2221,7 +2237,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                       </div>
                                     </CardContent>
                                   </Card>
-                                ))}
+                                  )
+                                })}
                               </div>
                             </CollapsibleContent>
                           </Collapsible>

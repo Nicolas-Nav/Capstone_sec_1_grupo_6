@@ -8,7 +8,7 @@ interface Notification {
   created_at: string
 }
 
-export const useNotifications = (userId: string | undefined) => {
+export const useNotifications = (userId: string | undefined, userRole?: string) => {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -35,16 +35,19 @@ export const useNotifications = (userId: string | undefined) => {
   }, [userId])
 
   const loadNotifications = useCallback(async () => {
-    if (!userId) {
+    if (!userId && userRole !== 'admin') {
       setLoading(false)
       return
     }
 
     try {
       setLoading(true)
-      console.log('[NOTIFICATIONS] Cargando notificaciones para usuario:', userId)
+      const isAdmin = userRole === 'admin'
+      // Si es admin, no pasar userId para obtener todas las alertas
+      const consultorId = isAdmin ? undefined : userId
+      console.log('[NOTIFICATIONS] Cargando notificaciones para usuario:', consultorId || 'TODOS (admin)')
       
-      const hitos = await getHitosAlertas(userId)
+      const hitos = await getHitosAlertas(consultorId)
       console.log('[NOTIFICATIONS] Hitos recibidos:', hitos.length)
       
       const readIds = getReadNotificationIds()
@@ -129,7 +132,7 @@ export const useNotifications = (userId: string | undefined) => {
     } finally {
       setLoading(false)
     }
-  }, [userId, getReadNotificationIds])
+  }, [userId, userRole, getReadNotificationIds])
 
   const markAsRead = useCallback(() => {
     if (!userId) return

@@ -61,13 +61,18 @@ export interface HitosDashboard {
 
 /**
  * Obtener alertas de hitos para un consultor específico
+ * Si consultorId es undefined, el backend devolverá todas las alertas (solo para admins)
  */
-export async function getHitosAlertas(consultorId: string): Promise<HitoAlert[]> {
+export async function getHitosAlertas(consultorId?: string): Promise<HitoAlert[]> {
   try {
-    console.log(`🔍 [API-HITOS] Obteniendo alertas para consultor: ${consultorId}`)
-    console.log(`🔍 [API-HITOS] URL: ${API_BASE_URL}/api/hitos-solicitud/alertas?consultor_id=${consultorId}`)
+    const url = consultorId 
+      ? `${API_BASE_URL}/api/hitos-solicitud/alertas?consultor_id=${consultorId}`
+      : `${API_BASE_URL}/api/hitos-solicitud/alertas`
     
-    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/alertas?consultor_id=${consultorId}`)
+    console.log(`🔍 [API-HITOS] Obteniendo alertas para consultor: ${consultorId || 'TODOS (admin)'}`)
+    console.log(`🔍 [API-HITOS] URL: ${url}`)
+    
+    const response = await fetch(url)
     
     console.log(`🔍 [API-HITOS] Response status: ${response.status}`)
     
@@ -103,10 +108,13 @@ export async function getHitosAlertas(consultorId: string): Promise<HitoAlert[]>
 
 /**
  * Obtener dashboard completo de hitos para un consultor
+ * Si consultorId es 'all' o undefined, el backend devolverá todas las alertas (solo para admins)
  */
-export async function getHitosDashboard(consultorId: string): Promise<HitosDashboard | null> {
+export async function getHitosDashboard(consultorId: string | undefined): Promise<HitosDashboard | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/dashboard/${consultorId}`)
+    // Si es admin, usar 'all' como parámetro
+    const idParam = consultorId || 'all'
+    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/dashboard/${idParam}`)
     
     if (!response.ok) {
       throw new Error(`Error al obtener dashboard: ${response.statusText}`)

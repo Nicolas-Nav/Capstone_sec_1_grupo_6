@@ -22,7 +22,7 @@ export function AppHeader() {
     markAsRead,
     loadNotifications,
     loading 
-  } = useNotifications(user?.id)
+  } = useNotifications(user?.id, user?.role)
   
   const hasShownLoginToast = useRef(false)
   const lastUnreadCount = useRef(0)

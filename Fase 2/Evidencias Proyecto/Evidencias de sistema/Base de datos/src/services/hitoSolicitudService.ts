@@ -319,15 +319,11 @@ export class HitoSolicitudService {
     /**
      * Obtener hitos PENDIENTES (no activados aún)
      */
-    static async getHitosPendientes(idSolicitud?: number) {
+    static async getHitosPendientes(consultor_id?: string) {
         const where: any = {
             id_solicitud: { [Op.not]: null } as any,
             fecha_base: { [Op.is]: null } as any
         };
-
-        if (idSolicitud) {
-            where.id_solicitud = idSolicitud;
-        }
 
         const hitos = await HitoSolicitud.findAll({
             where,
@@ -344,14 +340,23 @@ export class HitoSolicitudService {
                                 { model: Cliente, as: 'cliente' }
                             ]
                         },
-                        { model: Usuario, as: 'usuario' }
+                        { model: Usuario, as: 'usuario', required: true }
                     ]
                 }
             ],
             order: [['nombre_hito', 'ASC']]
         });
 
-        return hitos.map(h => {
+        // Filtrar por consultor si se especifica
+        let hitosFiltrados = hitos;
+        if (consultor_id) {
+            hitosFiltrados = hitos.filter(h => {
+                const hitoData = h.toJSON() as any;
+                return hitoData.solicitud?.rut_usuario === consultor_id;
+            });
+        }
+
+        return hitosFiltrados.map(h => {
             const hitoData = h.toJSON() as any;
             return {
                 ...hitoData,
@@ -366,15 +371,11 @@ export class HitoSolicitudService {
     /**
      * Obtener hitos COMPLETADOS
      */
-    static async getHitosCompletados(idSolicitud?: number) {
+    static async getHitosCompletados(consultor_id?: string) {
         const where: any = {
             id_solicitud: { [Op.not]: null } as any,
             fecha_cumplimiento: { [Op.not]: null } as any
         };
-
-        if (idSolicitud) {
-            where.id_solicitud = idSolicitud;
-        }
 
         const hitos = await HitoSolicitud.findAll({
             where,
@@ -391,14 +392,23 @@ export class HitoSolicitudService {
                                 { model: Cliente, as: 'cliente' }
                             ]
                         },
-                        { model: Usuario, as: 'usuario' }
+                        { model: Usuario, as: 'usuario', required: true }
                     ]
                 }
             ],
             order: [['fecha_cumplimiento', 'DESC']]
         });
 
-        return hitos.map(h => {
+        // Filtrar por consultor si se especifica
+        let hitosFiltrados = hitos;
+        if (consultor_id) {
+            hitosFiltrados = hitos.filter(h => {
+                const hitoData = h.toJSON() as any;
+                return hitoData.solicitud?.rut_usuario === consultor_id;
+            });
+        }
+
+        return hitosFiltrados.map(h => {
             const hitoData = h.toJSON() as any;
             return {
                 ...hitoData,

@@ -278,7 +278,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [showInterviewDialog, setShowInterviewDialog] = useState(false)
   const [showTestDialog, setShowTestDialog] = useState(false)
-  const [showEditTestDialog, setShowEditTestDialog] = useState(false)
   const [showReferencesDialog, setShowReferencesDialog] = useState(false)
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
@@ -385,10 +384,21 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     interview_status: "programada" as "programada" | "realizada" | "cancelada",
   })
 
-  const [testForm, setTestForm] = useState({
-    tests: [{ test_name: "", result: "" }],
-  })
-  const [editingTest, setEditingTest] = useState<{ test: any; index: number } | null>(null)
+  // Estado para múltiples formularios de tests (similar a referencias)
+  // testId es el ID del test de la BD (id_test_psicolaboral), id es el ID temporal del formulario
+  const [testForms, setTestForms] = useState<Array<{
+    id: string
+    testId?: string // ID del test de la BD (id_test_psicolaboral) si es un test existente
+    markedForDeletion?: boolean // Marca si el test debe eliminarse al guardar
+    test_name: string
+    result: string
+  }>>([{
+    id: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    test_name: "",
+    result: "",
+  }])
+  const [hasAttemptedSubmitTest, setHasAttemptedSubmitTest] = useState(false)
+  const [isSavingTest, setIsSavingTest] = useState(false)
 
   const [reportForm, setReportForm] = useState({
     report_status: "" as "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | "",
@@ -550,22 +560,108 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
   }, [candidates, evaluations, isEvaluationProcess])
 
-  const handleAddTest = () => {
-    setTestForm({
-      ...testForm,
-      tests: [...testForm.tests, { test_name: "", result: "" }],
+  // Funciones para manejar múltiples formularios de tests
+  const addTestForm = () => {
+    const newForm = {
+      id: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      test_name: "",
+      result: "",
+    }
+    setTestForms([...testForms, newForm])
+  }
+
+  // Función para validar un campo de test
+  const validateTestField = (formId: string, field: string, value: string, formData: any) => {
+    const fieldKey = `test_result_${formId}`
+    
+    if (field === 'result') {
+      const fieldValue = value || ''
+      const trimmedValue = fieldValue.trim()
+      
+      // Si no se ha intentado enviar, solo validar longitudes en tiempo real
+      if (!hasAttemptedSubmitTest) {
+        // Si está vacío, no mostrar error (aún no se ha intentado enviar)
+        if (fieldValue.length === 0) {
+          clearError(fieldKey)
+          return
+        }
+        
+        // Validar longitud mínima si hay texto (1-4 caracteres)
+        if (fieldValue.length > 0 && fieldValue.length < 5) {
+          setFieldError(fieldKey, 'El resultado debe tener al menos 5 caracteres')
+          return
+        }
+        
+        // Validar longitud máxima
+        if (fieldValue.length > 300) {
+          setFieldError(fieldKey, 'El resultado no puede exceder 300 caracteres')
+          return
+        }
+        
+        // Si cumple con las validaciones de longitud, limpiar el error
+        if (fieldValue.length >= 5 && fieldValue.length <= 300) {
+          clearError(fieldKey)
+        }
+      } 
+      // Si se ha intentado enviar, validar todo
+      else {
+        if (!trimmedValue) {
+          setFieldError(fieldKey, 'El resultado es obligatorio')
+        } else if (trimmedValue.length < 5) {
+          setFieldError(fieldKey, 'El resultado debe tener al menos 5 caracteres')
+        } else if (trimmedValue.length > 300) {
+          setFieldError(fieldKey, 'El resultado no puede exceder 300 caracteres')
+        } else {
+          clearError(fieldKey)
+        }
+      }
+    }
+  }
+
+  const updateTestForm = (id: string, field: "test_name" | "result", value: string) => {
+    setTestForms(forms => {
+      const updatedForms = forms.map(form => 
+        form.id === id ? { ...form, [field]: value } : form
+      )
+      
+      const updatedForm = updatedForms.find(f => f.id === id)
+      if (updatedForm && field === "result") {
+        // Validar en tiempo real usando la función de validación
+        validateTestField(id, field, value, updatedForm)
+      }
+      
+      return updatedForms
     })
   }
 
-  const handleTestChange = (index: number, field: "test_name" | "result", value: string) => {
-    const updatedTests = testForm.tests.map((test, i) => (i === index ? { ...test, [field]: value } : test))
-    setTestForm({ ...testForm, tests: updatedTests })
-    
-    // Validar el campo resultado si se está modificando
-    if (field === "result") {
-      const testData = updatedTests[index]
-      validateField(`test_result_${index}`, value, validationSchemas.module4TestForm, { result: value })
+  const removeTestForm = (id: string) => {
+    // Limpiar errores del formulario que se elimina
+    clearError(`test_result_${id}`)
+    setTestForms(forms => forms.filter(form => form.id !== id))
+  }
+
+  const handleDiscardSingleTest = (formId: string) => {
+    // Si hay más de un test, eliminar el formulario completo
+    if (testForms.length > 1) {
+      removeTestForm(formId)
+      return
     }
+    
+    // Si hay solo un test, limpiar los campos del formulario
+    setTestForms(prevForms => 
+      prevForms.map(form => 
+        form.id === formId 
+          ? {
+              ...form,
+              test_name: "",
+              result: ""
+            }
+          : form
+      )
+    )
+    
+    // Limpiar los errores de ese test específico
+    clearError(`test_result_${formId}`)
   }
 
 
@@ -600,15 +696,44 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     setShowInterviewDialog(true)
   }
 
-  const openTestDialog = (candidate: Candidate) => {
+  const openTestDialog = async (candidate: Candidate) => {
     setSelectedCandidate(candidate)
     
-    // Siempre abrir con formulario limpio para agregar nuevo test
-    setTestForm({
-      tests: [{ test_name: "", result: "" }],
-    })
+    // Cargar tests existentes del candidato
+    try {
+      const evaluation = evaluations[candidate.id]
+      if (evaluation && evaluation.tests && evaluation.tests.length > 0) {
+        // Convertir tests existentes en formularios editables (sin agregar uno vacío)
+        const existingForms = evaluation.tests.map((test: any) => {
+          const testId = test.id_test_psicolaboral || test.EvaluacionTest?.id_test_psicolaboral
+          return {
+            id: `test_${testId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            testId: String(testId), // ID del test de la BD
+            test_name: String(testId), // Guardar el ID como string para el select
+            result: test.EvaluacionTest?.resultado_test || ""
+          }
+        })
+        
+        setTestForms(existingForms)
+      } else {
+        // Si no hay tests, inicializar con un formulario vacío
+        setTestForms([{
+          id: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          test_name: "",
+          result: "",
+        }])
+      }
+    } catch (error) {
+      console.error('Error al cargar tests:', error)
+      // En caso de error, inicializar con un formulario vacío
+      setTestForms([{
+        id: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        test_name: "",
+        result: "",
+      }])
+    }
     
-    // Limpiar errores previos
+    setHasAttemptedSubmitTest(false)
     clearAllErrors()
     
     setShowTestDialog(true)
@@ -712,16 +837,20 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleSaveTest = async () => {
     if (!selectedCandidate) return
 
+    setHasAttemptedSubmitTest(true)
+
     // Validar todos los campos de resultado de los tests (siempre validar, incluso si está vacío)
     let hasErrors = false
-    testForm.tests.forEach((test, index) => {
-      // Validar cada campo individualmente para mostrar errores específicos
-      validateField(`test_result_${index}`, test.result || "", validationSchemas.module4TestForm, { result: test.result || "" })
-      
-      // Verificar si hay errores después de validar
-      const isValid = validateAllFields({ result: test.result || "" }, validationSchemas.module4TestForm)
-      if (!isValid) {
-        hasErrors = true
+    testForms.forEach((form) => {
+      if (!form.markedForDeletion) {
+        // Validar cada campo individualmente para mostrar errores específicos
+        validateField(`test_result_${form.id}`, form.result || "", validationSchemas.module4TestForm, { result: form.result || "" })
+        
+        // Verificar si hay errores después de validar
+        const isValid = validateAllFields({ result: form.result || "" }, validationSchemas.module4TestForm)
+        if (!isValid) {
+          hasErrors = true
+        }
       }
     })
 
@@ -734,96 +863,163 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       return
     }
     
-    try {
-      const { evaluacionPsicolaboralService } = await import('@/lib/api')
-      
-      // Obtener la evaluación psicolaboral del candidato
-      const evaluation = evaluations[selectedCandidate.id]
-      if (!evaluation) {
-        toast({
-          title: "Error",
-          description: "No se encontró evaluación psicolaboral para este candidato",
-          variant: "destructive",
-        })
-        return
-      }
+    // Obtener la evaluación psicolaboral del candidato
+    const evaluation = evaluations[selectedCandidate.id]
+    if (!evaluation) {
+      toast({
+        title: "Error",
+        description: "No se encontró evaluación psicolaboral para este candidato",
+        variant: "destructive",
+      })
+      return
+    }
 
-      // Guardar cada test
-      for (const test of testForm.tests) {
-        if (test.test_name && test.result) {
-          await evaluacionPsicolaboralService.addTest(
+    // Filtrar solo formularios válidos (con test_name y result, y no marcados para eliminación)
+    const validForms = testForms.filter(form => 
+      !form.markedForDeletion && form.test_name && form.result
+    )
+
+    if (validForms.length === 0 && testForms.filter(f => f.markedForDeletion).length === 0) {
+      toast({
+        title: "Error",
+        description: "Debe completar al menos un test",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSavingTest(true)
+
+    try {
+      // Primero, eliminar los tests marcados para eliminación
+      const testsToDelete = testForms.filter(form => form.markedForDeletion && form.testId)
+      for (const form of testsToDelete) {
+        if (form.testId) {
+          const response = await evaluacionPsicolaboralService.deleteTest(
             evaluation.id_evaluacion_psicolaboral,
-            parseInt(test.test_name), // id_test_psicolaboral
-            test.result
+            parseInt(form.testId)
           )
+          if (!response.success) {
+            throw new Error(response.message || 'Error al eliminar el test')
+          }
         }
       }
 
-      // Actualizar el estado local
-      const updatedTests = testForm.tests
-        .filter(test => test.test_name && test.result)
-        .map(test => {
-          const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === test.test_name)
-          return {
-            id: testInfo?.id_test_psicolaboral || `test_${selectedCandidate.id}_${test.test_name}`,
-            test_name: testInfo?.nombre_test_psicolaboral || test.test_name,
-            result: test.result
-          }
+      // Procesar todos los tests válidos (actualizar existentes o crear nuevos)
+      // addTest ya maneja tanto creación como actualización
+      for (const form of validForms) {
+        await evaluacionPsicolaboralService.addTest(
+          evaluation.id_evaluacion_psicolaboral,
+          parseInt(form.test_name), // id_test_psicolaboral
+          form.result
+        )
+      }
+
+      // Recargar la evaluación para obtener los tests actualizados
+      const updatedEvaluation = await getEvaluationByCandidate(selectedCandidate)
+      if (updatedEvaluation) {
+        setEvaluations({
+          ...evaluations,
+          [selectedCandidate.id]: updatedEvaluation
         })
 
-      setCandidateTests({
-        ...candidateTests,
-        [selectedCandidate.id]: updatedTests
-      })
+        // Actualizar candidateTests
+        if (updatedEvaluation.tests && updatedEvaluation.tests.length > 0) {
+          const updatedTests = updatedEvaluation.tests.map((test: any) => {
+            const testId = test.id_test_psicolaboral || test.EvaluacionTest?.id_test_psicolaboral
+            return {
+              id: testId ? String(testId) : `test_${selectedCandidate.id}_${test.nombre_test_psicolaboral}`,
+              test_name: test.nombre_test_psicolaboral,
+              result: test.EvaluacionTest?.resultado_test || ''
+            }
+          })
+          setCandidateTests({
+            ...candidateTests,
+            [selectedCandidate.id]: updatedTests
+          })
+        } else {
+          setCandidateTests({
+            ...candidateTests,
+            [selectedCandidate.id]: []
+          })
+        }
+      }
+
+      // Recargar el diálogo con los tests actualizados
+      if (updatedEvaluation && updatedEvaluation.tests && updatedEvaluation.tests.length > 0) {
+        const existingForms = updatedEvaluation.tests.map((test: any) => {
+          const testId = test.id_test_psicolaboral || test.EvaluacionTest?.id_test_psicolaboral
+          return {
+            id: `test_${testId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            testId: String(testId),
+            test_name: String(testId),
+            result: test.EvaluacionTest?.resultado_test || ""
+          }
+        })
+        setTestForms(existingForms)
+      } else {
+        setTestForms([{
+          id: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          test_name: "",
+          result: "",
+        }])
+      }
+      
+      setHasAttemptedSubmitTest(false)
+      clearAllErrors()
+
+      const savedCount = validForms.length
+      const deletedCount = testsToDelete.length
+      let description = ""
+      if (savedCount > 0 && deletedCount > 0) {
+        description = `Se han guardado ${savedCount} test(s) y eliminado ${deletedCount} test(s) exitosamente.`
+      } else if (savedCount > 0) {
+        description = `Se han guardado ${savedCount} test(s) exitosamente.`
+      } else if (deletedCount > 0) {
+        description = `Se han eliminado ${deletedCount} test(s) exitosamente.`
+      } else {
+        description = "No se realizaron cambios."
+      }
 
       toast({
-        title: "Éxito",
-        description: "Tests guardados correctamente",
+        title: "Tests guardados",
+        description,
       })
-
-      setShowTestDialog(false)
-      setTestForm({
-        tests: [{ test_name: "", result: "" }],
-      })
-      setSelectedCandidate(null)
-      clearAllErrors()
     } catch (error) {
       console.error('Error al guardar tests:', error)
       toast({
         title: "Error",
-        description: "Error al guardar los tests",
+        description: error instanceof Error ? error.message : "Error al guardar los tests",
         variant: "destructive",
       })
+    } finally {
+      setIsSavingTest(false)
     }
   }
 
-  const openEditTestDialog = (candidate: Candidate, test: any, index: number) => {
-    setSelectedCandidate(candidate)
-    setEditingTest({ test, index })
-    
-    // Encontrar el ID del test en availableTests
-    const testInfo = availableTests.find(t => t.nombre_test_psicolaboral === test.test_name)
-    
-    setTestForm({
-      tests: [{ 
-        test_name: testInfo?.id_test_psicolaboral.toString() || "", 
-        result: test.result 
-      }],
-    })
-    
-    // Limpiar errores previos
-    clearAllErrors()
-    
-    setShowEditTestDialog(true)
-  }
+  // openEditTestDialog ya no es necesario - ahora se usa openTestDialog que carga todos los tests
 
-  const handleDeleteTest = (candidate: Candidate, test: any, index: number) => {
-    setDeleteConfirm({
-      type: 'test',
-      candidateId: candidate.id,
-      testIndex: index,
-      testName: test.test_name
-    })
+  const handleDeleteTest = (candidate: Candidate, testId: string) => {
+    // Si estamos en el diálogo de tests, marcar para eliminación
+    if (showTestDialog && selectedCandidate?.id === candidate.id) {
+      // Marcar el test para eliminación (no eliminar inmediatamente)
+      setTestForms(forms => 
+        forms.map(form => 
+          form.testId === testId 
+            ? { ...form, markedForDeletion: true }
+            : form
+        )
+      )
+    } else {
+      // Si no estamos en el diálogo, usar el flujo de confirmación (para la vista de lista)
+      const test = candidateTests[candidate.id]?.find(t => t.id === testId)
+      setDeleteConfirm({
+        type: 'test',
+        candidateId: candidate.id,
+        testIndex: candidateTests[candidate.id]?.findIndex(t => t.id === testId) || 0,
+        testName: test?.test_name || 'este test'
+      })
+    }
   }
 
   const confirmDeleteTest = async () => {
@@ -888,90 +1084,6 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     setDeleteConfirm({ type: null })
   }
 
-  const handleSaveEditTest = async () => {
-    if (!selectedCandidate || !editingTest) return
-
-    // Validar el campo de resultado (siempre validar, incluso si está vacío)
-    const test = testForm.tests[0]
-    // Validar el campo individualmente para mostrar el error específico
-    validateField(`test_result_${0}`, test.result || "", validationSchemas.module4TestForm, { result: test.result || "" })
-    
-    const isValid = validateAllFields({ result: test.result || "" }, validationSchemas.module4TestForm)
-    if (!isValid) {
-      toast({
-        title: "Error de validación",
-        description: "Por favor, corrija los errores en el formulario",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    try {
-      const { evaluacionPsicolaboralService } = await import('@/lib/api')
-      
-      // Obtener la evaluación psicolaboral del candidato
-      const evaluation = evaluations[selectedCandidate.id]
-      if (!evaluation) {
-        toast({
-          title: "Error",
-          description: "No se encontró evaluación psicolaboral para este candidato",
-          variant: "destructive",
-        })
-        return
-      }
-
-      const test = testForm.tests[0]
-      if (!test.test_name || !test.result) {
-        toast({
-          title: "Error",
-          description: "Por favor completa todos los campos",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Actualizar en la BD
-      await evaluacionPsicolaboralService.addTest(
-        evaluation.id_evaluacion_psicolaboral,
-        parseInt(test.test_name),
-        test.result
-      )
-
-      // Actualizar estado local
-      const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === test.test_name)
-      const updatedTests = [...candidateTests[selectedCandidate.id]]
-      updatedTests[editingTest.index] = {
-        id: testInfo?.id_test_psicolaboral || updatedTests[editingTest.index]?.id || `test_${selectedCandidate.id}_${test.test_name}`,
-        test_name: testInfo?.nombre_test_psicolaboral || test.test_name,
-        result: test.result
-      }
-
-      setCandidateTests({
-        ...candidateTests,
-        [selectedCandidate.id]: updatedTests
-      })
-
-      toast({
-        title: "Éxito",
-        description: "Test actualizado correctamente",
-      })
-
-      setShowEditTestDialog(false)
-      setEditingTest(null)
-      setTestForm({
-        tests: [{ test_name: "", result: "" }],
-      })
-      setSelectedCandidate(null)
-      clearAllErrors()
-    } catch (error) {
-      console.error('Error al actualizar test:', error)
-      toast({
-        title: "Error",
-        description: "Error al actualizar el test",
-        variant: "destructive",
-      })
-    }
-  }
 
   const openReferencesDialog = async (candidate: Candidate) => {
     setSelectedCandidate(candidate)
@@ -2221,14 +2333,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                             <Button
                                               variant="outline"
                                               size="sm"
-                                              onClick={() => openEditTestDialog(candidate, test, index)}
+                                              onClick={() => openTestDialog(candidate)}
                                             >
                                               <Edit className="h-4 w-4" />
                                             </Button>
                                             <Button
                                               variant="outline"
                                               size="sm"
-                                              onClick={() => handleDeleteTest(candidate, test, index)}
+                                              onClick={() => handleDeleteTest(candidate, test.id || `test-${candidate.id}-${index}`)}
                                             >
                                               <Trash2 className="h-4 w-4" />
                                             </Button>
@@ -2348,10 +2460,11 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                   type="datetime-local"
                   value={interviewForm.interview_date}
                   onChange={(e) => {
-                    setInterviewForm({ ...interviewForm, interview_date: e.target.value })
-                    validateField('interview_date', e.target.value, validationSchemas.module4InterviewForm, { ...interviewForm, interview_date: e.target.value })
+                    const updatedForm = { ...interviewForm, interview_date: e.target.value }
+                    setInterviewForm(updatedForm)
+                    validateField('interview_date', e.target.value, validationSchemas.module4InterviewForm, updatedForm)
                   }}
-                  max={new Date().toISOString().slice(0, 16)}
+                  max={interviewForm.interview_status === "programada" ? undefined : new Date().toISOString().slice(0, 16)}
                   className={errors.interview_date ? "border-destructive" : ""}
                 />
                 <ValidationErrorDisplay error={errors.interview_date} />
@@ -2360,9 +2473,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                 <Label htmlFor="interview_status">Estado de la Entrevista</Label>
                 <Select
                   value={interviewForm.interview_status}
-                  onValueChange={(value: "programada" | "realizada" | "cancelada") =>
-                    setInterviewForm({ ...interviewForm, interview_status: value })
-                  }
+                  onValueChange={(value: "programada" | "realizada" | "cancelada") => {
+                    const updatedForm = { ...interviewForm, interview_status: value }
+                    setInterviewForm(updatedForm)
+                    // Re-validar la fecha cuando cambia el estado
+                    if (interviewForm.interview_date) {
+                      validateField('interview_date', interviewForm.interview_date, validationSchemas.module4InterviewForm, updatedForm)
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -2401,7 +2519,17 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       </Dialog>
 
       {/* Test Dialog */}
-      <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
+      <Dialog open={showTestDialog} onOpenChange={(open) => {
+        setShowTestDialog(open)
+        if (!open) {
+          clearAllErrors()
+          setHasAttemptedSubmitTest(false)
+          // Limpiar las marcas de eliminación al cerrar sin guardar
+          setTestForms(forms => 
+            forms.map(form => ({ ...form, markedForDeletion: false }))
+          )
+        }
+      }}>
         <DialogContent className="!max-w-[50vw] !w-[60vw] max-h-[100vh] overflow-y-auto" style={{ maxWidth: '60vw', width: '60vw' }}>
           <DialogHeader>
             <DialogTitle>Agregar Test</DialogTitle>
@@ -2420,54 +2548,136 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Add New Test Forms */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label>Lista de Test/Pruebas</Label>
-                <Button type="button" variant="outline" size="sm" onClick={handleAddTest}>
+                <CardTitle className="text-lg">Agregar Tests</CardTitle>
+                <Button type="button" variant="outline" size="sm" onClick={addTestForm}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Agregar Test
+                  Agregar Otro Test
                 </Button>
               </div>
 
-              {testForm.tests.map((test, index) => (
-                <div key={index} className="grid grid-cols-[1fr_2fr] gap-2 p-4 border rounded-lg">
-                  <div className="space-y-2">
-                    <Label htmlFor={`test_name_${index}`}>Nombre del Test</Label>
-                    <Select
-                      value={test.test_name}
-                      onValueChange={(value) => handleTestChange(index, "test_name", value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar test" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTests.map((test) => (
-                          <SelectItem key={test.id_test_psicolaboral} value={test.id_test_psicolaboral.toString()}>
-                            {test.nombre_test_psicolaboral}
-                        </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`test_result_${index}`}>Resultado <span className="text-red-500">*</span></Label>
-                    <Textarea
-                      id={`test_result_${index}`}
-                      value={test.result}
-                      onChange={(e) => handleTestChange(index, "result", e.target.value)}
-                      placeholder="Ej: Alto dominio en habilidades de liderazgo, muestra capacidad para..."
-                      rows={4}
-                      maxLength={300}
-                      className={`min-h-[100px] ${errors[`test_result_${index}`] ? "border-destructive" : ""}`}
-                    />
-                    <div className="text-sm text-muted-foreground text-right">
-                      {(test.result || "").length}/300 caracteres
-                    </div>
-                    <ValidationErrorDisplay error={errors[`test_result_${index}`]} />
-                  </div>
-                </div>
-              ))}
+              {testForms.map((form, index) => {
+                const hasFormFields = !!(
+                  form.test_name?.trim() || 
+                  form.result?.trim()
+                )
+                const isExistingTest = !!form.testId
+                
+                // Lógica para mostrar el botón de descartar/eliminar:
+                // - Si es un test existente: siempre mostrar (se puede eliminar)
+                // - Si es un nuevo test: mostrar si tiene campos completados O si hay más de un formulario
+                const showDiscardButton = isExistingTest 
+                  ? true 
+                  : (hasFormFields || testForms.length > 1)
+                
+                const isMarkedForDeletion = form.markedForDeletion === true
+                const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === form.test_name)
+                
+                return (
+                  <Card key={form.id} className={`${isExistingTest ? "border-l-4 border-l-blue-500" : ""} ${isMarkedForDeletion ? "opacity-50 bg-gray-100" : ""}`}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">
+                          {isMarkedForDeletion ? (
+                            <span className="text-destructive line-through">
+                              {isExistingTest ? `Test ${testForms.filter(f => f.testId).indexOf(form) + 1} (Existente) - Se eliminará al guardar` : `Nuevo Test ${testForms.filter(f => !f.testId).indexOf(form) + 1} - Se eliminará al guardar`}
+                            </span>
+                          ) : (
+                            <>
+                              {isExistingTest ? `Test ${testForms.filter(f => f.testId).indexOf(form) + 1} (Existente)` : `Nuevo Test ${testForms.filter(f => !f.testId).indexOf(form) + 1}`}
+                            </>
+                          )}
+                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          {isMarkedForDeletion ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // Deshacer la eliminación
+                                setTestForms(forms => 
+                                  forms.map(f => 
+                                    f.id === form.id 
+                                      ? { ...f, markedForDeletion: false }
+                                      : f
+                                  )
+                                )
+                              }}
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <RotateCcw className="mr-2 h-4 w-4" />
+                              Deshacer
+                            </Button>
+                          ) : showDiscardButton ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                if (isExistingTest && form.testId) {
+                                  // Si es un test existente, marcarlo para eliminación
+                                  handleDeleteTest(selectedCandidate || {} as Candidate, form.testId)
+                                } else {
+                                  // Si es un nuevo test, solo remover el formulario
+                                  handleDiscardSingleTest(form.id)
+                                }
+                              }}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {isExistingTest ? "Eliminar" : "Descartar"}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className={`space-y-4 ${isMarkedForDeletion ? "pointer-events-none" : ""}`}>
+                      <div className="grid grid-cols-[1fr_2fr] gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor={`test_name_${form.id}`}>Nombre del Test</Label>
+                          <Select
+                            value={form.test_name}
+                            onValueChange={(value) => updateTestForm(form.id, "test_name", value)}
+                            disabled={isMarkedForDeletion}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar test" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableTests.map((test) => (
+                                <SelectItem key={test.id_test_psicolaboral} value={test.id_test_psicolaboral.toString()}>
+                                  {test.nombre_test_psicolaboral}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`test_result_${form.id}`}>Resultado <span className="text-red-500">*</span></Label>
+                          <Textarea
+                            id={`test_result_${form.id}`}
+                            value={form.result}
+                            onChange={(e) => updateTestForm(form.id, "result", e.target.value)}
+                            placeholder="Ej: Alto dominio en habilidades de liderazgo, muestra capacidad para..."
+                            rows={4}
+                            maxLength={300}
+                            disabled={isMarkedForDeletion}
+                            className={`min-h-[100px] ${errors[`test_result_${form.id}`] ? "border-destructive" : ""}`}
+                          />
+                          <div className="text-sm text-muted-foreground text-right">
+                            {(form.result || "").length}/300 caracteres
+                          </div>
+                          <ValidationErrorDisplay error={errors[`test_result_${form.id}`]} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           </div>
 
@@ -2475,83 +2685,18 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             <Button variant="outline" onClick={() => {
               setShowTestDialog(false)
               clearAllErrors()
+              setHasAttemptedSubmitTest(false)
+              // Limpiar las marcas de eliminación al cerrar sin guardar
+              setTestForms(forms => 
+                forms.map(form => ({ ...form, markedForDeletion: false }))
+              )
             }}>
-              Cancelar
+              Cerrar
             </Button>
-            <Button onClick={handleSaveTest}>Guardar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Test Dialog */}
-      <Dialog open={showEditTestDialog} onOpenChange={setShowEditTestDialog}>
-        <DialogContent className="!max-w-[50vw] !w-[65vw] max-h-[100vh] overflow-y-auto" style={{ maxWidth: '60vw', width: '60vw' }}>
-          <DialogHeader>
-            <DialogTitle>Editar Test</DialogTitle>
-            <DialogDescription>
-              {selectedCandidate && (
-                <>
-                  Candidato: <strong>{selectedCandidate.name}</strong>
-                  {selectedCandidate.rut && (
-                    <>
-                      {" "}
-                      - RUT: <strong>{selectedCandidate.rut}</strong>
-                    </>
-                  )}
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {testForm.tests.map((test, index) => (
-              <div key={index} className="grid grid-cols-[1fr_2fr] gap-2 p-4 border rounded-lg">
-                <div className="space-y-2">
-                  <Label htmlFor={`edit_test_name_${index}`}>Nombre del Test</Label>
-                  <Select
-                    value={test.test_name}
-                    onValueChange={(value) => handleTestChange(index, "test_name", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar test" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTests.map((test) => (
-                        <SelectItem key={test.id_test_psicolaboral} value={test.id_test_psicolaboral.toString()}>
-                          {test.nombre_test_psicolaboral}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`edit_test_result_${index}`}>Resultado <span className="text-red-500">*</span></Label>
-                  <Textarea
-                    id={`edit_test_result_${index}`}
-                    value={test.result}
-                    onChange={(e) => handleTestChange(index, "result", e.target.value)}
-                    placeholder="Ingresa el resultado del test"
-                    rows={4}
-                    maxLength={300}
-                    className={`min-h-[100px] ${errors[`test_result_${index}`] ? "border-destructive" : ""}`}
-                  />
-                  <div className="text-sm text-muted-foreground text-right">
-                    {(test.result || "").length}/300 caracteres
-                  </div>
-                  <ValidationErrorDisplay error={errors[`test_result_${index}`]} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowEditTestDialog(false)
-              clearAllErrors()
-            }}>
-              Cancelar
+            <Button onClick={handleSaveTest} disabled={isSavingTest}>
+              {isSavingTest && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSavingTest ? "Guardando..." : "Guardar Tests"}
             </Button>
-            <Button onClick={handleSaveEditTest}>Actualizar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

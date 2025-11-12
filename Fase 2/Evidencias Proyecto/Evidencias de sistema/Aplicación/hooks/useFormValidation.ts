@@ -424,15 +424,22 @@ export const validationSchemas = {
   module4InterviewForm: {
     interview_date: {
       required: false,
-      custom: (value: string) => {
-        // Es opcional, pero si se proporciona, no puede ser después del día/hora actual
+      custom: (value: string, allData?: any) => {
+        // Es opcional, pero si se proporciona, validar según el estado
         if (!value || !value.trim()) {
           return null // Campo opcional, no hay error si está vacío
         }
         
         const selectedDateTime = new Date(value)
         const now = new Date()
+        const interviewStatus = allData?.interview_status || allData?.interviewForm?.interview_status
         
+        // Si el estado es "programada", permitir fechas futuras
+        if (interviewStatus === "programada") {
+          return null // Permitir cualquier fecha si está programada
+        }
+        
+        // Para otros estados (realizada, cancelada), no permitir fechas futuras
         if (selectedDateTime > now) {
           return 'La fecha de entrevista no puede ser después del día y hora actual'
         }
@@ -446,8 +453,9 @@ export const validationSchemas = {
   module4TestForm: {
     result: {
       required: true,
+      minLength: 5,
       maxLength: 300,
-      message: 'El resultado es obligatorio y no puede exceder 300 caracteres'
+      message: 'El resultado es obligatorio y debe tener entre 5 y 300 caracteres'
     }
   },
 

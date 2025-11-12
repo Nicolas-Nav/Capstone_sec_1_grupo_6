@@ -91,7 +91,8 @@ export class HitoSolicitudController {
             const hitos = await HitoSolicitudService.activarHitosPorEvento(
                 parseInt(id_solicitud),
                 tipo_ancla,
-                new Date(fecha_evento)
+                new Date(fecha_evento),
+                req.user?.id
             );
             
             return sendSuccess(res, hitos, 'Hitos activados exitosamente');

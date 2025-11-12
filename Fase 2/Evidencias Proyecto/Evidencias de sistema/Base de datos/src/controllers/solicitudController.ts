@@ -304,7 +304,7 @@ export class SolicitudController {
                 return sendError(res, 'ID de solicitud inválido', 400);
             }
 
-            const result = await SolicitudService.avanzarAModulo3(solicitudId);
+            const result = await SolicitudService.avanzarAModulo3(solicitudId, req.user?.id);
             
             Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 3`);
             return sendSuccess(res, result, result.message);
@@ -335,7 +335,7 @@ export class SolicitudController {
                 return sendError(res, 'ID de solicitud inválido', 400);
             }
 
-            const result = await SolicitudService.avanzarAModulo4(solicitudId);
+            const result = await SolicitudService.avanzarAModulo4(solicitudId, req.user?.id);
             
             Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 4`);
             return sendSuccess(res, result, result.message);
@@ -366,7 +366,7 @@ export class SolicitudController {
                 return sendError(res, 'ID de solicitud inválido', 400);
             }
 
-            const result = await SolicitudService.avanzarAModulo5(solicitudId);
+            const result = await SolicitudService.avanzarAModulo5(solicitudId, req.user?.id);
             
             Logger.info(`Solicitud ${solicitudId} avanzada al Módulo 5`);
             return sendSuccess(res, result, result.message);

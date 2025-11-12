@@ -587,7 +587,8 @@ export class SolicitudService {
                 await HitoSolicitudService.activarHitosPorEvento(
                     nuevaSolicitud.id_solicitud,
                     'inicio_proceso',
-                    new Date()
+                    new Date(),
+                    usuarioRut
                 );
                 
                 console.log(`✅ Hitos creados y activados para solicitud ${nuevaSolicitud.id_solicitud}`);
@@ -845,7 +846,8 @@ export class SolicitudService {
                 await HitoSolicitudService.activarHitosPorEvento(
                     id,
                     'publicacion',
-                    new Date()
+                    new Date(),
+                    usuarioRut
                 );
                 console.log(`✅ Hitos de publicación activados para solicitud ${id}`);
             } catch (hitoError) {
@@ -866,14 +868,25 @@ export class SolicitudService {
     /**
      * Avanzar al módulo 3 (Presentación de Candidatos)
      */
-    static async avanzarAModulo3(id: number) {
+    static async avanzarAModulo3(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
-            const solicitud = await Solicitud.findByPk(id);
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
+            const solicitud = await Solicitud.findByPk(id, {
+                include: [{ model: TipoServicio, as: 'tipoServicio' }],
+                transaction
+            });
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
             }
+
+            // Guardar el id_etapa anterior
+            const idEtapaAnterior = solicitud.id_etapa_solicitud;
 
             // Buscar la etapa "Módulo 3: Presentación de Candidatos"
             console.log('🔍 Buscando etapa Módulo 3...');
@@ -902,19 +915,33 @@ export class SolicitudService {
                 fecha_cambio_estado_solicitud: new Date()
             }, { transaction });
 
-            await transaction.commit();
+            // Marcar cumplimiento de hitos según el cambio de etapa (Módulo 2 → 3)
+            const tipoServicio = (solicitud as any).get('tipoServicio') as any;
+            if (tipoServicio && idEtapaAnterior) {
+                await HitoHelperService.marcarHitoPorCambioEtapa(
+                    id,
+                    idEtapaAnterior,
+                    etapaModulo3.id_etapa_solicitud,
+                    tipoServicio.codigo_servicio,
+                    transaction
+                );
+                console.log(`✅ Hito de presentación de terna inicial marcado para solicitud ${id}`);
+            }
 
             // Activar hitos relacionados con la primera presentación (Módulo 3)
             try {
                 await HitoSolicitudService.activarHitosPorEvento(
                     id,
                     'primera_presentacion',
-                    new Date()
+                    new Date(),
+                    usuarioRut
                 );
                 console.log(`✅ Hitos de primera presentación activados para solicitud ${id}`);
             } catch (hitoError) {
                 console.warn(`⚠️  Advertencia: No se pudieron activar hitos de primera presentación para la solicitud ${id}:`, hitoError);
             }
+
+            await transaction.commit();
 
             return { 
                 success: true, 
@@ -930,15 +957,25 @@ export class SolicitudService {
     /**
      * Avanzar al Módulo 4 (Evaluación Psicolaboral)
      */
-    static async avanzarAModulo4(id: number) {
+    static async avanzarAModulo4(id: number, usuarioRut?: string) {
         const transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
 
-            const solicitud = await Solicitud.findByPk(id);
+            const solicitud = await Solicitud.findByPk(id, {
+                include: [{ model: TipoServicio, as: 'tipoServicio' }],
+                transaction
+            });
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
             }
+
+            // Guardar el id_etapa anterior
+            const idEtapaAnterior = solicitud.id_etapa_solicitud;
 
             // Buscar la etapa "Módulo 4: Evaluación Psicolaboral"
             console.log('🔍 Buscando etapa Módulo 4...');
@@ -960,19 +997,33 @@ export class SolicitudService {
                 id_etapa_solicitud: etapaModulo4.id_etapa_solicitud 
             }, { transaction });
 
-            await transaction.commit();
+            // Marcar cumplimiento de hitos según el cambio de etapa (Módulo 3 → 4)
+            const tipoServicio = (solicitud as any).get('tipoServicio') as any;
+            if (tipoServicio && idEtapaAnterior) {
+                await HitoHelperService.marcarHitoPorCambioEtapa(
+                    id,
+                    idEtapaAnterior,
+                    etapaModulo4.id_etapa_solicitud,
+                    tipoServicio.codigo_servicio,
+                    transaction
+                );
+                console.log(`✅ Hito marcado para solicitud ${id}`);
+            }
 
             // Activar hitos relacionados con la evaluación psicolaboral (Módulo 4)
             try {
                 await HitoSolicitudService.activarHitosPorEvento(
                     id,
                     'evaluacion_psicolaboral',
-                    new Date()
+                    new Date(),
+                    usuarioRut
                 );
                 console.log(`✅ Hitos de evaluación psicolaboral activados para solicitud ${id}`);
             } catch (hitoError) {
                 console.warn(`⚠️  Advertencia: No se pudieron activar hitos de evaluación psicolaboral para la solicitud ${id}:`, hitoError);
             }
+
+            await transaction.commit();
 
             console.log('✅ Proceso avanzado al Módulo 4 exitosamente');
             console.log('📋 Nueva etapa:', etapaModulo4.nombre_etapa);
@@ -992,14 +1043,25 @@ export class SolicitudService {
     /**
      * Avanzar al Módulo 5 (Seguimiento Posterior a la Evaluación Psicolaboral)
      */
-    static async avanzarAModulo5(id: number) {
+    static async avanzarAModulo5(id: number, usuarioRut?: string) {
         const transaction = await sequelize.transaction();
 
         try {
-            const solicitud = await Solicitud.findByPk(id);
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
+            const solicitud = await Solicitud.findByPk(id, {
+                include: [{ model: TipoServicio, as: 'tipoServicio' }],
+                transaction
+            });
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
             }
+
+            // Guardar el id_etapa anterior
+            const idEtapaAnterior = solicitud.id_etapa_solicitud;
 
             // Buscar la etapa "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
             console.log('🔍 Buscando etapa Módulo 5...');
@@ -1020,6 +1082,19 @@ export class SolicitudService {
             await solicitud.update({
                 id_etapa_solicitud: etapaModulo5.id_etapa_solicitud 
             }, { transaction });
+
+            // Marcar cumplimiento de hitos según el cambio de etapa (Módulo 4 → 5)
+            const tipoServicio = (solicitud as any).get('tipoServicio') as any;
+            if (tipoServicio && idEtapaAnterior) {
+                await HitoHelperService.marcarHitoPorCambioEtapa(
+                    id,
+                    idEtapaAnterior,
+                    etapaModulo5.id_etapa_solicitud,
+                    tipoServicio.codigo_servicio,
+                    transaction
+                );
+                console.log(`✅ Hito de terna final marcado para solicitud ${id}`);
+            }
 
             await transaction.commit();
 

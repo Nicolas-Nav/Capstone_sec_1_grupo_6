@@ -117,10 +117,15 @@ export class HitoSolicitudService {
     /**
      * Activar hitos por evento ancla
      */
-    static async activarHitosPorEvento(idSolicitud: number, tipoAncla: string, fechaEvento: Date) {
+    static async activarHitosPorEvento(idSolicitud: number, tipoAncla: string, fechaEvento: Date, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             // Buscar hitos pendientes con el tipo de ancla específico
             const hitosPendientes = await HitoSolicitud.findAll({
                 where: {

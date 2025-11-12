@@ -94,11 +94,14 @@ export const useNotifications = (userId: string | undefined) => {
       // Convertir hitos relevantes a notificaciones
       const newNotifications: Notification[] = hitosRelevantes.map((hito) => {
         const id = `hito-${hito.id_hito_solicitud}`
+        // Usar la fecha límite como referencia para ordenar por "actualidad"
+        // Los hitos más próximos a vencer son considerados "más actuales"
+        const fechaReferencia = hito.fecha_limite || new Date().toISOString()
         return {
           id,
           hito,
           read: readIds.has(id),
-          created_at: hito.fecha_limite || new Date().toISOString(),
+          created_at: fechaReferencia,
         }
       })
 
@@ -109,8 +112,8 @@ export const useNotifications = (userId: string | undefined) => {
         if (diasA !== diasB) {
           return diasA - diasB // Más urgente primero
         }
-        // Si tienen la misma urgencia, ordenar por fecha
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        // Si tienen la misma urgencia, ordenar por fecha límite más próxima
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       })
 
       const unread = newNotifications.filter(n => !n.read).length
@@ -189,11 +192,14 @@ export const useNotifications = (userId: string | undefined) => {
     }
   }, [userId, loadNotifications])
 
-  // Obtener solo las notificaciones más recientes (no leídas primero)
+  // Obtener solo las notificaciones más recientes (no leídas primero, luego por urgencia)
   const getRecentNotifications = useCallback((limit: number = 5) => {
+    // Las notificaciones ya están ordenadas por urgencia en loadNotifications
+    // Solo necesitamos priorizar no leídas sobre leídas
     const unread = notifications.filter(n => !n.read)
     const read = notifications.filter(n => n.read)
     
+    // Devolver primero las no leídas, luego las leídas, limitadas al número solicitado
     return [...unread, ...read].slice(0, limit)
   }, [notifications])
 

@@ -2,6 +2,7 @@ import { Transaction, Sequelize } from 'sequelize';
 import sequelize from '@/config/database';
 import { EvaluacionPsicolaboral, EvaluacionTest, TestPsicolaboral, Postulacion, Solicitud, TipoServicio } from '@/models';
 import { HitoHelperService } from './hitoHelperService';
+import { setDatabaseUser } from '@/utils/databaseUser';
 
 /**
  * Función para convertir fecha a string SQL sin zona horaria
@@ -147,10 +148,15 @@ export class EvaluacionPsicolaboralService {
             id_test_psicolaboral: number;
             resultado_test: string;
         }>;
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             // Verificar que la postulación existe y obtener la solicitud con su tipo de servicio
             const postulacion = await Postulacion.findByPk(data.id_postulacion, {
                 include: [{
@@ -243,10 +249,15 @@ export class EvaluacionPsicolaboralService {
         estado_evaluacion: string;
         estado_informe: string;
         conclusion_global: string;
-    }>) {
+    }>, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const evaluacion = await EvaluacionPsicolaboral.findByPk(id, {
                 include: [{
                     model: Postulacion,

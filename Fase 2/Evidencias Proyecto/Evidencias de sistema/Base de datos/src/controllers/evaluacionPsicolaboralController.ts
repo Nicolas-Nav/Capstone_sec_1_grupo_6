@@ -77,7 +77,7 @@ export class EvaluacionPsicolaboralController {
      */
     static async create(req: Request, res: Response): Promise<Response> {
         try {
-            const evaluacion = await EvaluacionPsicolaboralService.createEvaluacion(req.body);
+            const evaluacion = await EvaluacionPsicolaboralService.createEvaluacion(req.body, req.user?.id);
             return sendSuccess(res, evaluacion, 'Evaluación creada exitosamente', 201);
         } catch (error) {
             Logger.error('Error al crear evaluación:', error);
@@ -92,7 +92,7 @@ export class EvaluacionPsicolaboralController {
     static async update(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            const evaluacion = await EvaluacionPsicolaboralService.updateEvaluacion(parseInt(id), req.body);
+            const evaluacion = await EvaluacionPsicolaboralService.updateEvaluacion(parseInt(id), req.body, req.user?.id);
             return sendSuccess(res, evaluacion, 'Evaluación actualizada exitosamente');
         } catch (error) {
             Logger.error('Error al actualizar evaluación:', error);

@@ -23,7 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getCandidatesByProcess } from "@/lib/api"
 import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service, solicitudService } from "@/lib/api"
 import { formatDate, processStatusLabels, getStatusColor } from "@/lib/utils"
-import { useToast } from "@/hooks/use-toast"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "@/components/consultor/ProcessBlocked"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
@@ -50,6 +50,53 @@ import {
 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
+
 interface WorkReference {
   id: string
   candidate_id: string
@@ -74,7 +121,7 @@ interface ProcessModule4Props {
 }
 
 export function ProcessModule4({ process }: ProcessModule4Props) {
-  const { toast } = useToast()
+  const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -100,8 +147,15 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const getEvaluationByCandidate = async (candidate: Candidate) => {
     try {
       const response = await evaluacionPsicolaboralService.getByPostulacion(Number(candidate.id_postulacion))
-      return response.data?.[0] || undefined
-    } catch (error) {
+      if (response.success && response.data) {
+        return response.data[0] || undefined
+      } else if (!response.success) {
+        // Si hay un error en la respuesta, procesarlo pero no bloquear la carga
+        const errorMsg = processApiErrorMessage(response.message, "Error al cargar evaluación psicolaboral")
+        console.error('Error al obtener evaluación psicolaboral:', errorMsg)
+      }
+      return undefined
+    } catch (error: any) {
       console.error('Error al obtener evaluación psicolaboral:', error)
       return undefined
     }
@@ -123,9 +177,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           ...prev,
           [candidateId]: referencesWithId
         }))
+      } else if (!response.success) {
+        // Si hay un error en la respuesta, procesarlo pero no bloquear la carga
+        const errorMsg = processApiErrorMessage(response.message, "Error al cargar referencias")
+        console.error(`Error al cargar referencias para candidato ${candidateId}:`, errorMsg)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error al cargar referencias para candidato ${candidateId}:`, error)
+      // No mostrar toast aquí para no interrumpir la carga, solo loguear
     }
   }
 
@@ -230,9 +289,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         const response = await solicitudService.getById(Number(process.id))
         if (response.success && response.data) {
           setProcessStatus(response.data.estado_solicitud || response.data.status || response.data.estado || "")
+        } else if (!response.success) {
+          // Si hay un error en la respuesta, procesarlo pero no bloquear la carga
+          const errorMsg = processApiErrorMessage(response.message, "Error al cargar estado del proceso")
+          console.error("Error al cargar estado del proceso:", errorMsg)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar estado del proceso:", error)
+        // No mostrar toast aquí para no interrumpir la carga inicial, solo loguear
       }
     }
 
@@ -259,12 +323,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           })
           setEstadosDisponibles(estadosCierre)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar estados de solicitud:", error)
-        toast({
+        const errorMsg = processApiErrorMessage(error.message, "Error al cargar estados disponibles")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al cargar estados disponibles",
-          variant: "destructive",
+          description: errorMsg,
         })
       } finally {
         setLoadingEstados(false)
@@ -489,19 +554,19 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleStatusChange = async (estadoId: string) => {
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede cambiar el estado de un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
 
     if (!estadoId) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Debes seleccionar un estado",
-        variant: "destructive",
       })
       return
     }
@@ -515,10 +580,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       )
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Solicitud finalizada exitosamente",
-          variant: "default",
         })
         setShowStatusChange(false)
         setSelectedEstado("")
@@ -526,18 +591,20 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al finalizar la solicitud")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al finalizar la solicitud",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cambiar estado:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al finalizar la solicitud")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al finalizar la solicitud",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setIsSavingStatus(false)
@@ -799,10 +866,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     const isValid = validateAllFields(interviewForm, validationSchemas.module4InterviewForm)
     
     if (!isValid) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error de validación",
-        description: "Por favor, corrija los errores en el formulario",
-        variant: "destructive",
+        description: "Por favor, corrija los errores en el formulario antes de continuar",
       })
       return
     }
@@ -870,17 +937,18 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     setSelectedCandidate(null)
     clearAllErrors()
       
-      toast({
+      showToast({
+        type: "success",
         title: "¡Éxito!",
         description: "Estado de entrevista actualizado correctamente",
-        variant: "default",
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al guardar entrevista:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al guardar el estado de entrevista")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al guardar el estado de entrevista",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setIsSavingInterview(false)
@@ -908,10 +976,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     })
 
     if (hasErrors) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error de validación",
-        description: "Por favor, corrija los errores en el formulario",
-        variant: "destructive",
+        description: "Por favor, corrija los errores en el formulario antes de continuar",
       })
       return
     }
@@ -919,10 +987,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     // Obtener la evaluación psicolaboral del candidato
     const evaluation = evaluations[selectedCandidate.id]
     if (!evaluation) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "No se encontró evaluación psicolaboral para este candidato",
-        variant: "destructive",
       })
       return
     }
@@ -953,10 +1021,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === testId)
         return testInfo ? testInfo.nombre_test_psicolaboral : `Test ID ${testId}`
       })
-      toast({
+      showToast({
+        type: "error",
         title: "Error de validación",
         description: `No puede agregar el mismo tipo de test dos veces en el mismo guardado. Tests duplicados: ${duplicateTestInfo.join(', ')}. Si desea actualizar un test existente, edite el test existente en lugar de crear uno nuevo.`,
-        variant: "destructive",
       })
       setIsSavingTest(false)
       return
@@ -975,10 +1043,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === form.test_name)
         return testInfo ? testInfo.nombre_test_psicolaboral : `Test ID ${form.test_name}`
       })
-      toast({
+      showToast({
+        type: "error",
         title: "Error de validación",
         description: `No puede agregar un test que ya existe. Los siguientes tests ya están guardados: ${conflictingTestInfo.join(', ')}. Si desea actualizar un test existente, edite el test existente en lugar de crear uno nuevo.`,
-        variant: "destructive",
       })
       setIsSavingTest(false)
       return
@@ -1001,10 +1069,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         if (otherTestsWithSameType.length > 0) {
           const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === newTestId)
           const testName = testInfo ? testInfo.nombre_test_psicolaboral : `Test ID ${newTestId}`
-          toast({
+          showToast({
+            type: "error",
             title: "Error de validación",
             description: `No puede cambiar el tipo de test a "${testName}" porque ya existe otro test con ese tipo. Cada candidato solo puede tener un resultado por tipo de test.`,
-            variant: "destructive",
           })
           setIsSavingTest(false)
           return
@@ -1013,10 +1081,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
 
     if (validForms.length === 0 && testForms.filter(f => f.markedForDeletion).length === 0) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Debe completar al menos un test",
-        variant: "destructive",
       })
       return
     }
@@ -1034,7 +1102,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             parseInt(form.testId)
           )
           if (!response.success) {
-            throw new Error(response.message || 'Error al eliminar el test')
+            const errorMsg = processApiErrorMessage(response.message, 'Error al eliminar el test')
+            throw new Error(errorMsg)
           }
         }
       }
@@ -1051,7 +1120,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           form.result
         )
         if (!response.success) {
-          throw new Error(response.message || 'Error al guardar el test')
+          const errorMsg = processApiErrorMessage(response.message, 'Error al guardar el test')
+          throw new Error(errorMsg)
         }
         console.log(`  ✅ Test guardado exitosamente`)
       }
@@ -1170,16 +1240,18 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         description = "No se realizaron cambios."
       }
 
-      toast({
+      showToast({
+        type: "success",
         title: "Tests guardados",
         description,
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al guardar tests:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al guardar los tests")
+      showToast({
+        type: "error",
         title: "Error",
-        description: error instanceof Error ? error.message : "Error al guardar los tests",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setIsSavingTest(false)
@@ -1220,10 +1292,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       // Obtener la evaluación psicolaboral del candidato
       const evaluation = evaluations[deleteConfirm.candidateId]
       if (!evaluation) {
-        toast({
+        showToast({
+          type: "error",
           title: "Error",
           description: "No se encontró evaluación psicolaboral para este candidato",
-          variant: "destructive",
         })
         return
       }
@@ -1231,10 +1303,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       // Encontrar el ID del test
       const testInfo = availableTests.find(t => t.nombre_test_psicolaboral === deleteConfirm.testName)
       if (!testInfo) {
-        toast({
+        showToast({
+          type: "error",
           title: "Error",
           description: "No se encontró información del test",
-          variant: "destructive",
         })
         return
       }
@@ -1255,16 +1327,18 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       // Limpiar confirmación
       setDeleteConfirm({ type: null })
 
-      toast({
+      showToast({
+        type: "success",
         title: "Éxito",
         description: "Test eliminado correctamente",
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al eliminar test:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al eliminar el test")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al eliminar el test",
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -1588,10 +1662,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       const existingEvaluation = evaluations[selectedCandidate.id]
       
       if (!existingEvaluation) {
-        toast({
+        showToast({
+          type: "error",
           title: "Error",
           description: "No se encontró una evaluación para este candidato",
-          variant: "destructive",
         })
         return
       }
@@ -1615,7 +1689,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       )
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "Éxito",
           description: "Estado del informe actualizado correctamente",
         })
@@ -1667,14 +1742,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     setReportSentDateError("")
     setSelectedCandidate(null)
       } else {
-        throw new Error(response.message || "Error al actualizar el informe")
+        const errorMsg = processApiErrorMessage(response.message, "Error al actualizar el informe")
+        throw new Error(errorMsg)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al guardar informe:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al guardar informe")
+      showToast({
+        type: "error",
         title: "Error",
-        description: `Error al guardar informe: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setIsSavingReport(false)
@@ -1734,10 +1811,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     })
 
     if (hasErrors) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error de validación",
-        description: "Por favor, corrija los errores en el formulario",
-        variant: "destructive",
+        description: "Por favor, corrija los errores en el formulario antes de continuar",
       })
       return
     }
@@ -1754,10 +1831,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     )
 
     if (validForms.length === 0) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Debe completar al menos un formulario de referencia",
-        variant: "destructive",
       })
       return
     }
@@ -1771,7 +1848,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         if (form.referenceId) {
           const response = await referenciaLaboralService.delete(Number(form.referenceId))
           if (!response.success) {
-            throw new Error(response.message || 'Error al eliminar la referencia')
+            const errorMsg = processApiErrorMessage(response.message, 'Error al eliminar la referencia')
+            throw new Error(errorMsg)
           }
         }
       }
@@ -1795,7 +1873,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           // Actualizar referencia existente
           const response = await referenciaLaboralService.update(Number(form.referenceId), referenceData)
           if (!response.success) {
-            throw new Error(response.message || 'Error al actualizar la referencia')
+            const errorMsg = processApiErrorMessage(response.message, 'Error al actualizar la referencia')
+            throw new Error(errorMsg)
           }
         } else {
           // Crear nueva referencia
@@ -1804,7 +1883,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             id_candidato: Number(selectedCandidate.id),
           })
           if (!response.success) {
-            throw new Error(response.message || 'Error al guardar la referencia')
+            const errorMsg = processApiErrorMessage(response.message, 'Error al guardar la referencia')
+            throw new Error(errorMsg)
           }
         }
       }
@@ -1864,16 +1944,18 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         description = "No se realizaron cambios."
       }
 
-      toast({
+      showToast({
+        type: "success",
         title: "Referencias guardadas",
         description,
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al guardar referencias:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al guardar las referencias")
+      showToast({
+        type: "error",
         title: "Error",
-        description: error instanceof Error ? error.message : "Error al guardar las referencias",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setIsSavingReference(false)
@@ -1916,19 +1998,22 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         // Limpiar confirmación
         setDeleteConfirm({ type: null })
         
-        toast({
+        showToast({
+          type: "success",
           title: "Referencia eliminada",
-          description: "La referencia laboral se ha eliminado exitosamente.",
+          description: "La referencia laboral se ha eliminado exitosamente",
         })
       } else {
-        throw new Error(response.message || 'Error al eliminar la referencia')
+        const errorMsg = processApiErrorMessage(response.message, 'Error al eliminar la referencia')
+        throw new Error(errorMsg)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al eliminar referencia:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al eliminar la referencia")
+      showToast({
+        type: "error",
         title: "Error",
-        description: error instanceof Error ? error.message : "Error al eliminar la referencia",
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -1936,10 +2021,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   // Función para avanzar candidatos al módulo 5
   const handleAdvanceToModule5 = async () => {
     if (candidatesWithRealizedInterview.length === 0) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "No hay candidatos con entrevista realizada para avanzar",
-        variant: "destructive",
       })
       return
     }
@@ -1950,10 +2035,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       try {
         const etapaResponse = await solicitudService.avanzarAModulo5(Number(process.id))
         if (!etapaResponse.success) {
-          console.warn('Advertencia: No se pudo actualizar la etapa de la solicitud:', etapaResponse.message)
+          const errorMsg = processApiErrorMessage(etapaResponse.message, "Error al actualizar etapa de solicitud")
+          console.warn('Advertencia: No se pudo actualizar la etapa de la solicitud:', errorMsg)
         }
-      } catch (error) {
-        console.error('Error al actualizar etapa de solicitud:', error)
+      } catch (error: any) {
+        const errorMsg = processApiErrorMessage(error.message, "Error al actualizar etapa de solicitud")
+        console.error('Error al actualizar etapa de solicitud:', errorMsg)
         // Continuar aunque falle la actualización de etapa, ya que los candidatos pueden avanzar
       }
 
@@ -1965,7 +2052,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           )
           
           if (!response.success) {
-            throw new Error(response.message || 'Error al cambiar estado')
+            const errorMsg = processApiErrorMessage(response.message, 'Error al cambiar estado')
+            throw new Error(errorMsg)
           }
           
           return { candidate, success: true }
@@ -1980,7 +2068,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       const failed = results.filter(r => !r.success)
 
       if (successful.length > 0) {
-        toast({
+        showToast({
+          type: "success",
           title: "Candidatos avanzados",
           description: `${successful.length} candidato(s) avanzado(s) al módulo 5 exitosamente`,
         })
@@ -1992,10 +2081,11 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       }
 
       if (failed.length > 0) {
-        toast({
+        const failedErrors = failed.map(f => processApiErrorMessage(f.error, f.error)).join(', ')
+        showToast({
+          type: "error",
           title: "Algunos candidatos no pudieron avanzar",
-          description: `${failed.length} candidato(s) no pudieron avanzar: ${failed.map(f => f.error).join(', ')}`,
-          variant: "destructive",
+          description: `${failed.length} candidato(s) no pudieron avanzar: ${failedErrors}`,
         })
         setIsAdvancingToModule5(false)
       }
@@ -2010,12 +2100,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         setCandidates(updatedCandidates)
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al avanzar candidatos al módulo 5:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al avanzar candidatos al módulo 5")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al avanzar candidatos al módulo 5",
-        variant: "destructive",
+        description: errorMsg,
       })
       setIsAdvancingToModule5(false)
     }

@@ -21,7 +21,7 @@ import { getCandidatesByProcess, estadoClienteM5Service, solicitudService } from
 import { formatDate, isProcessBlocked } from "@/lib/utils"
 import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle, Pencil, Loader2 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "./ProcessBlocked"
 
 interface ProcessModule5Props {
@@ -51,7 +51,68 @@ interface ContractedCandidate {
 }
 
 export function ProcessModule5({ process }: ProcessModule5Props) {
-  const { toast } = useToast()
+  const { showToast } = useToastNotification()
+
+  // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+  const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+    if (!errorMessage) return defaultMessage
+    const message = errorMessage.toLowerCase()
+    
+    // Mensajes específicos del módulo 5
+    if (message.includes('los comentarios son obligatorios')) {
+      return errorMessage // Ya es un mensaje amigable
+    }
+    if (message.includes('estado de contratación no válido')) {
+      return 'El estado de contratación seleccionado no es válido. Por favor selecciona un estado válido'
+    }
+    if (message.includes('estado de contratación es requerido')) {
+      return 'Debes seleccionar un estado de contratación'
+    }
+    if (message.includes('postulación no encontrada')) {
+      return 'No se encontró la postulación del candidato'
+    }
+    if (message.includes('estado de cliente no encontrado')) {
+      return 'No se encontró el estado del cliente'
+    }
+    
+    // Mensajes generales
+    if (message.includes('validate') && message.includes('field')) {
+      return 'Por favor verifica que todos los campos estén completos correctamente'
+    }
+    if (message.includes('not found') || message.includes('no encontrado')) {
+      return 'El recurso solicitado no fue encontrado'
+    }
+    if (message.includes('unauthorized') || message.includes('no autorizado')) {
+      return 'No tienes permisos para realizar esta acción'
+    }
+    if (message.includes('forbidden') || message.includes('prohibido')) {
+      return 'Acceso denegado'
+    }
+    if (message.includes('network') || message.includes('red')) {
+      return 'Error de conexión. Por favor verifica tu conexión a internet'
+    }
+    if (message.includes('timeout')) {
+      return 'La operación tardó demasiado. Por favor intenta nuevamente'
+    }
+    if (message.includes('duplicate') || message.includes('duplicado')) {
+      return 'Ya existe un registro con esta información'
+    }
+    if (message.includes('constraint') || message.includes('restricción')) {
+      return 'No se puede realizar esta acción debido a restricciones de datos'
+    }
+    if (message.includes('invalid') || message.includes('inválido')) {
+      return 'Los datos proporcionados no son válidos'
+    }
+    if (message.includes('requerido') || message.includes('required')) {
+      return errorMessage // Ya es un mensaje amigable en español
+    }
+    
+    // Si el mensaje ya está en español y es claro, devolverlo capitalizado
+    if (message.length > 0 && message[0] === message[0].toLowerCase()) {
+      return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+    }
+    return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+  }
   // Incluir candidatos que pasaron el módulo 4 (aprobados por el consultor) o que fueron aprobados por el cliente
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -82,11 +143,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         
         setContractedCandidates(contractedData)
       } else {
-        console.error('Error al cargar candidatos del módulo 5:', response.message)
+        const errorMsg = processApiErrorMessage(response.message, "Error al cargar candidatos del módulo 5")
+        console.error('Error al cargar candidatos del módulo 5:', errorMsg)
         setCandidates([])
       }
-    } catch (error) {
-      console.error('Error al cargar candidatos:', error)
+    } catch (error: any) {
+      const errorMsg = processApiErrorMessage(error.message, "Error al cargar candidatos")
+      console.error('Error al cargar candidatos:', errorMsg)
       setCandidates([])
     } finally {
       setIsLoading(false)
@@ -131,10 +194,12 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         console.log('[DEBUG FRONTEND] Contracted candidates actualizados:', contractedData)
         setContractedCandidates(contractedData)
       } else {
-        console.error('Error al recargar candidatos del módulo 5:', response.message)
+        const errorMsg = processApiErrorMessage(response.message, "Error al recargar candidatos del módulo 5")
+        console.error('Error al recargar candidatos del módulo 5:', errorMsg)
       }
-    } catch (error) {
-      console.error('Error al recargar candidatos:', error)
+    } catch (error: any) {
+      const errorMsg = processApiErrorMessage(error.message, "Error al recargar candidatos")
+      console.error('Error al recargar candidatos:', errorMsg)
     }
   }
 
@@ -159,9 +224,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                    nombre.includes('extraordinario')
           })
           setEstadosDisponibles(estadosFinales)
+        } else if (!response.success) {
+          const errorMsg = processApiErrorMessage(response.message, "Error al cargar estados de solicitud")
+          console.error("Error al cargar estados de solicitud:", errorMsg)
         }
-      } catch (error) {
-        console.error("Error al cargar estados de solicitud:", error)
+      } catch (error: any) {
+        const errorMsg = processApiErrorMessage(error.message, "Error al cargar estados de solicitud")
+        console.error("Error al cargar estados de solicitud:", errorMsg)
       } finally {
         setLoadingEstados(false)
       }
@@ -219,7 +288,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         setObservationsError("")
         
         // Mostrar mensaje de éxito
-        toast({
+        showToast({
+          type: "success",
           title: "Éxito",
           description: "Estado del candidato actualizado exitosamente",
         })
@@ -233,18 +303,20 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         // Forzar un re-render adicional
         setCandidates(prev => [...prev])
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al actualizar el estado del candidato")
+        showToast({
+          type: "error",
           title: "Error",
-          description: response.message || "Error al actualizar el estado del candidato",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al actualizar candidato:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al actualizar el estado del candidato")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al actualizar el estado del candidato",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setIsSavingContract(false)
@@ -394,19 +466,19 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const handleProcessClosure = async () => {
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede cambiar el estado de un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
 
     if (!selectedEstado) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Debes seleccionar un estado",
-        variant: "destructive",
       })
       return
     }
@@ -419,10 +491,10 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       )
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Solicitud finalizada exitosamente",
-          variant: "default",
         })
         setShowStatusChange(false)
         setSelectedEstado("")
@@ -430,18 +502,20 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al finalizar la solicitud")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al finalizar la solicitud",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cambiar estado:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al finalizar la solicitud")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al finalizar la solicitud",
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -499,7 +573,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
           ? "Candidato registrado como contratado exitosamente"
           : "Candidato registrado como no contratado exitosamente"
         
-        toast({
+        showToast({
+          type: "success",
           title: "Éxito",
           description: mensajeExito,
         })
@@ -517,18 +592,20 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         // Recargar datos para actualizar el conteo de vacantes
         await reloadData()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al actualizar el estado del candidato")
+        showToast({
+          type: "error",
           title: "Error",
-          description: response.message || "Error al actualizar el estado del candidato",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[ERROR] Error al guardar contratación:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al guardar la contratación")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al guardar la contratación",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setIsSavingContratacion(false)

@@ -68,9 +68,11 @@ export class HitoSolicitudController {
     static async copiarPlantillas(req: Request, res: Response): Promise<Response> {
         try {
             const { id_solicitud } = req.body;
+            const usuarioRut = (req as any).user?.id;
             
             const hitos = await HitoSolicitudService.copiarPlantillasASolicitud(
-                parseInt(id_solicitud)
+                parseInt(id_solicitud),
+                usuarioRut
             );
             
             return sendSuccess(res, hitos, 'Hitos creados para la solicitud exitosamente', 201);

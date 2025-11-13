@@ -654,7 +654,7 @@ export class SolicitudService {
 
             // Crear hitos automáticamente basados en las plantillas del servicio
             try {
-                await HitoSolicitudService.copiarPlantillasASolicitud(nuevaSolicitud.id_solicitud);
+                await HitoSolicitudService.copiarPlantillasASolicitud(nuevaSolicitud.id_solicitud, usuarioRut);
                 
                 // Activar hitos de "inicio_proceso" inmediatamente
                 await HitoSolicitudService.activarHitosPorEvento(

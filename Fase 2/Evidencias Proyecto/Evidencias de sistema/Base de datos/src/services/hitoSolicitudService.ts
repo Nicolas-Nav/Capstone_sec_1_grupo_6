@@ -74,10 +74,15 @@ export class HitoSolicitudService {
     /**
      * Copiar plantillas a una solicitud específica
      */
-    static async copiarPlantillasASolicitud(idSolicitud: number) {
+    static async copiarPlantillasASolicitud(idSolicitud: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             // Obtener la solicitud para saber el tipo de servicio
             const solicitud = await Solicitud.findByPk(idSolicitud);
             if (!solicitud) {

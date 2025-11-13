@@ -6,6 +6,7 @@ import Postulacion from '@/models/Postulacion';
 import Contratacion from '@/models/Contratacion';
 import EvaluacionPsicolaboral from '@/models/EvaluacionPsicolaboral';
 import { Logger } from '@/utils/logger';
+import { setDatabaseUser } from '@/utils/databaseUser';
 
 export default class EstadoClienteM5Service {
     
@@ -34,11 +35,16 @@ export default class EstadoClienteM5Service {
             id_estado_cliente_postulacion_m5: number;
             fecha_feedback_cliente_m5: string | null;
             comentario_modulo5_cliente?: string;
-        }
+        },
+        usuarioRut?: string
     ) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
             const { id_estado_cliente_postulacion_m5, fecha_feedback_cliente_m5, comentario_modulo5_cliente } = data;
 
             console.log(`[DEBUG] Cambiando estado módulo 5 - Postulación: ${id_postulacion}, Estado: ${id_estado_cliente_postulacion_m5}`);
@@ -112,7 +118,7 @@ export default class EstadoClienteM5Service {
     /**
      * Avanzar candidato al módulo 5 (desde módulo 4)
      */
-    static async avanzarAlModulo5(id_postulacion: number, comentario?: string) {
+    static async avanzarAlModulo5(id_postulacion: number, comentario?: string, usuarioRut?: string) {
         // Estado "En espera de feedback" tiene ID 1 en la nueva tabla
         const estadoEsperaFeedback = 1;
         
@@ -120,7 +126,7 @@ export default class EstadoClienteM5Service {
             id_estado_cliente_postulacion_m5: estadoEsperaFeedback,
             fecha_feedback_cliente_m5: null, // Fecha NULL, se ingresa manualmente después
             comentario_modulo5_cliente: comentario || undefined
-        });
+        }, usuarioRut);
     }
 
     /**
@@ -385,10 +391,15 @@ export default class EstadoClienteM5Service {
             observations?: string; // Comentarios/observaciones del módulo 5
             fecha_ingreso_contratacion?: string; // Fecha de ingreso del candidato (opcional)
             observaciones_contratacion?: string; // Observaciones específicas de contratación (opcional)
-        }
+        },
+        usuarioRut?: string
     ) {
         const transaction: Transaction = await sequelize.transaction();
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
             Logger.info(`[DEBUG] actualizarCandidatoModulo5 - Postulación: ${id_postulacion}`);
             Logger.info(`[DEBUG] Datos recibidos:`, JSON.stringify(data, null, 2));
             
@@ -462,7 +473,7 @@ export default class EstadoClienteM5Service {
                 id_estado_cliente_postulacion_m5,
                 fecha_feedback_cliente_m5: fechaFeedback,
                 comentario_modulo5_cliente: data.observations
-            });
+            }, usuarioRut);
 
             await transaction.commit();
             return {

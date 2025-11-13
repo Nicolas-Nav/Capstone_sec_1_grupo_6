@@ -55,13 +55,15 @@ export default class EstadoClienteM5Controller {
             // La fecha ya no es requerida, puede ser null
             // Se validará automáticamente en el servicio
 
+            const usuarioRut = (req as any).user?.id;
             const result = await EstadoClienteM5Service.cambiarEstado(
                 parseInt(id_postulacion),
                 {
                     id_estado_cliente_postulacion_m5,
                     fecha_feedback_cliente_m5: fecha_feedback_cliente_m5 || null,
                     comentario_modulo5_cliente
-                }
+                },
+                usuarioRut
             );
 
             // Agregar headers de cache control
@@ -98,10 +100,12 @@ export default class EstadoClienteM5Controller {
         try {
             const { id_postulacion } = req.params;
             const { comentario_modulo5_cliente } = req.body;
+            const usuarioRut = (req as any).user?.id;
 
             const result = await EstadoClienteM5Service.avanzarAlModulo5(
                 parseInt(id_postulacion),
-                comentario_modulo5_cliente
+                comentario_modulo5_cliente,
+                usuarioRut
             );
 
             Logger.info(`Candidato avanzado al módulo 5 - Postulación ${id_postulacion}`);
@@ -187,6 +191,7 @@ static async actualizarCandidatoModulo5(req: Request, res: Response): Promise<Re
             return sendError(res, 'El estado de contratación es requerido', 400);
         }
 
+        const usuarioRut = (req as any).user?.id;
         const result = await EstadoClienteM5Service.actualizarCandidatoModulo5(
             parseInt(id_postulacion),
             {
@@ -195,7 +200,8 @@ static async actualizarCandidatoModulo5(req: Request, res: Response): Promise<Re
                 observations,
                 fecha_ingreso_contratacion,
                 observaciones_contratacion
-            }
+            },
+            usuarioRut
         );
 
         // Agregar headers de cache control

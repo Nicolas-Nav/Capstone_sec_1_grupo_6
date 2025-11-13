@@ -17,17 +17,64 @@ import { estadoClienteService, solicitudService } from "@/lib/api"
 import { getStatusColor, formatCurrency, isProcessBlocked } from "@/lib/utils"
 import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle, AlertCircle } from "lucide-react"
 import type { Process, Candidate, ProcessStatus } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "./ProcessBlocked"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
+
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
 
 interface ProcessModule3Props {
   process: Process
 }
 
 export function ProcessModule3({ process }: ProcessModule3Props) {
-  const { toast } = useToast()
+  const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -72,9 +119,14 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         const estadosResponse = await estadoClienteService.getAll()
         if (estadosResponse.success && estadosResponse.data) {
           setEstadosCliente(estadosResponse.data)
+        } else if (!estadosResponse.success) {
+          // Si hay un error en la respuesta, procesarlo pero no bloquear la carga
+          const errorMsg = processApiErrorMessage(estadosResponse.message, "Error al cargar estados de cliente")
+          console.error('Error al cargar estados de cliente:', errorMsg)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error al cargar datos:', error)
+        // No mostrar toast aquí para no interrumpir la carga inicial, solo loguear
       } finally {
         setIsLoading(false)
       }
@@ -106,13 +158,21 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                    nombre === "cierre extraordinario"
           })
           setEstadosDisponibles(estadosCierre)
+        } else if (!response.success) {
+          const errorMsg = processApiErrorMessage(response.message, "Error al cargar estados disponibles")
+          showToast({
+            type: "error",
+            title: "Error",
+            description: errorMsg,
+          })
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar estados de solicitud:", error)
-        toast({
+        const errorMsg = processApiErrorMessage(error.message, "Error al cargar estados disponibles")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al cargar estados disponibles",
-          variant: "destructive",
+          description: errorMsg,
         })
       } finally {
         setLoadingEstados(false)
@@ -212,10 +272,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede actualizar candidatos en un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
@@ -224,10 +284,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     const isValid = validateAllFields(updateFormData, validationSchemas.module3UpdateCandidateForm)
     
     if (!isValid) {
-      toast({
+      showToast({
+        type: "error",
         title: "Faltan campos por completar",
         description: "Por favor, corrija los errores en el formulario",
-        variant: "destructive",
       })
       return
     }
@@ -240,10 +300,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     
     // Validar comentarios si es necesario
     if ((updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && !updateFormData.client_comments?.trim()) {
-      toast({
+      showToast({
+        type: "error",
         title: "Validación requerida",
         description: `Los comentarios son obligatorios para el estado "${updateFormData.client_response}"`,
-        variant: "destructive",
       })
       return
     }
@@ -255,10 +315,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
     if (!estadoCliente) {
       console.error('Estado de cliente no encontrado:', updateFormData.client_response)
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Estado de cliente no encontrado",
-        variant: "destructive",
       })
       return
     }
@@ -312,25 +372,27 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         handleCloseUpdateModal()
 
         // Mostrar toast de éxito
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: `Estado del candidato ${updatingCandidate.name} actualizado correctamente`,
-          variant: "default",
         })
       } else {
         console.error('Error al guardar estado de cliente:', responseData.message)
-        toast({
+        const errorMsg = processApiErrorMessage(responseData.message, "No se pudo actualizar el estado del candidato")
+        showToast({
+          type: "error",
           title: "Error",
-          description: responseData.message || "No se pudo actualizar el estado del candidato",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al guardar estado de cliente:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Ocurrió un error al actualizar el estado del candidato")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Ocurrió un error al actualizar el estado del candidato",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setSavingState(prev => ({ ...prev, [updatingCandidate.id]: false }))
@@ -369,10 +431,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const handleAdvanceToModule4 = async () => {
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede avanzar un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
@@ -382,29 +444,31 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       const response = await solicitudService.avanzarAModulo4(parseInt(process.id))
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Proceso avanzado al Módulo 4 exitosamente",
-          variant: "default",
         })
         // Navegar al módulo 4 usando URL con parámetro
         const currentUrl = new URL(window.location.href)
         currentUrl.searchParams.set('tab', 'modulo-4')
         window.location.href = currentUrl.toString()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al avanzar al Módulo 4")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al avanzar al Módulo 4",
-          variant: "destructive",
+          description: errorMsg,
         })
         setIsAdvancingToModule4(false)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al avanzar al Módulo 4:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al avanzar al Módulo 4")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al avanzar al Módulo 4",
-        variant: "destructive",
+        description: errorMsg,
       })
       setIsAdvancingToModule4(false)
     }
@@ -478,10 +542,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const handleStatusChange = async (estadoId: string) => {
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede cambiar el estado de un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
@@ -493,10 +557,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       )
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Solicitud finalizada exitosamente",
-          variant: "default",
         })
         setShowStatusChange(false)
         setSelectedEstado("")
@@ -504,18 +568,20 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al finalizar la solicitud")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al finalizar la solicitud",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cambiar estado:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al finalizar la solicitud")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al finalizar la solicitud",
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }

@@ -20,6 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 
 // Interfaces para enriquecimiento de datos
 interface LogEnriquecido extends LogCambio {
@@ -34,6 +35,45 @@ interface Usuario {
 
 export default function HistorialPage() {
   const { user } = useAuth()
+  const { showToast } = useToastNotification()
+  
+  // Función helper para procesar mensajes de error de la API
+  const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+    if (!errorMessage) return defaultMessage
+    const message = errorMessage.toLowerCase()
+    
+    // Mensajes específicos de historial
+    if (message.includes('error al cargar historial') || message.includes('error al obtener historial')) {
+      return 'Error al cargar el historial de cambios'
+    }
+    if (message.includes('error al obtener estadísticas') || message.includes('error al obtener estadisticas')) {
+      return 'Error al obtener estadísticas del historial'
+    }
+    if (message.includes('error al obtener usuarios')) {
+      return 'Error al obtener información de usuarios'
+    }
+    
+    // Mensajes generales
+    if (message.includes('not found') || message.includes('no encontrado')) {
+      return 'No se encontraron los datos solicitados'
+    }
+    if (message.includes('unauthorized') || message.includes('no autorizado')) {
+      return 'No tienes permisos para acceder a estos datos'
+    }
+    if (message.includes('network') || message.includes('red')) {
+      return 'Error de conexión. Por favor verifica tu conexión a internet'
+    }
+    if (message.includes('timeout')) {
+      return 'La operación tardó demasiado. Por favor intenta nuevamente'
+    }
+    if (message.includes('server error') || message.includes('error del servidor')) {
+      return 'Error en el servidor. Por favor intenta más tarde'
+    }
+    
+    // Si el mensaje ya está en español y es claro, devolverlo tal cual
+    return errorMessage || defaultMessage
+  }
+  
   const [logs, setLogs] = useState<LogEnriquecido[]>([])
   const [stats, setStats] = useState<LogEstadisticas | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,8 +135,13 @@ export default function HistorialPage() {
           const usuariosUnicos = [...new Set(allLogs.map((log: LogCambio) => log.usuario_responsable))].sort()
           setAllUsuariosUnicos(usuariosUnicos)
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error cargando datos iniciales:', err)
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(err?.message, "Error al cargar datos iniciales del historial"),
+        })
       }
     }
 
@@ -175,7 +220,13 @@ export default function HistorialPage() {
         }
       } catch (err: any) {
         console.error('Error cargando historial:', err)
-        setError(err.message || 'Error al cargar el historial de cambios')
+        const errorMsg = processApiErrorMessage(err?.message, 'Error al cargar el historial de cambios')
+        setError(errorMsg)
+        showToast({
+          type: "error",
+          title: "Error",
+          description: errorMsg,
+        })
       } finally {
         setLoading(false)
       }

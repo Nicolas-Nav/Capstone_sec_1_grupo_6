@@ -278,6 +278,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [showInterviewDialog, setShowInterviewDialog] = useState(false)
   const [showTestDialog, setShowTestDialog] = useState(false)
+  const [isEditingSingleTest, setIsEditingSingleTest] = useState(false)
   const [showReferencesDialog, setShowReferencesDialog] = useState(false)
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
@@ -704,12 +705,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
   const openTestDialog = async (candidate: Candidate) => {
     setSelectedCandidate(candidate)
+    setIsEditingSingleTest(false)
     
     // Cargar tests existentes del candidato
     try {
       const evaluation = evaluations[candidate.id]
       if (evaluation && evaluation.tests && evaluation.tests.length > 0) {
-        // Convertir tests existentes en formularios editables (sin agregar uno vacío)
+        // Convertir tests existentes en formularios editables (sin agregar formulario vacío automáticamente)
         const existingForms = evaluation.tests.map((test: any) => {
           const testId = test.id_test_psicolaboral || test.EvaluacionTest?.id_test_psicolaboral
           return {
@@ -737,6 +739,51 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         test_name: "",
         result: "",
       }])
+    }
+    
+    setHasAttemptedSubmitTest(false)
+    clearAllErrors()
+    
+    setShowTestDialog(true)
+  }
+
+  const openEditTestDialog = async (candidate: Candidate, testId: string) => {
+    setSelectedCandidate(candidate)
+    setIsEditingSingleTest(true)
+    
+    // Cargar solo el test específico a editar
+    try {
+      const evaluation = evaluations[candidate.id]
+      if (evaluation && evaluation.tests && evaluation.tests.length > 0) {
+        // Buscar el test específico por su ID
+        const testToEdit = evaluation.tests.find((test: any) => {
+          const testIdFromTest = test.id_test_psicolaboral || test.EvaluacionTest?.id_test_psicolaboral
+          return String(testIdFromTest) === testId
+        })
+        
+        if (testToEdit) {
+          const testIdValue = testToEdit.id_test_psicolaboral || testToEdit.EvaluacionTest?.id_test_psicolaboral
+          setTestForms([{
+            id: `test_${testIdValue}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            testId: String(testIdValue),
+            test_name: String(testIdValue),
+            result: testToEdit.EvaluacionTest?.resultado_test || ""
+          }])
+        } else {
+          // Si no se encuentra el test, abrir el diálogo normal
+          openTestDialog(candidate)
+          return
+        }
+      } else {
+        // Si no hay tests, abrir el diálogo normal
+        openTestDialog(candidate)
+        return
+      }
+    } catch (error) {
+      console.error('Error al cargar test para editar:', error)
+      // En caso de error, abrir el diálogo normal
+      openTestDialog(candidate)
+      return
     }
     
     setHasAttemptedSubmitTest(false)
@@ -885,6 +932,86 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       !form.markedForDeletion && form.test_name && form.result
     )
 
+    console.log('🔍 [DEBUG] Tests a guardar:', {
+      totalForms: testForms.length,
+      validForms: validForms.length,
+      validFormsData: validForms.map(f => ({
+        id: f.id,
+        testId: f.testId,
+        test_name: f.test_name,
+        result: f.result?.substring(0, 50) + '...'
+      }))
+    })
+
+    // Validar que no haya tests duplicados (mismo id_test_psicolaboral) en los formularios a guardar
+    const testNames = validForms.map(f => f.test_name)
+    const duplicateTestNames = testNames.filter((name, index) => testNames.indexOf(name) !== index)
+    if (duplicateTestNames.length > 0) {
+      const uniqueDuplicates = [...new Set(duplicateTestNames)]
+      // Obtener nombres de tests para mostrar en el error
+      const duplicateTestInfo = uniqueDuplicates.map(testId => {
+        const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === testId)
+        return testInfo ? testInfo.nombre_test_psicolaboral : `Test ID ${testId}`
+      })
+      toast({
+        title: "Error de validación",
+        description: `No puede agregar el mismo tipo de test dos veces en el mismo guardado. Tests duplicados: ${duplicateTestInfo.join(', ')}. Si desea actualizar un test existente, edite el test existente en lugar de crear uno nuevo.`,
+        variant: "destructive",
+      })
+      setIsSavingTest(false)
+      return
+    }
+
+    // Validar que los nuevos tests (sin testId) no sean del mismo tipo que tests ya existentes
+    const existingTestIds = evaluation.tests?.map((t: any) => {
+      return String(t.id_test_psicolaboral || t.EvaluacionTest?.id_test_psicolaboral)
+    }) || []
+    
+    const newForms = validForms.filter(f => !f.testId)
+    const conflictingTests = newForms.filter(form => existingTestIds.includes(form.test_name))
+    
+    if (conflictingTests.length > 0) {
+      const conflictingTestInfo = conflictingTests.map(form => {
+        const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === form.test_name)
+        return testInfo ? testInfo.nombre_test_psicolaboral : `Test ID ${form.test_name}`
+      })
+      toast({
+        title: "Error de validación",
+        description: `No puede agregar un test que ya existe. Los siguientes tests ya están guardados: ${conflictingTestInfo.join(', ')}. Si desea actualizar un test existente, edite el test existente en lugar de crear uno nuevo.`,
+        variant: "destructive",
+      })
+      setIsSavingTest(false)
+      return
+    }
+
+    // Validar que si estamos editando un test, no se cambie el tipo de test a uno que ya existe en otro test
+    // (excepto si es el mismo test que estamos editando)
+    if (isEditingSingleTest && validForms.length === 1 && validForms[0].testId) {
+      const formBeingEdited = validForms[0]
+      const originalTestId = formBeingEdited.testId
+      const newTestId = formBeingEdited.test_name
+      
+      // Si el tipo de test cambió, verificar que no esté siendo usado por otro test
+      if (originalTestId !== newTestId) {
+        // Verificar si el nuevo tipo de test ya existe en otro test (excluyendo el test actual)
+        const otherTestsWithSameType = existingTestIds.filter(testId => 
+          testId === newTestId && testId !== originalTestId
+        )
+        
+        if (otherTestsWithSameType.length > 0) {
+          const testInfo = availableTests.find(t => t.id_test_psicolaboral.toString() === newTestId)
+          const testName = testInfo ? testInfo.nombre_test_psicolaboral : `Test ID ${newTestId}`
+          toast({
+            title: "Error de validación",
+            description: `No puede cambiar el tipo de test a "${testName}" porque ya existe otro test con ese tipo. Cada candidato solo puede tener un resultado por tipo de test.`,
+            variant: "destructive",
+          })
+          setIsSavingTest(false)
+          return
+        }
+      }
+    }
+
     if (validForms.length === 0 && testForms.filter(f => f.markedForDeletion).length === 0) {
       toast({
         title: "Error",
@@ -899,6 +1026,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     try {
       // Primero, eliminar los tests marcados para eliminación
       const testsToDelete = testForms.filter(form => form.markedForDeletion && form.testId)
+      console.log('🗑️ [DEBUG] Tests a eliminar:', testsToDelete.length)
       for (const form of testsToDelete) {
         if (form.testId) {
           const response = await evaluacionPsicolaboralService.deleteTest(
@@ -911,18 +1039,38 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         }
       }
 
-      // Procesar todos los tests válidos (actualizar existentes o crear nuevos)
-      // addTest ya maneja tanto creación como actualización
+      // Procesar todos los tests válidos
+      // IMPORTANTE: El backend addTest verifica si ya existe un test con ese id_test_psicolaboral
+      // Si existe, lo actualiza; si no, lo crea
+      console.log('💾 [DEBUG] Guardando tests...')
       for (const form of validForms) {
-        await evaluacionPsicolaboralService.addTest(
+        console.log(`  - Guardando test: id_test=${form.test_name}, testId=${form.testId || 'nuevo'}, resultado=${form.result?.substring(0, 30)}...`)
+        const response = await evaluacionPsicolaboralService.addTest(
           evaluation.id_evaluacion_psicolaboral,
           parseInt(form.test_name), // id_test_psicolaboral
           form.result
         )
+        if (!response.success) {
+          throw new Error(response.message || 'Error al guardar el test')
+        }
+        console.log(`  ✅ Test guardado exitosamente`)
       }
 
+      // Esperar un momento para asegurar que la base de datos se actualizó completamente
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
       // Recargar la evaluación para obtener los tests actualizados
       const updatedEvaluation = await getEvaluationByCandidate(selectedCandidate)
+      console.log('🔄 [DEBUG] Evaluación recargada:', {
+        hasEvaluation: !!updatedEvaluation,
+        testsCount: updatedEvaluation?.tests?.length || 0,
+        tests: updatedEvaluation?.tests?.map((t: any) => ({
+          id_test: t.id_test_psicolaboral || t.EvaluacionTest?.id_test_psicolaboral,
+          nombre: t.nombre_test_psicolaboral,
+          resultado: t.EvaluacionTest?.resultado_test?.substring(0, 30)
+        }))
+      })
+      
       if (updatedEvaluation) {
         setEvaluations({
           ...evaluations,
@@ -939,6 +1087,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               result: test.EvaluacionTest?.resultado_test || ''
             }
           })
+          console.log('📋 [DEBUG] candidateTests actualizado:', updatedTests.length, 'tests')
           setCandidateTests({
             ...candidateTests,
             [selectedCandidate.id]: updatedTests
@@ -952,23 +1101,57 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       }
 
       // Recargar el diálogo con los tests actualizados
+      // Si estamos editando un solo test, mantener solo ese test; si no, cargar todos
       if (updatedEvaluation && updatedEvaluation.tests && updatedEvaluation.tests.length > 0) {
-        const existingForms = updatedEvaluation.tests.map((test: any) => {
-          const testId = test.id_test_psicolaboral || test.EvaluacionTest?.id_test_psicolaboral
-          return {
-            id: `test_${testId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            testId: String(testId),
-            test_name: String(testId),
-            result: test.EvaluacionTest?.resultado_test || ""
+        if (isEditingSingleTest && testForms.length === 1 && testForms[0].testId) {
+          // Si estamos editando un solo test, mantener solo ese test actualizado
+          const testIdToKeep = testForms[0].testId
+          const updatedTest = updatedEvaluation.tests.find((test: any) => {
+            const testId = test.id_test_psicolaboral || test.EvaluacionTest?.id_test_psicolaboral
+            return String(testId) === testIdToKeep
+          })
+          
+          if (updatedTest) {
+            const testIdValue = updatedTest.id_test_psicolaboral || updatedTest.EvaluacionTest?.id_test_psicolaboral
+            setTestForms([{
+              id: `test_${testIdValue}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              testId: String(testIdValue),
+              test_name: String(testIdValue),
+              result: updatedTest.EvaluacionTest?.resultado_test || ""
+            }])
+          } else {
+            // Si no se encuentra el test, cerrar el diálogo
+            setShowTestDialog(false)
+            setIsEditingSingleTest(false)
           }
-        })
-        setTestForms(existingForms)
+        } else {
+          // Si no estamos editando un solo test, cargar todos los tests
+          const existingForms = updatedEvaluation.tests.map((test: any) => {
+            const testId = test.id_test_psicolaboral || test.EvaluacionTest?.id_test_psicolaboral
+            return {
+              id: `test_${testId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              testId: String(testId),
+              test_name: String(testId),
+              result: test.EvaluacionTest?.resultado_test || ""
+            }
+          })
+          
+          console.log('📝 [DEBUG] Formularios recargados:', existingForms.length, 'tests existentes')
+          
+          setTestForms(existingForms)
+        }
       } else {
-        setTestForms([{
-          id: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          test_name: "",
-          result: "",
-        }])
+        // Si no hay tests y estamos editando, cerrar el diálogo
+        if (isEditingSingleTest) {
+          setShowTestDialog(false)
+          setIsEditingSingleTest(false)
+        } else {
+          setTestForms([{
+            id: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            test_name: "",
+            result: "",
+          }])
+        }
       }
       
       setHasAttemptedSubmitTest(false)
@@ -2346,7 +2529,11 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                             <Button
                                               variant="outline"
                                               size="sm"
-                                              onClick={() => openTestDialog(candidate)}
+                                              onClick={() => {
+                                                // El test.id en candidateTests es el id_test_psicolaboral (tipo de test)
+                                                // que es lo que necesitamos para buscar el test en la evaluación
+                                                openEditTestDialog(candidate, test.id)
+                                              }}
                                             >
                                               <Edit className="h-4 w-4" />
                                             </Button>
@@ -2378,14 +2565,55 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             <Calendar className="mr-2 h-4 w-4" />
                             Editar Estado de Entrevista
                           </Button>
-                          <Button onClick={() => openTestDialog(candidate)} size="sm">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Agregar Test
-                          </Button>
-                          <Button variant="outline" onClick={() => openReferencesDialog(candidate)} size="sm">
-                            <Building className="mr-2 h-4 w-4" />
-                            Agregar Referencias
-                          </Button>
+                          {(() => {
+                            const hasEvaluation = !!evaluations[candidate.id]
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span>
+                                    <Button 
+                                      onClick={() => openTestDialog(candidate)} 
+                                      size="sm"
+                                      disabled={!hasEvaluation}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Agregar Test
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                {!hasEvaluation && (
+                                  <TooltipContent>
+                                    <p>Primero debe crear una evaluación psicolaboral<br/>guardando el estado de entrevista</p>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            )
+                          })()}
+                          {(() => {
+                            const hasEvaluation = !!evaluations[candidate.id]
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span>
+                                    <Button 
+                                      variant="outline" 
+                                      onClick={() => openReferencesDialog(candidate)} 
+                                      size="sm"
+                                      disabled={!hasEvaluation}
+                                    >
+                                      <Building className="mr-2 h-4 w-4" />
+                                      Agregar Referencias
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                {!hasEvaluation && (
+                                  <TooltipContent>
+                                    <p>Primero debe crear una evaluación psicolaboral<br/>guardando el estado de entrevista</p>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            )
+                          })()}
                           {(() => {
                             const evaluation = evaluations[candidate.id]
                             const candidateInterview = candidateInterviews[candidate.id]
@@ -2537,6 +2765,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         if (!open) {
           clearAllErrors()
           setHasAttemptedSubmitTest(false)
+          setIsEditingSingleTest(false)
           // Limpiar las marcas de eliminación al cerrar sin guardar
           setTestForms(forms => 
             forms.map(form => ({ ...form, markedForDeletion: false }))
@@ -2545,7 +2774,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       }}>
         <DialogContent className="!max-w-[50vw] !w-[60vw] max-h-[100vh] overflow-y-auto" style={{ maxWidth: '60vw', width: '60vw' }}>
           <DialogHeader>
-            <DialogTitle>Agregar Test</DialogTitle>
+            <DialogTitle>{isEditingSingleTest ? "Editar Test" : "Agregar Test"}</DialogTitle>
             <DialogDescription>
               {selectedCandidate && (
                 <>
@@ -2565,11 +2794,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             {/* Add New Test Forms */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Agregar Tests</CardTitle>
-                <Button type="button" variant="outline" size="sm" onClick={addTestForm}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Agregar Otro Test
-                </Button>
+                <CardTitle className="text-lg">{isEditingSingleTest ? "Editar Test" : "Agregar Tests"}</CardTitle>
+                {!isEditingSingleTest && (
+                  <Button type="button" variant="outline" size="sm" onClick={addTestForm}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Agregar Otro Test
+                  </Button>
+                )}
               </div>
 
               {testForms.map((form, index) => {

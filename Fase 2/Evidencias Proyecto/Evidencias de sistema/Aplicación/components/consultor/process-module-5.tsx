@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { getCandidatesByProcess, estadoClienteM5Service, solicitudService } from "@/lib/api"
 import { formatDate, isProcessBlocked } from "@/lib/utils"
-import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle, Pencil } from "lucide-react"
+import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle, Pencil, Loader2 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { ProcessBlocked } from "./ProcessBlocked"
@@ -187,6 +187,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   })
   const [contratacionAction, setContratacionAction] = useState<"contratado" | "no_contratado">("contratado")
   const [isSavingContratacion, setIsSavingContratacion] = useState(false)
+  const [isSavingContract, setIsSavingContract] = useState(false)
 
   const handleContractSubmit = async () => {
     if (!selectedCandidate) return
@@ -198,6 +199,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       return
     }
     setObservationsError("")
+
+    setIsSavingContract(true)
 
     try {
       // Llamar al API para actualizar el candidato en el backend
@@ -243,6 +246,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         description: "Error al actualizar el estado del candidato",
         variant: "destructive",
       })
+    } finally {
+      setIsSavingContract(false)
     }
 
     setShowContractDialog(false)
@@ -506,6 +511,10 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         })
         setSelectedCandidate(null)
         
+        // Esperar un momento para asegurar que la transacción del backend terminó
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        // Recargar datos para actualizar el conteo de vacantes
         await reloadData()
       } else {
         toast({
@@ -527,9 +536,11 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   }
 
   // Variables de conteo
-  const contractedCount = contractedCandidates.filter((c) => c.hiring_status === "contratado").length
+  // Usar contratacion_status en lugar de hiring_status para contar candidatos contratados
+  // porque contratacion_status es el que se actualiza cuando se marca como contratado
+  const contractedCount = candidates.filter((c: any) => c.contratacion_status === 'contratado').length
   const totalVacancies = process.vacancies || 1
-  const hasContracted = contractedCandidates.some((c) => c.hiring_status === "contratado")
+  const hasContracted = candidates.some((c: any) => c.contratacion_status === 'contratado')
 
   // 🎯 LÓGICA PARA "VOLVER A MÓDULO 2" - SOLO PARA FLUJO COMPLETO
   // Verificar si el servicio es de flujo completo (PC, HS, TR)
@@ -1141,10 +1152,20 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowContractDialog(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowContractDialog(false)}
+              disabled={isSavingContract}
+            >
               Cancelar
             </Button>
-            <Button onClick={handleContractSubmit}>Guardar Estado</Button>
+            <Button 
+              onClick={handleContractSubmit}
+              disabled={isSavingContract}
+            >
+              {isSavingContract && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSavingContract ? "Guardando..." : "Guardar Estado"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1171,7 +1192,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                 </p>
                 <p>
                   Candidatos que continúan:{" "}
-                  <strong>{contractedCandidates.filter((c) => c.hiring_status === "contratado" && c.continues).length}</strong>
+                  <strong>{candidates.filter((c: any) => c.contratacion_status === 'contratado').length}</strong>
                 </p>
               </div>
             </div>

@@ -20,6 +20,8 @@ import {
 } from '@/models';
 import { HitoSolicitudService } from './hitoSolicitudService';
 import { HitoHelperService } from './hitoHelperService';
+import { obtenerDuracionProceso } from '@/utils/duracionProcesos';
+import { FechasLaborales } from '@/utils/fechasLaborales';
 
 /**
  * Servicio para gestión de Solicitudes
@@ -560,8 +562,7 @@ export class SolicitudService {
                 description,
                 requirements,
                 vacancies,
-                consultant_id,
-                deadline_days = 30
+                consultant_id
             } = data;
 
             // Validaciones
@@ -608,10 +609,10 @@ export class SolicitudService {
             // Los demás servicios usan los módulos según su configuración
             const idEtapaInicial = 1;
 
-            // Calcular plazo máximo
+            // Calcular plazo máximo basado en la duración del proceso según codigo_servicio
             const fechaIngreso = new Date();
-            const plazoMaximo = new Date();
-            plazoMaximo.setDate(plazoMaximo.getDate() + deadline_days);
+            const diasHabiles = obtenerDuracionProceso(service_type);
+            const plazoMaximo = await FechasLaborales.sumarDiasHabiles(fechaIngreso, diasHabiles);
 
             // Primero crear la solicitud
             const nuevaSolicitud = await Solicitud.create({
@@ -715,10 +716,12 @@ export class SolicitudService {
             if (data.service_type) solicitud.codigo_servicio = data.service_type;
             if (data.consultant_id) solicitud.rut_usuario = data.consultant_id;
 
-            // Recalcular fecha límite si se envía
-            if (data.deadline_days) {
-                const nuevaFecha = new Date();
-                nuevaFecha.setDate(nuevaFecha.getDate() + data.deadline_days);
+            // Recalcular fecha límite si se cambia el servicio
+            if (data.service_type) {
+                const codigoServicio = data.service_type;
+                const diasHabiles = obtenerDuracionProceso(codigoServicio);
+                // Usar la fecha de ingreso original de la solicitud para recalcular
+                const nuevaFecha = await FechasLaborales.sumarDiasHabiles(solicitud.fecha_ingreso_solicitud, diasHabiles);
                 solicitud.plazo_maximo_solicitud = nuevaFecha;
             }
 

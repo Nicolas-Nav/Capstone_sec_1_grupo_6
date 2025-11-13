@@ -25,6 +25,53 @@ import * as XLSX from 'xlsx'
 import { useFormValidation, validationSchemas, validateCandidates } from "@/hooks/useFormValidation"
 import { ValidatedInput, ValidatedTextarea, ValidatedSelect, ValidatedSelectItem, ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
+
 interface CreateProcessDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -452,7 +499,8 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             })
             .catch((error) => {
               console.error(`Error al subir CV para postulación ${postulacionInfo.postulacion_id}:`, error)
-              throw new Error(`Error al subir CV para ${candidatoForm.email_candidato}: ${error.message || 'Error desconocido'}`)
+              const errorMsg = processApiErrorMessage(error.message, 'Error desconocido')
+              throw new Error(`Error al subir CV para ${candidatoForm.email_candidato}: ${errorMsg}`)
             })
         )
       } else {
@@ -632,7 +680,8 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
               toast.success(`Solicitud creada exitosamente con ${response.data.candidatos_creados} candidato(s) y CVs subidos`)
             } catch (cvError: any) {
               console.error('Error al subir CVs:', cvError)
-              toast.warning(`Solicitud creada exitosamente, pero hubo errores al subir algunos CVs: ${cvError.message}`)
+              const errorMsg = processApiErrorMessage(cvError.message, 'Error desconocido al subir CVs')
+              toast.warning(`Solicitud creada exitosamente, pero hubo errores al subir algunos CVs: ${errorMsg}`)
             }
           } else {
             toast.success(`Solicitud creada exitosamente con ${response.data.candidatos_creados} candidato(s)`)
@@ -691,7 +740,8 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
               }
             } catch (excelError: any) {
               console.error('Error processing Excel:', excelError)
-              toast.error((isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + excelError.message)
+              const errorMsg = processApiErrorMessage(excelError.message, 'Error al procesar el archivo Excel')
+              toast.error((isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + errorMsg)
             }
           } else {
             toast.success(isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente')
@@ -738,11 +788,13 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         
         // No cerrar automáticamente si hay errores
       } else {
-        toast.error(response.message || 'Error al crear la solicitud')
+        const errorMsg = processApiErrorMessage(response.message, 'Error al crear la solicitud')
+        toast.error(errorMsg)
       }
     } catch (error: any) {
       console.error('Error creating request:', error)
-      toast.error(error.message || 'Error al crear la solicitud')
+      const errorMsg = processApiErrorMessage(error.message, 'Error al crear la solicitud')
+      toast.error(errorMsg)
     } finally {
       setIsSubmitting(false)
     }

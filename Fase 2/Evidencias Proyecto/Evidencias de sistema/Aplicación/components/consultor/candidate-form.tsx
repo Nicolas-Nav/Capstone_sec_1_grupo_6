@@ -15,6 +15,7 @@ import { registerLocale } from "react-datepicker"
 import { es } from "date-fns/locale"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import type { Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
 
 registerLocale("es", es)
@@ -102,6 +103,7 @@ export function CandidateForm({
 }: CandidateFormProps) {
   
   const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
+  const { showToast } = useToastNotification()
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -623,9 +625,15 @@ export function CandidateForm({
       workExperienceValidationPassed
     
     if (!allValidationsPassed) {
+      showToast({
+        type: "error",
+        title: "Campos incompletos",
+        description: "Por favor completa todos los campos obligatorios y corrige los errores antes de continuar.",
+      })
       return // No enviar el formulario si hay errores
     }
     
+    // Establecer estado de carga antes de enviar
     setIsSubmitting(true)
     try {
       await onSubmit(formData, professionForms, educationForms, workExperienceForms)

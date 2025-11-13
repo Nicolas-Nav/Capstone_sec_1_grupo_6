@@ -463,13 +463,15 @@ export const validationSchemas = {
   module4ReferenceForm: {
     nombre_referencia: {
       required: false,
+      minLength: 2,
       maxLength: 100,
-      message: 'El nombre de la referencia no puede exceder 100 caracteres'
+      message: 'El nombre de la referencia debe tener entre 2 y 100 caracteres'
     },
     cargo_referencia: {
       required: false,
+      minLength: 2,
       maxLength: 100,
-      message: 'El cargo de la referencia no puede exceder 100 caracteres'
+      message: 'El cargo de la referencia debe tener entre 2 y 100 caracteres'
     },
     relacion_postulante_referencia: {
       required: false,
@@ -478,8 +480,9 @@ export const validationSchemas = {
     },
     empresa_referencia: {
       required: false,
+      minLength: 2,
       maxLength: 100,
-      message: 'El nombre de la empresa no puede exceder 100 caracteres'
+      message: 'El nombre de la empresa debe tener entre 2 y 100 caracteres'
     },
     telefono_referencia: {
       required: false,

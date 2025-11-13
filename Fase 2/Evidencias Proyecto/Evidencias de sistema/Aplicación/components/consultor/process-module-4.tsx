@@ -347,6 +347,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const [loadingEstados, setLoadingEstados] = useState(false)
   const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
   const [processStatus, setProcessStatus] = useState<string>("")
+  const [isSavingStatus, setIsSavingStatus] = useState(false)
 
   // Función para convertir datetime-local a Date preservando la hora local exacta (sin conversión UTC)
   const parseLocalDateTime = (dateTimeString: string): Date => {
@@ -399,6 +400,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   }])
   const [hasAttemptedSubmitTest, setHasAttemptedSubmitTest] = useState(false)
   const [isSavingTest, setIsSavingTest] = useState(false)
+
+  const [isSavingReport, setIsSavingReport] = useState(false)
 
   const [reportForm, setReportForm] = useState({
     report_status: "" as "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | "",
@@ -502,6 +505,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       return
     }
 
+    setIsSavingStatus(true)
     try {
       const response = await solicitudService.cambiarEstado(
         parseInt(process.id), 
@@ -534,6 +538,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         description: "Error al finalizar la solicitud",
         variant: "destructive",
       })
+    } finally {
+      setIsSavingStatus(false)
     }
   }
 
@@ -1255,10 +1261,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       // No retornar aquí, permitir que continúe para validar campos opcionales
     }
     
-    // Validar longitud máxima de campos obligatorios siempre (incluso antes de enviar)
+    // Validar longitud de campos obligatorios siempre (incluso antes de enviar)
     if (field === 'nombre_referencia' || field === 'cargo_referencia' || field === 'empresa_referencia') {
       const fieldValue = value?.trim() || ''
-      if (fieldValue.length > 100) {
+      if (fieldValue.length > 0 && fieldValue.length < 2) {
+        setFieldError(fieldKey, `El campo debe tener al menos 2 caracteres`)
+      } else if (fieldValue.length > 100) {
         setFieldError(fieldKey, `El campo no puede exceder 100 caracteres`)
       } else {
         clearError(fieldKey)
@@ -1269,6 +1277,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     if (hasAttemptedSubmitReference) {
       if (!formData.nombre_referencia?.trim()) {
         setFieldError(`reference_${formId}_nombre_referencia`, 'El nombre de la referencia es obligatorio')
+      } else if (formData.nombre_referencia.trim().length < 2) {
+        setFieldError(`reference_${formId}_nombre_referencia`, 'El nombre de la referencia debe tener al menos 2 caracteres')
       } else if (formData.nombre_referencia.trim().length > 100) {
         setFieldError(`reference_${formId}_nombre_referencia`, 'El nombre de la referencia no puede exceder 100 caracteres')
       } else {
@@ -1277,6 +1287,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       
       if (!formData.cargo_referencia?.trim()) {
         setFieldError(`reference_${formId}_cargo_referencia`, 'El cargo de la referencia es obligatorio')
+      } else if (formData.cargo_referencia.trim().length < 2) {
+        setFieldError(`reference_${formId}_cargo_referencia`, 'El cargo de la referencia debe tener al menos 2 caracteres')
       } else if (formData.cargo_referencia.trim().length > 100) {
         setFieldError(`reference_${formId}_cargo_referencia`, 'El cargo de la referencia no puede exceder 100 caracteres')
       } else {
@@ -1291,23 +1303,25 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       
       if (!formData.empresa_referencia?.trim()) {
         setFieldError(`reference_${formId}_empresa_referencia`, 'El nombre de la empresa es obligatorio')
+      } else if (formData.empresa_referencia.trim().length < 2) {
+        setFieldError(`reference_${formId}_empresa_referencia`, 'El nombre de la empresa debe tener al menos 2 caracteres')
       } else if (formData.empresa_referencia.trim().length > 100) {
         setFieldError(`reference_${formId}_empresa_referencia`, 'El nombre de la empresa no puede exceder 100 caracteres')
       } else {
         clearError(`reference_${formId}_empresa_referencia`)
       }
     } else {
-      // Si no se ha intentado enviar, solo validar longitud máxima y limpiar errores cuando se completan campos
-      if (field === 'nombre_referencia' && value?.trim() && value.trim().length <= 100) {
+      // Si no se ha intentado enviar, solo validar longitud y limpiar errores cuando se completan campos
+      if (field === 'nombre_referencia' && value?.trim() && value.trim().length >= 2 && value.trim().length <= 100) {
         clearError(fieldKey)
       }
-      if (field === 'cargo_referencia' && value?.trim() && value.trim().length <= 100) {
+      if (field === 'cargo_referencia' && value?.trim() && value.trim().length >= 2 && value.trim().length <= 100) {
         clearError(fieldKey)
       }
       if (field === 'relacion_postulante_referencia' && value?.trim() && value.trim().length <= 300) {
         clearError(fieldKey)
       }
-      if (field === 'empresa_referencia' && value?.trim() && value.trim().length <= 100) {
+      if (field === 'empresa_referencia' && value?.trim() && value.trim().length >= 2 && value.trim().length <= 100) {
         clearError(fieldKey)
       }
     }
@@ -1385,6 +1399,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
     setReportSentDateError("")
 
+    setIsSavingReport(true)
     try {
       // Buscar la evaluación existente para este candidato
       const existingEvaluation = evaluations[selectedCandidate.id]
@@ -1478,6 +1493,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         description: `Error al guardar informe: ${error instanceof Error ? error.message : "Error desconocido"}`,
         variant: "destructive",
       })
+    } finally {
+      setIsSavingReport(false)
     }
   }
 
@@ -1524,9 +1541,9 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         if (!form.nombre_referencia?.trim() || 
             !form.cargo_referencia?.trim() || 
             !form.empresa_referencia?.trim() ||
-            (form.nombre_referencia?.trim() && form.nombre_referencia.trim().length > 100) ||
-            (form.cargo_referencia?.trim() && form.cargo_referencia.trim().length > 100) ||
-            (form.empresa_referencia?.trim() && form.empresa_referencia.trim().length > 100) ||
+            (form.nombre_referencia?.trim() && (form.nombre_referencia.trim().length < 2 || form.nombre_referencia.trim().length > 100)) ||
+            (form.cargo_referencia?.trim() && (form.cargo_referencia.trim().length < 2 || form.cargo_referencia.trim().length > 100)) ||
+            (form.empresa_referencia?.trim() && (form.empresa_referencia.trim().length < 2 || form.empresa_referencia.trim().length > 100)) ||
             (form.relacion_postulante_referencia?.trim() && form.relacion_postulante_referencia.trim().length > 300)) {
           hasErrors = true
         }
@@ -1960,12 +1977,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                       disabled={!canAdvanceToModule5 || isAdvancingToModule5}
                       className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
                     >
-                      {isAdvancingToModule5 ? (
-                        <>
-                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
-                          Avanzando...
-                        </>
-                      ) : (
+                      {isAdvancingToModule5 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {isAdvancingToModule5 ? "Avanzando..." : (
                         <>
                           <Send className="mr-2 h-4 w-4" />
                           Avanzar al Módulo 5
@@ -2928,30 +2941,27 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               })}
             </div>
 
-            <div className="flex justify-end">
-              <Button
-                onClick={handleAddReference}
-                disabled={isSavingReference}
-                className="w-full sm:w-auto"
-              >
-                {isSavingReference ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Guardar Referencias
-                  </>
-                )}
-              </Button>
-            </div>
-
           </div>
 
           <DialogFooter>
-            <Button onClick={() => setShowReferencesDialog(false)}>Cerrar</Button>
+            <Button variant="outline" onClick={() => {
+              setShowReferencesDialog(false)
+              clearAllErrors()
+              setHasAttemptedSubmitReference(false)
+              // Limpiar las marcas de eliminación al cerrar sin guardar
+              setReferenceForms(forms => 
+                forms.map(form => ({ ...form, markedForDeletion: false }))
+              )
+            }}>
+              Cerrar
+            </Button>
+            <Button
+              onClick={handleAddReference}
+              disabled={isSavingReference}
+            >
+              {isSavingReference && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSavingReference ? "Guardando..." : "Guardar Referencias"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3054,9 +3064,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             </Button>
             <Button 
               onClick={handleSaveReport} 
-              disabled={!reportForm.report_status}
+              disabled={!reportForm.report_status || isSavingReport}
             >
-              Guardar Estado del Informe
+              {isSavingReport && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSavingReport ? "Guardando..." : "Guardar Estado del Informe"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3154,9 +3165,10 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               </Button>
               <Button
                 onClick={() => handleStatusChange(selectedEstado)}
-                disabled={!selectedEstado}
+                disabled={!selectedEstado || isSavingStatus}
               >
-                Actualizar Estado
+                {isSavingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSavingStatus ? "Actualizando..." : "Actualizar Estado"}
               </Button>
             </DialogFooter>
           </DialogContent>

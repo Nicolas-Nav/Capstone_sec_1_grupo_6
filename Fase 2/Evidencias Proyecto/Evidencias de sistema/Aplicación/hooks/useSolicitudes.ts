@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import type { Process } from "@/lib/types"
+import { descripcionCargoService } from "@/lib/api"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -38,8 +39,8 @@ export function useSolicitudes() {
   const [totalPages, setTotalPages] = useState(0)
   const [totalSolicitudes, setTotalSolicitudes] = useState(0)
   
-  // Estado para almacenar todos los tipos de servicio disponibles
-  const [allServiceTypes, setAllServiceTypes] = useState<string[]>([])
+  // Estado para almacenar todos los tipos de servicio disponibles (con código y nombre)
+  const [allServiceTypes, setAllServiceTypes] = useState<Array<{codigo: string, nombre: string}>>([])
 
   // Referencias para rastrear valores anteriores de filtros
   const prevSearchTerm = useRef(searchTerm)
@@ -128,23 +129,31 @@ export function useSolicitudes() {
   useEffect(() => {
     const fetchAllServiceTypes = async () => {
       try {
-        // Hacer una llamada sin filtros para obtener todos los tipos de servicio
-        const res = await fetch(`${API_URL}/api/solicitudes?page=1&limit=1000`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
-          },
-        })
-
-        const data = await res.json()
+        // Usar el endpoint optimizado que devuelve solo los tipos de servicio
+        const response = await descripcionCargoService.getFormData()
         
-        if (res.ok && data?.success) {
-          const serviceTypes = Array.from(
-            new Set(
-              data.data.solicitudes
-                .map((s: any) => s.service_type || s.tipo_servicio)
-                .filter(Boolean)
+        if (response.success && response.data?.tipos_servicio) {
+          // Mapeo de códigos a nombres correctos (igual que en el backend)
+          const serviceMapping: Record<string, string> = {
+            'PC': 'Proceso Completo',
+            'LL': 'Long List',
+            'TR': 'Targeted Recruitment',
+            'HS': 'Headhunting',
+            'ES': 'Evaluación Psicolaboral',
+            'TS': 'Test Psicolaboral',
+            'AO': 'Filtro Inteligente',
+          }
+          
+          // Guardar tipos de servicio con código y nombre correcto, ordenados por nombre
+          const serviceTypes = response.data.tipos_servicio
+            .map((ts: { codigo: string; nombre: string }) => ({
+              codigo: ts.codigo,
+              nombre: serviceMapping[ts.codigo] || ts.nombre // Usar mapeo si existe, sino el nombre de la BD
+            }))
+            .filter((ts: { codigo: string; nombre: string }) => ts.codigo && ts.nombre)
+            .sort((a: { codigo: string; nombre: string }, b: { codigo: string; nombre: string }) => 
+              a.nombre.localeCompare(b.nombre)
             )
-          ).sort() as string[]
           
           setAllServiceTypes(serviceTypes)
         }
@@ -233,22 +242,31 @@ export function useSolicitudes() {
     await fetchSolicitudes()
     // También recargar tipos de servicio por si se agregó uno nuevo
     try {
-      const res = await fetch(`${API_URL}/api/solicitudes?page=1&limit=1000`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
-        },
-      })
-
-      const data = await res.json()
+      // Usar el endpoint optimizado que devuelve solo los tipos de servicio
+      const response = await descripcionCargoService.getFormData()
       
-      if (res.ok && data?.success) {
-        const serviceTypes = Array.from(
-          new Set(
-            data.data.solicitudes
-              .map((s: any) => s.service_type || s.tipo_servicio)
-              .filter(Boolean)
+      if (response.success && response.data?.tipos_servicio) {
+        // Mapeo de códigos a nombres correctos (igual que en el backend)
+        const serviceMapping: Record<string, string> = {
+          'PC': 'Proceso Completo',
+          'LL': 'Long List',
+          'TR': 'Targeted Recruitment',
+          'HS': 'Headhunting',
+          'ES': 'Evaluación Psicolaboral',
+          'TS': 'Test Psicolaboral',
+          'AO': 'Filtro Inteligente',
+        }
+        
+        // Guardar tipos de servicio con código y nombre correcto, ordenados por nombre
+        const serviceTypes = response.data.tipos_servicio
+          .map((ts: { codigo: string; nombre: string }) => ({
+            codigo: ts.codigo,
+            nombre: serviceMapping[ts.codigo] || ts.nombre // Usar mapeo si existe, sino el nombre de la BD
+          }))
+          .filter((ts: { codigo: string; nombre: string }) => ts.codigo && ts.nombre)
+          .sort((a: { codigo: string; nombre: string }, b: { codigo: string; nombre: string }) => 
+            a.nombre.localeCompare(b.nombre)
           )
-        ).sort() as string[]
         
         setAllServiceTypes(serviceTypes)
       }

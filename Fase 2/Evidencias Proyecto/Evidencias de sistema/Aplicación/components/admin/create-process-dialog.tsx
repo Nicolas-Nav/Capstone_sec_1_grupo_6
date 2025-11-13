@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { toast } from "sonner"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 import { validateRut } from "@/lib/utils"
 import type { ServiceType } from "@/lib/types"
@@ -102,6 +102,7 @@ interface FormDataApi {
 }
 
 export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuccess }: CreateProcessDialogProps) {
+  const { showToast } = useToastNotification()
   const isEditMode = !!solicitudToEdit
   const [formData, setFormData] = useState({
     client_id: "",
@@ -232,7 +233,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       setTodasLasComunas(comunasRes.data || [])
     } catch (error) {
       console.error('Error al cargar regiones y comunas:', error)
-      toast.error('Error al cargar regiones y comunas')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "Error al cargar regiones y comunas",
+      })
     } finally {
       setLoadingRegionComuna(false)
     }
@@ -265,11 +270,19 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       if (response.success && response.data) {
         setApiData(response.data)
       } else {
-        toast.error('Error al cargar los datos del formulario')
+        showToast({
+          type: "error",
+          title: "Error",
+          description: "Error al cargar los datos del formulario",
+        })
       }
     } catch (error) {
       console.error('Error loading form data:', error)
-      toast.error('Error al cargar los datos del formulario')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "Error al cargar los datos del formulario",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -379,7 +392,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       }
     } catch (error) {
       console.error('Error loading solicitud data:', error)
-      toast.error('Error al cargar los datos de la solicitud')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "Error al cargar los datos de la solicitud",
+      })
     } finally {
       setLoadingSolicitudData(false)
     }
@@ -583,7 +600,12 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
 
       // Si hay errores, no continuar
       if (hasErrors) {
-        toast.error('Por favor corrige los errores antes de continuar')
+        setIsSubmitting(false)
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Por favor completa todos los campos obligatorios y corrige los errores antes de continuar.",
+        })
         return
       }
 
@@ -593,7 +615,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         // Modo edición: decidir si usar endpoint normal o con transacción atómica
         if (isEvaluationProcess && candidatos.length > 0) {
           // Si es evaluación/test y hay candidatos nuevos, usar transacción atómica
-          toast.info('Actualizando solicitud con candidatos nuevos...')
+          showToast({
+            type: "info",
+            title: "Procesando",
+            description: "Actualizando solicitud con candidatos nuevos...",
+          })
           
           response = await solicitudService.actualizarConCandidatos(parseInt(solicitudToEdit.id), {
             contact_id: parseInt(formData.contact_id),
@@ -632,7 +658,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         // Modo creación: decidir si usar endpoint normal o con transacción atómica
         if (isEvaluationProcess) {
           // Usar endpoint con transacción atómica para evaluación/test psicolaboral
-          toast.info('Creando solicitud con candidatos...')
+          showToast({
+            type: "info",
+            title: "Procesando",
+            description: "Creando solicitud con candidatos...",
+          })
           
           response = await solicitudService.crearConCandidatos({
             contact_id: parseInt(formData.contact_id),
@@ -675,16 +705,32 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
           // Creación con candidatos - subir CVs si hay
           if (response.data.candidatos_postulaciones && candidatos.some(c => c.cv_file)) {
             try {
-              toast.info('Subiendo CVs...')
+              showToast({
+                type: "info",
+                title: "Procesando",
+                description: "Subiendo CVs...",
+              })
               await uploadCVsForCandidates(response.data.candidatos_postulaciones, candidatos)
-              toast.success(`Solicitud creada exitosamente con ${response.data.candidatos_creados} candidato(s) y CVs subidos`)
+              showToast({
+                type: "success",
+                title: "¡Éxito!",
+                description: `Solicitud creada exitosamente con ${response.data.candidatos_creados} candidato(s) y CVs subidos`,
+              })
             } catch (cvError: any) {
               console.error('Error al subir CVs:', cvError)
               const errorMsg = processApiErrorMessage(cvError.message, 'Error desconocido al subir CVs')
-              toast.warning(`Solicitud creada exitosamente, pero hubo errores al subir algunos CVs: ${errorMsg}`)
+              showToast({
+                type: "warning",
+                title: "Advertencia",
+                description: `Solicitud creada exitosamente, pero hubo errores al subir algunos CVs: ${errorMsg}`,
+              })
             }
           } else {
-            toast.success(`Solicitud creada exitosamente con ${response.data.candidatos_creados} candidato(s)`)
+            showToast({
+              type: "success",
+              title: "¡Éxito!",
+              description: `Solicitud creada exitosamente con ${response.data.candidatos_creados} candidato(s)`,
+            })
           }
           onOpenChange(false)
           onSuccess?.() // Recargar datos
@@ -693,26 +739,54 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
           const candidatosNuevos = response.data.candidatos_creados || 0
           if (response.data.candidatos_postulaciones && candidatos.some(c => c.cv_file)) {
             try {
-              toast.info('Subiendo CVs...')
+              showToast({
+                type: "info",
+                title: "Procesando",
+                description: "Subiendo CVs...",
+              })
               await uploadCVsForCandidates(response.data.candidatos_postulaciones, candidatos)
               if (candidatosNuevos > 0) {
-                toast.success(`Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s) y CVs subidos`)
+                showToast({
+                  type: "success",
+                  title: "¡Éxito!",
+                  description: `Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s) y CVs subidos`,
+                })
               } else {
-                toast.success('Solicitud actualizada exitosamente con CVs subidos')
+                showToast({
+                  type: "success",
+                  title: "¡Éxito!",
+                  description: "Solicitud actualizada exitosamente con CVs subidos",
+                })
               }
             } catch (cvError: any) {
               console.error('Error al subir CVs:', cvError)
               if (candidatosNuevos > 0) {
-                toast.warning(`Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s), pero hubo errores al subir algunos CVs`)
+                showToast({
+                  type: "warning",
+                  title: "Advertencia",
+                  description: `Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s), pero hubo errores al subir algunos CVs`,
+                })
               } else {
-                toast.warning('Solicitud actualizada exitosamente, pero hubo errores al subir algunos CVs')
+                showToast({
+                  type: "warning",
+                  title: "Advertencia",
+                  description: "Solicitud actualizada exitosamente, pero hubo errores al subir algunos CVs",
+                })
               }
             }
           } else {
             if (candidatosNuevos > 0) {
-              toast.success(`Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s)`)
+              showToast({
+                type: "success",
+                title: "¡Éxito!",
+                description: `Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s)`,
+              })
             } else {
-              toast.success('Solicitud actualizada exitosamente')
+              showToast({
+                type: "success",
+                title: "¡Éxito!",
+                description: "Solicitud actualizada exitosamente",
+              })
             }
           }
           onOpenChange(false)
@@ -721,7 +795,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
           // Si hay archivo Excel, procesarlo y enviarlo
           if (formData.excel_file) {
             try {
-              toast.info('Procesando archivo Excel...')
+              showToast({
+                type: "info",
+                title: "Procesando",
+                description: "Procesando archivo Excel...",
+              })
               const excelData = await processExcelFile(formData.excel_file)
               
               // Obtener el ID de la descripción de cargo creada
@@ -731,20 +809,37 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                 const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
                 
                 if (excelResponse.success) {
-                  toast.success(isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente')
+                  showToast({
+                    type: "success",
+                    title: "¡Éxito!",
+                    description: isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente',
+                  })
                   onOpenChange(false)
                   onSuccess?.() // Recargar datos
                 } else {
-                  toast.error(isEditMode ? 'Solicitud actualizada, pero hubo un error al guardar los datos del Excel' : 'Solicitud creada, pero hubo un error al guardar los datos del Excel')
+                  const errorMsg = processApiErrorMessage(excelResponse.message, isEditMode ? 'Error al guardar los datos del Excel' : 'Error al guardar los datos del Excel')
+                  showToast({
+                    type: "error",
+                    title: "Error",
+                    description: isEditMode ? `Solicitud actualizada, pero ${errorMsg}` : `Solicitud creada, pero ${errorMsg}`,
+                  })
                 }
               }
             } catch (excelError: any) {
               console.error('Error processing Excel:', excelError)
               const errorMsg = processApiErrorMessage(excelError.message, 'Error al procesar el archivo Excel')
-              toast.error((isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + errorMsg)
+              showToast({
+                type: "error",
+                title: "Error",
+                description: (isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + errorMsg,
+              })
             }
           } else {
-            toast.success(isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente')
+            showToast({
+              type: "success",
+              title: "¡Éxito!",
+              description: isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente',
+            })
             onOpenChange(false)
             onSuccess?.() // Recargar datos
           }
@@ -789,12 +884,20 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         // No cerrar automáticamente si hay errores
       } else {
         const errorMsg = processApiErrorMessage(response.message, 'Error al crear la solicitud')
-        toast.error(errorMsg)
+        showToast({
+          type: "error",
+          title: "Error",
+          description: errorMsg,
+        })
       }
     } catch (error: any) {
       console.error('Error creating request:', error)
       const errorMsg = processApiErrorMessage(error.message, 'Error al crear la solicitud')
-      toast.error(errorMsg)
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -810,7 +913,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
     
     // Validar que el cliente tenga al menos un contacto
     if (client && (!client.contactos || client.contactos.length === 0)) {
-      toast.error(`El cliente "${client.nombre}" no tiene contactos registrados. Por favor, agregue al menos un contacto antes de crear una solicitud.`)
+      showToast({
+        type: "error",
+        title: "Error",
+        description: `El cliente "${client.nombre}" no tiene contactos registrados. Por favor, agregue al menos un contacto antes de crear una solicitud.`,
+      })
       setFormData({ ...formData, client_id: "", contact_id: "" })
       // Validar con mensaje personalizado
       validateField('client_id', '', { 

@@ -22,7 +22,7 @@ import { Plus, Search, Edit, Trash2, UserCheck, UserX, Loader2, ChevronLeft, Che
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import { useUsuarios } from "@/hooks/useUsuarios"
 import { useFormValidation, validationSchemas, type ValidationRule } from "@/hooks/useFormValidation"
-import { toast } from "sonner"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -109,6 +109,8 @@ const validateSingleFieldHelper = (value: any, rule: ValidationRule): string | n
 }
 
 export default function UsuariosPage() {
+  const { showToast } = useToastNotification()
+  
   const {
     users,
     filteredUsers,
@@ -224,10 +226,18 @@ export default function UsuariosPage() {
     if (!isValid || !passwordMatch) {
       // Mostrar toast cuando hay errores de validación
       if (!isValid) {
-        toast.error("Faltan campos por completar o existen datos incorrectos")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Faltan campos por completar o existen datos incorrectos",
+        })
       }
       if (!passwordMatch) {
-        toast.error("Las contraseñas no coinciden")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Las contraseñas no coinciden",
+        })
       }
       setIsSubmitting(false)
       return
@@ -237,7 +247,11 @@ export default function UsuariosPage() {
     setIsSubmitting(false)
     
     if (res.success) {
-      toast.success(res.message || "Usuario creado correctamente")
+      showToast({
+        type: "success",
+        title: "¡Éxito!",
+        description: res.message || "Usuario creado correctamente",
+      })
       setIsCreateDialogOpen(false)
       setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
       setConfirmPassword("")
@@ -245,7 +259,11 @@ export default function UsuariosPage() {
     } else {
       // Mostrar toast con el mensaje de error de la API
       const errorMsg = processApiErrorMessage(res.message, "Error creando usuario")
-      toast.error(errorMsg)
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
       
       // Si hay errores de campos específicos del servidor, aplicarlos al estado de errores
       if (res.fieldErrors) {
@@ -306,10 +324,18 @@ export default function UsuariosPage() {
     if (!isValid || !passwordMatch) {
       // Mostrar toast cuando hay errores de validación
       if (!isValid) {
-        toast.error("Faltan campos por completar o existen datos incorrectos")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Faltan campos por completar o existen datos incorrectos",
+        })
       }
       if (!passwordMatch) {
-        toast.error("Las contraseñas no coinciden")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Las contraseñas no coinciden",
+        })
       }
       setIsSubmitting(false)
       return
@@ -319,14 +345,22 @@ export default function UsuariosPage() {
     setIsSubmitting(false)
     
     if (res.success) {
-      toast.success(res.message || "Usuario actualizado correctamente")
+      showToast({
+        type: "success",
+        title: "¡Éxito!",
+        description: res.message || "Usuario actualizado correctamente",
+      })
       setIsCreateDialogOpen(false)
       setConfirmPassword("")
       clearAllErrors()
     } else {
       // Mostrar toast con el mensaje de error de la API
       const errorMsg = processApiErrorMessage(res.message, "Error actualizando usuario")
-      toast.error(errorMsg)
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
       
       // Si hay errores de campos específicos del servidor, aplicarlos al estado de errores
       if (res.fieldErrors) {

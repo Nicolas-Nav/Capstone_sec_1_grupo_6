@@ -8,7 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { publicacionService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
-import { Globe } from "lucide-react"
+import { Globe, Calendar } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 interface AddPublicationDialogProps {
   open: boolean
@@ -227,12 +231,46 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
           {/* Fecha de Publicación */}
           <div className="space-y-2">
             <Label htmlFor="fecha">Fecha de Publicación</Label>
-            <Input
-              id="fecha"
-              type="date"
-              value={formData.fecha_publicacion}
-              onChange={(e) => setFormData({ ...formData, fecha_publicacion: e.target.value })}
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={`w-full justify-start text-left font-normal ${!formData.fecha_publicacion ? "text-muted-foreground" : ""}`}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {formData.fecha_publicacion 
+                    ? (() => {
+                        const [year, month, day] = formData.fecha_publicacion.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        return format(dateObj, "PPP", { locale: es })
+                      })()
+                    : "Seleccionar fecha"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  captionLayout="dropdown"
+                  fromYear={1900}
+                  toYear={new Date().getFullYear()}
+                  selected={formData.fecha_publicacion ? (() => {
+                    const [year, month, day] = formData.fecha_publicacion.split('-').map(Number)
+                    return new Date(year, month - 1, day)
+                  })() : undefined}
+                  onSelect={(date) => {
+                    if (date) {
+                      // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                      const year = date.getFullYear()
+                      const month = String(date.getMonth() + 1).padStart(2, '0')
+                      const day = String(date.getDate()).padStart(2, '0')
+                      const selectedDate = `${year}-${month}-${day}`
+                      setFormData({ ...formData, fecha_publicacion: selectedDate })
+                    }
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 

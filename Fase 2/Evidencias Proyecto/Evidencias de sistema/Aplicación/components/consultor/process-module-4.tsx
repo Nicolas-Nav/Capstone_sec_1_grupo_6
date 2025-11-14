@@ -48,6 +48,10 @@ import {
   Loader2,
   RotateCcw,
 } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 import type { Process, Candidate } from "@/lib/types"
 
 // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
@@ -381,6 +385,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   
   // Estado para múltiples formularios de referencias (similar a profesiones)
   // referenceId es el ID de la base de datos (si existe), id es el ID temporal del formulario
+  const [hadOriginalReferences, setHadOriginalReferences] = useState(false)
   const [referenceForms, setReferenceForms] = useState<Array<{
     id: string
     referenceId?: string // ID de la BD si es una referencia existente
@@ -620,9 +625,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       const candidatesWithReportStatus = candidates.filter(candidate => {
         const evaluation = evaluations[candidate.id]
         const estadoInforme = evaluation?.estado_informe
-        // Solo avanzan los que tienen estado: Recomendable, No recomendable, o Recomendable con observaciones
+        // Solo avanzan los que tienen estado: Recomendable o Recomendable con observaciones
         return estadoInforme === "Recomendable" || 
-               estadoInforme === "No recomendable" || 
                estadoInforme === "Recomendable con observaciones"
       })
       
@@ -699,9 +703,15 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       )
       
       const updatedForm = updatedForms.find(f => f.id === id)
-      if (updatedForm && field === "result") {
+      if (updatedForm) {
+        // Limpiar error de test_name cuando se selecciona un valor
+        if (field === "test_name" && value) {
+          clearError(`test_name_${id}`)
+        }
         // Validar en tiempo real usando la función de validación
-        validateTestField(id, field, value, updatedForm)
+        if (field === "result") {
+          validateTestField(id, field, value, updatedForm)
+        }
       }
       
       return updatedForms
@@ -711,6 +721,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const removeTestForm = (id: string) => {
     // Limpiar errores del formulario que se elimina
     clearError(`test_result_${id}`)
+    clearError(`test_name_${id}`)
     setTestForms(forms => forms.filter(form => form.id !== id))
   }
 
@@ -751,10 +762,23 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       else if (existingEvaluation.estado_evaluacion === "Cancelada") statusValue = "cancelada"
       else statusValue = "programada" // Para "Sin programar" y "Programada"
 
+      let interviewDate = existingEvaluation.fecha_evaluacion 
+        ? formatDateForInput(existingEvaluation.fecha_evaluacion)
+        : ""
+      
+      // Ajustar la hora si está fuera del rango laboral (8 AM - 8 PM)
+      if (interviewDate) {
+        const dateTime = parseLocalDateTime(interviewDate)
+        const hour = dateTime.getHours()
+        if (hour < 8 || hour > 20) {
+          // Ajustar a 8 AM si está fuera del rango
+          dateTime.setHours(8, dateTime.getMinutes(), 0, 0)
+          interviewDate = formatDateForInput(dateTime)
+        }
+      }
+      
       setInterviewForm({
-        interview_date: existingEvaluation.fecha_evaluacion 
-          ? formatDateForInput(existingEvaluation.fecha_evaluacion)
-          : "",
+        interview_date: interviewDate,
         interview_status: statusValue,
       })
     } else {
@@ -958,20 +982,40 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleSaveTest = async () => {
     if (!selectedCandidate) return
 
+    // Establecer el flag ANTES de validar para que las validaciones se muestren
     setHasAttemptedSubmitTest(true)
 
-    // Validar todos los campos de resultado de los tests (siempre validar, incluso si está vacío)
+    // Validar todos los formularios de tests que NO estén marcados para eliminación
     let hasErrors = false
     testForms.forEach((form) => {
-      if (!form.markedForDeletion) {
-        // Validar cada campo individualmente para mostrar errores específicos
-        validateField(`test_result_${form.id}`, form.result || "", validationSchemas.module4TestForm, { result: form.result || "" })
-        
-        // Verificar si hay errores después de validar
-        const isValid = validateAllFields({ result: form.result || "" }, validationSchemas.module4TestForm)
-        if (!isValid) {
-          hasErrors = true
-        }
+      // Solo validar formularios que no estén marcados para eliminación
+      if (form.markedForDeletion) {
+        return // Saltar formularios marcados para eliminación
+      }
+      
+      // Validar test_name (tipo de test) - es obligatorio
+      if (!form.test_name || !form.test_name.trim()) {
+        setFieldError(`test_name_${form.id}`, 'Debe seleccionar un tipo de test')
+        hasErrors = true
+      } else {
+        clearError(`test_name_${form.id}`)
+      }
+      
+      // Validar result (resultado del test) - es obligatorio
+      const resultValue = form.result || ''
+      const trimmedResult = resultValue.trim()
+      
+      if (!trimmedResult) {
+        setFieldError(`test_result_${form.id}`, 'El resultado es obligatorio')
+        hasErrors = true
+      } else if (trimmedResult.length < 5) {
+        setFieldError(`test_result_${form.id}`, 'El resultado debe tener al menos 5 caracteres')
+        hasErrors = true
+      } else if (trimmedResult.length > 300) {
+        setFieldError(`test_result_${form.id}`, 'El resultado no puede exceder 300 caracteres')
+        hasErrors = true
+      } else {
+        clearError(`test_result_${form.id}`)
       }
     })
 
@@ -1374,6 +1418,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         })
         
         setReferenceForms(existingForms)
+        setHadOriginalReferences(true) // El candidato tenía referencias originalmente
       } else {
         // Si no hay referencias, inicializar con un formulario vacío
         setReferenceForms([{
@@ -1386,6 +1431,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           email_referencia: "",
           comentario_referencia: "",
         }])
+        setHadOriginalReferences(false) // El candidato NO tenía referencias originalmente
       }
     } catch (error) {
       console.error('Error al cargar referencias:', error)
@@ -1400,6 +1446,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         email_referencia: "",
         comentario_referencia: "",
       }])
+      setHadOriginalReferences(false) // En caso de error, asumir que no había referencias
     }
     
     setHasAttemptedSubmitReference(false)
@@ -1495,28 +1542,18 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     // Validar relacion_postulante_referencia siempre (es opcional pero tiene límite de caracteres)
     if (field === 'relacion_postulante_referencia') {
       const fieldValue = value?.trim() || ''
-      if (fieldValue.length > 300) {
+      // Si se completa, debe tener al menos 2 caracteres
+      if (fieldValue.length > 0 && fieldValue.length < 2) {
+        setFieldError(fieldKey, `La relación con el postulante debe tener al menos 2 caracteres`)
+      } else if (fieldValue.length > 300) {
         setFieldError(fieldKey, `La relación con el postulante no puede exceder 300 caracteres`)
       } else {
         clearError(fieldKey)
       }
     }
     
-    // Verificar si hay al menos un campo obligatorio con valor
-    // Nota: relacion_postulante_referencia no es obligatorio según la BD (no tiene NOT NULL)
-    const hasAnyRequiredField = !!(
-      formData.nombre_referencia?.trim() || 
-      formData.cargo_referencia?.trim() || 
-      formData.empresa_referencia?.trim()
-    )
-    
-    if (!hasAnyRequiredField) {
-      // Si todos los campos obligatorios están vacíos, limpiar errores de campos obligatorios
-      clearError(`reference_${formId}_nombre_referencia`)
-      clearError(`reference_${formId}_cargo_referencia`)
-      clearError(`reference_${formId}_empresa_referencia`)
-      // No retornar aquí, permitir que continúe para validar campos opcionales
-    }
+    // Si se ha intentado enviar, siempre validar campos obligatorios (incluso si están vacíos)
+    // Esto permite mostrar errores para formularios vacíos al darle enviar
     
     // Validar longitud de campos obligatorios siempre (incluso antes de enviar)
     if (field === 'nombre_referencia' || field === 'cargo_referencia' || field === 'empresa_referencia') {
@@ -1552,8 +1589,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         clearError(`reference_${formId}_cargo_referencia`)
       }
       
-      if (formData.relacion_postulante_referencia?.trim() && formData.relacion_postulante_referencia.trim().length > 300) {
-        setFieldError(`reference_${formId}_relacion_postulante_referencia`, 'La relación con el postulante no puede exceder 300 caracteres')
+      if (formData.relacion_postulante_referencia?.trim()) {
+        if (formData.relacion_postulante_referencia.trim().length < 2) {
+          setFieldError(`reference_${formId}_relacion_postulante_referencia`, 'La relación con el postulante debe tener al menos 2 caracteres')
+        } else if (formData.relacion_postulante_referencia.trim().length > 300) {
+          setFieldError(`reference_${formId}_relacion_postulante_referencia`, 'La relación con el postulante no puede exceder 300 caracteres')
+        } else {
+          clearError(`reference_${formId}_relacion_postulante_referencia`)
+        }
       } else {
         clearError(`reference_${formId}_relacion_postulante_referencia`)
       }
@@ -1575,7 +1618,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       if (field === 'cargo_referencia' && value?.trim() && value.trim().length >= 2 && value.trim().length <= 100) {
         clearError(fieldKey)
       }
-      if (field === 'relacion_postulante_referencia' && value?.trim() && value.trim().length <= 300) {
+      if (field === 'relacion_postulante_referencia' && value?.trim() && value.trim().length >= 2 && value.trim().length <= 300) {
         clearError(fieldKey)
       }
       if (field === 'empresa_referencia' && value?.trim() && value.trim().length >= 2 && value.trim().length <= 100) {
@@ -1630,7 +1673,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       
       setReportForm({
         report_status: reportStatus as "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | "",
-        report_observations: existingEvaluation.conclusion_global || "",
+        report_observations: (existingEvaluation.conclusion_global && existingEvaluation.conclusion_global.trim().length > 0) ? existingEvaluation.conclusion_global : "",
         // Si ya existe fecha, mostrarla, pero si no existe, dejar en blanco (NO prellenar con fecha de hoy)
         report_sent_date: existingEvaluation.fecha_envio_informe ? new Date(existingEvaluation.fecha_envio_informe).toISOString().split('T')[0] : "",
       })
@@ -1654,7 +1697,40 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       setReportSentDateError("Debe ingresarse la fecha de envío del informe")
       return
     }
+
+    // Validar que la fecha de envío no sea posterior a hoy
+    if (reportForm.report_sent_date) {
+      const selectedDate = new Date(reportForm.report_sent_date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0) // Resetear horas para comparar solo fechas
+      selectedDate.setHours(0, 0, 0, 0)
+      
+      if (selectedDate > today) {
+        setReportSentDateError("La fecha de envío no puede ser posterior al día de hoy")
+        return
+      }
+    }
     setReportSentDateError("")
+
+    // Validar conclusión global si se completó (opcional pero con validaciones si se completa)
+    if (reportForm.report_observations && reportForm.report_observations.trim().length > 0) {
+      if (reportForm.report_observations.trim().length < 10) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "La conclusión global debe tener al menos 10 caracteres",
+        })
+        return
+      }
+      if (reportForm.report_observations.length > 300) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "La conclusión global no puede exceder 300 caracteres",
+        })
+        return
+      }
+    }
 
     setIsSavingReport(true)
     try {
@@ -1681,10 +1757,15 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       }
 
       // Actualizar el informe completo (estado + conclusión + fecha de envío)
+      // Enviar undefined si la conclusión está vacía (es opcional)
+      const conclusionToSend = reportForm.report_observations && reportForm.report_observations.trim().length > 0 
+        ? reportForm.report_observations.trim() 
+        : undefined;
+      
       const response = await evaluacionPsicolaboralService.updateInformeCompleto(
         existingEvaluation.id_evaluacion_psicolaboral,
         estadoInforme,
-        reportForm.report_observations,
+        conclusionToSend,
         reportForm.report_sent_date
       )
 
@@ -1694,6 +1775,9 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           title: "Éxito",
           description: "Estado del informe actualizado correctamente",
         })
+
+        // Esperar un momento para asegurar que la transacción del backend terminó
+        await new Promise(resolve => setTimeout(resolve, 300))
 
         // Recargar las evaluaciones para mostrar los cambios
         const evaluation = await getEvaluationByCandidate(selectedCandidate)
@@ -1727,7 +1811,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             [selectedCandidate.id]: {
               candidate_id: selectedCandidate.id,
               report_status: reportStatus,
-              report_observations: evaluation.conclusion_global || undefined,
+              report_observations: (evaluation.conclusion_global && evaluation.conclusion_global.trim().length > 0) ? evaluation.conclusion_global : undefined,
               report_sent_date: evaluation.fecha_envio_informe ? new Date(evaluation.fecha_envio_informe).toISOString().split('T')[0] : undefined
             }
           }))
@@ -1762,51 +1846,84 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleAddReference = async () => {
     if (!selectedCandidate) return
 
+    // Establecer el flag ANTES de validar para que las validaciones se muestren
     setHasAttemptedSubmitReference(true)
 
-    // Validar todos los formularios de referencias
+    // Validar todos los formularios de referencias que NO estén marcados para eliminación
     let hasErrors = false
     referenceForms.forEach(form => {
-      // Nota: relacion_postulante_referencia no es obligatorio según la BD (no tiene NOT NULL)
-      const hasAnyRequiredField = !!(
-        form.nombre_referencia?.trim() || 
-        form.cargo_referencia?.trim() || 
-        form.empresa_referencia?.trim()
-      )
+      // Solo validar formularios que no estén marcados para eliminación
+      if (form.markedForDeletion) {
+        return // Saltar formularios marcados para eliminación
+      }
       
-      if (hasAnyRequiredField) {
-        // Validar todos los campos obligatorios
-        validateReferenceField(form.id, 'nombre_referencia', form.nombre_referencia || '', form)
-        validateReferenceField(form.id, 'cargo_referencia', form.cargo_referencia || '', form)
-        validateReferenceField(form.id, 'empresa_referencia', form.empresa_referencia || '', form)
-        
-        // Validar relacion_postulante_referencia si tiene valor (es opcional)
-        if (form.relacion_postulante_referencia?.trim()) {
-          validateReferenceField(form.id, 'relacion_postulante_referencia', form.relacion_postulante_referencia, form)
-        }
-        
-        // Validar campos opcionales si tienen valor
-        if (form.telefono_referencia?.trim()) {
-          validateReferenceField(form.id, 'telefono_referencia', form.telefono_referencia, form)
-        }
-        if (form.email_referencia?.trim()) {
-          validateReferenceField(form.id, 'email_referencia', form.email_referencia, form)
-        }
-        if (form.comentario_referencia?.trim()) {
-          validateReferenceField(form.id, 'comentario_referencia', form.comentario_referencia, form)
-        }
-        
-        // Verificar directamente si los campos obligatorios están completos
-        // Nota: relacion_postulante_referencia no es obligatorio según la BD
-        if (!form.nombre_referencia?.trim() || 
-            !form.cargo_referencia?.trim() || 
-            !form.empresa_referencia?.trim() ||
-            (form.nombre_referencia?.trim() && (form.nombre_referencia.trim().length < 2 || form.nombre_referencia.trim().length > 100)) ||
-            (form.cargo_referencia?.trim() && (form.cargo_referencia.trim().length < 2 || form.cargo_referencia.trim().length > 100)) ||
-            (form.empresa_referencia?.trim() && (form.empresa_referencia.trim().length < 2 || form.empresa_referencia.trim().length > 100)) ||
-            (form.relacion_postulante_referencia?.trim() && form.relacion_postulante_referencia.trim().length > 300)) {
+      // Validar y establecer errores directamente para campos obligatorios
+      // Nombre de referencia
+      if (!form.nombre_referencia?.trim()) {
+        setFieldError(`reference_${form.id}_nombre_referencia`, 'El nombre de la referencia es obligatorio')
+        hasErrors = true
+      } else if (form.nombre_referencia.trim().length < 2) {
+        setFieldError(`reference_${form.id}_nombre_referencia`, 'El nombre de la referencia debe tener al menos 2 caracteres')
+        hasErrors = true
+      } else if (form.nombre_referencia.trim().length > 100) {
+        setFieldError(`reference_${form.id}_nombre_referencia`, 'El nombre de la referencia no puede exceder 100 caracteres')
+        hasErrors = true
+      } else {
+        clearError(`reference_${form.id}_nombre_referencia`)
+      }
+      
+      // Cargo de referencia
+      if (!form.cargo_referencia?.trim()) {
+        setFieldError(`reference_${form.id}_cargo_referencia`, 'El cargo de la referencia es obligatorio')
+        hasErrors = true
+      } else if (form.cargo_referencia.trim().length < 2) {
+        setFieldError(`reference_${form.id}_cargo_referencia`, 'El cargo de la referencia debe tener al menos 2 caracteres')
+        hasErrors = true
+      } else if (form.cargo_referencia.trim().length > 100) {
+        setFieldError(`reference_${form.id}_cargo_referencia`, 'El cargo de la referencia no puede exceder 100 caracteres')
+        hasErrors = true
+      } else {
+        clearError(`reference_${form.id}_cargo_referencia`)
+      }
+      
+      // Empresa de referencia
+      if (!form.empresa_referencia?.trim()) {
+        setFieldError(`reference_${form.id}_empresa_referencia`, 'El nombre de la empresa es obligatorio')
+        hasErrors = true
+      } else if (form.empresa_referencia.trim().length < 2) {
+        setFieldError(`reference_${form.id}_empresa_referencia`, 'El nombre de la empresa debe tener al menos 2 caracteres')
+        hasErrors = true
+      } else if (form.empresa_referencia.trim().length > 100) {
+        setFieldError(`reference_${form.id}_empresa_referencia`, 'El nombre de la empresa no puede exceder 100 caracteres')
+        hasErrors = true
+      } else {
+        clearError(`reference_${form.id}_empresa_referencia`)
+      }
+      
+      // Validar relacion_postulante_referencia si tiene valor (es opcional)
+      if (form.relacion_postulante_referencia?.trim()) {
+        if (form.relacion_postulante_referencia.trim().length < 2) {
+          setFieldError(`reference_${form.id}_relacion_postulante_referencia`, 'La relación con el postulante debe tener al menos 2 caracteres')
           hasErrors = true
+        } else if (form.relacion_postulante_referencia.trim().length > 300) {
+          setFieldError(`reference_${form.id}_relacion_postulante_referencia`, 'La relación con el postulante no puede exceder 300 caracteres')
+          hasErrors = true
+        } else {
+          clearError(`reference_${form.id}_relacion_postulante_referencia`)
         }
+      } else {
+        clearError(`reference_${form.id}_relacion_postulante_referencia`)
+      }
+      
+      // Validar campos opcionales si tienen valor
+      if (form.telefono_referencia?.trim()) {
+        validateReferenceField(form.id, 'telefono_referencia', form.telefono_referencia, form)
+      }
+      if (form.email_referencia?.trim()) {
+        validateReferenceField(form.id, 'email_referencia', form.email_referencia, form)
+      }
+      if (form.comentario_referencia?.trim()) {
+        validateReferenceField(form.id, 'comentario_referencia', form.comentario_referencia, form)
       }
     })
 
@@ -1830,7 +1947,9 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       )
     )
 
-    if (validForms.length === 0) {
+    // Solo requerir al menos un formulario si el candidato NO tenía referencias originalmente
+    // Si tenía referencias originalmente, permitir eliminar todas si el usuario quiere
+    if (validForms.length === 0 && !hadOriginalReferences) {
       showToast({
         type: "error",
         title: "Error",
@@ -1914,6 +2033,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         })
         
         setReferenceForms(existingForms)
+        setHadOriginalReferences(true) // Actualizar estado: ahora hay referencias
       } else {
         // Si no hay referencias, inicializar con un formulario vacío
         setReferenceForms([{
@@ -1926,6 +2046,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           email_referencia: "",
           comentario_referencia: "",
         }])
+        setHadOriginalReferences(false) // Actualizar estado: ahora no hay referencias
       }
       
       setHasAttemptedSubmitReference(false)
@@ -2031,21 +2152,54 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
     setIsAdvancingToModule5(true)
     try {
-      // Primero, actualizar la etapa de la solicitud al módulo 5
-      try {
-        const etapaResponse = await solicitudService.avanzarAModulo5(Number(process.id))
-        if (!etapaResponse.success) {
-          const errorMsg = processApiErrorMessage(etapaResponse.message, "Error al actualizar etapa de solicitud")
-          console.warn('Advertencia: No se pudo actualizar la etapa de la solicitud:', errorMsg)
+      // Verificar si ya estamos en el módulo 5
+      const isAlreadyInModule5 = process.etapa === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
+      
+      // Obtener candidatos que ya están en el módulo 5 para no sobreescribirlos
+      let existingModule5Candidates: number[] = []
+      if (isAlreadyInModule5) {
+        try {
+          const module5Response = await estadoClienteM5Service.getCandidatosEnModulo5(Number(process.id))
+          if (module5Response.success && module5Response.data) {
+            existingModule5Candidates = module5Response.data.map((c: any) => Number(c.id_postulacion || c.id))
+          }
+        } catch (error) {
+          console.warn('No se pudieron obtener candidatos del módulo 5:', error)
         }
-      } catch (error: any) {
-        const errorMsg = processApiErrorMessage(error.message, "Error al actualizar etapa de solicitud")
-        console.error('Error al actualizar etapa de solicitud:', errorMsg)
-        // Continuar aunque falle la actualización de etapa, ya que los candidatos pueden avanzar
       }
 
-      // Avanzar cada candidato con entrevista realizada
-      const promises = candidatesWithRealizedInterview.map(async (candidate) => {
+      // Filtrar candidatos que ya están en el módulo 5
+      const candidatesToAdvance = candidatesWithRealizedInterview.filter(
+        candidate => !existingModule5Candidates.includes(Number(candidate.id_postulacion))
+      )
+
+      if (candidatesToAdvance.length === 0) {
+        showToast({
+          type: "info",
+          title: "Información",
+          description: "Todos los candidatos seleccionados ya están en el módulo 5",
+        })
+        setIsAdvancingToModule5(false)
+        return
+      }
+
+      // Solo actualizar la etapa de la solicitud si NO estamos ya en el módulo 5
+      if (!isAlreadyInModule5) {
+        try {
+          const etapaResponse = await solicitudService.avanzarAModulo5(Number(process.id))
+          if (!etapaResponse.success) {
+            const errorMsg = processApiErrorMessage(etapaResponse.message, "Error al actualizar etapa de solicitud")
+            console.warn('Advertencia: No se pudo actualizar la etapa de la solicitud:', errorMsg)
+          }
+        } catch (error: any) {
+          const errorMsg = processApiErrorMessage(error.message, "Error al actualizar etapa de solicitud")
+          console.error('Error al actualizar etapa de solicitud:', errorMsg)
+          // Continuar aunque falle la actualización de etapa, ya que los candidatos pueden avanzar
+        }
+      }
+
+      // Avanzar solo los candidatos que NO están ya en el módulo 5
+      const promises = candidatesToAdvance.map(async (candidate) => {
         try {
           const response = await estadoClienteM5Service.avanzarAlModulo5(
             Number(candidate.id_postulacion)
@@ -2066,18 +2220,33 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       const results = await Promise.all(promises)
       const successful = results.filter(r => r.success)
       const failed = results.filter(r => !r.success)
+      const skipped = candidatesWithRealizedInterview.length - candidatesToAdvance.length
 
       if (successful.length > 0) {
+        let description = `${successful.length} candidato(s) ${isAlreadyInModule5 ? 'agregado(s)' : 'avanzado(s)'} al módulo 5 exitosamente`
+        if (skipped > 0) {
+          description += `. ${skipped} candidato(s) ya estaban en el módulo 5 y no fueron modificados.`
+        }
+        
         showToast({
           type: "success",
-          title: "Candidatos avanzados",
-          description: `${successful.length} candidato(s) avanzado(s) al módulo 5 exitosamente`,
+          title: isAlreadyInModule5 ? "Candidatos agregados" : "Candidatos avanzados",
+          description: description,
         })
         
-        // Navegar automáticamente al módulo 5 después de 2 segundos
-        setTimeout(() => {
-          window.location.href = `/consultor/proceso/${process.id}?tab=modulo-5`
-        }, 2000)
+        // Solo navegar automáticamente al módulo 5 si no estábamos ya ahí
+        if (!isAlreadyInModule5) {
+          setTimeout(() => {
+            window.location.href = `/consultor/proceso/${process.id}?tab=modulo-5`
+          }, 2000)
+        } else {
+          // Si ya estábamos en módulo 5, recargar los datos para actualizar la lista
+          const updatedCandidates = await getCandidatesByProcess(process.id)
+          if (Array.isArray(updatedCandidates)) {
+            setCandidates(updatedCandidates)
+          }
+          setIsAdvancingToModule5(false)
+        }
       }
 
       if (failed.length > 0) {
@@ -2094,10 +2263,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       setCandidatesWithRealizedInterview([])
       setCanAdvanceToModule5(false)
       
-      // Recargar candidatos para obtener datos actualizados
-      const updatedCandidates = await getCandidatesByProcess(process.id)
-      if (Array.isArray(updatedCandidates)) {
-        setCandidates(updatedCandidates)
+      // Recargar candidatos para obtener datos actualizados (solo si no estamos ya en módulo 5, porque ya se recargó arriba)
+      if (!isAlreadyInModule5) {
+        const updatedCandidates = await getCandidatesByProcess(process.id)
+        if (Array.isArray(updatedCandidates)) {
+          setCandidates(updatedCandidates)
+        }
       }
 
     } catch (error: any) {
@@ -2236,13 +2407,19 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-blue-900">Avanzar al Módulo 5</h3>
+                      <h3 className="text-lg font-semibold text-blue-900">
+                        {process.etapa === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral" 
+                          ? "Pasar Candidatos al Módulo 5" 
+                          : "Avanzar al Módulo 5"}
+                      </h3>
                       <p className="text-sm text-blue-700">
-                        Los candidatos con estado de informe definido pueden avanzar al módulo de feedback del cliente
+                        {process.etapa === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
+                          ? "Los candidatos con estado de informe definido pueden ser agregados al módulo de feedback del cliente"
+                          : "Los candidatos con estado de informe definido pueden avanzar al módulo de feedback del cliente"}
                       </p>
                       {candidatesWithRealizedInterview.length > 0 && (
                         <p className="text-xs text-blue-600 mt-1">
-                          {candidatesWithRealizedInterview.length} candidato(s) listo(s) para avanzar
+                          {candidatesWithRealizedInterview.length} candidato(s) listo(s) para {process.etapa === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral" ? "pasar" : "avanzar"}
                         </p>
                       )}
                     </div>
@@ -2252,10 +2429,12 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                       className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
                     >
                       {isAdvancingToModule5 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      {isAdvancingToModule5 ? "Avanzando..." : (
+                      {isAdvancingToModule5 ? "Procesando..." : (
                         <>
                           <Send className="mr-2 h-4 w-4" />
-                          Avanzar al Módulo 5
+                          {process.etapa === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
+                            ? "Pasar Candidatos al Módulo 5"
+                            : "Avanzar al Módulo 5"}
                         </>
                       )}
                     </Button>
@@ -2786,19 +2965,148 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="interview_date">Fecha de Entrevista</Label>
-                <Input
-                  id="interview_date"
-                  type="datetime-local"
-                  value={interviewForm.interview_date}
-                  onChange={(e) => {
-                    const updatedForm = { ...interviewForm, interview_date: e.target.value }
-                    setInterviewForm(updatedForm)
-                    validateField('interview_date', e.target.value, validationSchemas.module4InterviewForm, updatedForm)
-                  }}
-                  max={interviewForm.interview_status === "programada" ? undefined : new Date().toISOString().slice(0, 16)}
-                  className={errors.interview_date ? "border-destructive" : ""}
-                />
+                <Label>Fecha y Hora de Entrevista</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${!interviewForm.interview_date ? "text-muted-foreground" : ""} ${errors.interview_date ? "border-destructive" : ""}`}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {interviewForm.interview_date 
+                          ? format(parseLocalDateTime(interviewForm.interview_date), "PPP", { locale: es })
+                          : "Seleccionar fecha"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={interviewForm.interview_date ? parseLocalDateTime(interviewForm.interview_date) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            // Mantener la hora existente o usar la hora actual
+                            const currentDateTime = interviewForm.interview_date 
+                              ? parseLocalDateTime(interviewForm.interview_date)
+                              : new Date()
+                            
+                            const newDate = new Date(date)
+                            newDate.setHours(currentDateTime.getHours())
+                            newDate.setMinutes(currentDateTime.getMinutes())
+                            
+                            const formatted = formatDateForInput(newDate)
+                            const updatedForm = { ...interviewForm, interview_date: formatted }
+                            setInterviewForm(updatedForm)
+                            validateField('interview_date', formatted, validationSchemas.module4InterviewForm, updatedForm)
+                          }
+                        }}
+                        disabled={(date) => {
+                          if (interviewForm.interview_status !== "programada") {
+                            return date > new Date()
+                          }
+                          return false
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${!interviewForm.interview_date ? "text-muted-foreground" : ""} ${errors.interview_date ? "border-destructive" : ""}`}
+                      >
+                        <Clock className="mr-2 h-4 w-4" />
+                        {interviewForm.interview_date 
+                          ? format(parseLocalDateTime(interviewForm.interview_date), "HH:mm")
+                          : "Seleccionar hora"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-3" align="start">
+                      <div className="flex items-center gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Hora</Label>
+                          <Select
+                            value={interviewForm.interview_date 
+                              ? (() => {
+                                  const hour = parseLocalDateTime(interviewForm.interview_date).getHours()
+                                  // Si la hora está fuera del rango laboral, mostrar 8 AM por defecto
+                                  if (hour < 8 || hour > 20) {
+                                    return "08"
+                                  }
+                                  return String(hour).padStart(2, '0')
+                                })()
+                              : "08"}
+                            onValueChange={(value) => {
+                              const currentDateTime = interviewForm.interview_date 
+                                ? parseLocalDateTime(interviewForm.interview_date)
+                                : new Date()
+                              
+                              const newDate = new Date(currentDateTime)
+                              const hour = parseInt(value)
+                              // Validar que la hora esté en el rango laboral (8 AM - 8 PM)
+                              if (hour >= 8 && hour <= 20) {
+                                newDate.setHours(hour)
+                                
+                                const formatted = formatDateForInput(newDate)
+                                const updatedForm = { ...interviewForm, interview_date: formatted }
+                                setInterviewForm(updatedForm)
+                                validateField('interview_date', formatted, validationSchemas.module4InterviewForm, updatedForm)
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[200px]">
+                              {Array.from({ length: 13 }, (_, i) => {
+                                const hour = i + 8 // Horas de 8 a 20 (8 AM a 8 PM)
+                                return (
+                                  <SelectItem key={hour} value={String(hour).padStart(2, '0')}>
+                                    {String(hour).padStart(2, '0')}
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <span className="text-lg font-semibold mt-6">:</span>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Minutos</Label>
+                          <Select
+                            value={interviewForm.interview_date 
+                              ? String(parseLocalDateTime(interviewForm.interview_date).getMinutes()).padStart(2, '0')
+                              : "00"}
+                            onValueChange={(value) => {
+                              const currentDateTime = interviewForm.interview_date 
+                                ? parseLocalDateTime(interviewForm.interview_date)
+                                : new Date()
+                              
+                              const newDate = new Date(currentDateTime)
+                              newDate.setMinutes(parseInt(value))
+                              
+                              const formatted = formatDateForInput(newDate)
+                              const updatedForm = { ...interviewForm, interview_date: formatted }
+                              setInterviewForm(updatedForm)
+                              validateField('interview_date', formatted, validationSchemas.module4InterviewForm, updatedForm)
+                            }}
+                          >
+                            <SelectTrigger className="w-20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[200px]">
+                              {Array.from({ length: 60 }, (_, i) => (
+                                <SelectItem key={i} value={String(i).padStart(2, '0')}>
+                                  {String(i).padStart(2, '0')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 <ValidationErrorDisplay error={errors.interview_date} />
               </div>
               <div className="space-y-2">
@@ -2973,13 +3281,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                     <CardContent className={`space-y-4 ${isMarkedForDeletion ? "pointer-events-none" : ""}`}>
                       <div className="grid grid-cols-[1fr_2fr] gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor={`test_name_${form.id}`}>Nombre del Test</Label>
+                          <Label htmlFor={`test_name_${form.id}`}>Nombre del Test <span className="text-red-500">*</span></Label>
                           <Select
                             value={form.test_name}
                             onValueChange={(value) => updateTestForm(form.id, "test_name", value)}
                             disabled={isMarkedForDeletion}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className={`bg-white ${errors[`test_name_${form.id}`] ? "border-destructive" : ""}`}>
                               <SelectValue placeholder="Seleccionar test" />
                             </SelectTrigger>
                             <SelectContent>
@@ -2990,6 +3298,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                               ))}
                             </SelectContent>
                           </Select>
+                          <ValidationErrorDisplay error={errors[`test_name_${form.id}`]} />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor={`test_result_${form.id}`}>Resultado <span className="text-red-500">*</span></Label>
@@ -3001,7 +3310,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             rows={4}
                             maxLength={300}
                             disabled={isMarkedForDeletion}
-                            className={`min-h-[100px] ${errors[`test_result_${form.id}`] ? "border-destructive" : ""}`}
+                            className={`bg-white min-h-[100px] ${errors[`test_result_${form.id}`] ? "border-destructive" : ""}`}
                           />
                           <div className="text-sm text-muted-foreground text-right">
                             {(form.result || "").length}/300 caracteres
@@ -3159,10 +3468,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                           <Input
                             id={`reference_${form.id}_nombre_referencia`}
                             value={form.nombre_referencia}
-                            onChange={(e) => updateReferenceForm(form.id, "nombre_referencia", e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              // Limitar a 100 caracteres
+                              if (value.length <= 100) {
+                                updateReferenceForm(form.id, "nombre_referencia", value)
+                              }
+                            }}
                             placeholder="Nombre completo de la referencia"
                             maxLength={100}
-                            className={errors[`reference_${form.id}_nombre_referencia`] ? "border-destructive" : ""}
+                            className={`bg-white ${errors[`reference_${form.id}_nombre_referencia`] ? "border-destructive" : ""}`}
                           />
                           <ValidationErrorDisplay error={errors[`reference_${form.id}_nombre_referencia`]} />
                         </div>
@@ -3173,10 +3488,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                           <Input
                             id={`reference_${form.id}_cargo_referencia`}
                             value={form.cargo_referencia}
-                            onChange={(e) => updateReferenceForm(form.id, "cargo_referencia", e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              // Limitar a 100 caracteres
+                              if (value.length <= 100) {
+                                updateReferenceForm(form.id, "cargo_referencia", value)
+                              }
+                            }}
                             placeholder="Cargo que ocupa la referencia"
                             maxLength={100}
-                            className={errors[`reference_${form.id}_cargo_referencia`] ? "border-destructive" : ""}
+                            className={`bg-white ${errors[`reference_${form.id}_cargo_referencia`] ? "border-destructive" : ""}`}
                           />
                           <ValidationErrorDisplay error={errors[`reference_${form.id}_cargo_referencia`]} />
                         </div>
@@ -3193,7 +3514,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             onChange={(e) => updateReferenceForm(form.id, "relacion_postulante_referencia", e.target.value)}
                             placeholder="Ej: Jefe directo, compañero de trabajo, etc."
                             maxLength={300}
-                            className={errors[`reference_${form.id}_relacion_postulante_referencia`] ? "border-destructive" : ""}
+                            className={`bg-white ${errors[`reference_${form.id}_relacion_postulante_referencia`] ? "border-destructive" : ""}`}
                           />
                           <ValidationErrorDisplay error={errors[`reference_${form.id}_relacion_postulante_referencia`]} />
                         </div>
@@ -3204,10 +3525,16 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                           <Input
                             id={`reference_${form.id}_empresa_referencia`}
                             value={form.empresa_referencia}
-                            onChange={(e) => updateReferenceForm(form.id, "empresa_referencia", e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              // Limitar a 100 caracteres
+                              if (value.length <= 100) {
+                                updateReferenceForm(form.id, "empresa_referencia", value)
+                              }
+                            }}
                             placeholder="Nombre de la empresa"
                             maxLength={100}
-                            className={errors[`reference_${form.id}_empresa_referencia`] ? "border-destructive" : ""}
+                            className={`bg-white ${errors[`reference_${form.id}_empresa_referencia`] ? "border-destructive" : ""}`}
                           />
                           <ValidationErrorDisplay error={errors[`reference_${form.id}_empresa_referencia`]} />
                         </div>
@@ -3222,7 +3549,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             onChange={(e) => updateReferenceForm(form.id, "telefono_referencia", e.target.value)}
                             placeholder="+56 9 1234 5678"
                             maxLength={12}
-                            className={errors[`reference_${form.id}_telefono_referencia`] ? "border-destructive" : ""}
+                            className={`bg-white ${errors[`reference_${form.id}_telefono_referencia`] ? "border-destructive" : ""}`}
                           />
                           <ValidationErrorDisplay error={errors[`reference_${form.id}_telefono_referencia`]} />
                         </div>
@@ -3235,7 +3562,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             onChange={(e) => updateReferenceForm(form.id, "email_referencia", e.target.value)}
                             placeholder="referencia@empresa.com"
                             maxLength={256}
-                            className={errors[`reference_${form.id}_email_referencia`] ? "border-destructive" : ""}
+                            className={`bg-white ${errors[`reference_${form.id}_email_referencia`] ? "border-destructive" : ""}`}
                           />
                           <ValidationErrorDisplay error={errors[`reference_${form.id}_email_referencia`]} />
                         </div>
@@ -3250,7 +3577,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                           placeholder="Observaciones, comentarios o información adicional sobre la referencia"
                           rows={3}
                           maxLength={800}
-                          className={errors[`reference_${form.id}_comentario_referencia`] ? "border-destructive" : ""}
+                          className={`bg-white ${errors[`reference_${form.id}_comentario_referencia`] ? "border-destructive" : ""}`}
                         />
                         <div className="text-sm text-muted-foreground text-right">
                           {(form.comentario_referencia || "").length}/800 caracteres
@@ -3347,34 +3674,108 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                   Fecha de Envío del Informe al Cliente
                   <span className="text-destructive ml-1">*</span>
                 </Label>
-                <Input
-                  id="report_sent_date"
-                  type="date"
-                  value={reportForm.report_sent_date}
-                  onChange={(e) => {
-                    setReportForm({ ...reportForm, report_sent_date: e.target.value })
-                    // Limpiar error cuando el usuario empiece a ingresar la fecha
-                    if (reportSentDateError) setReportSentDateError("")
-                  }}
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal ${!reportForm.report_sent_date ? "text-muted-foreground" : ""} ${reportSentDateError ? "border-destructive" : ""}`}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {reportForm.report_sent_date 
+                        ? (() => {
+                            const [year, month, day] = reportForm.report_sent_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            return format(dateObj, "PPP", { locale: es })
+                          })()
+                        : "Seleccionar fecha"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      captionLayout="dropdown"
+                      fromYear={1900}
+                      toYear={new Date().getFullYear()}
+                      selected={reportForm.report_sent_date ? (() => {
+                        const [year, month, day] = reportForm.report_sent_date.split('-').map(Number)
+                        return new Date(year, month - 1, day)
+                      })() : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                          const year = date.getFullYear()
+                          const month = String(date.getMonth() + 1).padStart(2, '0')
+                          const day = String(date.getDate()).padStart(2, '0')
+                          const selectedDate = `${year}-${month}-${day}`
+                          
+                          const today = new Date()
+                          const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+                          
+                          // Validar que la fecha no sea después de hoy
+                          if (selectedDate <= todayStr) {
+                            setReportForm({ ...reportForm, report_sent_date: selectedDate })
+                            // Limpiar error cuando el usuario seleccione la fecha
+                            if (reportSentDateError) setReportSentDateError("")
+                          } else {
+                            setReportSentDateError("La fecha de envío no puede ser posterior al día de hoy")
+                          }
+                        }
+                      }}
+                      disabled={(date) => {
+                        // Deshabilitar fechas futuras
+                        const today = new Date()
+                        today.setHours(23, 59, 59, 999)
+                        return date > today
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground">
+                  La fecha no puede ser posterior al día de hoy
+                </p>
                 {reportSentDateError && (
                   <p className="text-destructive text-sm">{reportSentDateError}</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="report_observations">Conclusión Global del Informe</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="report_observations">Conclusión Global del Informe</Label>
+                  {reportForm.report_observations && (
+                    <span className={`text-xs ${reportForm.report_observations.length < 10 || reportForm.report_observations.length > 300 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                      {reportForm.report_observations.length}/300
+                    </span>
+                  )}
+                </div>
                 <Textarea
                   id="report_observations"
                   value={reportForm.report_observations}
-                  onChange={(e) => setReportForm({ ...reportForm, report_observations: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    // Limitar a 300 caracteres
+                    if (value.length <= 300) {
+                      setReportForm({ ...reportForm, report_observations: value })
+                    }
+                  }}
                   placeholder="Ingrese su conclusión sobre el informe..."
                   rows={6}
                   className="min-h-[120px]"
+                  maxLength={300}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Opcional. Describe la evaluación completa del candidato.
+                  Opcional. Si completa, debe tener entre 10 y 300 caracteres.
                 </p>
+                {reportForm.report_observations && reportForm.report_observations.length > 0 && reportForm.report_observations.length < 10 && (
+                  <p className="text-xs text-red-600">
+                    La conclusión debe tener al menos 10 caracteres
+                  </p>
+                )}
+                {reportForm.report_observations && reportForm.report_observations.length > 300 && (
+                  <p className="text-xs text-red-600">
+                    La conclusión no puede exceder 300 caracteres
+                  </p>
+                )}
                       </div>
 
             </div>

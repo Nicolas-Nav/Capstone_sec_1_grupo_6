@@ -23,6 +23,10 @@ import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle, P
 import type { Process, Candidate } from "@/lib/types"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "./ProcessBlocked"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 interface ProcessModule5Props {
   process: Process
@@ -1263,20 +1267,59 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
 
             <div className="space-y-2">
               <Label htmlFor="client_response_date">Fecha de Respuesta del Cliente</Label>
-              <Input
-                id="client_response_date"
-                type="date"
-                max={new Date().toISOString().split('T')[0]}
-                value={contractForm.client_response_date || ''}
-                onChange={(e) => {
-                  const selectedDate = e.target.value
-                  const today = new Date().toISOString().split('T')[0]
-                  // Validar que la fecha no sea después de hoy
-                  if (selectedDate <= today) {
-                    setContractForm({ ...contractForm, client_response_date: selectedDate || null })
-                  }
-                }}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-full justify-start text-left font-normal ${!contractForm.client_response_date ? "text-muted-foreground" : ""}`}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {contractForm.client_response_date 
+                      ? (() => {
+                          const [year, month, day] = contractForm.client_response_date.split('-').map(Number)
+                          const dateObj = new Date(year, month - 1, day)
+                          return format(dateObj, "PPP", { locale: es })
+                        })()
+                      : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    captionLayout="dropdown"
+                    fromYear={1900}
+                    toYear={new Date().getFullYear()}
+                    selected={contractForm.client_response_date ? (() => {
+                      const [year, month, day] = contractForm.client_response_date.split('-').map(Number)
+                      return new Date(year, month - 1, day)
+                    })() : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                        const year = date.getFullYear()
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const selectedDate = `${year}-${month}-${day}`
+                        
+                        const today = new Date()
+                        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+                        
+                        // Validar que la fecha no sea después de hoy
+                        if (selectedDate <= todayStr) {
+                          setContractForm({ ...contractForm, client_response_date: selectedDate || null })
+                        }
+                      }
+                    }}
+                    disabled={(date) => {
+                      // Deshabilitar fechas futuras
+                      const today = new Date()
+                      today.setHours(23, 59, 59, 999)
+                      return date > today
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
               <p className="text-xs text-muted-foreground">
                 La fecha no puede ser posterior al día de hoy
               </p>
@@ -1543,20 +1586,59 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   <Label htmlFor="fecha_ingreso_contratacion_dialog">
                     Fecha de Ingreso
                   </Label>
-                  <Input
-                    id="fecha_ingreso_contratacion_dialog"
-                    type="date"
-                    max={new Date().toISOString().split('T')[0]}
-                    value={contratacionForm.fecha_ingreso_contratacion}
-                    onChange={(e) => {
-                      const selectedDate = e.target.value
-                      const today = new Date().toISOString().split('T')[0]
-                      // Validar que la fecha no sea después de hoy
-                      if (selectedDate <= today) {
-                        setContratacionForm({ ...contratacionForm, fecha_ingreso_contratacion: selectedDate })
-                      }
-                    }}
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${!contratacionForm.fecha_ingreso_contratacion ? "text-muted-foreground" : ""}`}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {contratacionForm.fecha_ingreso_contratacion 
+                          ? (() => {
+                              const [year, month, day] = contratacionForm.fecha_ingreso_contratacion.split('-').map(Number)
+                              const dateObj = new Date(year, month - 1, day)
+                              return format(dateObj, "PPP", { locale: es })
+                            })()
+                          : "Seleccionar fecha"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        captionLayout="dropdown"
+                        fromYear={1900}
+                        toYear={new Date().getFullYear()}
+                        selected={contratacionForm.fecha_ingreso_contratacion ? (() => {
+                          const [year, month, day] = contratacionForm.fecha_ingreso_contratacion.split('-').map(Number)
+                          return new Date(year, month - 1, day)
+                        })() : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                            const year = date.getFullYear()
+                            const month = String(date.getMonth() + 1).padStart(2, '0')
+                            const day = String(date.getDate()).padStart(2, '0')
+                            const selectedDate = `${year}-${month}-${day}`
+                            
+                            const today = new Date()
+                            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+                            
+                            // Validar que la fecha no sea después de hoy
+                            if (selectedDate <= todayStr) {
+                              setContratacionForm({ ...contratacionForm, fecha_ingreso_contratacion: selectedDate })
+                            }
+                          }
+                        }}
+                        disabled={(date) => {
+                          // Deshabilitar fechas futuras
+                          const today = new Date()
+                          today.setHours(23, 59, 59, 999)
+                          return date > today
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <p className="text-xs text-muted-foreground">
                     La fecha no puede ser posterior al día de hoy
                   </p>

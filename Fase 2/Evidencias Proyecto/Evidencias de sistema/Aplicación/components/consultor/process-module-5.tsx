@@ -137,6 +137,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             client_response_date: candidate.client_response_date || '',
             continues: true,
             observations: candidate.observations || '',
+            observaciones_contratacion: candidate.observaciones_contratacion || '',
+            comentario_modulo5_cliente: candidate.comentario_modulo5_cliente || '',
             satisfaction_survey_pending: candidate.hiring_status === "contratado",
             contratacion_status: candidate.contratacion_status
           }))
@@ -187,6 +189,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             client_response_date: candidate.client_response_date || '',
             continues: true,
             observations: candidate.observations || '',
+            observaciones_contratacion: candidate.observaciones_contratacion || '',
+            comentario_modulo5_cliente: candidate.comentario_modulo5_cliente || '',
             satisfaction_survey_pending: candidate.hiring_status === "contratado",
             contratacion_status: candidate.contratacion_status
           }))
@@ -269,6 +273,33 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     }
     setObservationsError("")
 
+    // Validar que las observaciones no excedan 500 caracteres
+    if (contractForm.observations.length > 500) {
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "Las observaciones no pueden exceder 500 caracteres",
+      })
+      return
+    }
+
+    // Validar que la fecha de respuesta del cliente no sea posterior a hoy
+    if (contractForm.client_response_date) {
+      const selectedDate = new Date(contractForm.client_response_date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0) // Resetear horas para comparar solo fechas
+      selectedDate.setHours(0, 0, 0, 0)
+      
+      if (selectedDate > today) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "La fecha de respuesta del cliente no puede ser posterior al día de hoy",
+        })
+        return
+      }
+    }
+
     setIsSavingContract(true)
 
     try {
@@ -347,7 +378,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         contract_date: existingData.contract_date || "",
         client_response_date: existingData.client_response_date || null,
         continues: existingData.continues,
-        observations: existingData.observations || "",
+        // Usar comentario_modulo5_cliente en lugar de observations para el formulario de gestión de estado
+        observations: (existingData as any).comentario_modulo5_cliente || "",
       })
     } else {
       // Si no hay datos, usar los datos del candidato si están disponibles
@@ -359,7 +391,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         contract_date: candidateData.contract_date || "",
         client_response_date: candidateData.client_response_date || null,
         continues: true,
-        observations: candidateData.observations || "",
+        // Usar comentario_modulo5_cliente en lugar de observations para el formulario de gestión de estado
+        observations: candidateData.comentario_modulo5_cliente || "",
       })
     }
     
@@ -380,15 +413,19 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         contract_date: contractedCandidate.contract_date ?? "",
         client_response_date: contractedCandidate.client_response_date ?? null,
         continues: contractedCandidate.continues,
-        observations: contractedCandidate.observations ?? "",
+        // Usar comentario_modulo5_cliente en lugar de observations para el formulario de gestión de estado
+        observations: (contractedCandidate as any).comentario_modulo5_cliente ?? "",
       })
     } else {
+      // Si no está en contractedCandidates, buscar en candidates
+      const candidateData = candidate as any
       setContractForm({
-        hiring_status: "en_espera_feedback",
-        contract_date: "",
-        client_response_date: null,
+        hiring_status: candidateData.hiring_status || "en_espera_feedback",
+        contract_date: candidateData.contract_date || "",
+        client_response_date: candidateData.client_response_date || null,
         continues: true,
-        observations: "",
+        // Usar comentario_modulo5_cliente en lugar de observations para el formulario de gestión de estado
+        observations: candidateData.comentario_modulo5_cliente || "",
       })
     }
     setSelectedCandidate(candidate)
@@ -483,6 +520,16 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       return
     }
 
+    // Validar que el motivo no exceda 500 caracteres
+    if (statusChangeReason.length > 500) {
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "El motivo del cambio no puede exceder 500 caracteres",
+      })
+      return
+    }
+
     try {
       const response = await solicitudService.cambiarEstado(
         parseInt(process.id), 
@@ -547,6 +594,34 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const handleSaveContratacion = async () => {
     if (!selectedCandidate) return
 
+    // Validaciones antes de guardar
+    // Validar que las observaciones no excedan 500 caracteres
+    if (contratacionForm.observaciones_contratacion.length > 500) {
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "Las observaciones no pueden exceder 500 caracteres",
+      })
+      return
+    }
+
+    // Validar que la fecha de ingreso no sea posterior a hoy (solo si es contratado y hay fecha)
+    if (contratacionAction === "contratado" && contratacionForm.fecha_ingreso_contratacion) {
+      const selectedDate = new Date(contratacionForm.fecha_ingreso_contratacion)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0) // Resetear horas para comparar solo fechas
+      selectedDate.setHours(0, 0, 0, 0)
+      
+      if (selectedDate > today) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "La fecha de ingreso no puede ser posterior al día de hoy",
+        })
+        return
+      }
+    }
+
     setIsSavingContratacion(true)
 
     try {
@@ -569,9 +644,23 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       console.log('[DEBUG] Respuesta del backend:', response)
 
       if (response.success) {
-        const mensajeExito = contratacionAction === "contratado" 
-          ? "Candidato registrado como contratado exitosamente"
-          : "Candidato registrado como no contratado exitosamente"
+        const estadoAnterior = (selectedCandidate as any)?.contratacion_status
+        const cambioEstado = estadoAnterior && estadoAnterior !== contratacionAction
+        
+        let mensajeExito: string
+        if (cambioEstado) {
+          mensajeExito = contratacionAction === "contratado"
+            ? "Estado cambiado a contratado exitosamente"
+            : "Estado cambiado a no contratado exitosamente"
+        } else {
+          mensajeExito = contratacionAction === "contratado" 
+            ? estadoAnterior 
+              ? "Información de contratación actualizada exitosamente"
+              : "Candidato registrado como contratado exitosamente"
+            : estadoAnterior
+              ? "Información de no contratado actualizada exitosamente"
+              : "Candidato registrado como no contratado exitosamente"
+        }
         
         showToast({
           type: "success",
@@ -795,8 +884,10 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                 variant="outline" 
                 className="border-cyan-300 text-cyan-700 hover:bg-cyan-100 bg-transparent"
                 onClick={() => {
-                  // Aquí podrías implementar la navegación al Módulo 2
-                  console.log("Navegando al Módulo 2...")
+                  // Redirigir al módulo 2 cambiando el parámetro tab en la URL
+                  const currentUrl = new URL(window.location.href)
+                  currentUrl.searchParams.set('tab', 'modulo-2')
+                  window.location.href = currentUrl.toString()
                 }}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -991,12 +1082,14 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                         </div>
                       </div>
                     )}
-                    {candidate.observations && (
+                    {((candidate as any).comentario_modulo5_cliente || candidate.observations) && (
                       <div className="flex items-start gap-2 col-span-2">
                         <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
                         <div>
                           <p className="font-medium">Observaciones</p>
-                          <p className="text-muted-foreground">{candidate.observations}</p>
+                          <p className="text-muted-foreground">
+                            {(candidate as any).comentario_modulo5_cliente || candidate.observations}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -1055,9 +1148,10 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "contratado")
                           }}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar Contratación
                         </Button>
-                        </div>
+                      </div>
                       <p className="text-sm text-green-600">El candidato ha sido contratado exitosamente.</p>
                       
                       <div className="grid grid-cols-1 gap-4 mt-4">
@@ -1071,12 +1165,12 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                           </div>
                         )}
                         
-                        {candidate.observations && (
+                        {(candidate as any).observaciones_contratacion && (
                           <div className="flex items-start gap-2">
                             <MessageSquare className="h-4 w-4 text-green-600 mt-1" />
                             <div>
                               <p className="text-sm font-medium text-gray-700">Observaciones</p>
-                              <p className="text-sm text-gray-600">{candidate.observations}</p>
+                              <p className="text-sm text-gray-600">{(candidate as any).observaciones_contratacion}</p>
                             </div>
                           </div>
                         )}
@@ -1092,26 +1186,27 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                           <XCircle className="h-5 w-5 text-orange-600" />
                           <h4 className="font-medium text-orange-800">Candidato No Contratado</h4>
                         </div>
-                            <Button 
-                              size="sm" 
+                        <Button 
+                          size="sm" 
                           variant="ghost"
                           className="text-orange-700 hover:text-orange-800 hover:bg-orange-100"
-                              onClick={() => {
+                          onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "no_contratado")
                           }}
                         >
-                          <Pencil className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar Contratación
+                        </Button>
+                      </div>
                       <p className="text-sm text-orange-600">El candidato no fue contratado.</p>
                       
-                      {candidate.observations && (
+                      {(candidate as any).observaciones_contratacion && (
                         <div className="flex items-start gap-2 mt-4">
                           <MessageSquare className="h-4 w-4 text-orange-600 mt-1" />
                           <div>
                             <p className="text-sm font-medium text-gray-700">Razón</p>
-                            <p className="text-sm text-gray-600">{candidate.observations}</p>
+                            <p className="text-sm text-gray-600">{(candidate as any).observaciones_contratacion}</p>
                       </div>
                         </div>
                       )}
@@ -1171,27 +1266,47 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
               <Input
                 id="client_response_date"
                 type="date"
+                max={new Date().toISOString().split('T')[0]}
                 value={contractForm.client_response_date || ''}
-                onChange={(e) => setContractForm({ ...contractForm, client_response_date: e.target.value || null })}
+                onChange={(e) => {
+                  const selectedDate = e.target.value
+                  const today = new Date().toISOString().split('T')[0]
+                  // Validar que la fecha no sea después de hoy
+                  if (selectedDate <= today) {
+                    setContractForm({ ...contractForm, client_response_date: selectedDate || null })
+                  }
+                }}
               />
+              <p className="text-xs text-muted-foreground">
+                La fecha no puede ser posterior al día de hoy
+              </p>
             </div>
 
 
 
             <div className="space-y-2">
-              <Label htmlFor="observations">
-                Observaciones del Módulo 5
-                {(contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta") && (
-                  <span className="text-destructive ml-1">*</span>
-                )}
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="observations">
+                  Observaciones del Módulo 5
+                  {(contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta") && (
+                    <span className="text-destructive ml-1">*</span>
+                  )}
+                </Label>
+                <span className={`text-xs ${contractForm.observations.length > 500 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                  {contractForm.observations.length}/500
+                </span>
+              </div>
               <Textarea
                 id="observations"
                 value={contractForm.observations}
                 onChange={(e) => {
-                  setContractForm({ ...contractForm, observations: e.target.value })
-                  // Limpiar error cuando el usuario empiece a escribir
-                  if (observationsError) setObservationsError("")
+                  const value = e.target.value
+                  // Limitar a 500 caracteres
+                  if (value.length <= 500) {
+                    setContractForm({ ...contractForm, observations: value })
+                    // Limpiar error cuando el usuario empiece a escribir
+                    if (observationsError) setObservationsError("")
+                  }
                 }}
                 placeholder={
                   contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta"
@@ -1199,7 +1314,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                     : "Comentarios adicionales sobre el proceso..."
                 }
                 rows={3}
+                maxLength={500}
               />
+              {contractForm.observations.length > 500 && (
+                <p className="text-xs text-red-600">
+                  El texto no puede exceder 500 caracteres
+                </p>
+              )}
               {observationsError && (
                 <p className="text-destructive text-sm">{observationsError}</p>
               )}
@@ -1294,15 +1415,32 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             </div>
 
             <div>
-              <Label htmlFor="status_reason">{getReasonLabel()}</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="status_reason">{getReasonLabel()}</Label>
+                <span className={`text-xs ${statusChangeReason.length > 500 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                  {statusChangeReason.length}/500
+                </span>
+              </div>
               <Textarea
                 id="status_reason"
                 value={statusChangeReason}
-                onChange={(e) => setStatusChangeReason(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  // Limitar a 500 caracteres
+                  if (value.length <= 500) {
+                    setStatusChangeReason(value)
+                  }
+                }}
                 placeholder={getReasonPlaceholder()}
                 className="mt-1"
                 rows={3}
+                maxLength={500}
               />
+              {statusChangeReason.length > 500 && (
+                <p className="text-xs text-red-600 mt-1">
+                  El texto no puede exceder 500 caracteres
+                </p>
+              )}
             </div>
           </div>
 
@@ -1333,7 +1471,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
           <DialogHeader>
             <DialogTitle>
               {(selectedCandidate as any)?.contratacion_status ? (
-                // Modo edición
+                // Modo edición - puede cambiar el estado
                 contratacionAction === "contratado" ? "Editar Información de Contratación" : "Editar Información de No Contratado"
               ) : (
                 // Modo crear nuevo
@@ -1355,6 +1493,49 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Selector de estado - solo mostrar si el candidato ya tiene un estado de contratación */}
+            {(selectedCandidate as any)?.contratacion_status && (
+              <div className="space-y-2">
+                <Label htmlFor="estado_contratacion_dialog">
+                  Estado de Contratación
+                </Label>
+                <Select
+                  value={contratacionAction}
+                  onValueChange={(value: "contratado" | "no_contratado") => {
+                    setContratacionAction(value)
+                    // Si cambia a "no_contratado", limpiar la fecha de ingreso
+                    if (value === "no_contratado") {
+                      setContratacionForm({
+                        ...contratacionForm,
+                        fecha_ingreso_contratacion: ""
+                      })
+                    }
+                    // Si cambia a "contratado" y no hay fecha, mantener la fecha anterior si existe
+                    if (value === "contratado" && !contratacionForm.fecha_ingreso_contratacion) {
+                      const candidate = selectedCandidate as ContractedCandidate
+                      if (candidate.contract_date) {
+                        setContratacionForm({
+                          ...contratacionForm,
+                          fecha_ingreso_contratacion: candidate.contract_date
+                        })
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger id="estado_contratacion_dialog">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contratado">Contratado</SelectItem>
+                    <SelectItem value="no_contratado">No Contratado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Puedes cambiar el estado de contratación del candidato
+                </p>
+              </div>
+            )}
+
             {contratacionAction === "contratado" ? (
               // Formulario para CONTRATADO
               <>
@@ -1365,39 +1546,84 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   <Input
                     id="fecha_ingreso_contratacion_dialog"
                     type="date"
+                    max={new Date().toISOString().split('T')[0]}
                     value={contratacionForm.fecha_ingreso_contratacion}
-                    onChange={(e) => setContratacionForm({ ...contratacionForm, fecha_ingreso_contratacion: e.target.value })}
+                    onChange={(e) => {
+                      const selectedDate = e.target.value
+                      const today = new Date().toISOString().split('T')[0]
+                      // Validar que la fecha no sea después de hoy
+                      if (selectedDate <= today) {
+                        setContratacionForm({ ...contratacionForm, fecha_ingreso_contratacion: selectedDate })
+                      }
+                    }}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    La fecha no puede ser posterior al día de hoy
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="observaciones_contratacion_dialog">
-                    Observaciones <span className="text-muted-foreground">(Opcional)</span>
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="observaciones_contratacion_dialog">
+                      Observaciones <span className="text-muted-foreground">(Opcional)</span>
+                    </Label>
+                    <span className={`text-xs ${contratacionForm.observaciones_contratacion.length > 500 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                      {contratacionForm.observaciones_contratacion.length}/500
+                    </span>
+                  </div>
                   <Textarea
                     id="observaciones_contratacion_dialog"
                     value={contratacionForm.observaciones_contratacion}
-                    onChange={(e) => setContratacionForm({ ...contratacionForm, observaciones_contratacion: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Limitar a 500 caracteres
+                      if (value.length <= 500) {
+                        setContratacionForm({ ...contratacionForm, observaciones_contratacion: value })
+                      }
+                    }}
                     placeholder="Ej: Cargo asignado, área de trabajo, condiciones especiales..."
                     rows={4}
+                    maxLength={500}
                   />
+                  {contratacionForm.observaciones_contratacion.length > 500 && (
+                    <p className="text-xs text-red-600">
+                      El texto no puede exceder 500 caracteres
+                    </p>
+                  )}
                 </div>
               </>
             ) : (
               // Formulario para NO CONTRATADO
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="observaciones_contratacion_dialog">
-                    Razón por la que no fue contratado <span className="text-muted-foreground">(Opcional)</span>
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="observaciones_contratacion_dialog">
+                      Razón por la que no fue contratado <span className="text-muted-foreground">(Opcional)</span>
+                    </Label>
+                    <span className={`text-xs ${contratacionForm.observaciones_contratacion.length > 500 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                      {contratacionForm.observaciones_contratacion.length}/500
+                    </span>
+                  </div>
                   <Textarea
                     id="observaciones_contratacion_dialog"
                     value={contratacionForm.observaciones_contratacion}
-                    onChange={(e) => setContratacionForm({ ...contratacionForm, observaciones_contratacion: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Limitar a 500 caracteres
+                      if (value.length <= 500) {
+                        setContratacionForm({ ...contratacionForm, observaciones_contratacion: value })
+                      }
+                    }}
                     placeholder="Ej: No cumplió con las expectativas del cargo, rechazó la oferta final, se encontró un candidato más adecuado..."
                     rows={4}
                     className="resize-none"
+                    maxLength={500}
                   />
+                  {contratacionForm.observaciones_contratacion.length > 500 && (
+                    <p className="text-xs text-red-600">
+                      El texto no puede exceder 500 caracteres
+                    </p>
+                  )}
                 </div>
               </>
             )}

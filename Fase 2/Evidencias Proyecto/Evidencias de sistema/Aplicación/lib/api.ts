@@ -1175,6 +1175,49 @@ export const institucionService = {
 };
 
 // ===========================================
+// SERVICIOS DE PORTALES DE POSTULACIÓN
+// ===========================================
+
+export const portalService = {
+  // Obtener todos los portales
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/portales');
+  },
+
+  // Obtener un portal por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/portales/${id}`);
+  },
+
+  // Crear un nuevo portal
+  async create(data: {
+    nombre_portal_postulacion: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/portales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar un portal
+  async update(id: number, data: {
+    nombre_portal_postulacion: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/portales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Eliminar un portal
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/portales/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ===========================================
 // SERVICIOS DE PUBLICACIONES
 // ===========================================
 

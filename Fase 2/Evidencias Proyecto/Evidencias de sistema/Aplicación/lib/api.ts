@@ -115,20 +115,100 @@ export const clientService = {
 };
 
 // ===========================================
+// SISTEMA DE CACHÉ EN MEMORIA
+// ===========================================
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  expiresAt: number;
+}
+
+class SimpleCache {
+  private cache: Map<string, CacheEntry<any>> = new Map();
+  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutos por defecto
+
+  /**
+   * Obtener datos del caché o ejecutar la función si no existe o expiró
+   */
+  async getOrFetch<T>(
+    key: string,
+    fetchFn: () => Promise<T>,
+    ttl: number = this.DEFAULT_TTL
+  ): Promise<T> {
+    const cached = this.cache.get(key);
+    const now = Date.now();
+
+    // Si existe en caché y no ha expirado, retornar datos cacheados
+    if (cached && now < cached.expiresAt) {
+      return cached.data;
+    }
+
+    // Si no existe o expiró, obtener datos frescos
+    const data = await fetchFn();
+    
+    // Guardar en caché
+    this.cache.set(key, {
+      data,
+      timestamp: now,
+      expiresAt: now + ttl,
+    });
+
+    return data;
+  }
+
+  /**
+   * Invalidar una entrada del caché
+   */
+  invalidate(key: string): void {
+    this.cache.delete(key);
+  }
+
+  /**
+   * Limpiar todo el caché
+   */
+  clear(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * Invalidar múltiples claves relacionadas
+   */
+  invalidatePattern(pattern: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+// Instancia global del caché
+const cache = new SimpleCache();
+
+// ===========================================
 // SERVICIOS DE REGIONES Y COMUNAS
 // ===========================================
 
 export const regionService = {
-  // Obtener todas las regiones
+  // Obtener todas las regiones (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/regiones');
+    return cache.getOrFetch(
+      'regiones:all',
+      () => apiRequest('/api/regiones'),
+      10 * 60 * 60 * 1000
+    );
   },
 };
 
 export const comunaService = {
-  // Obtener todas las comunas
+  // Obtener todas las comunas (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/comunas');
+    return cache.getOrFetch(
+      'comunas:all',
+      () => apiRequest('/api/comunas'),
+      10 * 60 * 60 * 1000
+    );
   },
 
   // Obtener comunas por región
@@ -328,9 +408,13 @@ export const solicitudService = {
     return apiRequest('/api/solicitudes/etapas/disponibles');
   },
 
-  // Obtener estados de solicitud disponibles
+  // Obtener estados de solicitud disponibles (con caché)
   async getEstadosSolicitud(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/solicitudes/estados/disponibles');
+    return cache.getOrFetch(
+      'estados-solicitud:all',
+      () => apiRequest('/api/solicitudes/estados/disponibles'),
+      10 * 60 * 60 * 1000
+    );
   },
 
   // Obtener procesos activos agrupados por consultor (reportes)
@@ -1035,9 +1119,13 @@ export const postulacionService = {
 // ===========================================
 
 export const nacionalidadService = {
-  // Obtener todas las nacionalidades
+  // Obtener todas las nacionalidades (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/nacionalidades');
+    return cache.getOrFetch(
+      'nacionalidades:all',
+      () => apiRequest('/api/nacionalidades'),
+      10 * 60 * 60 * 1000
+    );
   },
 };
 
@@ -1046,9 +1134,13 @@ export const nacionalidadService = {
 // ===========================================
 
 export const rubroService = {
-  // Obtener todos los rubros
+  // Obtener todos los rubros (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/rubros');
+    return cache.getOrFetch(
+      'rubros:all',
+      () => apiRequest('/api/rubros'),
+      10 * 60 * 60 * 1000
+    );
   },
 };
 
@@ -1057,9 +1149,13 @@ export const rubroService = {
 // ===========================================
 
 export const profesionService = {
-  // Obtener todas las profesiones
+  // Obtener todas las profesiones (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/profesiones');
+    return cache.getOrFetch(
+      'profesiones:all',
+      () => apiRequest('/api/profesiones'),
+      10 * 60 * 60 * 1000
+    );
   },
 };
 
@@ -1068,9 +1164,13 @@ export const profesionService = {
 // ===========================================
 
 export const institucionService = {
-  // Obtener todas las instituciones
+  // Obtener todas las instituciones (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/instituciones');
+    return cache.getOrFetch(
+      'instituciones:all',
+      () => apiRequest('/api/instituciones'),
+      10 * 60 * 60 * 1000
+    );
   },
 };
 
@@ -1095,9 +1195,13 @@ export const publicacionService = {
     return apiRequest(`/api/publicaciones/${id}`);
   },
 
-  // Obtener todos los portales de postulación
+  // Obtener todos los portales de postulación (con caché)
   async getPortales(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/publicaciones/portales');
+    return cache.getOrFetch(
+      'portales:all',
+      () => apiRequest('/api/publicaciones/portales'),
+      10 * 60 * 60 * 1000
+    );
   },
 
   // Crear una nueva publicación

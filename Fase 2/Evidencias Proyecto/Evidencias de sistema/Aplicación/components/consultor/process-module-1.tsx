@@ -1136,16 +1136,10 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         <CardContent className="space-y-4">
           <div>
             <h3 className="font-semibold text-lg mb-2">{process.position_title}</h3>
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="mb-4">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Vacantes</p>
                 <p className="text-2xl font-bold text-primary">{process.vacancies}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Estado</p>
-                <Badge className={getStatusColor(processStatus)}>
-                  {processStatusLabels[processStatus]}
-                </Badge>
               </div>
             </div>
           </div>

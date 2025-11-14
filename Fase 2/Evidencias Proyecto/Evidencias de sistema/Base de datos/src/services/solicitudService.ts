@@ -1348,19 +1348,6 @@ export class SolicitudService {
         const historial = solicitud.get('historialEstados') as any[];
         const estadoActual = historial?.[0]?.estado;
 
-        // Debug log para verificar el estado
-        if (solicitud.id_solicitud) {
-            console.log(`🔍 Solicitud ${solicitud.id_solicitud}:`, {
-                historial: historial?.length || 0,
-                estadoActual: estadoActual?.nombre_estado_solicitud || 'Sin estado',
-                historialCompleto: historial?.map(h => ({ 
-                    id_estado: h.id_estado_solicitud, 
-                    nombre: h.estado?.nombre_estado_solicitud,
-                    fecha: h.fecha_cambio_estado_solicitud 
-                }))
-            });
-        }
-
         return {
             // Formato completo para APIs que necesitan toda la información
             id: solicitud.id_solicitud,
@@ -1541,7 +1528,6 @@ export class SolicitudService {
                 // Sin filtros: trae TODAS las solicitudes
             });
 
-            console.log(`[DEBUG] Total de solicitudes encontradas: ${solicitudes.length}`);
 
             // Contar por tipo de servicio
             const serviceTypeCounts: Record<string, number> = {};
@@ -1574,11 +1560,6 @@ export class SolicitudService {
                 total++;
             });
 
-            console.log(`[DEBUG] Distribución por tipo de servicio:`, serviceTypeCounts);
-            console.log(`[DEBUG] Total de procesos contados: ${total}`);
-            if (Object.keys(codigosNoMapeados).length > 0) {
-                console.log(`[DEBUG] Códigos de servicio no mapeados encontrados:`, codigosNoMapeados);
-            }
 
             // Convertir a array con porcentajes
             return Object.entries(serviceTypeCounts).map(([service, count]) => ({
@@ -1616,7 +1597,6 @@ export class SolicitudService {
                 ORDER BY candidates DESC
             `, { skipUserContext: true } as any);
 
-            console.log(`[DEBUG] Fuentes de candidatos encontradas:`, ((results as unknown as any[]) || []).length);
 
             // Convertir resultados a formato esperado
             return ((results as unknown as any[]) || []).map((row: any) => ({
@@ -1726,7 +1706,6 @@ export class SolicitudService {
             `, { skipUserContext: true } as any);
             const totalCandidates = parseInt((candidatesResult?.[0] as any)?.total || '0');
 
-            console.log(`[DEBUG] Estadísticas: Activos=${activeProcesses}, TiempoPromedio=${avgTimeToHire}, Candidatos=${totalCandidates}`);
 
             return {
                 activeProcesses,
@@ -1757,7 +1736,6 @@ export class SolicitudService {
 
             // Query para obtener distribución de estados
             // Filtrar solicitudes creadas en el período y obtener su estado más reciente
-            console.log(`[DEBUG] Fechas de búsqueda: ${startDate.toISOString()} a ${endDate.toISOString()}`);
             
             const results = (await sequelize.query(`
                 WITH estado_actual AS (
@@ -1790,15 +1768,6 @@ export class SolicitudService {
                 skipUserContext: true
             } as any)) as Array<{ status?: string; count?: number }>;
 
-            console.log(`[DEBUG] Distribución de estados para período ${periodType}:`, {
-                year,
-                month,
-                week,
-                startDate: startDate.toISOString().split('T')[0],
-                endDate: endDate.toISOString().split('T')[0],
-                totalResults: results.length,
-                results: results
-            });
 
             // Mapeo de nombres de estados a los que se muestran en el frontend
             const statusMapping: Record<string, string> = {
@@ -1813,14 +1782,12 @@ export class SolicitudService {
             const mappedResults = results.map((row) => {
                 const dbStatus = row.status || 'Desconocido';
                 const frontendStatus = statusMapping[dbStatus] || dbStatus;
-                console.log(`[DEBUG] Mapeando estado: ${dbStatus} -> ${frontendStatus}, count: ${row.count}`);
                 return {
                     status: frontendStatus,
                     count: parseInt(String(row.count ?? '0')) || 0
                 };
             });
 
-            console.log(`[DEBUG] Resultados mapeados:`, mappedResults);
             return mappedResults;
         } catch (error: any) {
             console.error('Error al obtener distribución de estados:', error);
@@ -2022,13 +1989,6 @@ export class SolicitudService {
                 // Pero cuando usamos 'as any', TypeScript puede no inferir correctamente
                 // Verificar si es array directamente o si está envuelto
                 const resultsArray = Array.isArray(queryResult) ? queryResult : [];
-                console.log('[DEBUG] getProcessesOverview - queryResult:', {
-                    queryResultType: typeof queryResult,
-                    isArray: Array.isArray(queryResult),
-                    queryResultLength: Array.isArray(queryResult) ? queryResult.length : 'not array',
-                    resultsArrayLength: resultsArray.length,
-                    firstElement: resultsArray[0] || null
-                });
                 return resultsArray as unknown as Array<{
                     id_solicitud: number;
                     fecha_ingreso_solicitud: Date | string | null;
@@ -2045,24 +2005,13 @@ export class SolicitudService {
             };
 
             let rows = await runOverviewQuery(true);
-            console.log('[DEBUG] getProcessesOverview - rows after first query:', {
-                rowsType: typeof rows,
-                isArray: Array.isArray(rows),
-                rowsLength: Array.isArray(rows) ? rows.length : 'not array'
-            });
 
             if (!Array.isArray(rows) || rows.length === 0) {
                 rows = await runOverviewQuery(false);
-                console.log('[DEBUG] getProcessesOverview - rows after fallback query:', {
-                    rowsType: typeof rows,
-                    isArray: Array.isArray(rows),
-                    rowsLength: Array.isArray(rows) ? rows.length : 'not array'
-                });
             }
             
             // Asegurar que rows es siempre un array
             if (!Array.isArray(rows)) {
-                console.error('[ERROR] getProcessesOverview - rows is not an array:', rows);
                 rows = [];
             }
 
@@ -2216,14 +2165,6 @@ export class SolicitudService {
     }>> {
         try {
             const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
-            console.log('[DEBUG] getClosedSuccessfulProcesses - Parámetros:', {
-                year,
-                month,
-                week,
-                periodType,
-                startDate: startDate.toISOString(),
-                endDate: endDate.toISOString()
-            });
 
             // Obtener procesos cerrados en el período
             const procesosCerradosQueryResult = await sequelize.query(`
@@ -2353,13 +2294,6 @@ export class SolicitudService {
             // Pero cuando usamos 'as any', TypeScript puede no inferir correctamente
             // Verificar si es array directamente o si está envuelto
             const procesosCerradosArray = Array.isArray(procesosCerradosQueryResult) ? procesosCerradosQueryResult : [];
-            console.log('[DEBUG] getClosedSuccessfulProcesses - queryResult:', {
-                queryResultType: typeof procesosCerradosQueryResult,
-                isArray: Array.isArray(procesosCerradosQueryResult),
-                queryResultLength: Array.isArray(procesosCerradosQueryResult) ? procesosCerradosQueryResult.length : 'not array',
-                rawLength: procesosCerradosArray.length,
-                firstElement: procesosCerradosArray[0] || null
-            });
             const procesosCerrados = procesosCerradosArray as Array<{
                 id_solicitud: number;
                 tipo_servicio: string;
@@ -2371,10 +2305,6 @@ export class SolicitudService {
                 candidatos_exitosos: string | Array<{ nombre: string; rut: string }>;
             }>;
 
-            console.log('[DEBUG] getClosedSuccessfulProcesses - Resultados SQL:', {
-                totalRows: procesosCerrados.length,
-                firstRow: procesosCerrados[0] || null
-            });
 
             // Procesar resultados y convertir JSON strings a arrays
             const processed = procesosCerrados.map(row => ({
@@ -2392,10 +2322,6 @@ export class SolicitudService {
                     : (Array.isArray(row.candidatos_exitosos) ? row.candidatos_exitosos : [])
             }));
 
-            console.log('[DEBUG] getClosedSuccessfulProcesses - Resultados procesados:', {
-                totalProcessed: processed.length,
-                firstProcessed: processed[0] || null
-            });
 
             return processed;
         } catch (error: any) {
@@ -2544,7 +2470,6 @@ export class SolicitudService {
                 completionRate: parseInt(row.completion_rate) || 0
             }));
         } catch (error: any) {
-            console.error('[ERROR] getConsultantCompletionStats:', error);
             throw new Error('Error al obtener estadísticas de cumplimiento');
         }
     }
@@ -2585,7 +2510,6 @@ export class SolicitudService {
 
             return overdueHitos;
         } catch (error: any) {
-            console.error('[ERROR] getConsultantOverdueHitos:', error);
             throw new Error('Error al obtener hitos vencidos por consultor');
         }
     }

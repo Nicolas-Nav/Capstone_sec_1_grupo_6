@@ -26,12 +26,10 @@ const startServer = async (): Promise<void> => {
         }
 
         // Pre-cargar feriados de Chile para mejorar rendimiento
-        Logger.info('Pre-cargando feriados de Chile...');
         try {
             await FechasLaborales.precargarFeriados();
-            Logger.info('Feriados pre-cargados exitosamente');
         } catch (error) {
-            Logger.warn('ADVERTENCIA: No se pudieron pre-cargar los feriados. Se cargarán bajo demanda.');
+            // Los feriados se cargarán bajo demanda si falla la precarga
         }
 
         // Iniciar el servidor

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { publicacionService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
-import { Globe, Calendar } from "lucide-react"
+import { Globe, Calendar, Edit } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
@@ -16,14 +16,14 @@ import { es } from "date-fns/locale"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
-interface AddPublicationDialogProps {
+interface EditPublicationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  solicitudId: number
+  publication: any | null
   onSuccess?: () => void
 }
 
-export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSuccess }: AddPublicationDialogProps) {
+export function EditPublicationDialog({ open, onOpenChange, publication, onSuccess }: EditPublicationDialogProps) {
   const { toast } = useToast()
   const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -42,14 +42,32 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
     if (!open) {
       clearAllErrors()
       setHasAttemptedSubmit(false)
-      setFormData({
-        id_portal_postulacion: "",
-        url_publicacion: "",
-        estado_publicacion: "Activa",
-        fecha_publicacion: new Date().toISOString().split('T')[0]
-      })
     }
   }, [open, clearAllErrors])
+
+  // Cargar datos de la publicación cuando se abre el diálogo
+  useEffect(() => {
+    if (open && publication) {
+      // Convertir fecha a formato YYYY-MM-DD
+      let fechaFormato = ""
+      if (publication.fecha_publicacion) {
+        const fecha = new Date(publication.fecha_publicacion)
+        if (!isNaN(fecha.getTime())) {
+          const year = fecha.getFullYear()
+          const month = String(fecha.getMonth() + 1).padStart(2, '0')
+          const day = String(fecha.getDate()).padStart(2, '0')
+          fechaFormato = `${year}-${month}-${day}`
+        }
+      }
+      
+      setFormData({
+        id_portal_postulacion: publication.id_portal_postulacion?.toString() || "",
+        url_publicacion: publication.url_publicacion || "",
+        estado_publicacion: publication.estado_publicacion || "Activa",
+        fecha_publicacion: fechaFormato || new Date().toISOString().split('T')[0]
+      })
+    }
+  }, [open, publication])
 
   // Cargar portales cuando se abre el diálogo
   useEffect(() => {
@@ -85,10 +103,19 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
   }
 
   const handleSubmit = async () => {
+    if (!publication) return
+
     setHasAttemptedSubmit(true)
     
-    // Validar todos los campos
-    const isValid = validateAllFields(formData, validationSchemas.publicationForm)
+    // Validar todos los campos (solo URL y fecha, el portal no se valida porque es solo lectura)
+    const fieldsToValidate = {
+      url_publicacion: formData.url_publicacion,
+      fecha_publicacion: formData.fecha_publicacion
+    }
+    const isValid = validateAllFields(fieldsToValidate, {
+      url_publicacion: validationSchemas.publicationForm.url_publicacion,
+      fecha_publicacion: validationSchemas.publicationForm.fecha_publicacion
+    })
     
     if (!isValid) {
       toast({
@@ -102,26 +129,22 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
     try {
       setIsSubmitting(true)
 
-      const response = await publicacionService.create({
-        id_solicitud: solicitudId,
-        id_portal_postulacion: parseInt(formData.id_portal_postulacion),
+      // Convertir fecha a Date object
+      const fechaPublicacion = formData.fecha_publicacion 
+        ? new Date(formData.fecha_publicacion)
+        : new Date()
+
+      const response = await publicacionService.update(publication.id, {
         url_publicacion: formData.url_publicacion,
-        estado_publicacion: formData.estado_publicacion
+        estado_publicacion: formData.estado_publicacion,
+        fecha_publicacion: fechaPublicacion
       })
 
       if (response.success) {
         toast({
           title: "¡Éxito!",
-          description: "¡Publicación creada exitosamente!",
+          description: "¡Publicación actualizada exitosamente!",
           variant: "default",
-        })
-        
-        // Limpiar formulario
-        setFormData({
-          id_portal_postulacion: "",
-          url_publicacion: "",
-          estado_publicacion: "Activa",
-          fecha_publicacion: new Date().toISOString().split('T')[0]
         })
 
         // Cerrar diálogo
@@ -134,15 +157,15 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
       } else {
         toast({
           title: "Error",
-          description: response.message || "Error al crear publicación",
+          description: response.message || "Error al actualizar publicación",
           variant: "destructive",
         })
       }
     } catch (error: any) {
-      console.error("Error al crear publicación:", error)
+      console.error("Error al actualizar publicación:", error)
       toast({
         title: "Error",
-        description: error.message || "Error al crear publicación",
+        description: error.message || "Error al actualizar publicación",
         variant: "destructive",
       })
     } finally {
@@ -150,38 +173,33 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
     }
   }
 
+  if (!publication) return null
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5" />
-            Nueva Publicación
+            <Edit className="h-5 w-5" />
+            Editar Publicación
           </DialogTitle>
           <DialogDescription>
-            Publica la oferta laboral en un portal de postulación
+            Modifica los datos de la publicación en el portal
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Portal de Postulación */}
+          {/* Portal de Postulación (solo lectura) */}
           <div className="space-y-2">
             <Label htmlFor="portal">
-              Portal de Postulación <span className="text-red-500">*</span>
+              Portal de Postulación
             </Label>
             <Select
               value={formData.id_portal_postulacion}
-              onValueChange={(value) => {
-                setFormData({ ...formData, id_portal_postulacion: value })
-                clearError('id_portal_postulacion')
-                if (hasAttemptedSubmit) {
-                  validateField('id_portal_postulacion', value, validationSchemas.publicationForm)
-                }
-              }}
-              disabled={loadingPortales}
+              disabled={true}
             >
-              <SelectTrigger className={errors.id_portal_postulacion ? "border-destructive" : ""}>
-                <SelectValue placeholder={loadingPortales ? "Cargando portales..." : "Selecciona un portal"} />
+              <SelectTrigger>
+                <SelectValue placeholder="Cargando..." />
               </SelectTrigger>
               <SelectContent>
                 {portales.map((portal) => (
@@ -191,7 +209,9 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
                 ))}
               </SelectContent>
             </Select>
-            <ValidationErrorDisplay error={errors.id_portal_postulacion} />
+            <p className="text-xs text-muted-foreground">
+              El portal no se puede modificar
+            </p>
           </div>
 
           {/* URL de Publicación */}
@@ -307,7 +327,7 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Publicando..." : "Publicar"}
+            {isSubmitting ? "Guardando..." : "Guardar Cambios"}
           </Button>
         </DialogFooter>
       </DialogContent>

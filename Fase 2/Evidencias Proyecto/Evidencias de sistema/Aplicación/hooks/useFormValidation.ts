@@ -568,6 +568,53 @@ export const validationSchemas = {
       maxLength: 800,
       message: 'Los comentarios no pueden exceder 800 caracteres'
     }
+  },
+
+  // Validaciones para formulario de publicación
+  publicationForm: {
+    id_portal_postulacion: validationRules.required('El portal de postulación es obligatorio'),
+    url_publicacion: {
+      required: true,
+      custom: (value: string) => {
+        if (!value || !value.trim()) {
+          return 'La URL de la publicación es obligatoria'
+        }
+        
+        // Validar formato URL
+        try {
+          new URL(value)
+        } catch (error) {
+          return 'Ingresa una URL válida (ej: https://ejemplo.com)'
+        }
+        
+        // Validar que la URL tenga protocolo
+        if (!value.startsWith('http://') && !value.startsWith('https://')) {
+          return 'La URL debe comenzar con http:// o https://'
+        }
+        
+        return null
+      }
+    },
+    fecha_publicacion: {
+      required: false,
+      custom: (value: string) => {
+        // Es opcional, pero si se proporciona, no puede ser futura
+        if (!value || !value.trim()) {
+          return null // Campo opcional, no hay error si está vacío
+        }
+        
+        const selectedDate = new Date(value)
+        const today = new Date()
+        today.setHours(23, 59, 59, 999) // Resetear horas para comparar solo fechas
+        selectedDate.setHours(0, 0, 0, 0)
+        
+        if (selectedDate > today) {
+          return 'La fecha de publicación no puede ser posterior al día actual'
+        }
+        
+        return null
+      }
+    }
   }
 }
 

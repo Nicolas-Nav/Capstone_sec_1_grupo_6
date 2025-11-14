@@ -66,6 +66,7 @@ import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
 import { AddPublicationDialog } from "./add-publication-dialog"
+import { EditPublicationDialog } from "./edit-publication-dialog"
 import CVViewerDialog from "./cv-viewer-dialog"
 import { ProcessBlocked } from "./ProcessBlocked"
 import { CandidateStatusDialog } from "./candidate-status-dialog"
@@ -170,6 +171,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
 
   const [showAddPublication, setShowAddPublication] = useState(false)
+  const [editingPublication, setEditingPublication] = useState<any | null>(null)
+  const [showEditPublication, setShowEditPublication] = useState(false)
 
   const [showAddCandidate, setShowAddCandidate] = useState(false)
 
@@ -2761,6 +2764,22 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               solicitudId={parseInt(process.id) || 0}
               onSuccess={loadData}
             />
+
+            {/* Diálogo de Editar Publicación */}
+            <EditPublicationDialog
+              open={showEditPublication}
+              onOpenChange={(open) => {
+                setShowEditPublication(open)
+                if (!open) {
+                  setEditingPublication(null)
+                }
+              }}
+              publication={editingPublication}
+              onSuccess={() => {
+                loadData()
+                setEditingPublication(null)
+              }}
+            />
           </div>
 
         </CardHeader>
@@ -2833,6 +2852,18 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                     <TableCell>
 
                       <div className="flex items-center gap-2">
+
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setEditingPublication(publication)
+                            setShowEditPublication(true)
+                          }}
+                          disabled={isBlocked}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
 
                         <Button 
                           variant="ghost" 

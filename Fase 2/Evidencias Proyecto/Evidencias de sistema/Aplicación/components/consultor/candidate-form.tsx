@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Trash2, Star, Loader2, Calendar } from "lucide-react"
+import { Plus, Trash2, Star, Loader2, Calendar, RotateCcw } from "lucide-react"
 import { es } from "date-fns/locale"
 import { format } from "date-fns"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -24,6 +24,8 @@ interface ProfessionForm {
   profession: string
   profession_institution: string
   profession_date: string
+  professionId?: string // ID de la BD si es una profesión existente
+  markedForDeletion?: boolean // Flag para marcar profesiones para eliminación
 }
 
 interface EducationForm {
@@ -31,6 +33,8 @@ interface EducationForm {
   title: string
   institution: string
   completion_date: string
+  educationId?: string // ID de la BD si es una educación existente
+  markedForDeletion?: boolean // Flag para marcar educación para eliminación
 }
 
 interface WorkExperienceForm {
@@ -40,6 +44,8 @@ interface WorkExperienceForm {
   start_date: string
   end_date: string
   description: string
+  workExperienceId?: string // ID de la BD si es una experiencia laboral existente
+  markedForDeletion?: boolean // Flag para marcar experiencia laboral para eliminación
 }
 
 interface CandidateFormData {
@@ -258,12 +264,19 @@ export function CandidateForm({
       // Cargar profesiones si existen
       if (initialData.professions && Array.isArray(initialData.professions) && initialData.professions.length > 0) {
         console.log('🔄 Cargando profesiones:', initialData.professions)
-        const loadedProfessions = initialData.professions.map((prof: any, index: number) => ({
-          id: (index + 1).toString(),
-          profession: prof.id_profesion?.toString() || '',
-          profession_institution: prof.institution || '',
-          profession_date: normalizeDate(prof.date)
-        }))
+        const loadedProfessions = initialData.professions.map((prof: any, index: number) => {
+          // Crear un ID único para identificar esta profesión existente
+          // Usamos una combinación de id_profesion, institution y date para crear un identificador único
+          const professionId = `prof_${prof.id_profesion}_${prof.institution}_${prof.date || index}`
+          return {
+            id: `prof_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+            profession: prof.id_profesion?.toString() || '',
+            profession_institution: prof.institution || '',
+            profession_date: normalizeDate(prof.date),
+            professionId: professionId, // ID para identificar profesiones existentes
+            markedForDeletion: false
+          }
+        })
         setProfessionForms(loadedProfessions)
         console.log('✅ Profesiones cargadas:', loadedProfessions)
       }
@@ -271,12 +284,18 @@ export function CandidateForm({
       // Cargar educación si existe
       if (initialData.education && Array.isArray(initialData.education) && initialData.education.length > 0) {
         console.log('🔄 Cargando educación:', initialData.education)
-        const loadedEducation = initialData.education.map((edu: any, index: number) => ({
-          id: (index + 1).toString(),
-          title: edu.title || '',
-          institution: edu.institution || '',
-          completion_date: normalizeDate(edu.completion_date)
-        }))
+        const loadedEducation = initialData.education.map((edu: any, index: number) => {
+          // Crear un ID único para identificar esta educación existente
+          const educationId = `edu_${edu.title}_${edu.institution}_${edu.completion_date || index}`
+          return {
+            id: `edu_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+            title: edu.title || '',
+            institution: edu.institution || '',
+            completion_date: normalizeDate(edu.completion_date),
+            educationId: educationId, // ID para identificar educación existente
+            markedForDeletion: false
+          }
+        })
         setEducationForms(loadedEducation)
         console.log('✅ Educación cargada:', loadedEducation)
       }
@@ -284,14 +303,20 @@ export function CandidateForm({
       // Cargar experiencia laboral si existe
       if (initialData.work_experience && Array.isArray(initialData.work_experience) && initialData.work_experience.length > 0) {
         console.log('🔄 Cargando experiencia laboral:', initialData.work_experience)
-        const loadedWorkExperience = initialData.work_experience.map((exp: any, index: number) => ({
-          id: (index + 1).toString(),
-          company: exp.company || '',
-          position: exp.position || '',
-          start_date: normalizeDate(exp.start_date),
-          end_date: normalizeDate(exp.end_date),
-          description: exp.description || ''
-        }))
+        const loadedWorkExperience = initialData.work_experience.map((exp: any, index: number) => {
+          // Crear un ID único para identificar esta experiencia laboral existente
+          const workExperienceId = `exp_${exp.company}_${exp.position}_${exp.start_date || index}`
+          return {
+            id: `exp_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+            company: exp.company || '',
+            position: exp.position || '',
+            start_date: normalizeDate(exp.start_date),
+            end_date: normalizeDate(exp.end_date),
+            description: exp.description || '',
+            workExperienceId: workExperienceId, // ID para identificar experiencia laboral existente
+            markedForDeletion: false
+          }
+        })
         setWorkExperienceForms(loadedWorkExperience)
         console.log('✅ Experiencia laboral cargada:', loadedWorkExperience)
       }
@@ -319,12 +344,13 @@ export function CandidateForm({
 
   // Funciones para manejar profesiones
   const addProfessionForm = () => {
-    const newId = (professionForms.length + 1).toString()
+    const newId = `prof_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     setProfessionForms([...professionForms, {
       id: newId,
       profession: '',
       profession_institution: '',
-      profession_date: ''
+      profession_date: '',
+      markedForDeletion: false
     }])
   }
 
@@ -336,19 +362,33 @@ export function CandidateForm({
   }
 
   const handleDiscardSingleProfession = (formId: string) => {
-    if (professionForms.length === 1) {
-      setProfessionForms([{
-        id: '1',
-        profession: '',
-        profession_institution: '',
-        profession_date: ''
-      }])
+    const form = professionForms.find(f => f.id === formId)
+    if (!form) return
+
+    // Si es una profesión existente, marcarla para eliminación en lugar de eliminarla directamente
+    if (form.professionId) {
+      setProfessionForms(professionForms.map(f =>
+        f.id === formId
+          ? { ...f, markedForDeletion: true }
+          : f
+      ))
     } else {
-      setProfessionForms(professionForms.filter(form => form.id !== formId))
+      // Si es una nueva profesión, eliminarla directamente
+      if (professionForms.length === 1) {
+        setProfessionForms([{
+          id: `prof_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          profession: '',
+          profession_institution: '',
+          profession_date: '',
+          markedForDeletion: false
+        }])
+      } else {
+        setProfessionForms(professionForms.filter(form => form.id !== formId))
+      }
+      clearError(`profession_${formId}_profession`)
+      clearError(`profession_${formId}_institution`)
+      clearError(`profession_${formId}_date`)
     }
-    clearError(`profession_${formId}_profession`)
-    clearError(`profession_${formId}_institution`)
-    clearError(`profession_${formId}_date`)
   }
 
   const validateProfessionField = (formId: string, field: string, value: string, form: ProfessionForm) => {
@@ -382,12 +422,13 @@ export function CandidateForm({
 
   // Funciones para manejar educación
   const addEducationForm = () => {
-    const newId = (educationForms.length + 1).toString()
+    const newId = `edu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     setEducationForms([...educationForms, {
       id: newId,
       title: '',
       institution: '',
-      completion_date: ''
+      completion_date: '',
+      markedForDeletion: false
     }])
   }
 
@@ -399,19 +440,33 @@ export function CandidateForm({
   }
 
   const handleDiscardSingleEducation = (formId: string) => {
-    if (educationForms.length === 1) {
-      setEducationForms([{
-        id: '1',
-        title: '',
-        institution: '',
-        completion_date: ''
-      }])
+    const form = educationForms.find(f => f.id === formId)
+    if (!form) return
+
+    // Si es una educación existente, marcarla para eliminación en lugar de eliminarla directamente
+    if (form.educationId) {
+      setEducationForms(educationForms.map(f =>
+        f.id === formId
+          ? { ...f, markedForDeletion: true }
+          : f
+      ))
     } else {
-      setEducationForms(educationForms.filter(form => form.id !== formId))
+      // Si es una nueva educación, eliminarla directamente
+      if (educationForms.length === 1) {
+        setEducationForms([{
+          id: `edu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          title: '',
+          institution: '',
+          completion_date: '',
+          markedForDeletion: false
+        }])
+      } else {
+        setEducationForms(educationForms.filter(form => form.id !== formId))
+      }
+      clearError(`education_${formId}_title`)
+      clearError(`education_${formId}_institution`)
+      clearError(`education_${formId}_completion_date`)
     }
-    clearError(`education_${formId}_title`)
-    clearError(`education_${formId}_institution`)
-    clearError(`education_${formId}_completion_date`)
   }
 
   const validateEducationField = (formId: string, field: string, value: string, form: EducationForm) => {
@@ -455,14 +510,15 @@ export function CandidateForm({
 
   // Funciones para manejar experiencia laboral
   const addWorkExperienceForm = () => {
-    const newId = (workExperienceForms.length + 1).toString()
+    const newId = `exp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     setWorkExperienceForms([...workExperienceForms, {
       id: newId,
       company: '',
       position: '',
       start_date: '',
       end_date: '',
-      description: ''
+      description: '',
+      markedForDeletion: false
     }])
   }
 
@@ -474,22 +530,36 @@ export function CandidateForm({
   }
 
   const handleDiscardSingleWorkExperience = (formId: string) => {
-    if (workExperienceForms.length === 1) {
-      setWorkExperienceForms([{
-        id: '1',
-        company: '',
-        position: '',
-        start_date: '',
-        end_date: '',
-        description: ''
-      }])
+    const form = workExperienceForms.find(f => f.id === formId)
+    if (!form) return
+
+    // Si es una experiencia laboral existente, marcarla para eliminación en lugar de eliminarla directamente
+    if (form.workExperienceId) {
+      setWorkExperienceForms(workExperienceForms.map(f =>
+        f.id === formId
+          ? { ...f, markedForDeletion: true }
+          : f
+      ))
     } else {
-      setWorkExperienceForms(workExperienceForms.filter(form => form.id !== formId))
+      // Si es una nueva experiencia laboral, eliminarla directamente
+      if (workExperienceForms.length === 1) {
+        setWorkExperienceForms([{
+          id: `exp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          company: '',
+          position: '',
+          start_date: '',
+          end_date: '',
+          description: '',
+          markedForDeletion: false
+        }])
+      } else {
+        setWorkExperienceForms(workExperienceForms.filter(form => form.id !== formId))
+      }
+      clearError(`work_experience_${formId}_company`)
+      clearError(`work_experience_${formId}_position`)
+      clearError(`work_experience_${formId}_start_date`)
+      clearError(`work_experience_${formId}_description`)
     }
-    clearError(`work_experience_${formId}_company`)
-    clearError(`work_experience_${formId}_position`)
-    clearError(`work_experience_${formId}_start_date`)
-    clearError(`work_experience_${formId}_description`)
   }
 
   const validateWorkExperienceField = (formId: string, field: string, value: string, form: WorkExperienceForm) => {
@@ -588,8 +658,12 @@ export function CandidateForm({
     }
     
     // Validar profesiones (si hay algún campo lleno, todos deben estar llenos)
+    // No validar profesiones marcadas para eliminación
     let professionValidationPassed = true
     for (const form of professionForms) {
+      // Saltar validación si está marcada para eliminación
+      if (form.markedForDeletion) continue
+      
       const hasAnyField = !!(form.profession?.trim() || form.profession_institution?.trim() || form.profession_date?.trim())
       if (hasAnyField) {
         if (!form.profession?.trim()) {
@@ -608,8 +682,12 @@ export function CandidateForm({
     }
     
     // Validar educación
+    // No validar educación marcada para eliminación
     let educationValidationPassed = true
     for (const form of educationForms) {
+      // Saltar validación si está marcada para eliminación
+      if (form.markedForDeletion) continue
+      
       const hasAnyField = !!(form.title?.trim() || form.institution?.trim() || form.completion_date?.trim())
       if (hasAnyField) {
         if (!form.title?.trim()) {
@@ -636,8 +714,12 @@ export function CandidateForm({
     }
     
     // Validar experiencia laboral
+    // No validar experiencia laboral marcada para eliminación
     let workExperienceValidationPassed = true
     for (const form of workExperienceForms) {
+      // Saltar validación si está marcada para eliminación
+      if (form.markedForDeletion) continue
+      
       const hasAnyField = !!(form.company?.trim() || form.position?.trim() || form.start_date?.trim() || form.description?.trim())
       if (hasAnyField) {
         if (!form.company?.trim()) {
@@ -699,7 +781,11 @@ export function CandidateForm({
     // Establecer estado de carga antes de enviar
     setIsSubmitting(true)
     try {
-      await onSubmit(formData, professionForms, educationForms, workExperienceForms)
+      // Filtrar profesiones, educación y experiencia laboral marcadas para eliminación antes de enviar
+      const professionFormsToSubmit = professionForms.filter(form => !form.markedForDeletion)
+      const educationFormsToSubmit = educationForms.filter(form => !form.markedForDeletion)
+      const workExperienceFormsToSubmit = workExperienceForms.filter(form => !form.markedForDeletion)
+      await onSubmit(formData, professionFormsToSubmit, educationFormsToSubmit, workExperienceFormsToSubmit)
     } finally {
       setIsSubmitting(false)
     }
@@ -1030,35 +1116,35 @@ export function CandidateForm({
             </Select>
             <ValidationErrorDisplay error={errors.rubro} />
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="source_portal">
-            Portal de Origen <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={formData.source_portal}
-            onValueChange={(value) => {
-              setFormData({ ...formData, source_portal: value })
-              clearError('source_portal')
-            }}
-            disabled={loadingLists}
-          >
-            <SelectTrigger className={errors.source_portal ? "border-destructive" : ""}>
-              <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
-            </SelectTrigger>
-            <SelectContent>
-              {portalesDB.map((portal) => (
-                <SelectItem key={portal.id} value={portal.id.toString()}>
-                  {portal.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <ValidationErrorDisplay error={errors.source_portal} />
-          <p className="text-xs text-muted-foreground">
-            Portal desde donde proviene el candidato
-          </p>
+          <div className="space-y-2">
+            <Label htmlFor="source_portal">
+              Portal de Origen <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={formData.source_portal}
+              onValueChange={(value) => {
+                setFormData({ ...formData, source_portal: value })
+                clearError('source_portal')
+              }}
+              disabled={loadingLists}
+            >
+              <SelectTrigger className={errors.source_portal ? "border-destructive" : ""}>
+                <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
+              </SelectTrigger>
+              <SelectContent>
+                {portalesDB.map((portal) => (
+                  <SelectItem key={portal.id} value={portal.id.toString()}>
+                    {portal.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <ValidationErrorDisplay error={errors.source_portal} />
+            <p className="text-xs text-muted-foreground">
+              Portal desde donde proviene el candidato
+            </p>
+          </div>
         </div>
 
         {mode === 'create' && (
@@ -1131,17 +1217,6 @@ export function CandidateForm({
           </div>
         )}
 
-        <div className="flex items-center space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <Checkbox
-            id="has_disability_credential"
-            checked={formData.has_disability_credential}
-            onCheckedChange={(checked) => setFormData({ ...formData, has_disability_credential: checked === true })}
-            className="border-blue-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-          />
-          <Label htmlFor="has_disability_credential" className="text-sm font-medium text-blue-800 cursor-pointer">
-            Cuenta con credencial de discapacidad
-          </Label>
-        </div>
       </div>
 
       {/* Profesión */}
@@ -1167,15 +1242,54 @@ export function CandidateForm({
           )
           const showDiscardButton = professionForms.length > 1 ? true : hasFormFields
           
+          // Verificar si es una profesión existente
+          const isExistingProfession = !!form.professionId
+          const isMarkedForDeletion = form.markedForDeletion === true
+          
+          // Calcular el número de profesión (contando solo las del mismo tipo)
+          const existingProfessions = professionForms.filter(f => f.professionId)
+          const newProfessions = professionForms.filter(f => !f.professionId)
+          const professionNumber = isExistingProfession 
+            ? existingProfessions.indexOf(form) + 1
+            : newProfessions.indexOf(form) + 1
+          
           return (
-            <Card key={form.id}>
+            <Card key={form.id} className={`${isExistingProfession ? "border-l-4 border-l-blue-500" : ""} ${isMarkedForDeletion ? "opacity-50 bg-gray-100" : ""}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">
-                    Profesión {index + 1}
+                    {isMarkedForDeletion ? (
+                      <span className="text-destructive line-through">
+                        {isExistingProfession ? `Profesión ${professionNumber} (Existente) - Se eliminará al guardar` : `Profesión ${professionNumber} - Se eliminará al guardar`}
+                      </span>
+                    ) : (
+                      <>
+                        {isExistingProfession ? `Profesión ${professionNumber} (Existente)` : `Profesión ${professionNumber}`}
+                      </>
+                    )}
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    {showDiscardButton && (
+                    {isMarkedForDeletion ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Deshacer la eliminación
+                          setProfessionForms(forms => 
+                            forms.map(f => 
+                              f.id === form.id 
+                                ? { ...f, markedForDeletion: false }
+                                : f
+                            )
+                          )
+                        }}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Deshacer
+                      </Button>
+                    ) : showDiscardButton ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1184,13 +1298,13 @@ export function CandidateForm({
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Descartar profesión
+                        {isExistingProfession ? "Eliminar" : "Descartar"}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className={`space-y-4 ${isMarkedForDeletion ? "pointer-events-none" : ""}`}>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Profesión</Label>
@@ -1344,15 +1458,54 @@ export function CandidateForm({
           )
           const showDiscardButton = educationForms.length > 1 ? true : hasFormFields
           
+          // Verificar si es una educación existente
+          const isExistingEducation = !!form.educationId
+          const isMarkedForDeletion = form.markedForDeletion === true
+          
+          // Calcular el número de capacitación (contando solo las del mismo tipo)
+          const existingEducations = educationForms.filter(f => f.educationId)
+          const newEducations = educationForms.filter(f => !f.educationId)
+          const educationNumber = isExistingEducation 
+            ? existingEducations.indexOf(form) + 1
+            : newEducations.indexOf(form) + 1
+          
           return (
-            <Card key={form.id}>
+            <Card key={form.id} className={`${isExistingEducation ? "border-l-4 border-l-blue-500" : ""} ${isMarkedForDeletion ? "opacity-50 bg-gray-100" : ""}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">
-                    Capacitación {index + 1}
+                    {isMarkedForDeletion ? (
+                      <span className="text-destructive line-through">
+                        {isExistingEducation ? `Capacitación ${educationNumber} (Existente) - Se eliminará al guardar` : `Capacitación ${educationNumber} - Se eliminará al guardar`}
+                      </span>
+                    ) : (
+                      <>
+                        {isExistingEducation ? `Capacitación ${educationNumber} (Existente)` : `Capacitación ${educationNumber}`}
+                      </>
+                    )}
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    {showDiscardButton && (
+                    {isMarkedForDeletion ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Deshacer la eliminación
+                          setEducationForms(forms => 
+                            forms.map(f => 
+                              f.id === form.id 
+                                ? { ...f, markedForDeletion: false }
+                                : f
+                            )
+                          )
+                        }}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Deshacer
+                      </Button>
+                    ) : showDiscardButton ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1361,13 +1514,13 @@ export function CandidateForm({
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Descartar capacitación
+                        {isExistingEducation ? "Eliminar" : "Descartar"}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className={`space-y-4 ${isMarkedForDeletion ? "pointer-events-none" : ""}`}>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Nombre del Postgrado/Capacitación (mínimo 2 caracteres)</Label>
@@ -1519,15 +1672,54 @@ export function CandidateForm({
           )
           const showDiscardButton = workExperienceForms.length > 1 ? true : hasFormFields
           
+          // Verificar si es una experiencia laboral existente
+          const isExistingWorkExperience = !!form.workExperienceId
+          const isMarkedForDeletion = form.markedForDeletion === true
+          
+          // Calcular el número de experiencia (contando solo las del mismo tipo)
+          const existingWorkExperiences = workExperienceForms.filter(f => f.workExperienceId)
+          const newWorkExperiences = workExperienceForms.filter(f => !f.workExperienceId)
+          const workExperienceNumber = isExistingWorkExperience 
+            ? existingWorkExperiences.indexOf(form) + 1
+            : newWorkExperiences.indexOf(form) + 1
+          
           return (
-            <Card key={form.id}>
+            <Card key={form.id} className={`${isExistingWorkExperience ? "border-l-4 border-l-blue-500" : ""} ${isMarkedForDeletion ? "opacity-50 bg-gray-100" : ""}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">
-                    Experiencia {index + 1}
+                    {isMarkedForDeletion ? (
+                      <span className="text-destructive line-through">
+                        {isExistingWorkExperience ? `Experiencia ${workExperienceNumber} (Existente) - Se eliminará al guardar` : `Experiencia ${workExperienceNumber} - Se eliminará al guardar`}
+                      </span>
+                    ) : (
+                      <>
+                        {isExistingWorkExperience ? `Experiencia ${workExperienceNumber} (Existente)` : `Experiencia ${workExperienceNumber}`}
+                      </>
+                    )}
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    {showDiscardButton && (
+                    {isMarkedForDeletion ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Deshacer la eliminación
+                          setWorkExperienceForms(forms => 
+                            forms.map(f => 
+                              f.id === form.id 
+                                ? { ...f, markedForDeletion: false }
+                                : f
+                            )
+                          )
+                        }}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Deshacer
+                      </Button>
+                    ) : showDiscardButton ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1536,13 +1728,13 @@ export function CandidateForm({
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Descartar experiencia
+                        {isExistingWorkExperience ? "Eliminar" : "Descartar"}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className={`space-y-4 ${isMarkedForDeletion ? "pointer-events-none" : ""}`}>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Empresa (mínimo 2 caracteres)</Label>
@@ -1895,6 +2087,18 @@ export function CandidateForm({
             <div className="text-sm text-muted-foreground text-right">
               {(formData.portal_responses.software_tools || "").length}/100 caracteres
             </div>
+          </div>
+
+          <div className="flex items-center space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <Checkbox
+              id="has_disability_credential"
+              checked={formData.has_disability_credential}
+              onCheckedChange={(checked) => setFormData({ ...formData, has_disability_credential: checked === true })}
+              className="border-blue-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+            />
+            <Label htmlFor="has_disability_credential" className="text-sm font-medium text-blue-800 cursor-pointer">
+              Cuenta con credencial de discapacidad
+            </Label>
           </div>
 
           <div className="flex items-center space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">

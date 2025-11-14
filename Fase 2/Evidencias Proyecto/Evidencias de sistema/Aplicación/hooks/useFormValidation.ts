@@ -264,7 +264,7 @@ export const validationSchemas = {
     birth_date: {
       required: false,
       custom: (value: string) => {
-        // Es opcional, pero si se proporciona, debe ser mayor de 18 años
+        // Es opcional, pero si se proporciona, debe ser mayor de 18 años y menor o igual a 85 años
         if (!value || !value.trim()) {
           return null // Campo opcional, no hay error si está vacío
         }
@@ -275,9 +275,13 @@ export const validationSchemas = {
           return 'La fecha de nacimiento no es válida'
         }
         
-        // Calcular edad
+        // Calcular edad basándose solo en el año (validación por año, no por día)
         const today = new Date()
-        let age = today.getFullYear() - birthDate.getFullYear()
+        const birthYear = birthDate.getFullYear()
+        const currentYear = today.getFullYear()
+        let age = currentYear - birthYear
+        
+        // Ajustar si aún no ha cumplido años este año (comparación por mes y día)
         const monthDiff = today.getMonth() - birthDate.getMonth()
         if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
           age--
@@ -286,6 +290,13 @@ export const validationSchemas = {
         // Validar que sea mayor de 18 años
         if (age < 18) {
           return 'El candidato debe ser mayor de 18 años'
+        }
+        
+        // Validar que no tenga más de 85 años (validación por año)
+        // Si nació en un año que resultaría en más de 85 años, no permitir
+        const maxAllowedYear = currentYear - 85
+        if (birthYear < maxAllowedYear) {
+          return 'El candidato no puede tener más de 85 años'
         }
         
         return null

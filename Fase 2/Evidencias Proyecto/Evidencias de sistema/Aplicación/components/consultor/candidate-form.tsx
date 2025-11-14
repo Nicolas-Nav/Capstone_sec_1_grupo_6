@@ -838,7 +838,11 @@ export function CandidateForm({
                 <CalendarComponent
                   mode="single"
                   captionLayout="dropdown"
-                  fromYear={1900}
+                  fromYear={(() => {
+                    // Calcular el año mínimo permitido (año actual - 85 años)
+                    const currentYear = new Date().getFullYear()
+                    return currentYear - 85
+                  })()}
                   toYear={new Date().getFullYear()}
                   selected={formData.birth_date && formData.birth_date.trim() !== "" ? (() => {
                     try {
@@ -889,6 +893,17 @@ export function CandidateForm({
                     const today = new Date()
                     today.setHours(23, 59, 59, 999)
                     const minDate = new Date("1900-01-01")
+                    
+                    // Deshabilitar fechas que resulten en más de 85 años (validación por año)
+                    const currentYear = today.getFullYear()
+                    const maxAllowedYear = currentYear - 85
+                    const dateYear = date.getFullYear()
+                    
+                    // Si el año de la fecha es menor al año máximo permitido, deshabilitar
+                    if (dateYear < maxAllowedYear) {
+                      return true
+                    }
+                    
                     return date > today || date < minDate
                   }}
                   initialFocus

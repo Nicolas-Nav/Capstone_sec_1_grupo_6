@@ -2468,192 +2468,17 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         <CardHeader>
 
-          <div className="flex items-center justify-between">
+          <div>
 
-            <div>
+            <CardTitle className="flex items-center gap-2">
 
-              <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
 
-                <Settings className="h-5 w-5" />
+              Portales
 
-                Gestión de Portales
+            </CardTitle>
 
-              </CardTitle>
-
-              <CardDescription>Administra los portales de publicación disponibles</CardDescription>
-
-            </div>
-
-            <Dialog open={showPortalManager} onOpenChange={setShowPortalManager}>
-
-              <DialogTrigger asChild>
-
-                <Button variant="outline">
-
-                  <Settings className="mr-2 h-4 w-4" />
-
-                  Gestionar Portales
-
-                </Button>
-
-              </DialogTrigger>
-
-              <DialogContent className="max-w-2xl">
-
-                <DialogHeader>
-
-                  <DialogTitle>Gestión de Portales de Publicación</DialogTitle>
-
-                  <DialogDescription>
-
-                    Agrega nuevos portales o gestiona los existentes para las publicaciones
-
-                  </DialogDescription>
-
-                </DialogHeader>
-
-                <div className="space-y-4">
-
-                  <div className="flex gap-2">
-
-                    <div className="flex-1">
-
-                      <Label htmlFor="new_portal">Nuevo Portal <span className="text-red-500">*</span></Label>
-                      <Input
-
-                        id="new_portal"
-
-                        value={newPortalName}
-
-                        onChange={(e) => setNewPortalName(e.target.value)}
-
-                        placeholder="Nombre del portal (ej: CompuTrabajo, ZonaJobs)"
-
-                        onKeyPress={(e) => e.key === "Enter" && handleAddPortal()}
-
-                      />
-
-                    </div>
-
-                    <div className="flex items-end">
-
-                      <Button onClick={handleAddPortal} disabled={!newPortalName.trim()}>
-
-                        <Plus className="h-4 w-4" />
-
-                      </Button>
-
-                    </div>
-
-                  </div>
-
-
-
-                  <div className="space-y-2">
-
-                    <Label>Portales Disponibles</Label>
-
-                    <div className="border rounded-lg p-4 max-h-60 overflow-y-auto">
-
-                      {customPortals.length > 0 ? (
-
-                        <div className="space-y-2">
-
-                          {customPortals.map((portal) => {
-
-                            const isDefault = [
-
-                              "LinkedIn",
-
-                              "GetOnBoard",
-
-                              "Indeed",
-
-                              "Trabajando.com",
-
-                              "Laborum",
-
-                              "Behance",
-
-                            ].includes(portal)
-
-                            return (
-
-                              <div key={portal} className="flex items-center justify-between p-2 border rounded">
-
-                                <div className="flex items-center gap-2">
-
-                                  <Globe className="h-4 w-4 text-muted-foreground" />
-
-                                  <span className="font-medium">{portal}</span>
-
-                                  {isDefault && (
-
-                                    <Badge variant="secondary" className="text-xs">
-
-                                      Por defecto
-
-                                    </Badge>
-
-                                  )}
-
-                                </div>
-
-                                {!isDefault && (
-
-                                  <Button
-
-                                    variant="ghost"
-
-                                    size="sm"
-
-                                    onClick={() => handleDeletePortal(portal)}
-
-                                    className="text-destructive hover:text-destructive"
-
-                                  >
-
-                                    <Trash2 className="h-4 w-4" />
-
-                                  </Button>
-
-                                )}
-
-                              </div>
-
-                            )
-
-                          })}
-
-                        </div>
-
-                      ) : (
-
-                        <div className="text-center py-4">
-
-                          <Globe className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-
-                          <p className="text-muted-foreground">No hay portales configurados</p>
-
-                        </div>
-
-                      )}
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                <DialogFooter>
-
-                  <Button onClick={() => setShowPortalManager(false)}>Cerrar</Button>
-
-                </DialogFooter>
-
-              </DialogContent>
-
-            </Dialog>
+            <CardDescription>Portales de publicación disponibles</CardDescription>
 
           </div>
 
@@ -2661,7 +2486,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         <CardContent>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
 
             <div className="text-center p-4 border rounded-lg">
 
@@ -2670,28 +2495,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               <p className="text-2xl font-bold">{customPortals.length}</p>
 
               <p className="text-sm text-muted-foreground">Portales Disponibles</p>
-
-            </div>
-
-            <div className="text-center p-4 border rounded-lg">
-
-              <Settings className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-
-              <p className="text-2xl font-bold">
-
-                {
-
-                  customPortals.filter(
-
-                    (p) => !["LinkedIn", "GetOnBoard", "Indeed", "Trabajando.com", "Laborum", "Behance"].includes(p),
-
-                  ).length
-
-                }
-
-              </p>
-
-              <p className="text-sm text-muted-foreground">Portales Personalizados</p>
 
             </div>
 

@@ -967,7 +967,7 @@ export function CandidateForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="nacionalidad">Nacionalidad <span className="text-red-500">*</span></Label>
+            <Label htmlFor="nacionalidad">Nacionalidad</Label>
             <Select
               value={formData.nacionalidad}
               onValueChange={(value) => {
@@ -977,7 +977,7 @@ export function CandidateForm({
               disabled={loadingLists}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccione nacionalidad" />
+                <SelectValue placeholder="Seleccione nacionalidad (opcional)" />
               </SelectTrigger>
               <SelectContent>
                 {nacionalidades.map((nac) => (

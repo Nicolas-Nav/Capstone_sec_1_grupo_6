@@ -310,7 +310,13 @@ export const validationSchemas = {
       }
     },
     rubro: validationRules.required('El rubro es obligatorio'),
-    nacionalidad: validationRules.required('La nacionalidad es obligatoria'),
+    nacionalidad: {
+      required: false,
+      custom: (value: string) => {
+        // La nacionalidad es opcional, no hay validación
+        return null
+      }
+    },
     profession: {
       required: false,
       custom: (value: string, allData?: any) => {

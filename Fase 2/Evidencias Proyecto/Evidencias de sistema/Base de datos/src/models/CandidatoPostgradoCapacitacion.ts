@@ -74,7 +74,7 @@ CandidatoPostgradoCapacitacion.init({
     },
     id_institucion: {
         type: DataTypes.INTEGER,
-        allowNull: true, 
+        allowNull: false, 
         primaryKey: true,
         references: {
             model: 'institucion',

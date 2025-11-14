@@ -584,13 +584,15 @@ export class CandidatoService {
                                 });
                             }
 
-                            // Crear la relación
-                            await CandidatoProfesion.create({
-                                id_candidato: id,
-                                id_profesion: profesion.id_profesion,
-                                fecha_obtencion: prof.date ? this.parseDateOnly(prof.date) : undefined,
-                                id_institucion: institucion ? institucion.id_institucion : undefined
-                            }, { transaction });
+                            // Solo crear la relación si hay institución (requerido)
+                            if (institucion) {
+                                await CandidatoProfesion.create({
+                                    id_candidato: id,
+                                    id_profesion: profesion.id_profesion,
+                                    fecha_obtencion: prof.date ? this.parseDateOnly(prof.date) : undefined,
+                                    id_institucion: institucion.id_institucion
+                                }, { transaction });
+                            }
                         }
                     }
                 }
@@ -649,32 +651,31 @@ export class CandidatoService {
                                 }, { transaction });
                             }
 
-                            // Buscar o crear la institución
-                            let institucion = null;
-                            if (edu.institution) {
-                                institucion = await Institucion.findOne({
-                                    where: { nombre_institucion: edu.institution.trim() }
-                                });
-                                
-                                // Si no existe, crearla
-                                if (!institucion) {
-                                    institucion = await Institucion.create({
-                                        nombre_institucion: edu.institution.trim()
-                                    }, { transaction });
-                                }
+                            // Buscar o crear la institución (siempre debe existir porque ya validamos edu.institution)
+                            let institucion = await Institucion.findOne({
+                                where: { nombre_institucion: edu.institution.trim() }
+                            });
+                            
+                            // Si no existe, crearla
+                            if (!institucion) {
+                                institucion = await Institucion.create({
+                                    nombre_institucion: edu.institution.trim()
+                                }, { transaction });
                             }
 
-                            // Crear la relación
-                            const relationData = {
-                                id_candidato: id,
-                                id_postgradocapacitacion: postgrado.id_postgradocapacitacion,
-                                fecha_obtencion: edu.completion_date ? this.parseDateOnly(edu.completion_date) : new Date(),
-                                id_institucion: institucion ? institucion.id_institucion : null
-                            };
-                            
-                            console.log('💾 Guardando relación CandidatoPostgradoCapacitacion:', relationData);
-                            await CandidatoPostgradoCapacitacion.create(relationData, { transaction });
-                            console.log('✅ Educación guardada exitosamente');
+                            // Crear la relación (institucion siempre existe aquí después del if)
+                            if (institucion) {
+                                const relationData = {
+                                    id_candidato: id,
+                                    id_postgradocapacitacion: postgrado.id_postgradocapacitacion,
+                                    fecha_obtencion: edu.completion_date ? this.parseDateOnly(edu.completion_date) : new Date(),
+                                    id_institucion: institucion.id_institucion
+                                };
+                                
+                                console.log('💾 Guardando relación CandidatoPostgradoCapacitacion:', relationData);
+                                await CandidatoPostgradoCapacitacion.create(relationData, { transaction });
+                                console.log('✅ Educación guardada exitosamente');
+                            }
                         } else {
                             console.log('⚠️ Educación NO guardada - falta título o institución');
                         }

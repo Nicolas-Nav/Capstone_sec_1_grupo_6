@@ -21,6 +21,10 @@ import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "./ProcessBlocked"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
 const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
@@ -1116,28 +1120,158 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
             {/* Fecha de Presentación */}
             <div className="space-y-2">
               <Label htmlFor="presentation_date">Fecha de Envío al Cliente</Label>
-              <Input
-                id="presentation_date"
-                type="date"
-                value={updateFormData.presentation_date}
-                onChange={(e) => handleUpdateFormChange("presentation_date", e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
-                className={errors.presentation_date ? "border-destructive" : ""}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-full justify-start text-left font-normal ${!updateFormData.presentation_date ? "text-muted-foreground" : ""} ${errors.presentation_date ? "border-destructive" : ""}`}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {updateFormData.presentation_date 
+                      ? (() => {
+                          try {
+                            const [year, month, day] = updateFormData.presentation_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            if (isNaN(dateObj.getTime())) {
+                              return "Fecha inválida"
+                            }
+                            return format(dateObj, "PPP", { locale: es })
+                          } catch (error) {
+                            return "Fecha inválida"
+                          }
+                        })()
+                      : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    captionLayout="dropdown"
+                    fromYear={1900}
+                    toYear={new Date().getFullYear()}
+                    selected={updateFormData.presentation_date && updateFormData.presentation_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.presentation_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return undefined
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return undefined
+                      }
+                    })() : undefined}
+                    defaultMonth={updateFormData.presentation_date && updateFormData.presentation_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.presentation_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return new Date()
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return new Date()
+                      }
+                    })() : new Date()}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                        const year = date.getFullYear()
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const selectedDate = `${year}-${month}-${day}`
+                        handleUpdateFormChange("presentation_date", selectedDate)
+                      }
+                    }}
+                    disabled={(date) => {
+                      // Deshabilitar fechas futuras
+                      const today = new Date()
+                      today.setHours(23, 59, 59, 999)
+                      return date > today
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
               <ValidationErrorDisplay error={errors.presentation_date} />
             </div>
 
             {/* Fecha de Feedback del Cliente */}
             <div className="space-y-2">
               <Label htmlFor="client_feedback_date">Fecha de Feedback del Cliente</Label>
-              <Input
-                id="client_feedback_date"
-                type="date"
-                value={updateFormData.client_feedback_date}
-                onChange={(e) => handleUpdateFormChange("client_feedback_date", e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
-                className={errors.client_feedback_date || feedbackDateError ? "border-destructive" : ""}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-full justify-start text-left font-normal ${!updateFormData.client_feedback_date ? "text-muted-foreground" : ""} ${errors.client_feedback_date || feedbackDateError ? "border-destructive" : ""}`}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {updateFormData.client_feedback_date 
+                      ? (() => {
+                          try {
+                            const [year, month, day] = updateFormData.client_feedback_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            if (isNaN(dateObj.getTime())) {
+                              return "Fecha inválida"
+                            }
+                            return format(dateObj, "PPP", { locale: es })
+                          } catch (error) {
+                            return "Fecha inválida"
+                          }
+                        })()
+                      : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    captionLayout="dropdown"
+                    fromYear={1900}
+                    toYear={new Date().getFullYear()}
+                    selected={updateFormData.client_feedback_date && updateFormData.client_feedback_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.client_feedback_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return undefined
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return undefined
+                      }
+                    })() : undefined}
+                    defaultMonth={updateFormData.client_feedback_date && updateFormData.client_feedback_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.client_feedback_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return new Date()
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return new Date()
+                      }
+                    })() : new Date()}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                        const year = date.getFullYear()
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const selectedDate = `${year}-${month}-${day}`
+                        handleUpdateFormChange("client_feedback_date", selectedDate)
+                      }
+                    }}
+                    disabled={(date) => {
+                      // Deshabilitar fechas futuras
+                      const today = new Date()
+                      today.setHours(23, 59, 59, 999)
+                      return date > today
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
               {feedbackDateError && (
                 <p className="text-destructive text-sm">
                   {feedbackDateError}

@@ -1136,10 +1136,31 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         <CardContent className="space-y-4">
           <div>
             <h3 className="font-semibold text-lg mb-2">{process.position_title}</h3>
-            <div className="mb-4">
+            <div className="grid grid-cols-3 gap-4 mb-4">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Vacantes</p>
                 <p className="text-2xl font-bold text-primary">{process.vacancies}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Región</p>
+                <p className="text-lg font-semibold">
+                  {(() => {
+                    const comunaNombre = process.client.contacts[0]?.city
+                    if (!comunaNombre) return 'No especificada'
+                    
+                    // Buscar la comuna en la lista de comunas
+                    const comuna = todasLasComunas.find(c => c.nombre_comuna === comunaNombre)
+                    if (!comuna) return process.client.contacts[0]?.region || 'No especificada'
+                    
+                    // Buscar la región correspondiente
+                    const region = regiones.find(r => r.id_region === comuna.id_region)
+                    return region?.nombre_region || process.client.contacts[0]?.region || 'No especificada'
+                  })()}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Comuna</p>
+                <p className="text-lg font-semibold">{process.client.contacts[0]?.city || 'No especificada'}</p>
               </div>
             </div>
           </div>

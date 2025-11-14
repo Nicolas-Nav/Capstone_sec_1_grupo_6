@@ -926,6 +926,12 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
 
+  // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
+  const isInAdvancedModule = process.etapa && (
+    process.etapa.includes("Módulo 4") || 
+    process.etapa.includes("Módulo 5")
+  )
+
   const canChangeStatus = (currentStatus: ProcessStatus, newStatus: ProcessStatus) => {
     // No se puede cambiar a "completado" desde el módulo 1
     if (newStatus === "completado") return false
@@ -941,31 +947,9 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
-          <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
-        </div>
-        {/* Mostrar botón según tipo de servicio */}
-        {(process.service_type === 'ES' || process.service_type === 'TS' || process.service_type === 'AP') ? (
-          <Button
-            onClick={handleAdvanceToModule4}
-            className="bg-primary hover:bg-primary/90"
-            disabled={isProcessBlocked(processStatus) || isAdvancingToModule4}
-          >
-            {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Pasar a Módulo 4
-          </Button>
-        ) : (
-        <Button
-          onClick={handleAdvanceToModule2}
-          className="bg-primary hover:bg-primary/90"
-          disabled={isProcessBlocked(processStatus) || isAdvancingToModule2}
-        >
-          {isAdvancingToModule2 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Pasar a Módulo 2
-        </Button>
-        )}
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Módulo 1 - Solicitud y Cargo</h2>
+        <p className="text-muted-foreground">Información detallada del cargo y requisitos del proceso</p>
       </div>
 
       {/* Componente de bloqueo si el proceso está en estado final */}
@@ -973,6 +957,51 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         processStatus={processStatus} 
         moduleName="Módulo 1" 
       />
+
+      {/* Card para avanzar al siguiente módulo */}
+      {(process.service_type === 'ES' || process.service_type === 'TS' || process.service_type === 'AP') ? (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-blue-800">Listo para continuar</h3>
+                <p className="text-sm text-blue-600">
+                  Puedes avanzar al Módulo 4 para evaluación psicolaboral.
+                </p>
+              </div>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleAdvanceToModule4}
+                disabled={isProcessBlocked(processStatus) || isAdvancingToModule4 || isInAdvancedModule}
+              >
+                {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Avanzar a Módulo 4
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-blue-800">Listo para continuar</h3>
+                <p className="text-sm text-blue-600">
+                  Puedes avanzar al Módulo 2 para búsqueda y registro de candidatos.
+                </p>
+              </div>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleAdvanceToModule2}
+                disabled={isProcessBlocked(processStatus) || isAdvancingToModule2 || isInAdvancedModule}
+              >
+                {isAdvancingToModule2 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Avanzar a Módulo 2
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Botón de cambio de estado al inicio */}
       <Card>

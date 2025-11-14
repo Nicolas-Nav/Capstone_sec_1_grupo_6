@@ -210,6 +210,12 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
 
+  // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
+  const isInAdvancedModule = process.etapa && (
+    process.etapa.includes("Módulo 4") || 
+    process.etapa.includes("Módulo 5")
+  )
+
   // Verificar si hay al menos un candidato presentado
   const hasPresentedCandidates = useMemo(() => {
     return candidates.some(candidate => candidate.presentation_status === 'presentado')
@@ -2430,32 +2436,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     <div className="space-y-6">
 
-      <div className="flex items-center justify-between">
       <div>
         <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
         <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
-        </div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <Button
-                  onClick={handleAdvanceToModule3}
-                  className="bg-primary hover:bg-primary/90"
-                  disabled={isBlocked || isAdvancingToModule3 || !hasPresentedCandidates}
-                >
-                  {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Pasar a Módulo 3
-                </Button>
-              </div>
-            </TooltipTrigger>
-            {!hasPresentedCandidates && !isBlocked && (
-              <TooltipContent>
-                <p>Debe tener al menos un candidato con estado &quot;Presentado&quot;</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
       </div>
 
       {/* Componente de bloqueo si el proceso está en estado final */}
@@ -2463,6 +2446,45 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         processStatus={processStatus} 
         moduleName="Módulo 2" 
       />
+
+      {/* Card para avanzar al siguiente módulo */}
+      {hasPresentedCandidates && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-blue-800">Candidatos presentados</h3>
+                <p className="text-sm text-blue-600">
+                  Tienes candidatos con estado "Presentado". Puedes avanzar al Módulo 3 para presentación al cliente.
+                </p>
+              </div>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleAdvanceToModule3}
+                disabled={isBlocked || isAdvancingToModule3 || isInAdvancedModule}
+              >
+                {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Avanzar a Módulo 3
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!hasPresentedCandidates && !isBlocked && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-orange-800">Acción requerida</h3>
+                <p className="text-sm text-orange-600">
+                  Debe tener al menos un candidato con estado "Presentado" para avanzar al Módulo 3.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
 

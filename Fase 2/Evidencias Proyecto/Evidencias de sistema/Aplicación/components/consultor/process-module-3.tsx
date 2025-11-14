@@ -104,6 +104,12 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
 
+  // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
+  const isInAdvancedModule = process.etapa && (
+    process.etapa.includes("Módulo 4") || 
+    process.etapa.includes("Módulo 5")
+  )
+
   // Cargar datos reales desde el backend
   useEffect(() => {
     const loadData = async () => {
@@ -691,7 +697,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule4}
-                disabled={isBlocked || isAdvancingToModule4}
+                disabled={isBlocked || isAdvancingToModule4 || isInAdvancedModule}
               >
                 {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Avanzar a Módulo 4

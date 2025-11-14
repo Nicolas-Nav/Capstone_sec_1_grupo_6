@@ -152,14 +152,21 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         // Cargar hitos del proceso
         const hitosData = await getHitosBySolicitud(processId)
         const hitosMapeados: Hito[] = hitosData.map((hito) => {
-          // Mapear estado del backend al formato del frontend
+          // Determinar estado: primero verificar si está completado (tiene fecha_cumplimiento)
           let status: Hito['status'] = 'pendiente'
-          if (hito.estado === 'completado') {
+          
+          if (hito.fecha_cumplimiento) {
+            // Si tiene fecha de cumplimiento, está completado
             status = 'completado'
-          } else if (hito.estado === 'vencido') {
+          } else if (hito.estado === 'vencido' || (hito.fecha_limite && new Date(hito.fecha_limite) < new Date())) {
+            // Si está vencido o la fecha límite ya pasó
             status = 'vencido'
-          } else if (hito.estado === 'por_vencer' && hito.fecha_base) {
+          } else if (hito.fecha_base && hito.fecha_limite) {
+            // Si tiene fecha de inicio y límite, está en progreso
             status = 'en_progreso'
+          } else {
+            // Por defecto, pendiente
+            status = 'pendiente'
           }
 
           return {

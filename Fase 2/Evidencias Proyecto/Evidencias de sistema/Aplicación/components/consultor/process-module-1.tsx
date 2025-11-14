@@ -131,6 +131,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
   const [processStatus, setProcessStatus] = useState<ProcessStatus>((process.estado_solicitud || process.status) as ProcessStatus)
   const [statusChangeReason, setStatusChangeReason] = useState("")
+  const [statusChangeReasonError, setStatusChangeReasonError] = useState("")
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -795,6 +796,20 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       return
     }
 
+    // Validar que el motivo no exceda 500 caracteres
+    if (statusChangeReason.length > 500) {
+      setStatusChangeReasonError("El motivo del cambio no puede exceder 500 caracteres")
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "El motivo del cambio no puede exceder 500 caracteres",
+      })
+      return
+    }
+
+    // Limpiar error si la validación pasa
+    setStatusChangeReasonError("")
+
     try {
       const response = await solicitudService.cambiarEstado(
         parseInt(process.id), 
@@ -810,6 +825,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         setShowStatusChange(false)
         setSelectedEstado("")
         setStatusChangeReason("")
+        setStatusChangeReasonError("")
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
@@ -1058,9 +1074,29 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   id="reason"
                   placeholder="Explica el motivo del cambio de estado..."
                   value={statusChangeReason}
-                  onChange={(e) => setStatusChangeReason(e.target.value)}
-                  className="mt-1"
+                  onChange={(e) => {
+                    const newValue = e.target.value
+                    // Limitar a 500 caracteres
+                    if (newValue.length <= 500) {
+                      setStatusChangeReason(newValue)
+                      setStatusChangeReasonError("")
+                    } else {
+                      setStatusChangeReasonError("El motivo del cambio no puede exceder 500 caracteres")
+                    }
+                  }}
+                  className={`mt-1 ${statusChangeReasonError ? "border-destructive" : ""}`}
+                  maxLength={500}
                 />
+                <div className="flex items-center justify-between mt-1">
+                  <div className="text-sm text-muted-foreground">
+                    {statusChangeReason.length}/500 caracteres
+                  </div>
+                  {statusChangeReasonError && (
+                    <p className="text-sm text-destructive">
+                      {statusChangeReasonError}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-2">
@@ -1076,6 +1112,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     setShowStatusChange(false)
                     setSelectedEstado("")
                     setStatusChangeReason("")
+                    setStatusChangeReasonError("")
                   }}
                 >
                   Cancelar

@@ -13,7 +13,6 @@ export class NacionalidadController {
                 order: [['nombre_nacionalidad', 'ASC']]
             });
 
-            Logger.info(`Se obtuvieron ${nacionalidades.length} nacionalidades`);
             return sendSuccess(res, nacionalidades);
         } catch (error: any) {
             Logger.error('Error al obtener nacionalidades:', error);

@@ -30,13 +30,11 @@ class FeriadosService {
         if (this.cache.has(añoConsulta)) {
             const expiracion = this.cacheExpiration.get(añoConsulta);
             if (expiracion && Date.now() < expiracion) {
-                console.log(`[FERIADOS] Usando caché para año ${añoConsulta}`);
                 return this.cache.get(añoConsulta)!;
             }
         }
 
         try {
-            console.log(`[FERIADOS] Consultando API para año ${añoConsulta}...`);
             const response = await fetch(`${this.API_URL}/${añoConsulta}`, {
                 headers: {
                     'Accept': 'application/json',
@@ -54,14 +52,10 @@ class FeriadosService {
             this.cache.set(añoConsulta, feriados);
             this.cacheExpiration.set(añoConsulta, Date.now() + this.CACHE_DURATION);
             
-            console.log(`[FERIADOS] ${feriados.length} feriados obtenidos para ${añoConsulta}`);
             return feriados;
         } catch (error) {
-            console.error(`[FERIADOS] Error al obtener feriados de ${añoConsulta}:`, error);
-            
             // Si hay datos en caché (aunque estén expirados), usarlos como fallback
             if (this.cache.has(añoConsulta)) {
-                console.log(`[FERIADOS] ADVERTENCIA: Usando caché expirado como fallback`);
                 return this.cache.get(añoConsulta)!;
             }
             
@@ -134,8 +128,6 @@ class FeriadosService {
         // Pre-cargar año actual y siguiente
         await this.obtenerFeriados(añoActual);
         await this.obtenerFeriados(añoActual + 1);
-        
-        console.log(`[FERIADOS] Feriados pre-cargados para ${añoActual} y ${añoActual + 1}`);
     }
 
     /**
@@ -144,7 +136,6 @@ class FeriadosService {
     static limpiarCache(): void {
         this.cache.clear();
         this.cacheExpiration.clear();
-        console.log(`[FERIADOS] Caché limpiado`);
     }
 
     /**

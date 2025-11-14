@@ -9,7 +9,7 @@ interface CandidatoPostgradoCapacitacionAttributes {
     fecha_obtencion: Date;
     id_postgradocapacitacion: number;
     id_candidato: number;
-    id_institucion?: number | null; // nueva FK opcional
+    id_institucion: number; 
 }
 
 interface CandidatoPostgradoCapacitacionCreationAttributes
@@ -26,7 +26,7 @@ class CandidatoPostgradoCapacitacion
     public fecha_obtencion!: Date;
     public id_postgradocapacitacion!: number;
     public id_candidato!: number;
-    public id_institucion?: number | null;
+    public id_institucion!: number;
 }
 
 // ===========================================
@@ -74,10 +74,16 @@ CandidatoPostgradoCapacitacion.init({
     },
     id_institucion: {
         type: DataTypes.INTEGER,
-        allowNull: true, // opcional
+        allowNull: false, 
+        primaryKey: true,
         references: {
             model: 'institucion',
             key: 'id_institucion'
+        },
+        validate: {
+            notNull: {
+                msg: 'La institución es requerida'
+            }
         }
     }
 }, {

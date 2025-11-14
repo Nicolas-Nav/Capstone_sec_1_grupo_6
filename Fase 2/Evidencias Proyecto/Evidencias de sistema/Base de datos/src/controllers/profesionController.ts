@@ -13,7 +13,6 @@ export class ProfesionController {
                 order: [['nombre_profesion', 'ASC']]
             });
 
-            Logger.info(`Se obtuvieron ${profesiones.length} profesiones`);
             return sendSuccess(res, profesiones);
         } catch (error: any) {
             Logger.error('Error al obtener profesiones:', error);

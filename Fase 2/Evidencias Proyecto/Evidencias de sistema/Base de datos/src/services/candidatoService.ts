@@ -221,9 +221,6 @@ export class CandidatoService {
         work_experience?: any[];
         education?: any[];
     }, transaction?: Transaction) {
-        console.log('=== CREANDO CANDIDATO ===');
-        console.log('Datos recibidos:', JSON.stringify(data, null, 2));
-        
         const useTransaction = transaction || await sequelize.transaction();
 
         try {
@@ -251,17 +248,13 @@ export class CandidatoService {
             } = data;
 
             // Validaciones
-            console.log('Validando campos requeridos...');
             if (!nombre || !primer_apellido || !email || !phone) {
-                console.error('Faltan campos requeridos:', { nombre, primer_apellido, email, phone });
                 throw new Error('Faltan campos requeridos');
             }
 
             // Verificar si el candidato ya existe
-            console.log('Verificando si el candidato ya existe...');
             const candidatoExistente = await this.getCandidatoByEmail(email);
             if (candidatoExistente) {
-                console.error('Candidato ya existe con email:', email);
                 throw new Error('Ya existe un candidato con este email');
             }
 
@@ -300,7 +293,6 @@ export class CandidatoService {
             }
 
             // Crear el candidato
-            console.log('Creando candidato en la base de datos...');
             const nuevoCandidato = await Candidato.create({
                 rut_candidato: rut,
                 nombre_candidato: nombre.trim(),
@@ -318,30 +310,19 @@ export class CandidatoService {
                 id_nacionalidad: idNacionalidad,
                 id_rubro: idRubro
             }, { transaction: useTransaction });
-            console.log('Candidato creado exitosamente:', nuevoCandidato.id_candidato);
 
             // Agregar experiencias laborales
-            console.log('🔍 Verificando experiencias laborales:', work_experience?.length || 0);
-            console.log('🔍 Datos de experiencias:', work_experience);
             if (work_experience && work_experience.length > 0) {
-                console.log('📝 Agregando experiencias laborales...');
                 await this.addExperiencias(nuevoCandidato.id_candidato, work_experience, useTransaction);
-                console.log('✅ Experiencias laborales agregadas');
             }
 
             // Agregar formación académica
-            console.log('🔍 Verificando formación académica:', education?.length || 0);
-            console.log('🔍 Datos de educación:', education);
             if (education && education.length > 0) {
-                console.log('📚 Agregando formación académica...');
                 await this.addEducacion(nuevoCandidato.id_candidato, education, useTransaction);
-                console.log('✅ Formación académica agregada');
             }
 
             // Agregar profesiones si se especificaron
-            console.log('🔍 Verificando profesiones:', professions);
             if (professions && Array.isArray(professions) && professions.length > 0) {
-                console.log('🎓 Agregando múltiples profesiones...');
                 for (const prof of professions) {
                     if (prof.profession && prof.institution) {
                         await this.addProfesion(
@@ -353,14 +334,11 @@ export class CandidatoService {
                         );
                     }
                 }
-                console.log('✅ Profesiones agregadas');
             } else if (profession) {
                 // Comportamiento legacy: una sola profesión
                 const professionValue = typeof profession === 'string' ? profession.trim() : String(profession);
                 if (professionValue) {
-                    console.log('🎓 Agregando profesión (legacy)...');
                     await this.addProfesion(nuevoCandidato.id_candidato, profession, profession_institution, profession_date, useTransaction);
-                    console.log('✅ Profesión agregada');
                 }
             }
 
@@ -418,14 +396,8 @@ export class CandidatoService {
             // Retornar en formato frontend
             return this.transformCandidato(candidatoCompleto);
         } catch (error: any) {
-            console.error('=== ERROR AL CREAR CANDIDATO ===');
-            console.error('Error completo:', error);
-            console.error('Error message:', error.message);
-            console.error('Error stack:', error.stack);
-            
             // Solo hacer rollback si la transacción es interna
             if (!transaction) {
-                console.log('Haciendo rollback de la transacción...');
                 await useTransaction.rollback();
             }
             throw error;
@@ -584,13 +556,15 @@ export class CandidatoService {
                                 });
                             }
 
-                            // Crear la relación
-                            await CandidatoProfesion.create({
-                                id_candidato: id,
-                                id_profesion: profesion.id_profesion,
-                                fecha_obtencion: prof.date ? this.parseDateOnly(prof.date) : undefined,
-                                id_institucion: institucion ? institucion.id_institucion : undefined
-                            }, { transaction });
+                            // Solo crear la relación si hay institución (requerido)
+                            if (institucion) {
+                                await CandidatoProfesion.create({
+                                    id_candidato: id,
+                                    id_profesion: profesion.id_profesion,
+                                    fecha_obtencion: prof.date ? this.parseDateOnly(prof.date) : undefined,
+                                    id_institucion: institucion.id_institucion
+                                }, { transaction });
+                            }
                         }
                     }
                 }
@@ -625,7 +599,6 @@ export class CandidatoService {
             // Actualizar educación si se proporciona
             // Si se envía un array (incluso vacío), se actualizan las capacitaciones
             if (data.education !== undefined) {
-                console.log('📚 Guardando educación para candidato', id, ':', data.education);
                 
                 // Eliminar todas las relaciones de educación existentes
                 await CandidatoPostgradoCapacitacion.destroy({
@@ -636,7 +609,6 @@ export class CandidatoService {
                 // Crear nuevas relaciones de educación solo si hay elementos en el array
                 if (data.education.length > 0) {
                     for (const edu of data.education) {
-                        console.log('📖 Procesando educación:', edu);
                         if (edu.title && edu.institution) {
                             // Buscar o crear el postgrado/capacitación
                             let postgrado = await PostgradoCapacitacion.findOne({
@@ -649,34 +621,29 @@ export class CandidatoService {
                                 }, { transaction });
                             }
 
-                            // Buscar o crear la institución
-                            let institucion = null;
-                            if (edu.institution) {
-                                institucion = await Institucion.findOne({
-                                    where: { nombre_institucion: edu.institution.trim() }
-                                });
-                                
-                                // Si no existe, crearla
-                                if (!institucion) {
-                                    institucion = await Institucion.create({
-                                        nombre_institucion: edu.institution.trim()
-                                    }, { transaction });
-                                }
+                            // Buscar o crear la institución (siempre debe existir porque ya validamos edu.institution)
+                            let institucion = await Institucion.findOne({
+                                where: { nombre_institucion: edu.institution.trim() }
+                            });
+                            
+                            // Si no existe, crearla
+                            if (!institucion) {
+                                institucion = await Institucion.create({
+                                    nombre_institucion: edu.institution.trim()
+                                }, { transaction });
                             }
 
-                            // Crear la relación
-                            const relationData = {
-                                id_candidato: id,
-                                id_postgradocapacitacion: postgrado.id_postgradocapacitacion,
-                                fecha_obtencion: edu.completion_date ? this.parseDateOnly(edu.completion_date) : new Date(),
-                                id_institucion: institucion ? institucion.id_institucion : null
-                            };
-                            
-                            console.log('💾 Guardando relación CandidatoPostgradoCapacitacion:', relationData);
-                            await CandidatoPostgradoCapacitacion.create(relationData, { transaction });
-                            console.log('✅ Educación guardada exitosamente');
-                        } else {
-                            console.log('⚠️ Educación NO guardada - falta título o institución');
+                            // Crear la relación (institucion siempre existe aquí después del if)
+                            if (institucion) {
+                                const relationData = {
+                                    id_candidato: id,
+                                    id_postgradocapacitacion: postgrado.id_postgradocapacitacion,
+                                    fecha_obtencion: edu.completion_date ? this.parseDateOnly(edu.completion_date) : new Date(),
+                                    id_institucion: institucion.id_institucion
+                                };
+                                
+                                await CandidatoPostgradoCapacitacion.create(relationData, { transaction });
+                            }
                         }
                     }
                 }
@@ -795,13 +762,11 @@ export class CandidatoService {
      * Agregar experiencias a un candidato
      */
     static async addExperiencias(idCandidato: number, experiencias: any[], transaction?: Transaction) {
-        console.log('💼 addExperiencias - Iniciando:', { idCandidato, experiencias });
         const useTransaction = transaction || await sequelize.transaction();
 
         try {
             for (const exp of experiencias) {
-                console.log('💼 Procesando experiencia:', exp);
-                const nuevaExperiencia = await Experiencia.create({
+                await Experiencia.create({
                     empresa: exp.company,
                     cargo: exp.position,
                     fecha_inicio_experiencia: exp.start_date ? this.parseDateOnly(exp.start_date) : new Date(),
@@ -809,7 +774,6 @@ export class CandidatoService {
                     descripcion_funciones_experiencia: exp.description || '',
                     id_candidato: idCandidato
                 }, { transaction: useTransaction });
-                console.log('💼 Experiencia creada con ID:', nuevaExperiencia.id_experiencia);
             }
 
             if (!transaction) {
@@ -889,43 +853,33 @@ export class CandidatoService {
      * Agregar educación a un candidato
      */
     static async addEducacion(idCandidato: number, educacion: any[], transaction?: Transaction) {
-        console.log('📚 addEducacion - Iniciando:', { idCandidato, educacion });
         const useTransaction = transaction || await sequelize.transaction();
 
         try {
             for (const edu of educacion) {
-                console.log('📚 Procesando educación:', edu);
-                
                 // Buscar o crear institución
                 let institucion = await Institucion.findOne({
                     where: { nombre_institucion: edu.institution }
                 });
 
                 if (!institucion) {
-                    console.log('📚 Creando nueva institución:', edu.institution);
                     institucion = await Institucion.create({
                         nombre_institucion: edu.institution
                     }, { transaction: useTransaction });
-                } else {
-                    console.log('📚 Institución encontrada:', institucion.nombre_institucion);
                 }
 
                 // Crear postgrado/capacitación
-                console.log('📚 Creando postgrado/capacitación:', edu.title);
                 const formacion = await PostgradoCapacitacion.create({
                     nombre_postgradocapacitacion: edu.title
                 }, { transaction: useTransaction });
-                console.log('📚 Postgrado creado con ID:', formacion.id_postgradocapacitacion);
 
                 // Crear relación candidato-postgrado
-                console.log('📚 Creando relación candidato-postgrado');
                 await CandidatoPostgradoCapacitacion.create({
                     id_candidato: idCandidato,
                     id_postgradocapacitacion: formacion.id_postgradocapacitacion,
-                    id_institucion: institucion.id_institucion, // ✅ AGREGADO
+                    id_institucion: institucion.id_institucion,
                     fecha_obtencion: edu.completion_date ? this.parseDateOnly(edu.completion_date) : new Date()
                 }, { transaction: useTransaction });
-                console.log('📚 Relación creada exitosamente');
             }
 
             if (!transaction) {
@@ -945,7 +899,6 @@ export class CandidatoService {
      * Agregar profesión a un candidato
      */
     static async addProfesion(idCandidato: number, profesionIdOrNombre: string | number, nombreInstitucion?: string, fechaObtencion?: string, transaction?: Transaction) {
-        console.log('🎓 addProfesion - Iniciando:', { idCandidato, profesionIdOrNombre, nombreInstitucion, fechaObtencion });
         const useTransaction = transaction || await sequelize.transaction();
 
         try {
@@ -957,12 +910,9 @@ export class CandidatoService {
             });
 
             if (!institucion) {
-                console.log('🎓 Creando nueva institución:', nombreInst);
                 institucion = await Institucion.create({
                     nombre_institucion: nombreInst
                 }, { transaction: useTransaction });
-            } else {
-                console.log('🎓 Institución encontrada:', institucion.nombre_institucion);
             }
 
             // Verificar si es un ID numérico o un nombre
@@ -971,28 +921,22 @@ export class CandidatoService {
             
             if (!isNaN(profesionId) && profesionId > 0) {
                 // Es un ID, buscar la profesión directamente
-                console.log('🎓 Buscando profesión por ID:', profesionId);
                 profesion = await Profesion.findByPk(profesionId, { transaction: useTransaction });
                 
                 if (!profesion) {
                     throw new Error(`No se encontró la profesión con ID: ${profesionId}`);
                 }
-                console.log('🎓 Profesión encontrada por ID:', profesion.nombre_profesion);
             } else {
                 // Es un nombre, buscar o crear profesión (comportamiento legacy)
-                console.log('🎓 Buscando profesión por nombre:', profesionIdOrNombre);
                 profesion = await Profesion.findOne({
                     where: { nombre_profesion: profesionIdOrNombre.toString().trim() },
                     transaction: useTransaction
                 });
 
                 if (!profesion) {
-                    console.log('🎓 Creando nueva profesión:', profesionIdOrNombre);
                     profesion = await Profesion.create({
                         nombre_profesion: profesionIdOrNombre.toString().trim()
                     }, { transaction: useTransaction });
-                } else {
-                    console.log('🎓 Profesión encontrada:', profesion.nombre_profesion);
                 }
             }
 

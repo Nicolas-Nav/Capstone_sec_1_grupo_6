@@ -7,21 +7,6 @@ import { Logger } from '@/utils/logger';
  * Monitorea y gestiona el pool de conexiones
  */
 export const connectionManager = (req: Request, res: Response, next: NextFunction) => {
-    // Log de conexiones activas (solo en desarrollo)
-    if (process.env.NODE_ENV === 'development') {
-        try {
-            // Acceder al pool de manera segura
-            const pool = (sequelize as any).connectionManager.pool;
-            if (pool) {
-                // Intentar obtener el máximo del pool (puede estar en diferentes propiedades según la versión de Sequelize)
-                const poolMax = pool.max || pool._config?.max || (sequelize as any).config?.pool?.max || 'N/A';
-                Logger.debug(`Conexiones activas: ${pool.size}/${poolMax}`);
-            }
-        } catch (error) {
-            // Ignorar errores de acceso al pool
-        }
-    }
-
     next();
 };
 

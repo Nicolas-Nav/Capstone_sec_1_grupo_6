@@ -74,10 +74,15 @@ export class HitoSolicitudService {
     /**
      * Copiar plantillas a una solicitud específica
      */
-    static async copiarPlantillasASolicitud(idSolicitud: number) {
+    static async copiarPlantillasASolicitud(idSolicitud: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             // Obtener la solicitud para saber el tipo de servicio
             const solicitud = await Solicitud.findByPk(idSolicitud);
             if (!solicitud) {
@@ -210,20 +215,11 @@ export class HitoSolicitudService {
         // Filtrar por consultor si se especifica
         let hitosFiltrados = hitos;
         if (consultor_id) {
-            console.log(`🔍 [DEBUG] Filtrando hitos VENCIDOS para consultor_id: ${consultor_id}`);
-            console.log(`🔍 [DEBUG] Total hitos encontrados: ${hitos.length}`);
-            
             hitosFiltrados = hitos.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
-                const matches = rutUsuario === consultor_id;
-                
-                console.log(`🔍 [DEBUG] Hito ${hitoData.id_hito_solicitud}: rut_usuario=${rutUsuario}, matches=${matches}`);
-                
-                return matches;
+                return rutUsuario === consultor_id;
             });
-            
-            console.log(`🔍 [DEBUG] Hitos vencidos filtrados: ${hitosFiltrados.length}`);
         }
 
         return hitosFiltrados.map(h => {
@@ -279,20 +275,11 @@ export class HitoSolicitudService {
         // Filtrar por consultor si se especifica
         let hitosFiltrados = hitos;
         if (consultor_id) {
-            console.log(`🔍 [DEBUG] Filtrando hitos POR VENCER para consultor_id: ${consultor_id}`);
-            console.log(`🔍 [DEBUG] Total hitos encontrados: ${hitos.length}`);
-            
             hitosFiltrados = hitos.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
-                const matches = rutUsuario === consultor_id;
-                
-                console.log(`🔍 [DEBUG] Hito ${hitoData.id_hito_solicitud}: rut_usuario=${rutUsuario}, matches=${matches}`);
-
-                return matches;
+                return rutUsuario === consultor_id;
             });
-            
-            console.log(`🔍 [DEBUG] Hitos por vencer filtrados: ${hitosFiltrados.length}`);
         }
 
         return hitosFiltrados.map(h => {

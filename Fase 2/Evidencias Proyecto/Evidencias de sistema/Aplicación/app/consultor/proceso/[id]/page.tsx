@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
 import { solicitudService, descripcionCargoService } from "@/lib/api"
+import { getHitosBySolicitud } from "@/lib/api-hitos"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,6 +17,7 @@ import { ProcessModule4 } from "@/components/consultor/process-module-4"
 import { ProcessModule5 } from "@/components/consultor/process-module-5"
 import { notFound } from "next/navigation"
 import { toast } from "sonner"
+import type { Hito } from "@/lib/types"
 
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
@@ -30,6 +32,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   const [activeTab, setActiveTab] = useState("modulo-1")
   const [process, setProcess] = useState<any>(null)
   const [descripcionCargo, setDescripcionCargo] = useState<any>(null)
+  const [hitos, setHitos] = useState<Hito[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [hasCandidatesWithReportStatus, setHasCandidatesWithReportStatus] = useState(false)
 
@@ -159,6 +162,42 @@ export default function ProcessPage({ params }: ProcessPageProps) {
             setDescripcionCargo(dcResponse.data)
           }
         }
+
+        // Cargar hitos del proceso
+        const hitosData = await getHitosBySolicitud(processId)
+        const hitosMapeados: Hito[] = hitosData.map((hito) => {
+          // Determinar estado: primero verificar si está completado (tiene fecha_cumplimiento)
+          let status: Hito['status'] = 'pendiente'
+          
+          if (hito.fecha_cumplimiento) {
+            // Si tiene fecha de cumplimiento, está completado
+            status = 'completado'
+          } else if (hito.estado === 'vencido' || (hito.fecha_limite && new Date(hito.fecha_limite) < new Date())) {
+            // Si está vencido o la fecha límite ya pasó
+            status = 'vencido'
+          } else if (hito.fecha_base && hito.fecha_limite) {
+            // Si tiene fecha de inicio y límite, está en progreso
+            status = 'en_progreso'
+          } else {
+            // Por defecto, pendiente
+            status = 'pendiente'
+          }
+
+          return {
+            id: hito.id_hito_solicitud.toString(),
+            process_id: processId.toString(),
+            name: hito.nombre_hito,
+            description: hito.descripcion || '',
+            start_trigger: hito.tipo_ancla || '',
+            duration_days: hito.duracion_dias || 0,
+            anticipation_days: hito.avisar_antes_dias || 0,
+            status: status,
+            start_date: hito.fecha_base ? new Date(hito.fecha_base).toISOString() : undefined,
+            due_date: hito.fecha_limite ? new Date(hito.fecha_limite).toISOString() : undefined,
+            completed_date: hito.fecha_cumplimiento ? new Date(hito.fecha_cumplimiento).toISOString() : undefined,
+          }
+        })
+        setHitos(hitosMapeados)
 
         // Verificar si hay candidatos con estado de informe definido (solo para procesos PC)
         const serviceType = response.data.tipo_servicio || response.data.service_type
@@ -480,7 +519,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
               )}
 
               <TabsContent value="timeline" className="mt-0">
-                <ProcessTimeline process={process} hitos={[]} />
+                <ProcessTimeline process={process} hitos={hitos} />
               </TabsContent>
             </div>
           </Tabs>

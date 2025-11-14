@@ -68,9 +68,11 @@ export class HitoSolicitudController {
     static async copiarPlantillas(req: Request, res: Response): Promise<Response> {
         try {
             const { id_solicitud } = req.body;
+            const usuarioRut = (req as any).user?.id;
             
             const hitos = await HitoSolicitudService.copiarPlantillasASolicitud(
-                parseInt(id_solicitud)
+                parseInt(id_solicitud),
+                usuarioRut
             );
             
             return sendSuccess(res, hitos, 'Hitos creados para la solicitud exitosamente', 201);
@@ -217,16 +219,12 @@ export class HitoSolicitudController {
             // Si es admin, ignorar el consultor_id y mostrar todas las alertas
             const consultorIdFiltro = isAdmin ? undefined : (consultor_id as string | undefined);
             
-            Logger.info(`🔔 Obteniendo alertas - Usuario: ${req.user?.id}, Rol: ${req.user?.role}, Consultor filtro: ${consultorIdFiltro || 'TODOS (admin)'}`);
-            
             // Obtener hitos por vencer y vencidos
             // Si es admin, no se filtra por consultor (consultorIdFiltro = undefined)
             const [hitosPorVencer, hitosVencidos] = await Promise.all([
                 HitoSolicitudService.getHitosPorVencer(consultorIdFiltro),
                 HitoSolicitudService.getHitosVencidos(consultorIdFiltro)
             ]);
-
-            Logger.info(`📊 Hitos por vencer: ${hitosPorVencer.length}, Vencidos: ${hitosVencidos.length}`);
 
             // Combinar todos los hitos
             const hitosFiltrados = [...hitosPorVencer, ...hitosVencidos];
@@ -238,8 +236,6 @@ export class HitoSolicitudController {
                 total: hitosFiltrados.length,
                 timestamp: new Date().toISOString()
             };
-
-            Logger.info(`✅ Retornando ${alertas.total} alertas (${alertas.por_vencer.length} por vencer, ${alertas.vencidos.length} vencidos)`);
 
             return sendSuccess(res, alertas, 'Alertas obtenidas exitosamente');
         } catch (error) {

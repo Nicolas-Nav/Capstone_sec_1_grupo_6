@@ -309,7 +309,13 @@ export const validationSchemas = {
         return null
       }
     },
-    rubro: validationRules.required('El rubro es obligatorio'),
+    rubro: {
+      required: false,
+      custom: (value: string) => {
+        // El rubro es opcional, no hay validación
+        return null
+      }
+    },
     nacionalidad: {
       required: false,
       custom: (value: string) => {

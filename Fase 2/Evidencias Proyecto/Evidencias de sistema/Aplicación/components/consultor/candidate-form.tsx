@@ -993,7 +993,7 @@ export function CandidateForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="rubro">Rubro <span className="text-red-500">*</span></Label>
+            <Label htmlFor="rubro">Rubro</Label>
             <Select
               value={formData.rubro}
               onValueChange={(value) => {
@@ -1003,7 +1003,7 @@ export function CandidateForm({
               disabled={loadingLists}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccione rubro" />
+                <SelectValue placeholder="Seleccione rubro (opcional)" />
               </SelectTrigger>
               <SelectContent>
                 {rubros.map((rubro) => (

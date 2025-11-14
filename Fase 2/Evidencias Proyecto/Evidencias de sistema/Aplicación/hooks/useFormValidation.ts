@@ -291,8 +291,24 @@ export const validationSchemas = {
         return null
       }
     },
-    region: validationRules.required('La región es obligatoria'),
-    comuna: validationRules.required('La comuna es obligatoria'),
+    region: {
+      required: false,
+      custom: (value: string) => {
+        // La región es opcional, no hay validación
+        return null
+      }
+    },
+    comuna: {
+      required: false,
+      custom: (value: string, allData?: any) => {
+        // Si hay una región seleccionada, la comuna es obligatoria
+        const region = allData?.region?.trim() || ''
+        if (region && (!value || !value.trim())) {
+          return 'La comuna es obligatoria cuando se selecciona una región'
+        }
+        return null
+      }
+    },
     rubro: validationRules.required('El rubro es obligatorio'),
     nacionalidad: validationRules.required('La nacionalidad es obligatoria'),
     profession: {

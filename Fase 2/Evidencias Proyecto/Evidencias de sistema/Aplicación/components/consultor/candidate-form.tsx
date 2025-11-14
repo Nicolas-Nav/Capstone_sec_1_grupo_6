@@ -575,6 +575,13 @@ export function CandidateForm({
     
     const isValid = validateAllFields(fieldsToValidate, validationSchemas.module2CandidateForm)
     
+    // Validación condicional: si hay región, comuna es obligatoria
+    let regionComunaValidationPassed = true
+    if (formData.region && !formData.comuna) {
+      setFieldError('comuna', 'La comuna es obligatoria cuando se selecciona una región')
+      regionComunaValidationPassed = false
+    }
+    
     // Validar que el portal de origen esté seleccionado
     if (!formData.source_portal) {
       setFieldError('source_portal', 'El portal de origen es obligatorio')
@@ -674,6 +681,7 @@ export function CandidateForm({
     }
     
     const allValidationsPassed = isValid && 
+      regionComunaValidationPassed &&
       formData.source_portal && 
       professionValidationPassed &&
       educationValidationPassed &&
@@ -904,17 +912,24 @@ export function CandidateForm({
 
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="region">Región <span className="text-red-500">*</span></Label>
+            <Label htmlFor="region">Región</Label>
             <Select
               value={formData.region}
               onValueChange={(value) => {
-                setFormData({ ...formData, region: value, comuna: "" })
-                validateField('region', value, validationSchemas.module2CandidateForm)
+                const newFormData = { ...formData, region: value, comuna: "" }
+                setFormData(newFormData)
+                validateField('region', value, validationSchemas.module2CandidateForm, newFormData)
+                // Validar comuna cuando cambia la región
+                if (value) {
+                  validateField('comuna', "", validationSchemas.module2CandidateForm, newFormData)
+                } else {
+                  clearError('comuna')
+                }
               }}
               disabled={loadingLists}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccione región" />
+                <SelectValue placeholder="Seleccione región (opcional)" />
               </SelectTrigger>
               <SelectContent>
                 {regiones.map((region) => (
@@ -928,12 +943,12 @@ export function CandidateForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="comuna">Comuna <span className="text-red-500">*</span></Label>
+            <Label htmlFor="comuna">Comuna {formData.region && <span className="text-red-500">*</span>}</Label>
             <Select
               value={formData.comuna}
               onValueChange={(value) => {
                 setFormData({ ...formData, comuna: value })
-                validateField('comuna', value, validationSchemas.module2CandidateForm)
+                validateField('comuna', value, validationSchemas.module2CandidateForm, formData)
               }}
               disabled={loadingLists || !formData.region}
             >

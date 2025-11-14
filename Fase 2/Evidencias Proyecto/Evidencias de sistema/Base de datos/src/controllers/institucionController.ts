@@ -13,7 +13,6 @@ export class InstitucionController {
                 order: [['nombre_institucion', 'ASC']]
             });
 
-            Logger.info(`Se obtuvieron ${instituciones.length} instituciones`);
             return sendSuccess(res, instituciones);
         } catch (error: any) {
             Logger.error('Error al obtener instituciones:', error);

@@ -408,7 +408,6 @@ export class SolicitudController {
         try {
             const estados = await SolicitudService.getEstadosSolicitud();
             
-            Logger.info(`Estados de solicitud obtenidos: ${estados.length}`);
             return sendSuccess(res, estados, 'Estados obtenidos exitosamente');
         } catch (error: any) {
             Logger.error('Error al obtener estados de solicitud:', error);

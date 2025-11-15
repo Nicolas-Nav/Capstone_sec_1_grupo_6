@@ -220,10 +220,18 @@ export class CandidatoService {
         licencia?: boolean;
         work_experience?: any[];
         education?: any[];
-    }, transaction?: Transaction) {
+    }, transaction?: Transaction, usuarioRut?: string) {
         const useTransaction = transaction || await sequelize.transaction();
+        const isNewTransaction = !transaction;
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut && isNewTransaction) {
+                await setDatabaseUser(usuarioRut, useTransaction);
+            } else if (usuarioRut && transaction) {
+                // Si ya hay una transacción, establecer el usuario en esa
+                await setDatabaseUser(usuarioRut, transaction);
+            }
             const {
                 nombre,
                 primer_apellido,

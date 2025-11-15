@@ -418,10 +418,15 @@ export class EvaluacionPsicolaboralService {
     /**
      * Marcar evaluación como realizada
      */
-    static async marcarComoRealizada(id: number) {
+    static async marcarComoRealizada(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const evaluacion = await EvaluacionPsicolaboral.findByPk(id);
             if (!evaluacion) {
                 throw new Error('Evaluación no encontrada');
@@ -442,10 +447,15 @@ export class EvaluacionPsicolaboralService {
     /**
      * Actualizar estado de informe
      */
-    static async actualizarEstadoInforme(id: number, estadoInforme: 'Pendiente' | 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones') {
+    static async actualizarEstadoInforme(id: number, estadoInforme: 'Pendiente' | 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones', usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const evaluacion = await EvaluacionPsicolaboral.findByPk(id);
             if (!evaluacion) {
                 throw new Error('Evaluación no encontrada');
@@ -467,10 +477,15 @@ export class EvaluacionPsicolaboralService {
     /**
      * Actualizar conclusión global del informe
      */
-    static async actualizarConclusionGlobal(id: number, conclusionGlobal: string) {
+    static async actualizarConclusionGlobal(id: number, conclusionGlobal: string, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const evaluacion = await EvaluacionPsicolaboral.findByPk(id);
             if (!evaluacion) {
                 throw new Error('Evaluación no encontrada');
@@ -491,10 +506,15 @@ export class EvaluacionPsicolaboralService {
     /**
      * Actualizar estado del informe y conclusión global
      */
-    static async actualizarInformeCompleto(id: number, estadoInforme: 'Pendiente' | 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones', conclusionGlobal: string, fechaEnvioInforme?: Date | string) {
+    static async actualizarInformeCompleto(id: number, estadoInforme: 'Pendiente' | 'Recomendable' | 'No recomendable' | 'Recomendable con observaciones', conclusionGlobal: string, fechaEnvioInforme?: Date | string, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const evaluacion = await EvaluacionPsicolaboral.findByPk(id);
             if (!evaluacion) {
                 throw new Error('Evaluación no encontrada');

@@ -283,10 +283,14 @@ export class PostulacionService {
         cv_file?: Buffer;
         work_experience?: any[];
         education?: any[];
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
             const {
                 process_id,
                 name,
@@ -347,7 +351,7 @@ export class PostulacionService {
                     has_disability_credential,
                     work_experience,
                     education
-                }, transaction);
+                }, transaction, usuarioRut);
 
                 // Obtener el candidato recién creado (modelo Sequelize)
                 candidato = await Candidato.findByPk(parseInt(nuevoCandidatoResult.id));

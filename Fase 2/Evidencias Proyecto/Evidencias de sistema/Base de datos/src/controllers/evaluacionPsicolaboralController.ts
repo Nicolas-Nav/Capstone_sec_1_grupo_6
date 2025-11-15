@@ -149,7 +149,7 @@ export class EvaluacionPsicolaboralController {
     static async marcarRealizada(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            const evaluacion = await EvaluacionPsicolaboralService.marcarComoRealizada(parseInt(id));
+            const evaluacion = await EvaluacionPsicolaboralService.marcarComoRealizada(parseInt(id), req.user?.id);
             return sendSuccess(res, evaluacion, 'Evaluación marcada como realizada');
         } catch (error) {
             Logger.error('Error al marcar evaluación:', error);
@@ -170,7 +170,7 @@ export class EvaluacionPsicolaboralController {
                 return sendError(res, 'Estado de informe inválido', 400);
             }
             
-            const evaluacion = await EvaluacionPsicolaboralService.actualizarEstadoInforme(parseInt(id), estado_informe);
+            const evaluacion = await EvaluacionPsicolaboralService.actualizarEstadoInforme(parseInt(id), estado_informe, req.user?.id);
             return sendSuccess(res, evaluacion, 'Estado de informe actualizado');
         } catch (error) {
             Logger.error('Error al actualizar estado de informe:', error);
@@ -191,7 +191,7 @@ export class EvaluacionPsicolaboralController {
                 return sendError(res, 'La conclusión global debe tener al menos 10 caracteres', 400);
             }
             
-            const evaluacion = await EvaluacionPsicolaboralService.actualizarConclusionGlobal(parseInt(id), conclusion_global);
+            const evaluacion = await EvaluacionPsicolaboralService.actualizarConclusionGlobal(parseInt(id), conclusion_global, req.user?.id);
             return sendSuccess(res, evaluacion, 'Conclusión global actualizada');
         } catch (error) {
             Logger.error('Error al actualizar conclusión global:', error);
@@ -217,7 +217,7 @@ export class EvaluacionPsicolaboralController {
             }
             
             const fechaEnvio = fecha_envio_informe ? new Date(fecha_envio_informe) : undefined;
-            const evaluacion = await EvaluacionPsicolaboralService.actualizarInformeCompleto(parseInt(id), estado_informe, conclusion_global, fechaEnvio);
+            const evaluacion = await EvaluacionPsicolaboralService.actualizarInformeCompleto(parseInt(id), estado_informe, conclusion_global, fechaEnvio, req.user?.id);
             return sendSuccess(res, evaluacion, 'Informe actualizado completamente');
         } catch (error) {
             Logger.error('Error al actualizar informe completo:', error);

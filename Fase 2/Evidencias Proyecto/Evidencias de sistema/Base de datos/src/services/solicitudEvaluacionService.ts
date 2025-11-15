@@ -84,7 +84,7 @@ export class SolicitudEvaluacionService {
                     phone: candidato.phone,
                     rut: candidato.rut,
                     has_disability_credential: candidato.has_disability_credential || false
-                }, transaction);
+                }, transaction, usuarioRut);
 
                 const candidatoId = parseInt(nuevoCandidato.id);
                 candidatosCreados.push(candidatoId);
@@ -429,7 +429,7 @@ export class SolicitudEvaluacionService {
                             phone: candidato.phone,
                             rut: candidato.rut,
                             has_disability_credential: candidato.has_disability_credential || false
-                        }, transaction);
+                        }, transaction, usuarioRut);
 
                         candidatoId = parseInt(nuevoCandidato.id);
                         candidatosCreados.push(candidatoId);

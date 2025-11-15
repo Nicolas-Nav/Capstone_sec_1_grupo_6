@@ -367,6 +367,42 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [portalesDB, setPortalesDB] = useState<any[]>([]) // Portales de la BD
   const [newPortalName, setNewPortalName] = useState("")
 
+  // Filtrar portales para mostrar solo los que tienen publicaciones activas
+  // Si estamos editando un candidato, también incluimos su portal actual aunque no esté activo
+  const portalesConPublicacionesActivas = useMemo(() => {
+    // Si portalesDB aún no está cargado, retornar array vacío
+    if (!portalesDB || portalesDB.length === 0) {
+      return []
+    }
+
+    // Obtener IDs de portales que tienen publicaciones activas
+    const portalesActivosIds = new Set(
+      publications
+        .filter((pub: any) => pub.estado_publicacion === "Activa")
+        .map((pub: any) => pub.id_portal_postulacion)
+    )
+    
+    // Si estamos editando un candidato, obtener su portal actual
+    let portalActualId: number | null = null
+    if (editingCandidate && editingCandidate.source_portal) {
+      // Buscar el portal en portalesDB por nombre o ID
+      const portalActual = portalesDB.find((p: any) => 
+        p.nombre === editingCandidate.source_portal || 
+        p.id.toString() === editingCandidate.source_portal?.toString()
+      )
+      if (portalActual) {
+        portalActualId = portalActual.id
+      }
+    }
+    
+    // Filtrar portalesDB para incluir solo los que tienen publicaciones activas
+    // o el portal actual del candidato que se está editando
+    return portalesDB.filter((portal: any) => 
+      portalesActivosIds.has(portal.id) || 
+      (portalActualId !== null && portal.id === portalActualId)
+    )
+  }, [publications, portalesDB, editingCandidate])
+
 
 
   const [newPublication, setNewPublication] = useState({
@@ -2818,7 +2854,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                     rubros={rubros}
                     nacionalidades={nacionalidades}
                     instituciones={instituciones}
-                    portalesDB={portalesDB}
+                    portalesDB={portalesConPublicacionesActivas}
                     loadingLists={loadingLists}
                     calculateAge={calculateAge}
                   />
@@ -3039,7 +3075,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               rubros={rubros}
               nacionalidades={nacionalidades}
               instituciones={instituciones}
-              portalesDB={portalesDB}
+              portalesDB={portalesConPublicacionesActivas}
               loadingLists={loadingLists}
               calculateAge={calculateAge}
             />

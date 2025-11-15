@@ -2982,7 +2982,11 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                     <PopoverContent className="w-auto p-0" align="start">
                       <CalendarComponent
                         mode="single"
+                        captionLayout="dropdown"
+                        fromYear={1900}
+                        toYear={new Date().getFullYear()}
                         selected={interviewForm.interview_date ? parseLocalDateTime(interviewForm.interview_date) : undefined}
+                        defaultMonth={interviewForm.interview_date ? parseLocalDateTime(interviewForm.interview_date) : new Date()}
                         onSelect={(date) => {
                           if (date) {
                             // Mantener la hora existente o usar la hora actual
@@ -3700,6 +3704,14 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                         const [year, month, day] = reportForm.report_sent_date.split('-').map(Number)
                         return new Date(year, month - 1, day)
                       })() : undefined}
+                      defaultMonth={reportForm.report_sent_date ? (() => {
+                        const [year, month, day] = reportForm.report_sent_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return new Date()
+                        }
+                        return dateObj
+                      })() : new Date()}
                       onSelect={(date) => {
                         if (date) {
                           // Convertir Date a formato YYYY-MM-DD usando métodos locales

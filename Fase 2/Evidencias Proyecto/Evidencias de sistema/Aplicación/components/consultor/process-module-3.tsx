@@ -259,6 +259,32 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       if (field === "client_feedback_date") {
         if (value && prev.client_response === "pendiente") {
           setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+        } else if (value && prev.presentation_date) {
+          // Validar que la fecha de feedback no sea anterior a la fecha de envío
+          const feedbackDate = new Date(value)
+          const presentationDate = new Date(prev.presentation_date)
+          feedbackDate.setHours(0, 0, 0, 0)
+          presentationDate.setHours(0, 0, 0, 0)
+          
+          if (feedbackDate < presentationDate) {
+            setFeedbackDateError("La fecha de feedback no puede ser anterior a la fecha de envío al cliente")
+          } else {
+            setFeedbackDateError("")
+          }
+        } else {
+          setFeedbackDateError("")
+        }
+      }
+      
+      // Si se cambia la fecha de envío, validar nuevamente la fecha de feedback
+      if (field === "presentation_date" && newData.client_feedback_date) {
+        const feedbackDate = new Date(newData.client_feedback_date)
+        const presentationDate = new Date(value)
+        feedbackDate.setHours(0, 0, 0, 0)
+        presentationDate.setHours(0, 0, 0, 0)
+        
+        if (feedbackDate < presentationDate) {
+          setFeedbackDateError("La fecha de feedback no puede ser anterior a la fecha de envío al cliente")
         } else {
           setFeedbackDateError("")
         }
@@ -306,6 +332,24 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     if (updateFormData.client_feedback_date && updateFormData.client_response === "pendiente") {
       setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
       return
+    }
+    
+    // Validar que la fecha de feedback no sea anterior a la fecha de envío
+    if (updateFormData.client_feedback_date && updateFormData.presentation_date) {
+      const feedbackDate = new Date(updateFormData.client_feedback_date)
+      const presentationDate = new Date(updateFormData.presentation_date)
+      feedbackDate.setHours(0, 0, 0, 0)
+      presentationDate.setHours(0, 0, 0, 0)
+      
+      if (feedbackDate < presentationDate) {
+        setFeedbackDateError("La fecha de feedback no puede ser anterior a la fecha de envío al cliente")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "La fecha de feedback no puede ser anterior a la fecha de envío al cliente",
+        })
+        return
+      }
     }
     
     // Validar comentarios si es necesario
@@ -1224,6 +1268,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <CalendarComponent
+                    key={`feedback-calendar-${updateFormData.presentation_date || 'no-date'}`}
                     mode="single"
                     captionLayout="dropdown"
                     fromYear={1900}
@@ -1266,7 +1311,44 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                       // Deshabilitar fechas futuras
                       const today = new Date()
                       today.setHours(23, 59, 59, 999)
-                      return date > today
+                      if (date > today) {
+                        return true
+                      }
+                      
+                      // Deshabilitar fechas anteriores a la fecha de envío al cliente
+                      if (updateFormData.presentation_date && updateFormData.presentation_date.trim() !== "") {
+                        try {
+                          // Parsear la fecha de envío usando componentes locales para evitar problemas de zona horaria
+                          const [presentationYear, presentationMonth, presentationDay] = updateFormData.presentation_date.split('-').map(Number)
+                          
+                          // Validar que los valores sean válidos
+                          if (isNaN(presentationYear) || isNaN(presentationMonth) || isNaN(presentationDay)) {
+                            return false
+                          }
+                          
+                          const presentationDate = new Date(presentationYear, presentationMonth - 1, presentationDay)
+                          presentationDate.setHours(0, 0, 0, 0)
+                          
+                          // Obtener componentes de la fecha a comparar usando métodos locales
+                          const compareYear = date.getFullYear()
+                          const compareMonth = date.getMonth()
+                          const compareDay = date.getDate()
+                          const compareDate = new Date(compareYear, compareMonth, compareDay)
+                          compareDate.setHours(0, 0, 0, 0)
+                          
+                          // Deshabilitar si la fecha es anterior (no igual) a la fecha de envío
+                          // Comparar usando getTime() para asegurar comparación correcta
+                          const isBefore = compareDate.getTime() < presentationDate.getTime()
+                          if (isBefore) {
+                            return true
+                          }
+                        } catch (error) {
+                          // Si hay error parseando, no deshabilitar
+                          console.error('Error parseando fecha de envío:', error)
+                        }
+                      }
+                      
+                      return false
                     }}
                     initialFocus
                   />

@@ -478,10 +478,18 @@ export default function AlertasPage() {
                                     )}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                                   <div className="flex items-center gap-1">
                                     <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
                                   </div>
+                                  {user?.role === 'admin' && hito.solicitud?.usuario && (
+                                    <div className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      <span className="font-medium">
+                                        {hito.solicitud.usuario.nombre_usuario} {hito.solicitud.usuario.apellido_usuario}
+                                      </span>
+                                    </div>
+                                  )}
                                   <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
                                     <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
@@ -534,10 +542,18 @@ export default function AlertasPage() {
                                   </div>
                                   <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Próxima a Vencer</Badge>
                                 </div>
-                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                                   <div className="flex items-center gap-1">
                                     <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
                                   </div>
+                                  {user?.role === 'admin' && hito.solicitud?.usuario && (
+                                    <div className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      <span className="font-medium">
+                                        {hito.solicitud.usuario.nombre_usuario} {hito.solicitud.usuario.apellido_usuario}
+                                      </span>
+                                    </div>
+                                  )}
                                   <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
                                     <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
@@ -590,10 +606,18 @@ export default function AlertasPage() {
                                   </div>
                                   <Badge variant="destructive" className="bg-red-100 text-red-800">Vencida</Badge>
                                 </div>
-                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                                   <div className="flex items-center gap-1">
                                     <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
                                   </div>
+                                  {user?.role === 'admin' && hito.solicitud?.usuario && (
+                                    <div className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      <span className="font-medium">
+                                        {hito.solicitud.usuario.nombre_usuario} {hito.solicitud.usuario.apellido_usuario}
+                                      </span>
+                                    </div>
+                                  )}
                                   <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
                                     <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>

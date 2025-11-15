@@ -455,6 +455,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     interview_date: "",
     interview_status: "programada" as "programada" | "realizada" | "cancelada",
   })
+  const [interviewDateError, setInterviewDateError] = useState<string>("")
 
   // Estado para múltiples formularios de tests (similar a referencias)
   // testId es el ID del test de la BD (id_test_psicolaboral), id es el ID temporal del formulario
@@ -790,6 +791,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     
     // Limpiar errores previos
     clearAllErrors()
+    setInterviewDateError("")
     
     setShowInterviewDialog(true)
   }
@@ -886,10 +888,39 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const handleSaveInterview = async () => {
     if (!selectedCandidate) return
     
+    // Validar que la fecha de entrevista no sea anterior a la fecha de feedback del módulo 3
+    // Aplicar para todos los estados: programada, realizada, cancelada
+    if (selectedCandidate.client_feedback_date && interviewForm.interview_date) {
+      try {
+        const feedbackDateStr = selectedCandidate.client_feedback_date.split('T')[0] // Obtener solo la fecha YYYY-MM-DD
+        const [feedbackYear, feedbackMonth, feedbackDay] = feedbackDateStr.split('-').map(Number)
+        const feedbackDate = new Date(feedbackYear, feedbackMonth - 1, feedbackDay)
+        feedbackDate.setHours(0, 0, 0, 0)
+        
+        // Extraer solo la fecha de interview_date (sin hora)
+        const interviewDateStr = interviewForm.interview_date.split('T')[0] || interviewForm.interview_date
+        const [interviewYear, interviewMonth, interviewDay] = interviewDateStr.split('-').map(Number)
+        const interviewDate = new Date(interviewYear, interviewMonth - 1, interviewDay)
+        interviewDate.setHours(0, 0, 0, 0)
+        
+        if (interviewDate.getTime() < feedbackDate.getTime()) {
+          setInterviewDateError("La fecha de entrevista no puede ser anterior a la fecha de feedback del cliente (módulo 3)")
+          showToast({
+            type: "error",
+            title: "Error de validación",
+            description: "La fecha de entrevista no puede ser anterior a la fecha de feedback del cliente (módulo 3)",
+          })
+          return
+        }
+      } catch (error) {
+        console.error('Error validando fecha de entrevista:', error)
+      }
+    }
+    
     // Validar todos los campos usando useFormValidation
     const isValid = validateAllFields(interviewForm, validationSchemas.module4InterviewForm)
     
-    if (!isValid) {
+    if (!isValid || interviewDateError) {
       showToast({
         type: "error",
         title: "Error de validación",
@@ -959,6 +990,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         interview_status: "programada",
     })
     setSelectedCandidate(null)
+    setInterviewDateError("")
     clearAllErrors()
       
       showToast({
@@ -2971,7 +3003,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className={`w-full justify-start text-left font-normal ${!interviewForm.interview_date ? "text-muted-foreground" : ""} ${errors.interview_date ? "border-destructive" : ""}`}
+                        className={`w-full justify-start text-left font-normal ${!interviewForm.interview_date ? "text-muted-foreground" : ""} ${errors.interview_date || interviewDateError ? "border-destructive" : ""}`}
                       >
                         <Calendar className="mr-2 h-4 w-4" />
                         {interviewForm.interview_date 
@@ -2981,6 +3013,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <CalendarComponent
+                        key={`interview-calendar-${selectedCandidate?.client_feedback_date || 'no-feedback'}`}
                         mode="single"
                         captionLayout="dropdown"
                         fromYear={1900}
@@ -3001,19 +3034,80 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             const formatted = formatDateForInput(newDate)
                             const updatedForm = { ...interviewForm, interview_date: formatted }
                             setInterviewForm(updatedForm)
+                            
+                            // Validar que la fecha de entrevista no sea anterior a la fecha de feedback del módulo 3
+                            if (selectedCandidate && selectedCandidate.client_feedback_date) {
+                              try {
+                                const feedbackDateStr = selectedCandidate.client_feedback_date.split('T')[0] // Obtener solo la fecha YYYY-MM-DD
+                                const [feedbackYear, feedbackMonth, feedbackDay] = feedbackDateStr.split('-').map(Number)
+                                const feedbackDate = new Date(feedbackYear, feedbackMonth - 1, feedbackDay)
+                                feedbackDate.setHours(0, 0, 0, 0)
+                                
+                                const interviewDate = new Date(date)
+                                interviewDate.setHours(0, 0, 0, 0)
+                                
+                                if (interviewDate.getTime() < feedbackDate.getTime()) {
+                                  setInterviewDateError("La fecha de entrevista no puede ser anterior a la fecha de feedback del cliente (módulo 3)")
+                                } else {
+                                  setInterviewDateError("")
+                                }
+                              } catch (error) {
+                                console.error('Error validando fecha de entrevista:', error)
+                              }
+                            } else {
+                              setInterviewDateError("")
+                            }
+                            
                             validateField('interview_date', formatted, validationSchemas.module4InterviewForm, updatedForm)
                           }
                         }}
                         disabled={(date) => {
+                          // Para entrevistas realizadas o canceladas, no permitir fechas futuras
                           if (interviewForm.interview_status !== "programada") {
-                            return date > new Date()
+                            if (date > new Date()) {
+                              return true
+                            }
                           }
+                          
+                          // Deshabilitar fechas anteriores (pero permitir el mismo día) a la fecha de feedback del módulo 3
+                          // Aplicar para todos los estados: programada, realizada, cancelada
+                          if (selectedCandidate && selectedCandidate.client_feedback_date) {
+                            try {
+                              const feedbackDateStr = selectedCandidate.client_feedback_date.split('T')[0] // Obtener solo la fecha YYYY-MM-DD
+                              const [feedbackYear, feedbackMonth, feedbackDay] = feedbackDateStr.split('-').map(Number)
+                              
+                              if (!isNaN(feedbackYear) && !isNaN(feedbackMonth) && !isNaN(feedbackDay)) {
+                                const feedbackDate = new Date(feedbackYear, feedbackMonth - 1, feedbackDay)
+                                feedbackDate.setHours(0, 0, 0, 0)
+                                
+                                // Obtener componentes de la fecha a comparar usando métodos locales
+                                const compareYear = date.getFullYear()
+                                const compareMonth = date.getMonth()
+                                const compareDay = date.getDate()
+                                const compareDate = new Date(compareYear, compareMonth, compareDay)
+                                compareDate.setHours(0, 0, 0, 0)
+                                
+                                // Deshabilitar solo si la fecha es anterior (no igual) a la fecha de feedback
+                                if (compareDate.getTime() < feedbackDate.getTime()) {
+                                  return true
+                                }
+                              }
+                            } catch (error) {
+                              console.error('Error parseando fecha de feedback:', error)
+                            }
+                          }
+                          
                           return false
                         }}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
+                  {interviewDateError && (
+                    <p className="text-destructive text-sm">
+                      {interviewDateError}
+                    </p>
+                  )}
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button

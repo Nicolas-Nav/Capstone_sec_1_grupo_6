@@ -4,8 +4,15 @@ import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/hooks/auth"
 import { useNotifications } from "@/hooks/useNotifications"
 import { getHitosAlertas, getHitosDashboard, HitoAlert, HitosDashboard } from "@/lib/api-hitos"
-import { userService } from "@/lib/api"
+import { descripcionCargoService } from "@/lib/api"
 import { serviceTypeLabels } from "@/lib/utils"
+
+const serviceCodeLabels: Record<string, string> = {
+  'PC': 'Proceso Completo',
+  'HH': 'Headhunting',
+  'ES': 'Evaluación Psicolaboral',
+  'TS': 'Test Psicolaboral',
+}
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -64,17 +71,21 @@ export default function AlertasPage() {
 
   const loadConsultores = async () => {
     try {
-      const response = await userService.getAll()
-      if (response.success && response.data) {
-        // Filtrar solo consultores (rol 2) y mapear
-        const consultoresData = response.data
-          .filter((u: any) => u.rol_usuario === 2 || u.role === 'consultor')
-          .map((u: any) => ({
-            rut: u.rut_usuario || u.id,
-            nombre: u.nombre_usuario || u.firstName || '',
-            apellido: u.apellido_usuario || u.lastName || ''
-          }))
+      const response = await descripcionCargoService.getFormData()
+      if (response.success && response.data?.consultores) {
+        // Mapear consultores a formato con nombre y apellido separados
+        const consultoresData = response.data.consultores.map((c: any) => {
+          // El nombre puede venir como "Nombre Apellido" o separado
+          const nombreCompleto = c.nombre || ''
+          const partes = nombreCompleto.split(' ')
+          return {
+            rut: c.rut,
+            nombre: partes[0] || '',
+            apellido: partes.slice(1).join(' ') || ''
+          }
+        }).filter((c: any) => c.nombre && c.rut) // Solo incluir consultores con nombre y RUT
         setConsultores(consultoresData)
+        console.log('Consultores cargados:', consultoresData)
       }
     } catch (error) {
       console.error('Error al cargar consultores:', error)
@@ -387,7 +398,7 @@ export default function AlertasPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los servicios</SelectItem>
-                {Object.entries(serviceTypeLabels).map(([key, label]) => (
+                {Object.entries(serviceCodeLabels).map(([key, label]) => (
                   <SelectItem key={key} value={key}>
                     {label}
                   </SelectItem>
@@ -491,6 +502,11 @@ export default function AlertasPage() {
                                     </div>
                                   )}
                                   <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {serviceCodeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
                                     <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
                                   </div>
@@ -555,6 +571,11 @@ export default function AlertasPage() {
                                     </div>
                                   )}
                                   <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {serviceCodeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
                                     <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
                                   </div>
@@ -618,6 +639,11 @@ export default function AlertasPage() {
                                       </span>
                                     </div>
                                   )}
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {serviceCodeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                    </Badge>
+                                  </div>
                                   <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
                                     <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>

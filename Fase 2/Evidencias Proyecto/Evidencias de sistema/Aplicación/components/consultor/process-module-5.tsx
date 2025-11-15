@@ -1086,13 +1086,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                         </div>
                       </div>
                     )}
-                    {((candidate as any).comentario_modulo5_cliente || candidate.observations) && (
+                    {(candidate as any).comentario_modulo5_cliente && (candidate as any).comentario_modulo5_cliente.trim() && (
                       <div className="flex items-start gap-2 col-span-2">
                         <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
                         <div>
                           <p className="font-medium">Observaciones</p>
                           <p className="text-muted-foreground">
-                            {(candidate as any).comentario_modulo5_cliente || candidate.observations}
+                            {(candidate as any).comentario_modulo5_cliente}
                           </p>
                         </div>
                       </div>

@@ -1601,3 +1601,19 @@ export const logService = {
     return apiRequest(`/api/logs/historial/${tabla}/${id}`);
   }
 };
+
+// ===========================================
+// SERVICIOS DE TIPOS DE SERVICIO
+// ===========================================
+
+export const tipoServicioService = {
+  // Obtener todos los tipos de servicio
+  async getAll(): Promise<ApiResponse<Array<{ codigo: string; nombre: string }>>> {
+    return apiRequest('/api/tipos-servicio');
+  },
+
+  // Obtener un tipo de servicio por código
+  async getByCodigo(codigo: string): Promise<ApiResponse<{ codigo: string; nombre: string }>> {
+    return apiRequest(`/api/tipos-servicio/${codigo}`);
+  },
+};

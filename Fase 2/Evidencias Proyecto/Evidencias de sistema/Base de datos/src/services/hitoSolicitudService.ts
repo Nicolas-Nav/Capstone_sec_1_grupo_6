@@ -244,18 +244,16 @@ export class HitoSolicitudService {
         // Filtrar por consultor si se especifica
         if (consultor_id) {
             const consultorIdNormalizado = normalizarRut(consultor_id);
-            Logger.debug(`[HITOS] Filtrando hitos vencidos por consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
+            const totalAntes = hitosFiltrados.length;
             hitosFiltrados = hitosFiltrados.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
                 const rutUsuarioNormalizado = normalizarRut(rutUsuario);
-                const coincide = rutUsuarioNormalizado === consultorIdNormalizado;
-                if (!coincide && rutUsuario) {
-                    Logger.debug(`[HITOS] RUT no coincide - Hito: ${rutUsuario} (normalizado: ${rutUsuarioNormalizado}) vs Consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
-                }
-                return coincide;
+                return rutUsuarioNormalizado === consultorIdNormalizado;
             });
-            Logger.debug(`[HITOS] Hitos vencidos encontrados para consultor ${consultor_id}: ${hitosFiltrados.length} de ${hitos.length} totales`);
+            Logger.debug(`[HITOS] Hitos vencidos para consultor ${consultor_id}: ${hitosFiltrados.length} de ${totalAntes} (total antes de filtrar congelados/cancelados: ${hitos.length})`);
+        } else {
+            Logger.debug(`[HITOS] Hitos vencidos (todos los consultores): ${hitosFiltrados.length} (total antes de filtrar congelados/cancelados: ${hitos.length})`);
         }
 
         return hitosFiltrados.map(h => {
@@ -334,21 +332,16 @@ export class HitoSolicitudService {
         // Filtrar por consultor si se especifica
         if (consultor_id) {
             const consultorIdNormalizado = normalizarRut(consultor_id);
-            Logger.debug(`[HITOS] Filtrando hitos por vencer por consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
-            Logger.debug(`[HITOS] Total hitos antes de filtrar por consultor: ${hitosFiltrados.length}`);
+            const totalAntes = hitosFiltrados.length;
             hitosFiltrados = hitosFiltrados.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
                 const rutUsuarioNormalizado = normalizarRut(rutUsuario);
-                const coincide = rutUsuarioNormalizado === consultorIdNormalizado;
-                if (!coincide && rutUsuario) {
-                    Logger.debug(`[HITOS] RUT no coincide - Hito: ${rutUsuario} (normalizado: ${rutUsuarioNormalizado}) vs Consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
-                } else if (coincide) {
-                    Logger.debug(`[HITOS] ✓ RUT coincide - Hito encontrado para consultor ${consultor_id}`);
-                }
-                return coincide;
+                return rutUsuarioNormalizado === consultorIdNormalizado;
             });
-            Logger.debug(`[HITOS] Hitos por vencer encontrados para consultor ${consultor_id}: ${hitosFiltrados.length} de ${hitos.length} totales`);
+            Logger.debug(`[HITOS] Hitos por vencer para consultor ${consultor_id}: ${hitosFiltrados.length} de ${totalAntes} (total antes de filtrar congelados/cancelados: ${hitos.length})`);
+        } else {
+            Logger.debug(`[HITOS] Hitos por vencer (todos los consultores): ${hitosFiltrados.length} (total antes de filtrar congelados/cancelados: ${hitos.length})`);
         }
 
         return hitosFiltrados.map(h => {
@@ -429,18 +422,16 @@ export class HitoSolicitudService {
         // Filtrar por consultor si se especifica
         if (consultor_id) {
             const consultorIdNormalizado = normalizarRut(consultor_id);
-            Logger.debug(`[HITOS] Filtrando hitos pendientes por consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
+            const totalAntes = hitosFiltrados.length;
             hitosFiltrados = hitosFiltrados.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
                 const rutUsuarioNormalizado = normalizarRut(rutUsuario);
-                const coincide = rutUsuarioNormalizado === consultorIdNormalizado;
-                if (!coincide && rutUsuario) {
-                    Logger.debug(`[HITOS] RUT no coincide - Hito: ${rutUsuario} (normalizado: ${rutUsuarioNormalizado}) vs Consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
-                }
-                return coincide;
+                return rutUsuarioNormalizado === consultorIdNormalizado;
             });
-            Logger.debug(`[HITOS] Hitos pendientes encontrados para consultor ${consultor_id}: ${hitosFiltrados.length} de ${hitos.length} totales`);
+            Logger.debug(`[HITOS] Hitos pendientes para consultor ${consultor_id}: ${hitosFiltrados.length} de ${totalAntes} (total antes de filtrar congelados/cancelados: ${hitos.length})`);
+        } else {
+            Logger.debug(`[HITOS] Hitos pendientes (todos los consultores): ${hitosFiltrados.length} (total antes de filtrar congelados/cancelados: ${hitos.length})`);
         }
 
         return hitosFiltrados.map(h => {
@@ -512,18 +503,16 @@ export class HitoSolicitudService {
         // Filtrar por consultor si se especifica
         if (consultor_id) {
             const consultorIdNormalizado = normalizarRut(consultor_id);
-            Logger.debug(`[HITOS] Filtrando hitos completados por consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
+            const totalAntes = hitosFiltrados.length;
             hitosFiltrados = hitosFiltrados.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
                 const rutUsuarioNormalizado = normalizarRut(rutUsuario);
-                const coincide = rutUsuarioNormalizado === consultorIdNormalizado;
-                if (!coincide && rutUsuario) {
-                    Logger.debug(`[HITOS] RUT no coincide - Hito: ${rutUsuario} (normalizado: ${rutUsuarioNormalizado}) vs Consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
-                }
-                return coincide;
+                return rutUsuarioNormalizado === consultorIdNormalizado;
             });
-            Logger.debug(`[HITOS] Hitos completados encontrados para consultor ${consultor_id}: ${hitosFiltrados.length} de ${hitos.length} totales`);
+            Logger.debug(`[HITOS] Hitos completados para consultor ${consultor_id}: ${hitosFiltrados.length} de ${totalAntes} (total antes de filtrar congelados/cancelados: ${hitos.length})`);
+        } else {
+            Logger.debug(`[HITOS] Hitos completados (todos los consultores): ${hitosFiltrados.length} (total antes de filtrar congelados/cancelados: ${hitos.length})`);
         }
 
         return hitosFiltrados.map(h => {

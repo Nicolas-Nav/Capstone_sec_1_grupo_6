@@ -842,7 +842,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold mb-2">Módulo 5 - Seguimiento y Control</h2>
+          <h2 className="text-2xl font-bold mb-2">Módulo 5 - Gestión de contrataciones</h2>
           <p className="text-muted-foreground">Gestiona la contratación final y seguimiento de candidatos</p>
         </div>
         <Card>

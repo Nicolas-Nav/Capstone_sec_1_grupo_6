@@ -40,6 +40,14 @@ export function useSolicitudes() {
   
   // Estado para almacenar todos los tipos de servicio disponibles
   const [allServiceTypes, setAllServiceTypes] = useState<string[]>([])
+  
+  // Estado para almacenar las estadísticas
+  const [stats, setStats] = useState({
+    total: 0,
+    en_progreso: 0,
+    completadas: 0,
+    pendientes: 0,
+  })
 
   // Referencias para rastrear valores anteriores de filtros
   const prevSearchTerm = useRef(searchTerm)
@@ -124,36 +132,59 @@ export function useSolicitudes() {
     }
   }
 
-  // Efecto inicial para cargar todos los tipos de servicio disponibles
-  useEffect(() => {
-    const fetchAllServiceTypes = async () => {
-      try {
-        // Hacer una llamada sin filtros para obtener todos los tipos de servicio
-        const res = await fetch(`${API_URL}/api/solicitudes?page=1&limit=1000`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
-          },
-        })
+  // Función para cargar estadísticas y tipos de servicio
+  const fetchStatsAndServiceTypes = async () => {
+    try {
+      // Hacer una llamada sin paginación para obtener todas las solicitudes para estadísticas
+      const res = await fetch(`${API_URL}/api/solicitudes/all`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
+        },
+      })
 
-        const data = await res.json()
+      const data = await res.json()
+      
+      if (res.ok && data?.success) {
+        const allSolicitudes = data.data || []
         
-        if (res.ok && data?.success) {
-          const serviceTypes = Array.from(
-            new Set(
-              data.data.solicitudes
-                .map((s: any) => s.service_type || s.tipo_servicio)
-                .filter(Boolean)
-            )
-          ).sort() as string[]
-          
-          setAllServiceTypes(serviceTypes)
-        }
-      } catch (error) {
-        console.error("Error fetching service types:", error)
+        // Calcular estadísticas
+        const total = allSolicitudes.length
+        const en_progreso = allSolicitudes.filter((s: any) => 
+          s.status === 'en_progreso' || s.estado_solicitud === 'En Progreso'
+        ).length
+        const completadas = allSolicitudes.filter((s: any) => 
+          s.status === 'cerrado' || s.estado_solicitud === 'Cerrado'
+        ).length
+        const pendientes = allSolicitudes.filter((s: any) => 
+          s.status === 'creado' || s.estado_solicitud === 'Creado'
+        ).length
+        
+        setStats({
+          total,
+          en_progreso,
+          completadas,
+          pendientes,
+        })
+        
+        // Extraer tipos de servicio
+        const serviceTypes = Array.from(
+          new Set(
+            allSolicitudes
+              .map((s: any) => s.service_type || s.tipo_servicio)
+              .filter(Boolean)
+          )
+        ).sort() as string[]
+        
+        setAllServiceTypes(serviceTypes)
       }
+    } catch (error) {
+      console.error("Error fetching stats and service types:", error)
     }
+  }
 
-    fetchAllServiceTypes()
+  // Efecto inicial para cargar estadísticas y tipos de servicio
+  useEffect(() => {
+    fetchStatsAndServiceTypes()
   }, []) // Solo ejecutar al montar el componente
 
   // Efecto para recargar solicitudes cuando cambien los filtros o paginación
@@ -231,38 +262,8 @@ export function useSolicitudes() {
   // Función para refrescar todos los datos (solicitudes y estadísticas)
   const refreshData = async () => {
     await fetchSolicitudes()
-    // También recargar tipos de servicio por si se agregó uno nuevo
-    try {
-      const res = await fetch(`${API_URL}/api/solicitudes?page=1&limit=1000`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
-        },
-      })
-
-      const data = await res.json()
-      
-      if (res.ok && data?.success) {
-        const serviceTypes = Array.from(
-          new Set(
-            data.data.solicitudes
-              .map((s: any) => s.service_type || s.tipo_servicio)
-              .filter(Boolean)
-          )
-        ).sort() as string[]
-        
-        setAllServiceTypes(serviceTypes)
-      }
-    } catch (error) {
-      console.error("Error refreshing service types:", error)
-    }
-  }
-
-  // Calcular estadísticas
-  const stats = {
-    total: totalSolicitudes,
-    en_progreso: 0, // Se calculará del servidor si es necesario
-    completadas: 0, // Se calculará del servidor si es necesario
-    pendientes: 0, // Se calculará del servidor si es necesario
+    // Recargar estadísticas y tipos de servicio
+    await fetchStatsAndServiceTypes()
   }
 
   return {

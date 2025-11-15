@@ -1,7 +1,7 @@
 import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
 import { setDatabaseUser } from '@/utils/databaseUser';
-import { HitoSolicitud, Solicitud, DescripcionCargo, Contacto, Usuario, Cliente } from '@/models';
+import { HitoSolicitud, Solicitud, DescripcionCargo, Contacto, Usuario, Cliente, EstadoSolicitudHist, EstadoSolicitud } from '@/models';
 import { FechasLaborales } from '@/utils/fechasLaborales';
 import { obtenerPlantillasPorServicio } from '@/data/plantillasHitos';
 import { Logger } from '@/utils/logger';
@@ -211,19 +211,41 @@ export class HitoSolicitudService {
                                 { model: Cliente, as: 'cliente' }
                             ]
                         },
-                        { model: Usuario, as: 'usuario', required: true }
+                        { model: Usuario, as: 'usuario', required: true },
+                        {
+                            model: EstadoSolicitudHist,
+                            as: 'historialEstados',
+                            include: [{
+                                model: EstadoSolicitud,
+                                as: 'estado'
+                            }],
+                            limit: 1,
+                            order: [['fecha_cambio_estado_solicitud', 'DESC']]
+                        }
                     ]
                 }
             ],
             order: [['fecha_limite', 'ASC']]
         });
 
+        // Filtrar hitos de solicitudes congeladas o canceladas
+        let hitosFiltrados = hitos.filter(h => {
+            const hitoData = h.toJSON() as any;
+            const historialEstados = hitoData.solicitud?.historialEstados || [];
+            if (historialEstados.length === 0) {
+                // Si no hay historial, incluir el hito (estado por defecto: Creado)
+                return true;
+            }
+            const estadoActual = historialEstados[0]?.estado?.nombre_estado_solicitud?.toLowerCase() || '';
+            // Excluir solicitudes congeladas o canceladas
+            return estadoActual !== 'congelado' && estadoActual !== 'cancelado';
+        });
+
         // Filtrar por consultor si se especifica
-        let hitosFiltrados = hitos;
         if (consultor_id) {
             const consultorIdNormalizado = normalizarRut(consultor_id);
             Logger.debug(`[HITOS] Filtrando hitos vencidos por consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
-            hitosFiltrados = hitos.filter(h => {
+            hitosFiltrados = hitosFiltrados.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
                 const rutUsuarioNormalizado = normalizarRut(rutUsuario);
@@ -279,20 +301,42 @@ export class HitoSolicitudService {
                                 { model: Cliente, as: 'cliente' }
                             ]
                         },
-                        { model: Usuario, as: 'usuario', required: true }
+                        { model: Usuario, as: 'usuario', required: true },
+                        {
+                            model: EstadoSolicitudHist,
+                            as: 'historialEstados',
+                            include: [{
+                                model: EstadoSolicitud,
+                                as: 'estado'
+                            }],
+                            limit: 1,
+                            order: [['fecha_cambio_estado_solicitud', 'DESC']]
+                        }
                     ]
                 }
             ],
             order: [['fecha_limite', 'ASC']]
         });
 
+        // Filtrar hitos de solicitudes congeladas o canceladas
+        let hitosFiltrados = hitos.filter(h => {
+            const hitoData = h.toJSON() as any;
+            const historialEstados = hitoData.solicitud?.historialEstados || [];
+            if (historialEstados.length === 0) {
+                // Si no hay historial, incluir el hito (estado por defecto: Creado)
+                return true;
+            }
+            const estadoActual = historialEstados[0]?.estado?.nombre_estado_solicitud?.toLowerCase() || '';
+            // Excluir solicitudes congeladas o canceladas
+            return estadoActual !== 'congelado' && estadoActual !== 'cancelado';
+        });
+
         // Filtrar por consultor si se especifica
-        let hitosFiltrados = hitos;
         if (consultor_id) {
             const consultorIdNormalizado = normalizarRut(consultor_id);
             Logger.debug(`[HITOS] Filtrando hitos por vencer por consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
-            Logger.debug(`[HITOS] Total hitos antes de filtrar: ${hitos.length}`);
-            hitosFiltrados = hitos.filter(h => {
+            Logger.debug(`[HITOS] Total hitos antes de filtrar por consultor: ${hitosFiltrados.length}`);
+            hitosFiltrados = hitosFiltrados.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
                 const rutUsuarioNormalizado = normalizarRut(rutUsuario);
@@ -352,19 +396,41 @@ export class HitoSolicitudService {
                                 { model: Cliente, as: 'cliente' }
                             ]
                         },
-                        { model: Usuario, as: 'usuario', required: true }
+                        { model: Usuario, as: 'usuario', required: true },
+                        {
+                            model: EstadoSolicitudHist,
+                            as: 'historialEstados',
+                            include: [{
+                                model: EstadoSolicitud,
+                                as: 'estado'
+                            }],
+                            limit: 1,
+                            order: [['fecha_cambio_estado_solicitud', 'DESC']]
+                        }
                     ]
                 }
             ],
             order: [['nombre_hito', 'ASC']]
         });
 
+        // Filtrar hitos de solicitudes congeladas o canceladas
+        let hitosFiltrados = hitos.filter(h => {
+            const hitoData = h.toJSON() as any;
+            const historialEstados = hitoData.solicitud?.historialEstados || [];
+            if (historialEstados.length === 0) {
+                // Si no hay historial, incluir el hito (estado por defecto: Creado)
+                return true;
+            }
+            const estadoActual = historialEstados[0]?.estado?.nombre_estado_solicitud?.toLowerCase() || '';
+            // Excluir solicitudes congeladas o canceladas
+            return estadoActual !== 'congelado' && estadoActual !== 'cancelado';
+        });
+
         // Filtrar por consultor si se especifica
-        let hitosFiltrados = hitos;
         if (consultor_id) {
             const consultorIdNormalizado = normalizarRut(consultor_id);
             Logger.debug(`[HITOS] Filtrando hitos pendientes por consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
-            hitosFiltrados = hitos.filter(h => {
+            hitosFiltrados = hitosFiltrados.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
                 const rutUsuarioNormalizado = normalizarRut(rutUsuario);
@@ -413,19 +479,41 @@ export class HitoSolicitudService {
                                 { model: Cliente, as: 'cliente' }
                             ]
                         },
-                        { model: Usuario, as: 'usuario', required: true }
+                        { model: Usuario, as: 'usuario', required: true },
+                        {
+                            model: EstadoSolicitudHist,
+                            as: 'historialEstados',
+                            include: [{
+                                model: EstadoSolicitud,
+                                as: 'estado'
+                            }],
+                            limit: 1,
+                            order: [['fecha_cambio_estado_solicitud', 'DESC']]
+                        }
                     ]
                 }
             ],
             order: [['fecha_cumplimiento', 'DESC']]
         });
 
+        // Filtrar hitos de solicitudes congeladas o canceladas
+        let hitosFiltrados = hitos.filter(h => {
+            const hitoData = h.toJSON() as any;
+            const historialEstados = hitoData.solicitud?.historialEstados || [];
+            if (historialEstados.length === 0) {
+                // Si no hay historial, incluir el hito (estado por defecto: Creado)
+                return true;
+            }
+            const estadoActual = historialEstados[0]?.estado?.nombre_estado_solicitud?.toLowerCase() || '';
+            // Excluir solicitudes congeladas o canceladas
+            return estadoActual !== 'congelado' && estadoActual !== 'cancelado';
+        });
+
         // Filtrar por consultor si se especifica
-        let hitosFiltrados = hitos;
         if (consultor_id) {
             const consultorIdNormalizado = normalizarRut(consultor_id);
             Logger.debug(`[HITOS] Filtrando hitos completados por consultor: ${consultor_id} (normalizado: ${consultorIdNormalizado})`);
-            hitosFiltrados = hitos.filter(h => {
+            hitosFiltrados = hitosFiltrados.filter(h => {
                 const hitoData = h.toJSON() as any;
                 const rutUsuario = hitoData.solicitud?.rut_usuario;
                 const rutUsuarioNormalizado = normalizarRut(rutUsuario);

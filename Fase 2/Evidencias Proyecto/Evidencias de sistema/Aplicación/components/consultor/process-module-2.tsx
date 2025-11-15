@@ -2726,34 +2726,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           <Edit className="h-4 w-4" />
                         </Button>
 
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              const response = await publicacionService.delete(publication.id)
-                              if (response.success) {
-                                showToast({
-                                  type: "success",
-                                  title: "¡Éxito!",
-                                  description: "Publicación eliminada",
-                                })
-                                loadData()
-                              }
-                            } catch (error) {
-                              showToast({
-                                type: "error",
-                                title: "Error",
-                                description: "Error al eliminar publicación",
-                              })
-                            }
-                          }}
-                          disabled={isBlocked}
-                        >
-                          <Trash2 className="h-4 w-4" />
-
-                        </Button>
-
                       </div>
 
                     </TableCell>

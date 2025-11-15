@@ -523,10 +523,63 @@ export function CandidateForm({
   }
 
   const updateWorkExperienceForm = (id: string, field: keyof WorkExperienceForm, value: string) => {
-    setWorkExperienceForms(workExperienceForms.map(form =>
-      form.id === id ? { ...form, [field]: value } : form
-    ))
-    validateWorkExperienceField(id, field, value, workExperienceForms.find(f => f.id === id)!)
+    setWorkExperienceForms(prevForms => {
+      const updatedForms = prevForms.map(form =>
+        form.id === id ? { ...form, [field]: value } : form
+      )
+      const updatedForm = updatedForms.find(f => f.id === id)!
+      
+      // Validar que la fecha fin no sea anterior a la fecha inicio
+      if (field === 'end_date' && value && updatedForm.start_date) {
+        try {
+          const [endYear, endMonth, endDay] = value.split('-').map(Number)
+          const [startYear, startMonth, startDay] = updatedForm.start_date.split('-').map(Number)
+          
+          if (!isNaN(endYear) && !isNaN(endMonth) && !isNaN(endDay) &&
+              !isNaN(startYear) && !isNaN(startMonth) && !isNaN(startDay)) {
+            const endDate = new Date(endYear, endMonth - 1, endDay)
+            const startDate = new Date(startYear, startMonth - 1, startDay)
+            endDate.setHours(0, 0, 0, 0)
+            startDate.setHours(0, 0, 0, 0)
+            
+            if (endDate.getTime() < startDate.getTime()) {
+              setFieldError(`work_experience_${id}_end_date`, 'La fecha fin no puede ser anterior a la fecha inicio')
+            } else {
+              clearError(`work_experience_${id}_end_date`)
+            }
+          }
+        } catch (error) {
+          console.error('Error validando fecha fin:', error)
+        }
+      }
+      
+      // Si se cambia la fecha inicio, validar nuevamente la fecha fin
+      if (field === 'start_date' && updatedForm.end_date) {
+        try {
+          const [endYear, endMonth, endDay] = updatedForm.end_date.split('-').map(Number)
+          const [startYear, startMonth, startDay] = value.split('-').map(Number)
+          
+          if (!isNaN(endYear) && !isNaN(endMonth) && !isNaN(endDay) &&
+              !isNaN(startYear) && !isNaN(startMonth) && !isNaN(startDay)) {
+            const endDate = new Date(endYear, endMonth - 1, endDay)
+            const startDate = new Date(startYear, startMonth - 1, startDay)
+            endDate.setHours(0, 0, 0, 0)
+            startDate.setHours(0, 0, 0, 0)
+            
+            if (endDate.getTime() < startDate.getTime()) {
+              setFieldError(`work_experience_${id}_end_date`, 'La fecha fin no puede ser anterior a la fecha inicio')
+            } else {
+              clearError(`work_experience_${id}_end_date`)
+            }
+          }
+        } catch (error) {
+          console.error('Error validando fecha fin:', error)
+        }
+      }
+      
+      validateWorkExperienceField(id, field, value, updatedForm)
+      return updatedForms
+    })
   }
 
   const handleDiscardSingleWorkExperience = (formId: string) => {
@@ -558,6 +611,7 @@ export function CandidateForm({
       clearError(`work_experience_${formId}_company`)
       clearError(`work_experience_${formId}_position`)
       clearError(`work_experience_${formId}_start_date`)
+      clearError(`work_experience_${formId}_end_date`)
       clearError(`work_experience_${formId}_description`)
     }
   }
@@ -722,6 +776,29 @@ export function CandidateForm({
       
       const hasAnyField = !!(form.company?.trim() || form.position?.trim() || form.start_date?.trim() || form.description?.trim())
       if (hasAnyField) {
+        // Validar que la fecha fin no sea anterior a la fecha inicio
+        if (form.start_date && form.end_date) {
+          try {
+            const [endYear, endMonth, endDay] = form.end_date.split('-').map(Number)
+            const [startYear, startMonth, startDay] = form.start_date.split('-').map(Number)
+            
+            if (!isNaN(endYear) && !isNaN(endMonth) && !isNaN(endDay) &&
+                !isNaN(startYear) && !isNaN(startMonth) && !isNaN(startDay)) {
+              const endDate = new Date(endYear, endMonth - 1, endDay)
+              const startDate = new Date(startYear, startMonth - 1, startDay)
+              endDate.setHours(0, 0, 0, 0)
+              startDate.setHours(0, 0, 0, 0)
+              
+              if (endDate.getTime() < startDate.getTime()) {
+                setFieldError(`work_experience_${form.id}_end_date`, 'La fecha fin no puede ser anterior a la fecha inicio')
+                workExperienceValidationPassed = false
+              }
+            }
+          } catch (error) {
+            console.error('Error validando fechas de experiencia laboral:', error)
+          }
+        }
+        
         if (!form.company?.trim()) {
           setFieldError(`work_experience_${form.id}_company`, 'La empresa es obligatoria si completa algún campo')
           workExperienceValidationPassed = false
@@ -1856,7 +1933,7 @@ export function CandidateForm({
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className={`bg-white w-full justify-start text-left font-normal ${!form.end_date ? "text-muted-foreground" : ""}`}
+                          className={`bg-white w-full justify-start text-left font-normal ${!form.end_date ? "text-muted-foreground" : ""} ${errors[`work_experience_${form.id}_end_date`] ? "border-destructive" : ""}`}
                         >
                           <Calendar className="mr-2 h-4 w-4" />
                           {form.end_date && form.end_date.trim() !== ""
@@ -1878,6 +1955,7 @@ export function CandidateForm({
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <CalendarComponent
+                          key={`end-date-calendar-${form.id}-${form.start_date || 'no-date'}`}
                           mode="single"
                           captionLayout="dropdown"
                           fromYear={1900}
@@ -1920,20 +1998,53 @@ export function CandidateForm({
                             }
                           }}
                           disabled={(date) => {
-                            // Deshabilitar fechas futuras y anteriores a la fecha de inicio
+                            // Deshabilitar fechas futuras
                             const today = new Date()
                             today.setHours(23, 59, 59, 999)
-                            if (form.start_date) {
-                              const startDate = new Date(form.start_date)
-                              startDate.setHours(0, 0, 0, 0)
-                              return date > today || date < startDate
+                            if (date > today) {
+                              return true
                             }
-                            return date > today
+                            
+                            // Deshabilitar fechas anteriores a la fecha de inicio
+                            if (form.start_date && form.start_date.trim() !== "") {
+                              try {
+                                // Parsear la fecha de inicio usando componentes locales para evitar problemas de zona horaria
+                                const [startYear, startMonth, startDay] = form.start_date.split('-').map(Number)
+                                
+                                // Validar que los valores sean válidos
+                                if (isNaN(startYear) || isNaN(startMonth) || isNaN(startDay)) {
+                                  return false
+                                }
+                                
+                                const startDate = new Date(startYear, startMonth - 1, startDay)
+                                startDate.setHours(0, 0, 0, 0)
+                                
+                                // Obtener componentes de la fecha a comparar usando métodos locales
+                                const compareYear = date.getFullYear()
+                                const compareMonth = date.getMonth()
+                                const compareDay = date.getDate()
+                                const compareDate = new Date(compareYear, compareMonth, compareDay)
+                                compareDate.setHours(0, 0, 0, 0)
+                                
+                                // Deshabilitar si la fecha es anterior (no igual) a la fecha de inicio
+                                // Comparar usando getTime() para asegurar comparación correcta
+                                const isBefore = compareDate.getTime() < startDate.getTime()
+                                if (isBefore) {
+                                  return true
+                                }
+                              } catch (error) {
+                                // Si hay error parseando, no deshabilitar
+                                console.error('Error parseando fecha de inicio:', error)
+                              }
+                            }
+                            
+                            return false
                           }}
                           initialFocus
                         />
                       </PopoverContent>
                     </Popover>
+                    <ValidationErrorDisplay error={errors[`work_experience_${form.id}_end_date`]} />
                   </div>
                 </div>
 

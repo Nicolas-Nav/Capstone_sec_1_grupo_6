@@ -3007,7 +3007,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                       >
                         <Calendar className="mr-2 h-4 w-4" />
                         {interviewForm.interview_date 
-                          ? format(parseLocalDateTime(interviewForm.interview_date), "PPP", { locale: es })
+                          ? format(parseLocalDateTime(interviewForm.interview_date), "dd/MM/yyyy")
                           : "Seleccionar fecha"}
                       </Button>
                     </PopoverTrigger>

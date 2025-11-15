@@ -4,7 +4,15 @@ import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/hooks/auth"
 import { useNotifications } from "@/hooks/useNotifications"
 import { getHitosAlertas, getHitosDashboard, HitoAlert, HitosDashboard } from "@/lib/api-hitos"
+import { descripcionCargoService } from "@/lib/api"
 import { serviceTypeLabels } from "@/lib/utils"
+
+const serviceCodeLabels: Record<string, string> = {
+  'PC': 'Proceso Completo',
+  'HH': 'Headhunting',
+  'ES': 'Evaluación Psicolaboral',
+  'TS': 'Test Psicolaboral',
+}
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -20,6 +28,8 @@ export default function AlertasPage() {
   const { markAsRead, loadNotifications, unreadCount: notificationsUnreadCount } = useNotifications(user?.id, user?.role)
   const [searchTerm, setSearchTerm] = useState("")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
+  const [consultorFilter, setConsultorFilter] = useState<string>("all")
+  const [consultores, setConsultores] = useState<Array<{ rut: string; nombre: string; apellido: string }>>([])
   const [hitosAlertas, setHitosAlertas] = useState<HitoAlert[]>([])
   const [dashboard, setDashboard] = useState<HitosDashboard | null>(null)
   const [loading, setLoading] = useState(true)
@@ -42,6 +52,10 @@ export default function AlertasPage() {
 
   useEffect(() => {
     if (user) {
+      // Si es admin, cargar lista de consultores
+      if (user.role === 'admin') {
+        loadConsultores()
+      }
       loadHitosData()
       
       // Auto-refresh: actualizar alertas cada 5 minutos para mantener progresión
@@ -55,6 +69,29 @@ export default function AlertasPage() {
       }
     }
   }, [user])
+
+  const loadConsultores = async () => {
+    try {
+      const response = await descripcionCargoService.getFormData()
+      if (response.success && response.data?.consultores) {
+        // Mapear consultores a formato con nombre y apellido separados
+        const consultoresData = response.data.consultores.map((c: any) => {
+          // El nombre puede venir como "Nombre Apellido" o separado
+          const nombreCompleto = c.nombre || ''
+          const partes = nombreCompleto.split(' ')
+          return {
+            rut: c.rut,
+            nombre: partes[0] || '',
+            apellido: partes.slice(1).join(' ') || ''
+          }
+        }).filter((c: any) => c.nombre && c.rut) // Solo incluir consultores con nombre y RUT
+        setConsultores(consultoresData)
+        console.log('Consultores cargados:', consultoresData)
+      }
+    } catch (error) {
+      console.error('Error al cargar consultores:', error)
+    }
+  }
 
   // Mostrar toast cuando se carguen las alertas por primera vez
   useEffect(() => {
@@ -133,65 +170,63 @@ export default function AlertasPage() {
     )
   }
 
-  // Filtrar hitos reales del backend
-  // Función para obtener el hito apropiado progresivamente
-  const getHitoMasRelevante = (hitos: any[]) => {
-    const grupos = new Map<string, any[]>();
+  // Obtener el último hito activo de cada proceso
+  // Un hito activo es uno que no está completado (sin fecha_cumplimiento)
+  const getUltimoHitoActivoPorProceso = (hitos: HitoAlert[]): HitoAlert[] => {
+    const hitosPorProceso = new Map<number, HitoAlert[]>();
     
-    // Agrupar por nombre_hito + id_solicitud
+    // Agrupar hitos por id_solicitud
     hitos.forEach(hito => {
-      const key = `${hito.nombre_hito}-${hito.solicitud?.id_solicitud}`;
-      if (!grupos.has(key)) {
-        grupos.set(key, []);
-      }
-      grupos.get(key)!.push(hito);
-    });
-    
-    // Para cada grupo, seleccionar el apropiado según los días restantes reales
-    const hitosRelevantes: any[] = [];
-    grupos.forEach(grupo => {
-      if (grupo.length === 1) {
-        hitosRelevantes.push(grupo[0]);
-      } else {
-        // Si hay múltiples hitos del mismo tipo, seleccionar el apropiado progresivamente
-        // Ordenar por avisar_antes_dias (de mayor a menor)
-        const ordenados = grupo.sort((a: any, b: any) => b.avisar_antes_dias - a.avisar_antes_dias);
-        
-        // Obtener los días restantes reales del hito
-        const diasRestantes = Math.abs(grupo[0].dias_restantes || 0);
-        
-        // Seleccionar la alerta apropiada según los días restantes
-        // Lógica: mostrar la alerta con avisar_antes_dias más cercano a los días restantes (sin pasarse)
-        let alertaSeleccionada = ordenados[ordenados.length - 1]; // Por defecto, la más urgente
-        
-        for (const hito of ordenados) {
-          // Si los días restantes son >= avisar_antes_dias, esta es la alerta apropiada
-          if (diasRestantes >= hito.avisar_antes_dias) {
-            alertaSeleccionada = hito;
-            break;
-          }
+      const idSolicitud = hito.solicitud?.id_solicitud;
+      if (idSolicitud) {
+        if (!hitosPorProceso.has(idSolicitud)) {
+          hitosPorProceso.set(idSolicitud, []);
         }
-        
-        hitosRelevantes.push(alertaSeleccionada);
+        hitosPorProceso.get(idSolicitud)!.push(hito);
       }
     });
     
-    return hitosRelevantes;
+    // Para cada proceso, obtener el último hito activo
+    const ultimosHitosActivos: HitoAlert[] = [];
+    hitosPorProceso.forEach((hitosProceso) => {
+      // Filtrar solo hitos activos (sin fecha_cumplimiento)
+      const hitosActivos = hitosProceso.filter(h => !h.fecha_cumplimiento);
+      
+      if (hitosActivos.length > 0) {
+        // Ordenar por fecha_limite (más reciente primero) o fecha_base
+        hitosActivos.sort((a, b) => {
+          const fechaA = a.fecha_limite ? new Date(a.fecha_limite).getTime() : 
+                        (a.fecha_base ? new Date(a.fecha_base).getTime() : 0);
+          const fechaB = b.fecha_limite ? new Date(b.fecha_limite).getTime() : 
+                        (b.fecha_base ? new Date(b.fecha_base).getTime() : 0);
+          return fechaB - fechaA; // Más reciente primero
+        });
+        
+        // Tomar el primero (más reciente)
+        ultimosHitosActivos.push(hitosActivos[0]);
+      }
+    });
+    
+    return ultimosHitosActivos;
   };
 
-  const filteredHitosAlertas = getHitoMasRelevante(
-    hitosAlertas.filter(hito => {
+  // Obtener solo los últimos hitos activos de cada proceso
+  const ultimosHitosActivos = getUltimoHitoActivoPorProceso(hitosAlertas)
+  
+  const filteredHitosAlertas = ultimosHitosActivos.filter(hito => {
     const matchesSearch =
         hito.nombre_hito.toLowerCase().includes(searchTerm.toLowerCase()) ||
         hito.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (hito.solicitud?.descripcionCargo?.titulo_cargo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (hito.solicitud?.contacto?.cliente?.nombre_cliente || '').toLowerCase().includes(searchTerm.toLowerCase())
       
-      const matchesService = serviceFilter === "all" || hito.codigo_servicio === serviceFilter
+    const matchesService = serviceFilter === "all" || hito.codigo_servicio === serviceFilter
+    
+    const matchesConsultor = consultorFilter === "all" || 
+                            hito.solicitud?.rut_usuario === consultorFilter
 
-      return matchesSearch && matchesService
-    })
-  ).sort((a, b) => {
+    return matchesSearch && matchesService && matchesConsultor
+  }).sort((a, b) => {
     // Ordenar por días restantes (menor a mayor)
     const diasA = a.dias_restantes || 0
     const diasB = b.dias_restantes || 0
@@ -340,8 +375,8 @@ export default function AlertasPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 items-center">
-            <div className="flex-1">
+          <div className="flex gap-4 items-center flex-wrap">
+            <div className="flex-1 min-w-[300px]">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -358,13 +393,28 @@ export default function AlertasPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los servicios</SelectItem>
-                {Object.entries(serviceTypeLabels).map(([key, label]) => (
+                {Object.entries(serviceCodeLabels).map(([key, label]) => (
                   <SelectItem key={key} value={key}>
                     {label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {user?.role === 'admin' && (
+              <Select value={consultorFilter} onValueChange={setConsultorFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Consultor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los consultores</SelectItem>
+                  {consultores.map((consultor) => (
+                    <SelectItem key={consultor.rut} value={consultor.rut}>
+                      {consultor.nombre} {consultor.apellido}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -434,9 +484,22 @@ export default function AlertasPage() {
                                     )}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                                   <div className="flex items-center gap-1">
                                     <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                  </div>
+                                  {user?.role === 'admin' && hito.solicitud?.usuario && (
+                                    <div className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      <span className="font-medium">
+                                        {hito.solicitud.usuario.nombre_usuario} {hito.solicitud.usuario.apellido_usuario}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {serviceCodeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                    </Badge>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
@@ -490,9 +553,22 @@ export default function AlertasPage() {
                                   </div>
                                   <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Próxima a Vencer</Badge>
                                 </div>
-                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                                   <div className="flex items-center gap-1">
                                     <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                  </div>
+                                  {user?.role === 'admin' && hito.solicitud?.usuario && (
+                                    <div className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      <span className="font-medium">
+                                        {hito.solicitud.usuario.nombre_usuario} {hito.solicitud.usuario.apellido_usuario}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {serviceCodeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                    </Badge>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />
@@ -546,9 +622,22 @@ export default function AlertasPage() {
                                   </div>
                                   <Badge variant="destructive" className="bg-red-100 text-red-800">Vencida</Badge>
                                 </div>
-                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                                   <div className="flex items-center gap-1">
                                     <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                  </div>
+                                  {user?.role === 'admin' && hito.solicitud?.usuario && (
+                                    <div className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      <span className="font-medium">
+                                        {hito.solicitud.usuario.nombre_usuario} {hito.solicitud.usuario.apellido_usuario}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {serviceCodeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                    </Badge>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Briefcase className="h-3 w-3" />

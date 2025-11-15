@@ -135,7 +135,7 @@ export class PostulacionController {
                 cv_file: cvFile,
                 work_experience,
                 education
-            });
+            }, req.user?.id);
 
             Logger.info(`Postulación creada con nuevo candidato: ${nuevaPostulacion.id}`);
             return sendSuccess(res, nuevaPostulacion, 'Postulación creada exitosamente', 201);

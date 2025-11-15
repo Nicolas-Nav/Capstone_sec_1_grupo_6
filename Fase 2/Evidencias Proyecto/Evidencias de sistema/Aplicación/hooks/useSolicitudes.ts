@@ -41,6 +41,14 @@ export function useSolicitudes() {
   
   // Estado para almacenar todos los tipos de servicio disponibles (con código y nombre)
   const [allServiceTypes, setAllServiceTypes] = useState<Array<{codigo: string, nombre: string}>>([])
+  
+  // Estado para almacenar las estadísticas
+  const [stats, setStats] = useState({
+    total: 0,
+    en_progreso: 0,
+    completadas: 0,
+    pendientes: 0,
+  })
 
   // Referencias para rastrear valores anteriores de filtros
   const prevSearchTerm = useRef(searchTerm)
@@ -125,44 +133,59 @@ export function useSolicitudes() {
     }
   }
 
-  // Efecto inicial para cargar todos los tipos de servicio disponibles
-  useEffect(() => {
-    const fetchAllServiceTypes = async () => {
-      try {
-        // Usar el endpoint optimizado que devuelve solo los tipos de servicio
-        const response = await descripcionCargoService.getFormData()
-        
-        if (response.success && response.data?.tipos_servicio) {
-          // Mapeo de códigos a nombres correctos (igual que en el backend)
-          const serviceMapping: Record<string, string> = {
-            'PC': 'Proceso Completo',
-            'LL': 'Long List',
-            'TR': 'Targeted Recruitment',
-            'HS': 'Headhunting',
-            'ES': 'Evaluación Psicolaboral',
-            'TS': 'Test Psicolaboral',
-            'AO': 'Filtro Inteligente',
-          }
-          
-          // Guardar tipos de servicio con código y nombre correcto, ordenados por nombre
-          const serviceTypes = response.data.tipos_servicio
-            .map((ts: { codigo: string; nombre: string }) => ({
-              codigo: ts.codigo,
-              nombre: serviceMapping[ts.codigo] || ts.nombre // Usar mapeo si existe, sino el nombre de la BD
-            }))
-            .filter((ts: { codigo: string; nombre: string }) => ts.codigo && ts.nombre)
-            .sort((a: { codigo: string; nombre: string }, b: { codigo: string; nombre: string }) => 
-              a.nombre.localeCompare(b.nombre)
-            )
-          
-          setAllServiceTypes(serviceTypes)
-        }
-      } catch (error) {
-        console.error("Error fetching service types:", error)
-      }
-    }
+  // Función para cargar estadísticas y tipos de servicio
+  const fetchStatsAndServiceTypes = async () => {
+    try {
+      // Hacer una llamada sin paginación para obtener todas las solicitudes para estadísticas
+      const res = await fetch(`${API_URL}/api/solicitudes/all`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
+        },
+      })
 
-    fetchAllServiceTypes()
+      const data = await res.json()
+      
+      if (res.ok && data?.success) {
+        const allSolicitudes = data.data || []
+        
+        // Calcular estadísticas
+        const total = allSolicitudes.length
+        const en_progreso = allSolicitudes.filter((s: any) => 
+          s.status === 'en_progreso' || s.estado_solicitud === 'En Progreso'
+        ).length
+        const completadas = allSolicitudes.filter((s: any) => 
+          s.status === 'cerrado' || s.estado_solicitud === 'Cerrado'
+        ).length
+        const pendientes = allSolicitudes.filter((s: any) => 
+          s.status === 'creado' || s.estado_solicitud === 'Creado'
+        ).length
+        
+        setStats({
+          total,
+          en_progreso,
+          completadas,
+          pendientes,
+        })
+        
+        // Extraer tipos de servicio
+        const serviceTypes = Array.from(
+          new Set(
+            allSolicitudes
+              .map((s: any) => s.service_type || s.tipo_servicio)
+              .filter(Boolean)
+          )
+        ).sort() as string[]
+        
+        setAllServiceTypes(serviceTypes)
+      }
+    } catch (error) {
+      console.error("Error fetching stats and service types:", error)
+    }
+  }
+
+  // Efecto inicial para cargar estadísticas y tipos de servicio
+  useEffect(() => {
+    fetchStatsAndServiceTypes()
   }, []) // Solo ejecutar al montar el componente
 
   // Efecto para recargar solicitudes cuando cambien los filtros o paginación
@@ -240,47 +263,8 @@ export function useSolicitudes() {
   // Función para refrescar todos los datos (solicitudes y estadísticas)
   const refreshData = async () => {
     await fetchSolicitudes()
-    // También recargar tipos de servicio por si se agregó uno nuevo
-    try {
-      // Usar el endpoint optimizado que devuelve solo los tipos de servicio
-      const response = await descripcionCargoService.getFormData()
-      
-      if (response.success && response.data?.tipos_servicio) {
-        // Mapeo de códigos a nombres correctos (igual que en el backend)
-        const serviceMapping: Record<string, string> = {
-          'PC': 'Proceso Completo',
-          'LL': 'Long List',
-          'TR': 'Targeted Recruitment',
-          'HS': 'Headhunting',
-          'ES': 'Evaluación Psicolaboral',
-          'TS': 'Test Psicolaboral',
-          'AO': 'Filtro Inteligente',
-        }
-        
-        // Guardar tipos de servicio con código y nombre correcto, ordenados por nombre
-        const serviceTypes = response.data.tipos_servicio
-          .map((ts: { codigo: string; nombre: string }) => ({
-            codigo: ts.codigo,
-            nombre: serviceMapping[ts.codigo] || ts.nombre // Usar mapeo si existe, sino el nombre de la BD
-          }))
-          .filter((ts: { codigo: string; nombre: string }) => ts.codigo && ts.nombre)
-          .sort((a: { codigo: string; nombre: string }, b: { codigo: string; nombre: string }) => 
-            a.nombre.localeCompare(b.nombre)
-          )
-        
-        setAllServiceTypes(serviceTypes)
-      }
-    } catch (error) {
-      console.error("Error refreshing service types:", error)
-    }
-  }
-
-  // Calcular estadísticas
-  const stats = {
-    total: totalSolicitudes,
-    en_progreso: 0, // Se calculará del servidor si es necesario
-    completadas: 0, // Se calculará del servidor si es necesario
-    pendientes: 0, // Se calculará del servidor si es necesario
+    // Recargar estadísticas y tipos de servicio
+    await fetchStatsAndServiceTypes()
   }
 
   return {

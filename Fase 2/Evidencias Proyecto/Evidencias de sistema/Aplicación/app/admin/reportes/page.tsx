@@ -9,12 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { solicitudService } from "@/lib/api"
-import { Users, Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react"
+import { Users, Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState, useEffect, useMemo, Fragment } from "react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
+import * as XLSX from "xlsx"
 
 type WeekOption = {
   id: string
@@ -239,6 +240,7 @@ export default function ReportesPage() {
       cliente: string
       contacto: string | null
       comuna: string | null
+      cargo: string | null
       total_candidatos: number
       candidatos_exitosos: Array<{ nombre: string; rut: string }>
     }>
@@ -845,6 +847,96 @@ export default function ReportesPage() {
       years.push(year)
     }
     return years
+  }
+
+  // Función para exportar procesos cerrados exitosos a Excel
+  const exportToExcel = () => {
+    try {
+      // Preparar datos para el Excel
+      const excelData: any[] = []
+      
+      closedSuccessfulProcesses.forEach((process) => {
+        if (process.candidatos_exitosos.length > 0) {
+          // Si hay candidatos exitosos, crear una fila por cada candidato
+          process.candidatos_exitosos.forEach((candidato, index) => {
+            excelData.push({
+              'ID Solicitud': process.id_solicitud,
+              'Tipo de Servicio': process.tipo_servicio,
+              'Nombre del Servicio': process.nombre_servicio,
+              'Cliente': process.cliente,
+              'Cargo': process.cargo || 'Sin cargo',
+              'Contacto': process.contacto || 'Sin contacto',
+              'Comuna': process.comuna || 'Sin comuna',
+              'Total Candidatos': process.total_candidatos,
+              'Candidatos Exitosos (Total)': process.candidatos_exitosos.length,
+              'Candidato Exitoso - Nombre': candidato.nombre,
+              'Candidato Exitoso - RUT': candidato.rut,
+            })
+          })
+        } else {
+          // Si no hay candidatos exitosos, crear una sola fila sin datos de candidatos
+          excelData.push({
+            'ID Solicitud': process.id_solicitud,
+            'Tipo de Servicio': process.tipo_servicio,
+            'Nombre del Servicio': process.nombre_servicio,
+            'Cliente': process.cliente,
+            'Cargo': process.cargo || 'Sin cargo',
+            'Contacto': process.contacto || 'Sin contacto',
+            'Comuna': process.comuna || 'Sin comuna',
+            'Total Candidatos': process.total_candidatos,
+            'Candidatos Exitosos (Total)': 0,
+            'Candidato Exitoso - Nombre': '',
+            'Candidato Exitoso - RUT': '',
+          })
+        }
+      })
+
+      // Crear hoja de trabajo
+      const worksheet = XLSX.utils.json_to_sheet(excelData)
+      
+      // Ajustar ancho de columnas
+      const columnWidths = [
+        { wch: 12 }, // ID Solicitud
+        { wch: 20 }, // Tipo de Servicio
+        { wch: 30 }, // Nombre del Servicio
+        { wch: 30 }, // Cliente
+        { wch: 25 }, // Cargo
+        { wch: 25 }, // Contacto
+        { wch: 20 }, // Comuna
+        { wch: 18 }, // Total Candidatos
+        { wch: 22 }, // Candidatos Exitosos (Total)
+        { wch: 35 }, // Candidato Exitoso - Nombre
+        { wch: 15 }, // Candidato Exitoso - RUT
+      ]
+      worksheet['!cols'] = columnWidths
+
+      // Crear libro de trabajo
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Procesos Cerrados Exitosos')
+
+      // Generar nombre de archivo con fecha
+      const periodLabel = closedProcessesTimePeriod === "week" 
+        ? `Semana_${selectedClosedProcessesWeekOption?.label || 'actual'}`
+        : `${monthNames[closedProcessesMonth]}_${closedProcessesYear}`
+      
+      const fileName = `Procesos_Cerrados_Exitosos_${periodLabel}.xlsx`
+
+      // Descargar archivo
+      XLSX.writeFile(workbook, fileName)
+      
+      showToast({
+        type: "success",
+        title: "Exportación exitosa",
+        description: "El reporte se ha descargado correctamente",
+      })
+    } catch (error) {
+      console.error("Error al exportar a Excel:", error)
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "No se pudo exportar el reporte a Excel",
+      })
+    }
   }
 
   return (
@@ -1871,10 +1963,26 @@ export default function ReportesPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Procesos Cerrados Exitosos</CardTitle>
-              <CardDescription>
-                Procesos cerrados en el período seleccionado con detalles de candidatos exitosos
-              </CardDescription>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Procesos Cerrados Exitosos</CardTitle>
+                  <CardDescription>
+                    Procesos cerrados en el período seleccionado con detalles de candidatos exitosos
+                  </CardDescription>
+                </div>
+                {closedSuccessfulProcesses.length > 0 && (
+                  <Button
+                    onClick={exportToExcel}
+                    size="sm"
+                    variant="outline"
+                    className="flex items-center gap-2"
+                    disabled={loadingClosedProcesses}
+                  >
+                    <Download className="h-4 w-4" />
+                    Descargar Excel
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {loadingClosedProcesses ? (
@@ -1896,6 +2004,7 @@ export default function ReportesPage() {
                         <TableHead className="w-[50px]"></TableHead>
                         <TableHead>Tipo de Servicio</TableHead>
                         <TableHead>Cliente</TableHead>
+                        <TableHead>Cargo</TableHead>
                         <TableHead>Contacto</TableHead>
                         <TableHead>Comuna</TableHead>
                         <TableHead className="text-center">Total Candidatos</TableHead>
@@ -1930,6 +2039,7 @@ export default function ReportesPage() {
                               </TableCell>
                               <TableCell className="font-medium">{process.nombre_servicio}</TableCell>
                               <TableCell>{process.cliente}</TableCell>
+                              <TableCell>{process.cargo || "Sin cargo"}</TableCell>
                               <TableCell>{process.contacto || "Sin contacto"}</TableCell>
                               <TableCell>{process.comuna || "Sin comuna"}</TableCell>
                               <TableCell className="text-center">{process.total_candidatos}</TableCell>
@@ -1945,7 +2055,7 @@ export default function ReportesPage() {
                             </TableRow>
                             {isExpanded && process.candidatos_exitosos.length > 0 && (
                               <TableRow>
-                                <TableCell colSpan={7} className="bg-muted/50">
+                                <TableCell colSpan={8} className="bg-muted/50">
                                   <div className="p-4 space-y-2">
                                     <h4 className="font-semibold text-sm mb-3">Candidatos Exitosos:</h4>
                                     <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">

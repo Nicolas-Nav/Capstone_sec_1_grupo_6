@@ -536,6 +536,7 @@ export const solicitudService = {
         cliente: string;
         contacto: string | null;
         comuna: string | null;
+        cargo: string | null;
         total_candidatos: number;
         candidatos_exitosos: Array<{ nombre: string; rut: string }>;
       }>

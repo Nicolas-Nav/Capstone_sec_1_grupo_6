@@ -77,7 +77,7 @@ export class PublicacionController {
                 url_publicacion,
                 estado_publicacion,
                 fecha_publicacion
-            });
+            }, req.user?.id);
 
             Logger.info(`Publicación creada: ${result.id}`);
             return sendSuccess(res, result, 'Publicación creada exitosamente', 201);

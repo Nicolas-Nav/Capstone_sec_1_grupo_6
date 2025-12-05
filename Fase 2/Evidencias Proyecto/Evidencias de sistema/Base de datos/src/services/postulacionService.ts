@@ -1,6 +1,7 @@
 import { Transaction } from 'sequelize';
 import sequelize from '@/config/database';
 import { Logger } from '@/utils/logger';
+import { setDatabaseUser } from '@/utils/databaseUser';
 import {
     Postulacion,
     Candidato,
@@ -97,7 +98,9 @@ export class PostulacionService {
                             model: EstadoCliente,
                             as: 'estadoCliente'
                         }
-                    ]
+                    ],
+                    separate: true,
+                    order: [['updated_at', 'DESC']]
                 }
             ],
             order: [['id_postulacion', 'DESC']]
@@ -171,7 +174,9 @@ export class PostulacionService {
                             model: EstadoCliente,
                             as: 'estadoCliente'
                         }
-                    ]
+                    ],
+                    separate: true,
+                    order: [['updated_at', 'DESC']]
                 }
             ]
         });
@@ -195,8 +200,6 @@ export class PostulacionService {
         disponibilidad_postulacion?: string;
         valoracion?: number;
         comentario_no_presentado?: string;
-        comentario_rech_obs_cliente?: string;
-        comentario_modulo5_cliente?: string;
         situacion_familiar?: string;
         cv_file?: Buffer;
     }) {
@@ -239,8 +242,6 @@ export class PostulacionService {
                 disponibilidad_postulacion: data.disponibilidad_postulacion,
                 valoracion: data.valoracion,
                 comentario_no_presentado: data.comentario_no_presentado,
-                comentario_rech_obs_cliente: data.comentario_rech_obs_cliente,
-                comentario_modulo5_cliente: data.comentario_modulo5_cliente,
                 situacion_familiar: data.situacion_familiar,
                 cv_postulacion: data.cv_file
             }, { transaction });
@@ -282,10 +283,14 @@ export class PostulacionService {
         cv_file?: Buffer;
         work_experience?: any[];
         education?: any[];
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
             const {
                 process_id,
                 name,
@@ -325,9 +330,17 @@ export class PostulacionService {
             let candidato = await CandidatoService.getCandidatoByEmail(email);
 
             if (!candidato) {
+                // Separar nombre completo en partes
+                const nombrePartes = name.trim().split(' ');
+                const nombre = nombrePartes[0] || '';
+                const primerApellido = nombrePartes[1] || '';
+                const segundoApellido = nombrePartes.slice(2).join(' ') || undefined;
+                
                 // Crear candidato usando el servicio
                 const nuevoCandidatoResult = await CandidatoService.createCandidato({
-                    name,
+                    nombre,
+                    primer_apellido: primerApellido,
+                    segundo_apellido: segundoApellido,
                     email,
                     phone,
                     birth_date,
@@ -338,7 +351,7 @@ export class PostulacionService {
                     has_disability_credential,
                     work_experience,
                     education
-                }, transaction);
+                }, transaction, usuarioRut);
 
                 // Obtener el candidato recién creado (modelo Sequelize)
                 candidato = await Candidato.findByPk(parseInt(nuevoCandidatoResult.id));
@@ -398,25 +411,32 @@ export class PostulacionService {
     /**
      * Actualizar estado de postulación
      */
-    static async updateEstado(id: number, data: { presentation_status: string; rejection_reason?: string }) {
+    static async updateEstado(id: number, data: { presentation_status: string; rejection_reason?: string }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const { presentation_status, rejection_reason } = data;
 
-            const postulacion = await Postulacion.findByPk(id);
+            const postulacion = await Postulacion.findByPk(id, { transaction });
             if (!postulacion) {
                 throw new Error('Postulación no encontrada');
             }
 
             // Mapear estado
-            let nombreEstado = 'Postulado';
+            let nombreEstado = 'Agregado';
             if (presentation_status === 'presentado') {
                 nombreEstado = 'Presentado';
             } else if (presentation_status === 'no_presentado') {
                 nombreEstado = 'No Presentado';
             } else if (presentation_status === 'rechazado') {
                 nombreEstado = 'Rechazado';
+            } else if (presentation_status === 'agregado') {
+                nombreEstado = 'Agregado';
             }
 
             const nuevoEstado = await EstadoCandidato.findOne({
@@ -449,18 +469,27 @@ export class PostulacionService {
         motivacion?: string;
         expectativa_renta?: number;
         disponibilidad_postulacion?: string;
+        situacion_familiar?: string;
         comentario_no_presentado?: string;
-    }) {
+    }, usuarioRut?: string) {
         console.log('🔍 === SERVICIO updateValoracion ===');
         console.log('🔍 ID:', id);
         console.log('🔍 Data recibida:', JSON.stringify(data, null, 2));
+        
+        const transaction: Transaction = await sequelize.transaction();
+        
+        try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
         
         // Validar valoración si se proporciona
         if (data.valoracion !== undefined && (data.valoracion < 1 || data.valoracion > 5)) {
             throw new Error('La valoración debe estar entre 1 y 5');
         }
 
-        const postulacion = await Postulacion.findByPk(id);
+            const postulacion = await Postulacion.findByPk(id, { transaction });
         if (!postulacion) {
             throw new Error('Postulación no encontrada');
         }
@@ -468,22 +497,29 @@ export class PostulacionService {
         console.log('🔍 Postulación encontrada:', postulacion.id_postulacion);
         console.log('🔍 Valoración actual:', postulacion.valoracion);
 
-        // Actualizar solo los campos proporcionados
-        const updateData: any = {};
-        if (data.valoracion !== undefined) updateData.valoracion = data.valoracion;
-        if (data.motivacion !== undefined) updateData.motivacion = data.motivacion;
-        if (data.expectativa_renta !== undefined) updateData.expectativa_renta = data.expectativa_renta;
-        if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
-        if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
+            // Actualizar solo los campos proporcionados
+            const updateData: any = {};
+            if (data.valoracion !== undefined) updateData.valoracion = data.valoracion;
+            if (data.motivacion !== undefined) updateData.motivacion = data.motivacion;
+            if (data.expectativa_renta !== undefined) updateData.expectativa_renta = data.expectativa_renta;
+            if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
+            if (data.situacion_familiar !== undefined) updateData.situacion_familiar = data.situacion_familiar;
+            if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
 
         console.log('🔍 Datos a actualizar:', updateData);
 
-        await postulacion.update(updateData);
+            await postulacion.update(updateData, { transaction });
+
+            await transaction.commit();
 
         console.log('🔍 Postulación actualizada exitosamente');
         console.log('🔍 Nueva valoración:', postulacion.valoracion);
 
         return { id, ...updateData };
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
     }
 
     /**
@@ -587,12 +623,12 @@ export class PostulacionService {
         const portal = postulacion.get('portalPostulacion') as any;
         const estadosCliente = postulacion.get('estadosCliente') as any[];
 
-        // Obtener el último estado de cliente (más reciente)
-        const ultimoEstadoCliente = estadosCliente && estadosCliente.length > 0 
-            ? estadosCliente.sort((a: any, b: any) => 
-                new Date(b.fecha_cambio_estado_cliente).getTime() - new Date(a.fecha_cambio_estado_cliente).getTime()
-              )[0]
-            : null;
+        // Obtener el último estado de cliente
+        // Los estados están ordenados por updated_at DESC, el primero es el más reciente
+        let ultimoEstadoCliente = null;
+        if (estadosCliente && estadosCliente.length > 0) {
+            ultimoEstadoCliente = estadosCliente[0];
+        }
 
         const estadoClienteNombre = ultimoEstadoCliente?.estadoCliente?.nombre_estado?.toLowerCase();
 
@@ -602,6 +638,9 @@ export class PostulacionService {
             id_postulacion: postulacion.id_postulacion, // ✅ ID de la postulación (número)
             process_id: postulacion.id_solicitud.toString(),
             name: candidato.getNombreCompleto(),
+            nombre: candidato.nombre_candidato || '',
+            primer_apellido: candidato.primer_apellido_candidato || '',
+            segundo_apellido: candidato.segundo_apellido_candidato || '',
             email: candidato.email_candidato,
             phone: candidato.telefono_candidato,
             rut: candidato.rut_candidato || undefined,
@@ -623,18 +662,20 @@ export class PostulacionService {
             profession_institution: '', // Se llenará después con consulta separada
             profession_date: candidato.profesiones?.[0]?.CandidatoProfesion?.fecha_obtencion ? new Date(candidato.profesiones[0].CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0] : '',
             professions: candidato.profesiones?.map((prof: any) => ({
+                id_profesion: prof.id_profesion, // ID de la profesión
                 profession: prof.nombre_profesion,
                 institution: '', // Se llenará después con consulta separada
+                id_institucion: prof.CandidatoProfesion?.id_institucion, // ID de la institución
                 date: prof.CandidatoProfesion?.fecha_obtencion ? new Date(prof.CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0] : ''
             })) || [],
             consultant_comment: postulacion.comentario_no_presentado,
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),
-            rejection_reason: postulacion.comentario_rech_obs_cliente,
+            rejection_reason: ultimoEstadoCliente?.comentario_rech_obs_cliente || undefined,
             // Campos del módulo 3 - Presentación de candidatos
             presentation_date: postulacion.fecha_envio ? (postulacion.fecha_envio instanceof Date ? postulacion.fecha_envio.toISOString() : new Date(postulacion.fecha_envio).toISOString()) : undefined,
             client_response: estadoClienteNombre || undefined,
-            client_feedback_date: postulacion.fecha_feedback_cliente ? (postulacion.fecha_feedback_cliente instanceof Date ? postulacion.fecha_feedback_cliente.toISOString() : new Date(postulacion.fecha_feedback_cliente).toISOString()) : undefined,
-            client_comments: postulacion.comentario_rech_obs_cliente || undefined,
+            client_feedback_date: ultimoEstadoCliente?.fecha_feedback_cliente_m3 ? (ultimoEstadoCliente.fecha_feedback_cliente_m3 instanceof Date ? ultimoEstadoCliente.fecha_feedback_cliente_m3.toISOString() : new Date(ultimoEstadoCliente.fecha_feedback_cliente_m3).toISOString()) : undefined,
+            client_comments: ultimoEstadoCliente?.comentario_rech_obs_cliente || undefined,
             has_disability_credential: candidato.discapacidad,
             licencia: candidato.licencia,
             work_experience: candidato.experiencias?.map((exp: any) => ({
@@ -651,9 +692,12 @@ export class PostulacionService {
             education: candidato.postgradosCapacitaciones?.map((edu: any) => {
                 return {
                     id: edu.id_postgradocapacitacion.toString(),
+                    id_postgradocapacitacion: edu.id_postgradocapacitacion,
                     title: edu.nombre_postgradocapacitacion,
                     institution: '', // Se llenará después con query directo
-                    completion_date: '' // Se llenará después con query directo
+                    id_institucion: null, // Se llenará después con query directo
+                    completion_date: '', // Se llenará después con query directo
+                    start_date: '' // Campo opcional para el frontend
                 };
             }) || [],
             portal_responses: {
@@ -689,6 +733,7 @@ export class PostulacionService {
                     const institucionProf = await Institucion.findByPk(prof.CandidatoProfesion.id_institucion);
                     if (institucionProf) {
                         transformedData.professions[i].institution = institucionProf.nombre_institucion;
+                        transformedData.professions[i].id_institucion = institucionProf.id_institucion;
                     }
                 }
             }
@@ -715,6 +760,7 @@ export class PostulacionService {
                         const institucion = await Institucion.findByPk(throughData.id_institucion);
                         if (institucion) {
                             transformedData.education[i].institution = institucion.nombre_institucion;
+                            transformedData.education[i].id_institucion = throughData.id_institucion;
                         }
                     }
                     
@@ -732,21 +778,36 @@ export class PostulacionService {
      * Helpers
      */
     private static mapEstadoToFrontend(nombreEstado?: string): string {
+        if (!nombreEstado) return 'postulado';
+        
+        const estadoLower = nombreEstado.toLowerCase().trim();
+        
         const mapeo: { [key: string]: string } = {
-            'Postulado': 'postulado',
-            'Presentado': 'presentado',
-            'Aprobado': 'aprobado',
-            'Rechazado': 'rechazado',
-            'Contratado': 'contratado'
+            'postulado': 'postulado',
+            'presentado': 'presentado',
+            'aprobado': 'aprobado',
+            'rechazado': 'rechazado',
+            'contratado': 'contratado',
+            'agregado': 'agregado',
+            'no presentado': 'no_presentado',
+            'no_presentado': 'no_presentado'
         };
-        return mapeo[nombreEstado || ''] || 'postulado';
+        
+        return mapeo[estadoLower] || 'postulado';
     }
 
     private static mapPresentationStatus(nombreEstado?: string): string {
-        if (nombreEstado === 'Presentado') return 'presentado';
-        if (nombreEstado === 'No Presentado') return 'no_presentado';
-        if (nombreEstado === 'Rechazado') return 'rechazado';
-        return 'no_presentado';
+        if (!nombreEstado) return 'agregado';
+        
+        const estadoLower = nombreEstado.toLowerCase().trim();
+        
+        if (estadoLower === 'presentado') return 'presentado';
+        if (estadoLower === 'no presentado' || estadoLower === 'no_presentado') return 'no_presentado';
+        if (estadoLower === 'rechazado') return 'rechazado';
+        if (estadoLower === 'agregado') return 'agregado';
+        if (estadoLower === 'postulado') return 'agregado'; // Mapear "Postulado" a "agregado"
+        
+        return 'agregado'; // Por defecto "agregado" para nuevos candidatos
     }
 
     private static calculateAge(birthDate: Date): number {

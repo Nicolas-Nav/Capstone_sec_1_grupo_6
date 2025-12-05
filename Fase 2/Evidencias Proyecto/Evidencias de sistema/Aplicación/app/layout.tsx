@@ -5,6 +5,7 @@ import "./globals.css"
 import { AuthProvider } from "@/hooks/auth"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 
 const inter = Inter({
   variable: "--font-inter",
@@ -17,9 +18,12 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "LLConsulting - Plataforma de Reclutamiento", // Keeping title for SEO but logo will replace visual text
+  title: "LLConsulting - Plataforma de Reclutamiento",
   description: "Sistema de gestión de procesos de reclutamiento",
-    generator: 'v0.app'
+  generator: 'v0.app',
+  icons: {
+    icon: '/images/icon_2.png',
+  },
 }
 
 export default function RootLayout({
@@ -33,6 +37,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>{children}</AuthProvider>
           <Toaster />
+          <SonnerToaster />
         </ThemeProvider>
       </body>
     </html>

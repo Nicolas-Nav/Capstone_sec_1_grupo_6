@@ -115,20 +115,100 @@ export const clientService = {
 };
 
 // ===========================================
+// SISTEMA DE CACHÉ EN MEMORIA
+// ===========================================
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  expiresAt: number;
+}
+
+class SimpleCache {
+  private cache: Map<string, CacheEntry<any>> = new Map();
+  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutos por defecto
+
+  /**
+   * Obtener datos del caché o ejecutar la función si no existe o expiró
+   */
+  async getOrFetch<T>(
+    key: string,
+    fetchFn: () => Promise<T>,
+    ttl: number = this.DEFAULT_TTL
+  ): Promise<T> {
+    const cached = this.cache.get(key);
+    const now = Date.now();
+
+    // Si existe en caché y no ha expirado, retornar datos cacheados
+    if (cached && now < cached.expiresAt) {
+      return cached.data;
+    }
+
+    // Si no existe o expiró, obtener datos frescos
+    const data = await fetchFn();
+    
+    // Guardar en caché
+    this.cache.set(key, {
+      data,
+      timestamp: now,
+      expiresAt: now + ttl,
+    });
+
+    return data;
+  }
+
+  /**
+   * Invalidar una entrada del caché
+   */
+  invalidate(key: string): void {
+    this.cache.delete(key);
+  }
+
+  /**
+   * Limpiar todo el caché
+   */
+  clear(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * Invalidar múltiples claves relacionadas
+   */
+  invalidatePattern(pattern: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+// Instancia global del caché
+const cache = new SimpleCache();
+
+// ===========================================
 // SERVICIOS DE REGIONES Y COMUNAS
 // ===========================================
 
 export const regionService = {
-  // Obtener todas las regiones
+  // Obtener todas las regiones (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/regiones');
+    return cache.getOrFetch(
+      'regiones:all',
+      () => apiRequest('/api/regiones'),
+      10 * 60 * 60 * 1000
+    );
   },
 };
 
 export const comunaService = {
-  // Obtener todas las comunas
+  // Obtener todas las comunas (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/comunas');
+    return cache.getOrFetch(
+      'comunas:all',
+      () => apiRequest('/api/comunas'),
+      10 * 60 * 60 * 1000
+    );
   },
 
   // Obtener comunas por región
@@ -190,6 +270,8 @@ export const descripcionCargoService = {
 
   // Obtener datos de Excel
   async getExcelData(id: number): Promise<ApiResponse<any>> {
+    // El backend ahora retorna 200 incluso cuando no hay datos de Excel
+    // (con success: false), así que podemos usar apiRequest normalmente
     return apiRequest(`/api/descripciones-cargo/${id}/excel`);
   },
 
@@ -279,10 +361,10 @@ export const solicitudService = {
   },
 
   // Cambiar estado de solicitud por ID
-  async cambiarEstado(id: number, id_estado: number): Promise<ApiResponse<any>> {
+  async cambiarEstado(id: number, id_estado: number, reason?: string): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/estado`, {
       method: 'PUT',
-      body: JSON.stringify({ id_estado }),
+      body: JSON.stringify({ id_estado, reason }),
     });
   },
 
@@ -314,14 +396,194 @@ export const solicitudService = {
     });
   },
 
+  // Avanzar al módulo 5
+  async avanzarAModulo5(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/avanzar-modulo5`, {
+      method: 'PUT',
+    });
+  },
+
   // Obtener etapas disponibles
   async getEtapas(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/solicitudes/etapas/disponibles');
   },
 
-  // Obtener estados de solicitud disponibles
+  // Obtener estados de solicitud disponibles (con caché)
   async getEstadosSolicitud(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/solicitudes/estados/disponibles');
+    return cache.getOrFetch(
+      'estados-solicitud:all',
+      () => apiRequest('/api/solicitudes/estados/disponibles'),
+      10 * 60 * 60 * 1000
+    );
+  },
+
+  // Obtener procesos activos agrupados por consultor (reportes)
+  async getActiveProcessesByConsultant(): Promise<ApiResponse<Record<string, number>>> {
+    return apiRequest('/api/solicitudes/reportes/carga-operativa');
+  },
+
+  // Obtener distribución por tipo de servicio
+  async getProcessesByServiceType(): Promise<ApiResponse<Array<{ service: string; count: number; percentage: number }>>> {
+    return apiRequest('/api/solicitudes/reportes/distribucion-tipo-servicio');
+  },
+
+  // Obtener fuentes de candidatos
+  async getCandidateSourceData(): Promise<ApiResponse<Array<{ source: string; candidates: number; hired: number }>>> {
+    return apiRequest('/api/solicitudes/reportes/fuentes-candidatos');
+  },
+
+  // Obtener estadísticas generales de procesos
+  async getProcessStats(): Promise<ApiResponse<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }>> {
+    return apiRequest('/api/solicitudes/reportes/estadisticas');
+  },
+
+  // Obtener distribución de estados de procesos para un período
+  async getProcessStatusDistribution(
+    year: number,
+    month: number,
+    week?: number,
+    periodType: 'week' | 'month' | 'quarter' = 'month'
+  ): Promise<ApiResponse<Array<{ status: string; count: number }>>> {
+    const params = new URLSearchParams({
+      year: year.toString(),
+      month: month.toString(),
+      periodType,
+    });
+    if (week) {
+      params.append('week', week.toString());
+    }
+    return apiRequest(`/api/solicitudes/reportes/distribucion-estados?${params.toString()}`);
+  },
+
+  async getAverageProcessTimeByService(
+    year: number,
+    month: number,
+    week?: number,
+    periodType: 'week' | 'month' | 'quarter' = 'month'
+  ): Promise<ApiResponse<Array<{ serviceCode: string; serviceName: string; averageDays: number; sampleSize: number }>>> {
+    const params = new URLSearchParams({
+      year: year.toString(),
+      month: month.toString(),
+      periodType,
+    });
+    if (week) {
+      params.append('week', week.toString());
+    }
+    return apiRequest(`/api/solicitudes/reportes/tiempo-promedio-servicio?${params.toString()}`);
+  },
+
+  async getProcessOverview(
+    year: number,
+    month: number,
+    week?: number,
+    periodType: 'week' | 'month' | 'quarter' = 'month'
+  ): Promise<
+    ApiResponse<{
+      processes: Array<{
+        id: number;
+        client: string;
+        position: string;
+        serviceCode: string;
+        serviceName: string;
+        consultant: string;
+        status: string;
+        statusRaw: string;
+        startDate: string | null;
+        deadline: string | null;
+        closedAt: string | null;
+        daysOpen: number | null;
+        daysUntilDeadline: number | null;
+        urgency: 'no_deadline' | 'on_track' | 'due_soon' | 'overdue' | 'closed_on_time' | 'closed_overdue';
+      }>;
+      totals: {
+        total: number;
+        inProgress: number;
+        completed: number;
+        paused: number;
+        cancelled: number;
+      };
+      statusCounts: Record<string, number>;
+      urgencySummary: {
+        dueSoonCount: number;
+        overdueCount: number;
+        dueSoonProcesses: Array<number>;
+        overdueProcesses: Array<number>;
+      };
+    }>
+  > {
+    const params = new URLSearchParams({
+      year: year.toString(),
+      month: month.toString(),
+      periodType,
+    });
+    if (week) {
+      params.append('week', week.toString());
+    }
+    return apiRequest(`/api/solicitudes/reportes/overview?${params.toString()}`);
+  },
+
+  async getClosedSuccessfulProcesses(
+    year: number,
+    month: number,
+    week?: number,
+    periodType: 'week' | 'month' | 'quarter' = 'month'
+  ): Promise<
+    ApiResponse<
+      Array<{
+        id_solicitud: number;
+        tipo_servicio: string;
+        nombre_servicio: string;
+        cliente: string;
+        contacto: string | null;
+        comuna: string | null;
+        cargo: string | null;
+        total_candidatos: number;
+        candidatos_exitosos: Array<{ nombre: string; rut: string }>;
+      }>
+    >
+  > {
+    const params = new URLSearchParams({
+      year: year.toString(),
+      month: month.toString(),
+      periodType,
+    });
+    if (week) {
+      params.append('week', week.toString());
+    }
+    return apiRequest(`/api/solicitudes/reportes/procesos-cerrados-exitosos?${params.toString()}`);
+  },
+
+  async getConsultantPerformance(): Promise<
+    ApiResponse<
+      Array<{
+        consultant: string;
+        processesCompleted: number;
+        avgTimeToHire: number;
+        efficiency: number;
+      }>
+    >
+  > {
+    return apiRequest(`/api/solicitudes/reportes/rendimiento-consultor`);
+  },
+
+  async getConsultantCompletionStats(): Promise<
+    ApiResponse<
+      Array<{
+        consultant: string;
+        completed: number;
+        onTime: number;
+        delayed: number;
+        completionRate: number;
+      }>
+    >
+  > {
+    return apiRequest(`/api/solicitudes/reportes/cumplimiento-consultor`);
+  },
+
+  async getConsultantOverdueHitos(): Promise<
+    ApiResponse<Record<string, number>>
+  > {
+    return apiRequest(`/api/solicitudes/reportes/retrasos-consultor`);
   },
 
   // Cambiar etapa de solicitud
@@ -329,6 +591,58 @@ export const solicitudService = {
     return apiRequest(`/api/solicitudes/${id}/etapa`, {
       method: 'PUT',
       body: JSON.stringify({ id_etapa }),
+    });
+  },
+
+  // Crear solicitud de evaluación con candidatos (transacción atómica)
+  async crearConCandidatos(data: {
+    contact_id: number;
+    service_type: string;
+    position_title: string;
+    ciudad?: string;
+    description?: string;
+    requirements?: string;
+    consultant_id: string;
+    deadline_days?: number;
+    candidatos: Array<{
+      nombre: string;
+      primer_apellido: string;
+      segundo_apellido?: string;
+      email: string;
+      phone: string;
+      rut?: string;
+      has_disability_credential?: boolean;
+    }>;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/solicitudes/con-candidatos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar solicitud de evaluación con candidatos nuevos (transacción atómica)
+  async actualizarConCandidatos(id: number, data: {
+    contact_id?: number;
+    service_type?: string;
+    position_title?: string;
+    ciudad?: string;
+    description?: string;
+    requirements?: string;
+    consultant_id?: string;
+    deadline_days?: number;
+    candidatos?: Array<{
+      nombre: string;
+      primer_apellido: string;
+      segundo_apellido?: string;
+      email: string;
+      phone: string;
+      rut?: string;
+      has_disability_credential?: boolean;
+    }>;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/con-candidatos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   },
 };
@@ -363,6 +677,73 @@ export const estadoClienteService = {
 };
 
 // ===========================================
+// SERVICIOS DE ESTADO CLIENTE MÓDULO 5
+// ===========================================
+
+export const estadoClienteM5Service = {
+  // Obtener todos los estados del módulo 5
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/estado-cliente-m5');
+  },
+
+  // Obtener estado por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/${id}`);
+  },
+
+  // Cambiar estado de cliente para una postulación (Módulo 5)
+  async cambiarEstado(id_postulacion: number, data: {
+    id_estado_cliente_postulacion_m5: number;
+    fecha_feedback_cliente_m5: string;
+    comentario_modulo5_cliente?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Avanzar candidato al módulo 5 (desde módulo 4)
+  async avanzarAlModulo5(id_postulacion: number, comentario?: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/avanzar`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        comentario_modulo5_cliente: comentario
+      }),
+    });
+  },
+
+  // Obtener historial de cambios de estado para una postulación
+  async getHistorial(id_postulacion: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/historial`);
+  },
+
+  // Obtener el último estado de una postulación
+  async getUltimoEstado(id_postulacion: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/ultimo`);
+  },
+
+  // Obtener candidatos que están en el módulo 5
+  async getCandidatosEnModulo5(id_proceso: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/estado-cliente-m5/proceso/${id_proceso}/candidatos`);
+  },
+
+  // Actualizar información completa del candidato en módulo 5
+  async actualizarCandidatoModulo5(id_postulacion: number, data: {
+    hiring_status: string;
+    client_response_date?: string;
+    observations?: string;
+    fecha_ingreso_contratacion?: string;
+    observaciones_contratacion?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/estado-cliente-m5/postulacion/${id_postulacion}/actualizar`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ===========================================
 // SERVICIOS DE CANDIDATOS
 // ===========================================
 
@@ -384,7 +765,9 @@ export const candidatoService = {
 
   // Crear candidato
   async create(data: {
-    name: string;
+    nombre: string;
+    primer_apellido: string;
+    segundo_apellido?: string;
     email: string;
     phone: string;
     rut?: string;
@@ -393,9 +776,15 @@ export const candidatoService = {
     nacionalidad?: string;
     rubro?: string;
     profession?: string;
+    professions?: Array<{
+      profession: string;
+      institution: string;
+      date?: string;
+    }>;
     english_level?: string;
     software_tools?: string;
     has_disability_credential?: boolean;
+    licencia?: boolean;
     work_experience?: Array<{
       company: string;
       position: string;
@@ -410,6 +799,11 @@ export const candidatoService = {
       completion_date?: string;
     }>;
   }): Promise<ApiResponse<any>> {
+    console.log('🔧 candidatoService.create - data:', data)
+    console.log('🔧 candidatoService.create - data.nombre:', data.nombre)
+    console.log('🔧 candidatoService.create - data.primer_apellido:', data.primer_apellido)
+    console.log('🔧 candidatoService.create - data.segundo_apellido:', data.segundo_apellido)
+    
     return apiRequest('/api/candidatos', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -418,7 +812,9 @@ export const candidatoService = {
 
   // Actualizar candidato
   async update(id: number, data: {
-    name?: string;
+    nombre?: string;
+    primer_apellido?: string;
+    segundo_apellido?: string;
     email?: string;
     phone?: string;
     rut?: string;
@@ -427,12 +823,24 @@ export const candidatoService = {
     nacionalidad?: string;
     rubro?: string;
     profession?: string;
+    professions?: Array<{
+      profession: string;
+      institution: string;
+      date?: string;
+    }>;
     english_level?: string;
     software_tools?: string;
     has_disability_credential?: boolean;
+    licencia?: boolean;
     work_experience?: any[];
     education?: any[];
   }): Promise<ApiResponse<any>> {
+    console.log('🔧 candidatoService.update - id:', id)
+    console.log('🔧 candidatoService.update - data:', data)
+    console.log('🔧 candidatoService.update - data.nombre:', data.nombre)
+    console.log('🔧 candidatoService.update - data.primer_apellido:', data.primer_apellido)
+    console.log('🔧 candidatoService.update - data.segundo_apellido:', data.segundo_apellido)
+    
     return apiRequest(`/api/candidatos/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -447,7 +855,7 @@ export const candidatoService = {
   },
 
   // Actualizar estado del candidato
-  async updateStatus(id: number, status: 'presentado' | 'no_presentado' | 'rechazado', comment?: string): Promise<ApiResponse<any>> {
+  async updateStatus(id: number, status: 'agregado' | 'presentado' | 'no_presentado' | 'rechazado', comment?: string): Promise<ApiResponse<any>> {
     return apiRequest(`/api/candidatos/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status, comment }),
@@ -557,7 +965,6 @@ export const postulacionService = {
     comentario_no_presentado?: string;
     // Campos adicionales de postulación
     comentario_rech_obs_cliente?: string;
-    comentario_modulo5_cliente?: string;
     situacion_familiar?: string;
   }): Promise<ApiResponse<any>> {
     // Si hay archivo CV, usar FormData
@@ -577,7 +984,6 @@ export const postulacionService = {
       if (data.valoracion) formData.append('valoracion', data.valoracion.toString());
       if (data.comentario_no_presentado) formData.append('comentario_no_presentado', data.comentario_no_presentado);
       if (data.comentario_rech_obs_cliente) formData.append('comentario_rech_obs_cliente', data.comentario_rech_obs_cliente);
-      if (data.comentario_modulo5_cliente) formData.append('comentario_modulo5_cliente', data.comentario_modulo5_cliente);
       if (data.situacion_familiar) formData.append('situacion_familiar', data.situacion_familiar);
 
       const token = localStorage.getItem('llc_token');
@@ -611,7 +1017,6 @@ export const postulacionService = {
     if (data.valoracion) payload.valoracion = data.valoracion;
     if (data.comentario_no_presentado) payload.comentario_no_presentado = data.comentario_no_presentado;
     if (data.comentario_rech_obs_cliente) payload.comentario_rech_obs_cliente = data.comentario_rech_obs_cliente;
-    if (data.comentario_modulo5_cliente) payload.comentario_modulo5_cliente = data.comentario_modulo5_cliente;
     if (data.situacion_familiar) payload.situacion_familiar = data.situacion_familiar;
     
     return apiRequest('/api/postulaciones', {
@@ -644,19 +1049,40 @@ export const postulacionService = {
 
   // Subir/Actualizar CV
   async uploadCV(id: number, file: File): Promise<ApiResponse<any>> {
-    const formData = new FormData();
-    formData.append('cv', file);
+    try {
+      const formData = new FormData();
+      formData.append('cv_file', file);
 
-    const token = localStorage.getItem('llc_token');
-    const response = await fetch(`${API_BASE_URL}/api/postulaciones/${id}/cv`, {
-      method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
-    });
+      const token = localStorage.getItem('llc_token');
+      const response = await fetch(`${API_BASE_URL}/api/postulaciones/${id}/cv`, {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: formData,
+      });
 
-    return await response.json();
+      if (!response.ok) {
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // Si no se puede parsear el JSON, usar el mensaje por defecto
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error: any) {
+      console.error('Error en uploadCV:', error);
+      // Si es un error de red, proporcionar un mensaje más claro
+      if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        throw new Error('Error de conexión. Verifica que el servidor esté ejecutándose y accesible.');
+      }
+      throw error;
+    }
   },
 
   // Descargar CV
@@ -694,9 +1120,13 @@ export const postulacionService = {
 // ===========================================
 
 export const nacionalidadService = {
-  // Obtener todas las nacionalidades
+  // Obtener todas las nacionalidades (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/nacionalidades');
+    return cache.getOrFetch(
+      'nacionalidades:all',
+      () => apiRequest('/api/nacionalidades'),
+      10 * 60 * 60 * 1000
+    );
   },
 };
 
@@ -705,9 +1135,13 @@ export const nacionalidadService = {
 // ===========================================
 
 export const rubroService = {
-  // Obtener todos los rubros
+  // Obtener todos los rubros (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/rubros');
+    return cache.getOrFetch(
+      'rubros:all',
+      () => apiRequest('/api/rubros'),
+      10 * 60 * 60 * 1000
+    );
   },
 };
 
@@ -716,9 +1150,13 @@ export const rubroService = {
 // ===========================================
 
 export const profesionService = {
-  // Obtener todas las profesiones
+  // Obtener todas las profesiones (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/profesiones');
+    return cache.getOrFetch(
+      'profesiones:all',
+      () => apiRequest('/api/profesiones'),
+      10 * 60 * 60 * 1000
+    );
   },
 };
 
@@ -727,9 +1165,56 @@ export const profesionService = {
 // ===========================================
 
 export const institucionService = {
-  // Obtener todas las instituciones
+  // Obtener todas las instituciones (con caché)
   async getAll(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/instituciones');
+    return cache.getOrFetch(
+      'instituciones:all',
+      () => apiRequest('/api/instituciones'),
+      10 * 60 * 60 * 1000
+    );
+  },
+};
+
+// ===========================================
+// SERVICIOS DE PORTALES DE POSTULACIÓN
+// ===========================================
+
+export const portalService = {
+  // Obtener todos los portales
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/portales');
+  },
+
+  // Obtener un portal por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/portales/${id}`);
+  },
+
+  // Crear un nuevo portal
+  async create(data: {
+    nombre_portal_postulacion: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/portales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar un portal
+  async update(id: number, data: {
+    nombre_portal_postulacion: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/portales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Eliminar un portal
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/portales/${id}`, {
+      method: 'DELETE',
+    });
   },
 };
 
@@ -754,9 +1239,13 @@ export const publicacionService = {
     return apiRequest(`/api/publicaciones/${id}`);
   },
 
-  // Obtener todos los portales de postulación
+  // Obtener todos los portales de postulación (con caché)
   async getPortales(): Promise<ApiResponse<any[]>> {
-    return apiRequest('/api/publicaciones/portales');
+    return cache.getOrFetch(
+      'portales:all',
+      () => apiRequest('/api/publicaciones/portales'),
+      10 * 60 * 60 * 1000
+    );
   },
 
   // Crear una nueva publicación
@@ -841,8 +1330,8 @@ export const evaluacionPsicolaboralService = {
 
   // Crear evaluación
   async create(data: {
-    fecha_evaluacion?: Date | null;
-    fecha_envio_informe: Date;
+    fecha_evaluacion?: Date | string | null;
+    fecha_envio_informe?: Date | string | null;
     estado_evaluacion: string;
     estado_informe: string;
     conclusion_global: string;
@@ -856,8 +1345,8 @@ export const evaluacionPsicolaboralService = {
 
   // Actualizar evaluación
   async update(id: number, data: Partial<{
-    fecha_evaluacion: Date | null;
-    fecha_envio_informe: Date;
+    fecha_evaluacion: Date | string | null;
+    fecha_envio_informe: Date | string | null;
     estado_evaluacion: string;
     estado_informe: string;
     conclusion_global: string;
@@ -1004,4 +1493,128 @@ export const referenciaLaboralService = {
       method: 'DELETE',
     });
   }
+};
+
+// ===========================================
+// INTERFACES DE LOG DE CAMBIOS
+// ===========================================
+
+export interface LogCambio {
+  id_log: number;
+  tabla_afectada: string;
+  id_registro: string;
+  accion: 'INSERT' | 'UPDATE' | 'DELETE';
+  detalle_cambio: string;
+  fecha_cambio: string;
+  usuario_responsable: string;
+}
+
+export interface LogEstadisticas {
+  total_logs: number;
+  por_tabla: { tabla: string; count: number }[];
+  por_accion: { accion: string; count: number }[];
+  usuarios_activos: number;
+  tablas_afectadas: number;
+  acciones_recientes: LogCambio[];
+}
+
+// ===========================================
+// SERVICIO DE USUARIOS
+// ===========================================
+
+export const userService = {
+  // Obtener todos los usuarios (para enriquecer logs)
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/users?limit=1000'); // Obtener todos los usuarios
+  },
+
+  // Obtener un usuario por RUT
+  async getByRut(rut: string): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/users/${rut}`);
+  }
+};
+
+// ===========================================
+// SERVICIO DE LOG DE CAMBIOS (HISTORIAL)
+// ===========================================
+
+export const logService = {
+  // Obtener logs con filtros opcionales
+  async getLogs(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<LogCambio[]>> {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+
+    const url = `/api/logs${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return apiRequest(url);
+  },
+
+  // Obtener logs con búsqueda y filtros avanzados
+  async search(params: {
+    search?: string;
+    tabla?: string;
+    accion?: string;
+    usuario?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<LogCambio[]>> {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.append('search', params.search);
+    if (params.tabla) queryParams.append('tabla', params.tabla);
+    if (params.accion) queryParams.append('accion', params.accion);
+    if (params.usuario) queryParams.append('usuario', params.usuario);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    return apiRequest(`/api/logs/search?${queryParams.toString()}`);
+  },
+
+  // Obtener estadísticas del historial
+  async getEstadisticas(): Promise<ApiResponse<LogEstadisticas>> {
+    return apiRequest('/api/logs/estadisticas');
+  },
+
+  // Obtener actividad reciente
+  async getReciente(limit: number = 10): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/reciente?limit=${limit}`);
+  },
+
+  // Obtener logs por tabla específica
+  async getByTabla(tabla: string, limit: number = 100): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/tabla/${tabla}?limit=${limit}`);
+  },
+
+  // Obtener logs por usuario específico
+  async getByUsuario(usuario: string, limit: number = 100): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/usuario/${usuario}?limit=${limit}`);
+  },
+
+  // Obtener logs por acción específica
+  async getByAccion(accion: string, limit: number = 100): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/accion/${accion}?limit=${limit}`);
+  },
+
+  // Obtener historial de un registro específico
+  async getHistorialRegistro(tabla: string, id: string): Promise<ApiResponse<LogCambio[]>> {
+    return apiRequest(`/api/logs/historial/${tabla}/${id}`);
+  }
+};
+
+// ===========================================
+// SERVICIOS DE TIPOS DE SERVICIO
+// ===========================================
+
+export const tipoServicioService = {
+  // Obtener todos los tipos de servicio
+  async getAll(): Promise<ApiResponse<Array<{ codigo: string; nombre: string }>>> {
+    return apiRequest('/api/tipos-servicio');
+  },
+
+  // Obtener un tipo de servicio por código
+  async getByCodigo(codigo: string): Promise<ApiResponse<{ codigo: string; nombre: string }>> {
+    return apiRequest(`/api/tipos-servicio/${codigo}`);
+  },
 };

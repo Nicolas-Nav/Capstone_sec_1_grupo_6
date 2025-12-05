@@ -13,7 +13,6 @@ export class RubroController {
                 order: [['nombre_rubro', 'ASC']]
             });
 
-            Logger.info(`Se obtuvieron ${rubros.length} rubros`);
             return sendSuccess(res, rubros);
         } catch (error: any) {
             Logger.error('Error al obtener rubros:', error);

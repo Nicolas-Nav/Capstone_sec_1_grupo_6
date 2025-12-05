@@ -163,13 +163,19 @@ export class DescripcionCargoController {
 
             return sendSuccess(res, datos, 'Datos de Excel obtenidos exitosamente');
         } catch (error: any) {
+            // Si la descripción no tiene datos de Excel, retornar 200 con success: false
+            // en lugar de 404 para evitar errores en consola del navegador
+            if (error.message.includes('no tiene datos de Excel')) {
+                return sendSuccess(res, { 
+                    success: false, 
+                    data: null,
+                    message: 'No hay datos de Excel asociados'
+                }, 'No hay datos de Excel asociados');
+            }
+
             Logger.error('Error al obtener datos de Excel:', error);
 
             if (error.message === 'Descripción de cargo no encontrada') {
-                return sendError(res, error.message, 404);
-            }
-
-            if (error.message.includes('no tiene datos de Excel')) {
                 return sendError(res, error.message, 404);
             }
 

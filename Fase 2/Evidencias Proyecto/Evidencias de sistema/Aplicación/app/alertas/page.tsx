@@ -1,22 +1,163 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/hooks/auth"
-import { getNotificationsByUser, mockProcesses, mockUsers } from "@/lib/mock-data"
+import { useNotifications } from "@/hooks/useNotifications"
+import { getHitosAlertas, getHitosDashboard, HitoAlert, HitosDashboard } from "@/lib/api-hitos"
+import { descripcionCargoService } from "@/lib/api"
 import { serviceTypeLabels } from "@/lib/utils"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+const serviceCodeLabels: Record<string, string> = {
+  'PC': 'Proceso Completo',
+  'HH': 'Headhunting',
+  'ES': 'Evaluación Psicolaboral',
+  'TS': 'Test Psicolaboral',
+}
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatDateTime } from "@/lib/utils"
+import { formatDateOnly } from "@/lib/utils"
 import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase } from "lucide-react"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 
 export default function AlertasPage() {
   const { user } = useAuth()
+  const { showToast } = useToastNotification()
+  const { markAsRead, loadNotifications, unreadCount: notificationsUnreadCount } = useNotifications(user?.id, user?.role)
   const [searchTerm, setSearchTerm] = useState("")
-  const [consultantFilter, setConsultantFilter] = useState<string>("all")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
+  const [consultorFilter, setConsultorFilter] = useState<string>("all")
+  const [consultores, setConsultores] = useState<Array<{ rut: string; nombre: string; apellido: string }>>([])
+  const [hitosAlertas, setHitosAlertas] = useState<HitoAlert[]>([])
+  const [dashboard, setDashboard] = useState<HitosDashboard | null>(null)
+  const [loading, setLoading] = useState(true)
+  const hasShownToast = useRef(false)
+  const hasMarkedAsRead = useRef(false)
+
+  // Marcar como leídas al entrar a la página (solo una vez)
+  useEffect(() => {
+    if (user && !hasMarkedAsRead.current && hitosAlertas.length > 0) {
+      console.log('[ALERTAS] Marcando notificaciones como leídas al entrar a la página')
+      markAsRead()
+      hasMarkedAsRead.current = true
+      // Recargar notificaciones después de marcarlas para actualizar el contador en el header
+      setTimeout(() => {
+        console.log('[ALERTAS] Recargando notificaciones después de marcar como leídas')
+        loadNotifications()
+      }, 500)
+    }
+  }, [user, markAsRead, loadNotifications, hitosAlertas.length])
+
+  useEffect(() => {
+    if (user) {
+      // Si es admin, cargar lista de consultores
+      if (user.role === 'admin') {
+        loadConsultores()
+      }
+      loadHitosData()
+      
+      // Auto-refresh: actualizar alertas cada 5 minutos para mantener progresión
+      const intervalId = setInterval(() => {
+        console.log('[ALERTAS] Auto-refresh: recargando alertas...')
+        loadHitosData()
+      }, 5 * 60 * 1000) // 5 minutos
+      
+      return () => {
+        clearInterval(intervalId)
+      }
+    }
+  }, [user])
+
+  const loadConsultores = async () => {
+    try {
+      const response = await descripcionCargoService.getFormData()
+      if (response.success && response.data?.consultores) {
+        // Mapear consultores a formato con nombre y apellido separados
+        const consultoresData = response.data.consultores.map((c: any) => {
+          // El nombre puede venir como "Nombre Apellido" o separado
+          const nombreCompleto = c.nombre || ''
+          const partes = nombreCompleto.split(' ')
+          return {
+            rut: c.rut,
+            nombre: partes[0] || '',
+            apellido: partes.slice(1).join(' ') || ''
+          }
+        }).filter((c: any) => c.nombre && c.rut) // Solo incluir consultores con nombre y RUT
+        setConsultores(consultoresData)
+        console.log('Consultores cargados:', consultoresData)
+      }
+    } catch (error) {
+      console.error('Error al cargar consultores:', error)
+    }
+  }
+
+  // Mostrar toast cuando se carguen las alertas por primera vez
+  useEffect(() => {
+    if (!loading && hitosAlertas.length > 0 && !hasShownToast.current) {
+      const vencidas = hitosAlertas.filter(h => h.estado === 'vencido').length
+      const porVencer = hitosAlertas.filter(h => h.estado === 'por_vencer').length
+      
+      if (vencidas > 0 && porVencer > 0) {
+        showToast({
+          type: "warning",
+          title: `Tienes ${hitosAlertas.length} notificaciones nuevas`,
+          description: `${vencidas} vencida${vencidas !== 1 ? 's' : ''} y ${porVencer} por vencer. Revisa tus alertas.`,
+        })
+      } else if (vencidas > 0) {
+        showToast({
+          type: "error",
+          title: `Tienes ${vencidas} notificación${vencidas !== 1 ? 'es' : ''} nueva${vencidas !== 1 ? 's' : ''}`,
+          description: `${vencidas} hito${vencidas !== 1 ? 's' : ''} vencido${vencidas !== 1 ? 's' : ''}. Revisa tus alertas urgentes.`,
+        })
+      } else if (porVencer > 0) {
+        showToast({
+          type: "success",
+          title: `Tienes ${porVencer} notificación${porVencer !== 1 ? 'es' : ''} nueva${porVencer !== 1 ? 's' : ''}`,
+          description: `${porVencer} hito${porVencer !== 1 ? 's' : ''} próximo${porVencer !== 1 ? 's' : ''} a vencer. Revisa tus alertas.`,
+        })
+      }
+      
+      hasShownToast.current = true
+    }
+  }, [loading, hitosAlertas, showToast])
+
+  const loadHitosData = async () => {
+      if (!user) {
+      console.log('ERROR: No hay usuario autenticado')
+      return
+    }
+    
+    setLoading(true)
+    try {
+      console.log('Cargando hitos para usuario:', user.id)
+      console.log('Usuario completo:', user)
+      
+      // Si es admin, no pasar consultorId para ver todas las alertas
+      // Si es consultor, pasar su RUT para ver solo sus alertas
+      const isAdmin = user.role === 'admin'
+      const consultorId = isAdmin ? undefined : (user.id || '209942917')
+      
+      console.log(`Usando consultor_id: ${consultorId || 'TODOS (admin)'}`)
+      
+      // Obtener alertas de hitos
+      // Si es admin, no se pasa consultorId y el backend devuelve todas las alertas
+      const alertas = await getHitosAlertas(consultorId)
+      console.log('Hitos cargados:', alertas.length, alertas)
+      setHitosAlertas(alertas)
+      
+      // Obtener dashboard completo
+      // Si es admin, pasar undefined (se convertirá a 'all' en la función)
+      const dashboardData = await getHitosDashboard(consultorId)
+      console.log('Dashboard cargado:', dashboardData)
+      setDashboard(dashboardData)
+    } catch (error) {
+      console.error('ERROR: Error al cargar datos de hitos:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (!user) {
     return (
@@ -29,75 +170,72 @@ export default function AlertasPage() {
     )
   }
 
-  const userNotifications = getNotificationsByUser(user.id)
+  // Obtener el último hito activo de cada proceso
+  // Un hito activo es uno que no está completado (sin fecha_cumplimiento)
+  const getUltimoHitoActivoPorProceso = (hitos: HitoAlert[]): HitoAlert[] => {
+    const hitosPorProceso = new Map<number, HitoAlert[]>();
+    
+    // Agrupar hitos por id_solicitud
+    hitos.forEach(hito => {
+      const idSolicitud = hito.solicitud?.id_solicitud;
+      if (idSolicitud) {
+        if (!hitosPorProceso.has(idSolicitud)) {
+          hitosPorProceso.set(idSolicitud, []);
+        }
+        hitosPorProceso.get(idSolicitud)!.push(hito);
+      }
+    });
+    
+    // Para cada proceso, obtener el último hito activo
+    const ultimosHitosActivos: HitoAlert[] = [];
+    hitosPorProceso.forEach((hitosProceso) => {
+      // Filtrar solo hitos activos (sin fecha_cumplimiento)
+      const hitosActivos = hitosProceso.filter(h => !h.fecha_cumplimiento);
+      
+      if (hitosActivos.length > 0) {
+        // Ordenar por fecha_limite (más reciente primero) o fecha_base
+        hitosActivos.sort((a, b) => {
+          const fechaA = a.fecha_limite ? new Date(a.fecha_limite).getTime() : 
+                        (a.fecha_base ? new Date(a.fecha_base).getTime() : 0);
+          const fechaB = b.fecha_limite ? new Date(b.fecha_limite).getTime() : 
+                        (b.fecha_base ? new Date(b.fecha_base).getTime() : 0);
+          return fechaB - fechaA; // Más reciente primero
+        });
+        
+        // Tomar el primero (más reciente)
+        ultimosHitosActivos.push(hitosActivos[0]);
+      }
+    });
+    
+    return ultimosHitosActivos;
+  };
 
-  // Mock additional notifications for better demonstration
-  const allNotifications = [
-    ...userNotifications,
-    {
-      id: "demo-1",
-      user_id: user.id,
-      process_id: "1",
-      hito_id: "4",
-      type: "proxima_vencer" as const,
-      title: "Evaluación Psicolaboral próxima a vencer",
-      message: "La evaluación psicolaboral para 'Desarrollador Full Stack Senior' vence en 1 día",
-      created_at: "2024-02-01T09:00:00Z",
-      read: false,
-    },
-    {
-      id: "demo-2",
-      user_id: user.id,
-      process_id: "2",
-      hito_id: "5",
-      type: "proxima_vencer" as const,
-      title: "Búsqueda de candidatos próxima a vencer",
-      message: "La búsqueda de candidatos para 'Diseñador UX/UI' vence en 2 días",
-      created_at: "2024-02-01T08:00:00Z",
-      read: false,
-    },
-    {
-      id: "demo-3",
-      user_id: user.id,
-      process_id: "6",
-      hito_id: "7",
-      type: "vencida" as const,
-      title: "Hito vencido",
-      message: "El hito 'Búsqueda de candidatos' para 'Analista de Datos' está vencido hace 2 días",
-      created_at: "2024-01-30T10:00:00Z",
-      read: false,
-    },
-    {
-      id: "demo-4",
-      user_id: user.id,
-      process_id: "3",
-      hito_id: "6",
-      type: "proxima_vencer" as const,
-      title: "Programar evaluación próxima a vencer",
-      message: "Debes programar la evaluación para 'Gerente de Ventas' en las próximas 24 horas",
-      created_at: "2024-02-01T14:00:00Z",
-      read: true,
-    },
-  ]
-
-  const filteredNotifications = allNotifications.filter((notification) => {
-    const process = mockProcesses.find((p) => p.id === notification.process_id)
-    if (!process) return false
-
+  // Obtener solo los últimos hitos activos de cada proceso
+  const ultimosHitosActivos = getUltimoHitoActivoPorProceso(hitosAlertas)
+  
+  const filteredHitosAlertas = ultimosHitosActivos.filter(hito => {
     const matchesSearch =
-      notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      notification.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.position_title.toLowerCase().includes(searchTerm.toLowerCase())
+        hito.nombre_hito.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        hito.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (hito.solicitud?.descripcionCargo?.titulo_cargo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (hito.solicitud?.contacto?.cliente?.nombre_cliente || '').toLowerCase().includes(searchTerm.toLowerCase())
+      
+    const matchesService = serviceFilter === "all" || hito.codigo_servicio === serviceFilter
+    
+    const matchesConsultor = consultorFilter === "all" || 
+                            hito.solicitud?.rut_usuario === consultorFilter
 
-    const matchesConsultant = consultantFilter === "all" || process.consultant_id === consultantFilter
-    const matchesService = serviceFilter === "all" || process.service_type === serviceFilter
-
-    return matchesSearch && matchesConsultant && matchesService
+    return matchesSearch && matchesService && matchesConsultor
+  }).sort((a, b) => {
+    // Ordenar por días restantes (menor a mayor)
+    const diasA = a.dias_restantes || 0
+    const diasB = b.dias_restantes || 0
+    return diasA - diasB
   })
 
-  const proximasVencer = filteredNotifications.filter((n) => n.type === "proxima_vencer")
-  const vencidas = filteredNotifications.filter((n) => n.type === "vencida")
-  const unreadCount = filteredNotifications.filter((n) => !n.read).length
+  const proximasVencer = filteredHitosAlertas.filter((h) => h.estado === 'por_vencer')
+  const vencidas = filteredHitosAlertas.filter((h) => h.estado === 'vencido')
+  const unreadCount = filteredHitosAlertas.length
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -129,41 +267,44 @@ export default function AlertasPage() {
     }
   }
 
-  const NotificationCard = ({ notification }: { notification: (typeof allNotifications)[0] }) => {
-    const process = mockProcesses.find((p) => p.id === notification.process_id)
-    if (!process) return null
-
+  const NotificationCard = ({ hito }: { hito: HitoAlert }) => {
     return (
-      <Card className={`${!notification.read ? "border-l-4 border-l-primary" : ""} hover:shadow-md transition-shadow`}>
+      <Card className="border-l-4 border-l-primary hover:shadow-md transition-shadow">
         <CardContent className="pt-6">
           <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 mt-1">{getNotificationIcon(notification.type)}</div>
+            <div className="flex-shrink-0 mt-1">
+              {hito.estado === 'vencido' ? (
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              ) : (
+                <Clock className="h-5 w-5 text-yellow-500" />
+              )}
+            </div>
             <div className="flex-1 space-y-2">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className={`font-semibold ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}>
-                    {notification.title}
+                  <h3 className="font-semibold text-foreground">
+                    {hito.nombre_hito}
                   </h3>
-                  <p className="text-sm text-muted-foreground mt-1">{notification.message}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{hito.descripcion}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {!notification.read && <div className="w-2 h-2 bg-primary rounded-full" />}
-                  {getNotificationBadge(notification.type)}
+                  <div className="w-2 h-2 bg-primary rounded-full" />
+                  {getNotificationBadge(hito.estado === 'vencido' ? 'vencida' : 'proxima_vencer')}
                 </div>
               </div>
 
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Briefcase className="h-3 w-3" />
-                  <span>{process.position_title}</span>
+                  <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <User className="h-3 w-3" />
-                  <span>{process.client.name}</span>
+                  <span>{hito.solicitud?.contacto?.cliente?.nombre_cliente || 'Sin cliente'}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  <span>{formatDateTime(notification.created_at)}</span>
+                  <span>{hito.fecha_limite ? formatDateOnly(hito.fecha_limite) : 'Sin fecha'}</span>
                 </div>
               </div>
             </div>
@@ -183,11 +324,6 @@ export default function AlertasPage() {
             <p className="text-muted-foreground">Gestiona hitos próximos a vencer y vencidos</p>
           </div>
         </div>
-        {unreadCount > 0 && (
-          <Badge variant="destructive" className="text-lg px-3 py-1">
-            {unreadCount} sin leer
-          </Badge>
-        )}
       </div>
 
       {/* Stats Cards */}
@@ -198,7 +334,7 @@ export default function AlertasPage() {
             <Bell className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{filteredNotifications.length}</div>
+            <div className="text-2xl font-bold">{filteredHitosAlertas.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -239,48 +375,46 @@ export default function AlertasPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
+          <div className="flex gap-4 items-center flex-wrap">
+            <div className="flex-1 min-w-[300px]">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por título, mensaje o proceso..."
+                  placeholder="Buscar por hito, descripción, cargo o cliente..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-8"
                 />
               </div>
             </div>
-            {user.role === "admin" && (
-              <Select value={consultantFilter} onValueChange={setConsultantFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Consultor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los consultores</SelectItem>
-                  {mockUsers
-                    .filter((u) => u.role === "consultor")
-                    .map((consultant) => (
-                      <SelectItem key={consultant.id} value={consultant.id}>
-                        {consultant.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            )}
             <Select value={serviceFilter} onValueChange={setServiceFilter}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Tipo de servicio" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los servicios</SelectItem>
-                {Object.entries(serviceTypeLabels).map(([key, label]) => (
+                {Object.entries(serviceCodeLabels).map(([key, label]) => (
                   <SelectItem key={key} value={key}>
                     {label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {user?.role === 'admin' && (
+              <Select value={consultorFilter} onValueChange={setConsultorFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Consultor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los consultores</SelectItem>
+                  {consultores.map((consultor) => (
+                    <SelectItem key={consultor.rut} value={consultor.rut}>
+                      {consultor.nombre} {consultor.apellido}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -296,7 +430,7 @@ export default function AlertasPage() {
                   className="flex items-center gap-2 p-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                 >
                   <Bell className="h-4 w-4" />
-                  Todas ({filteredNotifications.length})
+                  Todas ({filteredHitosAlertas.length})
                 </TabsTrigger>
                 <TabsTrigger
                   value="proximas"
@@ -318,10 +452,73 @@ export default function AlertasPage() {
             <div className="p-6">
               <TabsContent value="todas" className="mt-0">
                 <div className="space-y-4">
-                  {filteredNotifications.length > 0 ? (
-                    filteredNotifications
-                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map((notification) => <NotificationCard key={notification.id} notification={notification} />)
+                  {filteredHitosAlertas.length > 0 ? (
+                    filteredHitosAlertas
+                      .sort((a, b) => {
+                        const dateA = a.fecha_limite ? new Date(a.fecha_limite).getTime() : 0
+                        const dateB = b.fecha_limite ? new Date(b.fecha_limite).getTime() : 0
+                        return dateB - dateA
+                      })
+                      .map((hito) => (
+                        <Card key={hito.id_hito_solicitud} className="border-l-4 border-l-primary hover:shadow-md transition-shadow">
+                          <CardContent className="pt-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                {hito.estado === 'vencido' ? (
+                                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                                ) : (
+                                  <Clock className="h-5 w-5 text-yellow-500" />
+                                )}
+                              </div>
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <h3 className="font-semibold">{hito.nombre_hito}</h3>
+                                    <p className="text-sm text-muted-foreground mt-1">{hito.descripcion}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {hito.estado === 'vencido' ? (
+                                      <Badge variant="destructive" className="bg-red-100 text-red-800">Vencida</Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Próxima a Vencer</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                  </div>
+                                  {user?.role === 'admin' && hito.solicitud?.usuario && (
+                                    <div className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      <span className="font-medium">
+                                        {hito.solicitud.usuario.nombre_usuario} {hito.solicitud.usuario.apellido_usuario}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {serviceCodeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Briefcase className="h-3 w-3" />
+                                    <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>{hito.fecha_limite ? formatDateOnly(hito.fecha_limite) : 'Sin fecha'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    <span>{hito.duracion_dias} días de duración</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
                   ) : (
                     <div className="text-center py-12">
                       <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -336,8 +533,61 @@ export default function AlertasPage() {
                 <div className="space-y-4">
                   {proximasVencer.length > 0 ? (
                     proximasVencer
-                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map((notification) => <NotificationCard key={notification.id} notification={notification} />)
+                      .sort((a, b) => {
+                        const dateA = a.fecha_limite ? new Date(a.fecha_limite).getTime() : 0
+                        const dateB = b.fecha_limite ? new Date(b.fecha_limite).getTime() : 0
+                        return dateB - dateA
+                      })
+                      .map((hito) => (
+                        <Card key={hito.id_hito_solicitud} className="border-l-4 border-l-yellow-500 hover:shadow-md transition-shadow">
+                          <CardContent className="pt-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <Clock className="h-5 w-5 text-yellow-500" />
+                              </div>
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <h3 className="font-semibold">{hito.nombre_hito}</h3>
+                                    <p className="text-sm text-muted-foreground mt-1">{hito.descripcion}</p>
+                                  </div>
+                                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Próxima a Vencer</Badge>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                  </div>
+                                  {user?.role === 'admin' && hito.solicitud?.usuario && (
+                                    <div className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      <span className="font-medium">
+                                        {hito.solicitud.usuario.nombre_usuario} {hito.solicitud.usuario.apellido_usuario}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {serviceCodeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Briefcase className="h-3 w-3" />
+                                    <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>{hito.fecha_limite ? formatDateOnly(hito.fecha_limite) : 'Sin fecha'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    <span>{hito.duracion_dias} días de duración</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
                   ) : (
                     <div className="text-center py-12">
                       <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -352,8 +602,61 @@ export default function AlertasPage() {
                 <div className="space-y-4">
                   {vencidas.length > 0 ? (
                     vencidas
-                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map((notification) => <NotificationCard key={notification.id} notification={notification} />)
+                      .sort((a, b) => {
+                        const dateA = a.fecha_limite ? new Date(a.fecha_limite).getTime() : 0
+                        const dateB = b.fecha_limite ? new Date(b.fecha_limite).getTime() : 0
+                        return dateB - dateA
+                      })
+                      .map((hito) => (
+                        <Card key={hito.id_hito_solicitud} className="border-l-4 border-l-red-500 hover:shadow-md transition-shadow">
+                          <CardContent className="pt-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <AlertTriangle className="h-5 w-5 text-red-500" />
+                              </div>
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <h3 className="font-semibold">{hito.nombre_hito}</h3>
+                                    <p className="text-sm text-muted-foreground mt-1">{hito.descripcion}</p>
+                                  </div>
+                                  <Badge variant="destructive" className="bg-red-100 text-red-800">Vencida</Badge>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-semibold text-blue-600">Solicitud {hito.solicitud?.id_solicitud || 'N/A'}</span>
+                                  </div>
+                                  {user?.role === 'admin' && hito.solicitud?.usuario && (
+                                    <div className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      <span className="font-medium">
+                                        {hito.solicitud.usuario.nombre_usuario} {hito.solicitud.usuario.apellido_usuario}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {serviceCodeLabels[hito.codigo_servicio] || hito.codigo_servicio}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Briefcase className="h-3 w-3" />
+                                    <span>{hito.solicitud?.descripcionCargo?.titulo_cargo || 'Sin cargo'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>{hito.fecha_limite ? formatDateOnly(hito.fecha_limite) : 'Sin fecha'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    <span>{hito.duracion_dias} días de duración</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
                   ) : (
                     <div className="text-center py-12">
                       <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
@@ -367,6 +670,7 @@ export default function AlertasPage() {
           </Tabs>
         </CardContent>
       </Card>
+
     </div>
   )
 }

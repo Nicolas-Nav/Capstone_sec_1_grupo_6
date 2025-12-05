@@ -1,5 +1,6 @@
 import { Transaction, Op } from 'sequelize';
 import sequelize from '@/config/database';
+import { setDatabaseUser } from '@/utils/databaseUser';
 import { Cliente, Contacto, Comuna, Solicitud } from '@/models';
 
 /**
@@ -277,10 +278,15 @@ export class ClienteService {
     /**
      * Crear nuevo cliente con contactos
      */
-    static async createCliente(data: { name: string; contacts: any[] }) {
+    static async createCliente(data: { name: string; contacts: any[] }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const { name, contacts } = data;
 
             // Validaciones
@@ -364,10 +370,15 @@ export class ClienteService {
     /**
      * Actualizar cliente y sus contactos
      */
-    static async updateCliente(id: number, data: { name: string; contacts: any[] }) {
+    static async updateCliente(id: number, data: { name: string; contacts: any[] }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const { name, contacts } = data;
 
             const cliente = await Cliente.findByPk(id);
@@ -489,10 +500,15 @@ export class ClienteService {
     /**
      * Eliminar cliente
      */
-    static async deleteCliente(id: number) {
+    static async deleteCliente(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+            
             const cliente = await Cliente.findByPk(id, {
                 include: [
                     {

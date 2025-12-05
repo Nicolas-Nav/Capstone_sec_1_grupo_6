@@ -118,12 +118,17 @@ export interface Candidate {
   // Consultant comment about the candidate
   consultant_comment?: string
   // Presentation status and reason
-  presentation_status?: "presentado" | "no_presentado" | "rechazado"
+  presentation_status?: "agregado" | "presentado" | "no_presentado" | "rechazado"
   rejection_reason?: string
   // Disability credential
   has_disability_credential?: boolean
   // Driving license
   licencia?: boolean
+  // Module 5 fields
+  hiring_status?: string
+  client_response_date?: string | null
+  contract_date?: string
+  observations?: string
 }
 
 export interface PortalResponses {

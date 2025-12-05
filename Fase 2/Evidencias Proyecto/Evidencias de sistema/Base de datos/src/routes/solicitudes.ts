@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { SolicitudController } from '@/controllers/solicitudController';
-// import { authenticate, authorize } from '@/middleware/auth'; // Descomentar cuando esté listo
+import { SolicitudEvaluacionController } from '@/controllers/solicitudEvaluacionController';
+import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
 
@@ -9,20 +10,50 @@ const router = Router();
  * Base: /api/solicitudes
  */
 
-// Obtener solicitudes por consultor
-router.get('/consultor/:rutUsuario', SolicitudController.getByConsultor);
-
+// Rutas públicas (sin autenticación)
 // Obtener solicitudes paginadas con filtros
 router.get('/', SolicitudController.getAll);
 
 // Obtener todas las solicitudes (sin paginación)
 router.get('/all', SolicitudController.getAllSolicitudes);
 
+// Obtener etapas disponibles
+router.get('/etapas/disponibles', SolicitudController.getEtapas);
+
+// Obtener estados de solicitud disponibles
+router.get('/estados/disponibles', SolicitudController.getEstadosSolicitud);
+
+// Obtener solicitudes por consultor
+router.get('/consultor/:rutUsuario', SolicitudController.getByConsultor);
+
+// Reportes (públicos - solo lectura)
+router.get('/reportes/carga-operativa', SolicitudController.getActiveProcessesByConsultant);
+router.get('/reportes/distribucion-tipo-servicio', SolicitudController.getProcessesByServiceType);
+router.get('/reportes/fuentes-candidatos', SolicitudController.getCandidateSourceData);
+router.get('/reportes/estadisticas', SolicitudController.getProcessStats);
+router.get('/reportes/distribucion-estados', SolicitudController.getProcessStatusDistribution);
+router.get('/reportes/tiempo-promedio-servicio', (SolicitudController as any).getAverageProcessTimeByService);
+router.get('/reportes/overview', (SolicitudController as any).getProcessOverview);
+router.get('/reportes/procesos-cerrados-exitosos', (SolicitudController as any).getClosedSuccessfulProcesses);
+router.get('/reportes/rendimiento-consultor', (SolicitudController as any).getConsultantPerformance);
+router.get('/reportes/cumplimiento-consultor', (SolicitudController as any).getConsultantCompletionStats);
+router.get('/reportes/retrasos-consultor', (SolicitudController as any).getConsultantOverdueHitos);
+
 // Obtener una solicitud específica
-router.get('/:id', SolicitudController.getById);
+router.get('/:id(\\d+)', SolicitudController.getById);
+
+// Rutas protegidas (requieren autenticación)
+// Todas las operaciones de escritura requieren estar autenticado
+router.use(authenticateToken); // ← Aplica autenticación a todas las rutas siguientes
 
 // Crear nueva solicitud
 router.post('/', SolicitudController.create);
+
+// Crear solicitud de evaluación con candidatos (transacción atómica)
+router.post('/con-candidatos', SolicitudEvaluacionController.crearConCandidatos);
+
+// Actualizar solicitud de evaluación con candidatos nuevos (transacción atómica)
+router.put('/con-candidatos/:id', SolicitudEvaluacionController.actualizarConCandidatos);
 
 // Actualizar estado de solicitud
 router.put('/:id/estado', SolicitudController.updateEstado);
@@ -39,15 +70,13 @@ router.put('/:id/avanzar-modulo3', SolicitudController.avanzarAModulo3);
 // Avanzar al módulo 4
 router.put('/:id/avanzar-modulo4', SolicitudController.avanzarAModulo4);
 
-// Obtener etapas disponibles
-router.get('/etapas/disponibles', SolicitudController.getEtapas);
+// Avanzar al módulo 5
+router.put('/:id/avanzar-modulo5', SolicitudController.avanzarAModulo5);
 
-// Obtener estados de solicitud disponibles
-router.get('/estados/disponibles', SolicitudController.getEstadosSolicitud);
+// Actualizar solicitud
+router.put('/:id', SolicitudController.update);
 
 // Eliminar solicitud
 router.delete('/:id', SolicitudController.delete);
-
-router.put('/:id', SolicitudController.update);
 
 export default router;

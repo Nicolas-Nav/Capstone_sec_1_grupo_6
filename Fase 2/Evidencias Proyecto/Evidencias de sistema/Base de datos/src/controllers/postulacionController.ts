@@ -17,12 +17,19 @@ export class PostulacionController {
     static async getBySolicitud(req: Request, res: Response): Promise<Response> {
         try {
             const { idSolicitud } = req.params;
+            
+            // Headers para evitar caché y asegurar datos frescos
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+            
             const candidatos = await PostulacionService.getPostulacionesBySolicitud(parseInt(idSolicitud));
 
             return sendSuccess(res, candidatos, 'Candidatos obtenidos exitosamente');
-        } catch (error) {
+        } catch (error: any) {
             Logger.error('Error al obtener candidatos:', error);
-            return sendError(res, 'Error al obtener candidatos', 500);
+            console.error('❌ ERROR DETALLADO:', error);
+            return sendError(res, error?.message || 'Error al obtener candidatos', 500);
         }
     }
 
@@ -61,8 +68,6 @@ export class PostulacionController {
                     disponibilidad_postulacion,
                     valoracion,
                     comentario_no_presentado,
-                    comentario_rech_obs_cliente,
-                    comentario_modulo5_cliente,
                     situacion_familiar
                 } = req.body;
 
@@ -76,8 +81,6 @@ export class PostulacionController {
                     disponibilidad_postulacion,
                     valoracion: valoracion ? parseInt(valoracion) : undefined,
                     comentario_no_presentado,
-                    comentario_rech_obs_cliente,
-                    comentario_modulo5_cliente,
                     situacion_familiar,
                     cv_file: cvFile
                 });
@@ -132,7 +135,7 @@ export class PostulacionController {
                 cv_file: cvFile,
                 work_experience,
                 education
-            });
+            }, req.user?.id);
 
             Logger.info(`Postulación creada con nuevo candidato: ${nuevaPostulacion.id}`);
             return sendSuccess(res, nuevaPostulacion, 'Postulación creada exitosamente', 201);
@@ -159,7 +162,7 @@ export class PostulacionController {
             await PostulacionService.updateEstado(parseInt(id), {
                 presentation_status,
                 rejection_reason
-            });
+            }, req.user?.id);
 
             Logger.info(`Estado actualizado para postulación ${id}`);
             return sendSuccess(res, null, 'Estado actualizado exitosamente');
@@ -190,7 +193,8 @@ export class PostulacionController {
                 valoracion, 
                 motivacion, 
                 expectativa_renta, 
-                disponibilidad_postulacion, 
+                disponibilidad_postulacion,
+                situacion_familiar,
                 comentario_no_presentado 
             } = req.body;
 
@@ -210,8 +214,9 @@ export class PostulacionController {
                 motivacion,
                 expectativa_renta: expectativa_renta ? parseFloat(expectativa_renta) : undefined,
                 disponibilidad_postulacion,
+                situacion_familiar,
                 comentario_no_presentado
-            });
+            }, req.user?.id);
 
             Logger.info(`Postulación actualizada ${id}`);
             return sendSuccess(res, null, 'Postulación actualizada exitosamente');

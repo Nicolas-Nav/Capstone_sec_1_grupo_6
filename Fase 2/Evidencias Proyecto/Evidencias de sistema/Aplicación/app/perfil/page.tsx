@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Mail, Briefcase, Save, Edit, Key, User, Phone, MapPin, Calendar, BarChart3, Users, FileText } from "lucide-react"
+import { Mail, Briefcase, Save, Edit, Key, User, Phone, MapPin, Calendar, BarChart3, Users, FileText, Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -18,14 +18,61 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { CustomAlertDialog } from "@/components/CustomAlertDialog"
+import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
+import { ValidatedInput, ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
 export default function PerfilPage() {
   const { user } = useAuth()
+  const { showToast } = useToastNotification()
+  
+  // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+  const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+    if (!errorMessage) return defaultMessage
+    const message = errorMessage.toLowerCase()
+    if (message.includes('validate') && message.includes('field')) {
+      return 'Por favor verifica que todos los campos estén completos correctamente'
+    }
+    if (message.includes('not found') || message.includes('no encontrado')) {
+      return 'El recurso solicitado no fue encontrado'
+    }
+    if (message.includes('unauthorized') || message.includes('no autorizado')) {
+      return 'No tienes permisos para realizar esta acción'
+    }
+    if (message.includes('forbidden') || message.includes('prohibido')) {
+      return 'Acceso denegado'
+    }
+    if (message.includes('network') || message.includes('red')) {
+      return 'Error de conexión. Por favor verifica tu conexión a internet'
+    }
+    if (message.includes('timeout')) {
+      return 'La operación tardó demasiado. Por favor intenta nuevamente'
+    }
+    if (message.includes('duplicate') || message.includes('duplicado')) {
+      return 'Ya existe un registro con esta información'
+    }
+    if (message.includes('constraint') || message.includes('restricción')) {
+      return 'No se puede realizar esta acción debido a restricciones de datos'
+    }
+    if (message.includes('invalid') || message.includes('inválido')) {
+      return 'Los datos proporcionados no son válidos'
+    }
+    if (message.includes('contraseña incorrecta') || message.includes('password incorrect')) {
+      return 'La contraseña actual es incorrecta'
+    }
+    if (message.includes('contraseña actual') || message.includes('current password')) {
+      return 'La contraseña actual no es correcta'
+    }
+    // Si el mensaje ya está en español y es claro, devolverlo capitalizado
+    if (message.length > 0 && message[0] === message[0].toLowerCase()) {
+      return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+    }
+    return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+  }
+  
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
-  const [isResultOpen, setIsResultOpen] = useState(false)
-  const [resultSuccess, setResultSuccess] = useState<boolean>(false)
-  const [resultMessage, setResultMessage] = useState<string>("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { errors, validateField, validateAllFields, clearAllErrors } = useFormValidation()
   const [consultorStats, setConsultorStats] = useState({
     totalProcesos: 0,
     procesosActivos: 0,
@@ -100,20 +147,29 @@ export default function PerfilPage() {
   }
 
   const handleChangePassword = async () => {
+    // Validar todos los campos
+    const isValid = validateAllFields(passwordData, validationSchemas.changePasswordForm)
+    
+    // Validar que las contraseñas coincidan
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setResultSuccess(false)
-      setResultMessage("Las contraseñas nuevas no coinciden")
-      setIsResultOpen(true)
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "Las contraseñas nuevas no coinciden",
+      })
       return
     }
 
-    if (passwordData.newPassword.length < 6) {
-      setResultSuccess(false)
-      setResultMessage("La nueva contraseña debe tener al menos 6 caracteres")
-      setIsResultOpen(true)
+    if (!isValid) {
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "Por favor, complete todos los campos correctamente",
+      })
       return
     }
 
+    setIsSubmitting(true)
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL
       const res = await fetch(`${API_URL}/api/users/change-password`, {
@@ -129,23 +185,56 @@ export default function PerfilPage() {
         }),
       })
 
-      const data = await res.json()
+      // Intentar parsear la respuesta JSON
+      let data
+      try {
+        const text = await res.text()
+        data = text ? JSON.parse(text) : {}
+      } catch {
+        data = {}
+      }
+
       if (res.ok && data?.success) {
-        setResultSuccess(true)
-        setResultMessage(data?.message || "Contraseña actualizada correctamente")
+        showToast({
+          type: "success",
+          title: "¡Éxito!",
+          description: data?.message || "Contraseña actualizada correctamente",
+        })
         setIsPasswordDialogOpen(false)
         setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
+        clearAllErrors()
       } else {
-        setResultSuccess(false)
-        setResultMessage(data?.message || "Error al cambiar contraseña")
+        // Usar el mensaje de la API o un mensaje genérico
+        const errorMessage = data?.message || "Ha ocurrido un error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente."
+        const processedErrorMessage = processApiErrorMessage(errorMessage, "Error al cambiar la contraseña")
+        
+        // Si es error 400 (contraseña incorrecta), limpiar solo el campo de contraseña actual
+        if (res.status === 400) {
+          setPasswordData({ ...passwordData, currentPassword: "" })
+        }
+        
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processedErrorMessage,
+        })
       }
-      setIsResultOpen(true)
-    } catch (error) {
-      console.error(error)
-      setResultSuccess(false)
-      setResultMessage("Error al cambiar contraseña")
-      setIsResultOpen(true)
+    } catch (error: any) {
+      console.error('Error changing password:', error)
+      const errorMsg = processApiErrorMessage(error.message, "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.")
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
+    } finally {
+      setIsSubmitting(false)
     }
+  }
+
+  const handlePasswordDataChange = (field: string, value: string) => {
+    setPasswordData({ ...passwordData, [field]: value })
+    validateField(field, value, validationSchemas.changePasswordForm)
   }
 
   return (
@@ -321,9 +410,11 @@ export default function PerfilPage() {
                       id="currentPassword"
                       type="password"
                       value={passwordData.currentPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                      onChange={(e) => handlePasswordDataChange("currentPassword", e.target.value)}
                       placeholder="Ingresa tu contraseña actual"
+                      className={errors.currentPassword ? "border-destructive" : ""}
                     />
+                    <ValidationErrorDisplay error={errors.currentPassword} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">Nueva Contraseña</Label>
@@ -331,9 +422,11 @@ export default function PerfilPage() {
                       id="newPassword"
                       type="password"
                       value={passwordData.newPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                      onChange={(e) => handlePasswordDataChange("newPassword", e.target.value)}
                       placeholder="Ingresa tu nueva contraseña"
+                      className={errors.newPassword ? "border-destructive" : ""}
                     />
+                    <ValidationErrorDisplay error={errors.newPassword} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirmar Nueva Contraseña</Label>
@@ -341,21 +434,50 @@ export default function PerfilPage() {
                       id="confirmPassword"
                       type="password"
                       value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setPasswordData({ ...passwordData, confirmPassword: value })
+                        // Validar que coincida con la nueva contraseña
+                        if (value && value !== passwordData.newPassword) {
+                          // Agregar error personalizado
+                          validateField("confirmPassword", "", validationSchemas.changePasswordForm)
+                        } else {
+                          validateField("confirmPassword", value, validationSchemas.changePasswordForm)
+                        }
+                      }}
                       placeholder="Confirma tu nueva contraseña"
+                      className={(errors.confirmPassword || (passwordData.confirmPassword && passwordData.confirmPassword !== passwordData.newPassword)) ? "border-destructive" : ""}
                     />
+                    {passwordData.confirmPassword && passwordData.confirmPassword !== passwordData.newPassword && (
+                      <p className="text-sm text-destructive">Las contraseñas no coinciden</p>
+                    )}
+                    <ValidationErrorDisplay error={errors.confirmPassword} />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsPasswordDialogOpen(false)
+                      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
+                      clearAllErrors()
+                    }}
+                    disabled={isSubmitting}
+                  >
                     Cancelar
                   </Button>
-                  <Button 
-                    onClick={handleChangePassword}
-                    disabled={!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
-                  >
-                    <Key className="mr-2 h-4 w-4" />
-                    Cambiar Contraseña
+                  <Button onClick={handleChangePassword} disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Cambiando...
+                      </>
+                    ) : (
+                      <>
+                        <Key className="mr-2 h-4 w-4" />
+                        Cambiar Contraseña
+                      </>
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -365,15 +487,6 @@ export default function PerfilPage() {
         </CardContent>
       </Card>
 
-      {/* Resultado de cambio de contraseña */}
-      <CustomAlertDialog
-        open={isResultOpen}
-        onOpenChange={setIsResultOpen}
-        type={resultSuccess ? "success" : "error"}
-        title={resultSuccess ? "Contraseña actualizada" : "Error al cambiar contraseña"}
-        description={resultMessage}
-        confirmText="Aceptar"
-      />
     </div>
   )
 }

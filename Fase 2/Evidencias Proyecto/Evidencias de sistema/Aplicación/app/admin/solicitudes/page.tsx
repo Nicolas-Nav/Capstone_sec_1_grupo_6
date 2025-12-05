@@ -15,6 +15,7 @@ import { solicitudService } from "@/lib/api"
 import { useSolicitudes } from "@/hooks/useSolicitudes"
 import { Label } from "@/components/ui/label"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 
 interface Solicitud {
   id: number
@@ -31,6 +32,66 @@ interface Solicitud {
 }
 
 export default function SolicitudesPage() {
+  const { showToast } = useToastNotification()
+  
+  // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+  const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+    if (!errorMessage) return defaultMessage
+    const message = errorMessage.toLowerCase()
+    
+    // Mensajes específicos de solicitudes
+    if (message.includes('solicitud no encontrada') || message.includes('solicitud not found')) {
+      return 'La solicitud no fue encontrada'
+    }
+    if (message.includes('id de solicitud inválido') || message.includes('id de solicitud invalido')) {
+      return 'El identificador de la solicitud no es válido'
+    }
+    if (message.includes('no se puede eliminar') || message.includes('cannot delete')) {
+      return 'No se puede eliminar esta solicitud. Puede tener datos asociados'
+    }
+    if (message.includes('error al obtener solicitudes') || message.includes('error al obtener solicitud')) {
+      return 'No se pudieron cargar las solicitudes. Por favor intenta nuevamente'
+    }
+    
+    // Mensajes generales
+    if (message.includes('validate') && message.includes('field')) {
+      return 'Por favor verifica que todos los campos estén completos correctamente'
+    }
+    if (message.includes('not found') || message.includes('no encontrado')) {
+      return 'El recurso solicitado no fue encontrado'
+    }
+    if (message.includes('unauthorized') || message.includes('no autorizado')) {
+      return 'No tienes permisos para realizar esta acción'
+    }
+    if (message.includes('forbidden') || message.includes('prohibido')) {
+      return 'Acceso denegado'
+    }
+    if (message.includes('network') || message.includes('red')) {
+      return 'Error de conexión. Por favor verifica tu conexión a internet'
+    }
+    if (message.includes('timeout')) {
+      return 'La operación tardó demasiado. Por favor intenta nuevamente'
+    }
+    if (message.includes('duplicate') || message.includes('duplicado')) {
+      return 'Ya existe un registro con esta información'
+    }
+    if (message.includes('constraint') || message.includes('restricción') || message.includes('foreign key')) {
+      return 'No se puede realizar esta acción debido a restricciones de datos. La solicitud puede tener información asociada'
+    }
+    if (message.includes('invalid') || message.includes('inválido') || message.includes('invalido')) {
+      return 'Los datos proporcionados no son válidos'
+    }
+    if (message.includes('ha ocurrido un error inesperado')) {
+      return errorMessage // Ya es un mensaje amigable
+    }
+    
+    // Si el mensaje ya está en español y es claro, devolverlo capitalizado
+    if (message.length > 0 && message[0] === message[0].toLowerCase()) {
+      return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+    }
+    return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+  }
+  
   const {
     solicitudes,
     isLoading,
@@ -55,6 +116,7 @@ export default function SolicitudesPage() {
     nextPage,
     prevPage,
     handlePageSizeChange,
+    refreshData,
   } = useSolicitudes()
 
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -65,10 +127,6 @@ export default function SolicitudesPage() {
   // Estados para las alertas
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [solicitudToDelete, setSolicitudToDelete] = useState<string | null>(null)
-  const [alertOpen, setAlertOpen] = useState(false)
-  const [alertType, setAlertType] = useState<"success" | "error">("success")
-  const [alertTitle, setAlertTitle] = useState("")
-  const [alertDescription, setAlertDescription] = useState("")
 
   const handleDelete = (id: string) => {
     setSolicitudToDelete(id)
@@ -85,23 +143,29 @@ export default function SolicitudesPage() {
       setSolicitudToDelete(null)
       
       if (result.success) {
-        setAlertType("success")
-        setAlertTitle("Solicitud eliminada")
-        setAlertDescription(result.message || 'La solicitud ha sido eliminada exitosamente')
+        showToast({
+          type: "success",
+          title: "¡Éxito!",
+          description: result.message || 'La solicitud ha sido eliminada exitosamente',
+        })
       } else {
-        setAlertType("error")
-        setAlertTitle("Error al eliminar")
-        setAlertDescription(result.message || 'Hubo un error al eliminar la solicitud')
+        const errorMsg = processApiErrorMessage(result.message, 'Hubo un error al eliminar la solicitud')
+        showToast({
+          type: "error",
+          title: "Error",
+          description: errorMsg,
+        })
       }
-      setAlertOpen(true)
     } catch (error: any) {
       console.error('Error deleting solicitud:', error)
       setIsDeleteConfirmOpen(false)
       setSolicitudToDelete(null)
-      setAlertType("error")
-      setAlertTitle("Error al eliminar")
-      setAlertDescription(error.message || 'Hubo un error al eliminar la solicitud')
-      setAlertOpen(true)
+      const errorMsg = processApiErrorMessage(error.message, 'Hubo un error al eliminar la solicitud')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
     }
   }
 
@@ -213,8 +277,8 @@ export default function SolicitudesPage() {
               <SelectContent>
                 <SelectItem value="all">Todos los servicios</SelectItem>
                 {serviceTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
+                  <SelectItem key={type.codigo} value={type.codigo}>
+                    {type.nombre}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -376,6 +440,7 @@ export default function SolicitudesPage() {
         open={showCreateDialog} 
         onOpenChange={handleCloseDialog}
         solicitudToEdit={solicitudToEdit}
+        onSuccess={refreshData}
       />
 
       {/* Upload Excel Dialog */}
@@ -386,15 +451,6 @@ export default function SolicitudesPage() {
           descripcionCargoId={selectedDescripcionCargoId}
         />
       )}
-
-      {/* Alert para resultados de operaciones */}
-      <CustomAlertDialog
-        open={alertOpen}
-        onOpenChange={setAlertOpen}
-        type={alertType}
-        title={alertTitle}
-        description={alertDescription}
-      />
 
       {/* Alert de confirmación para eliminar */}
       <CustomAlertDialog

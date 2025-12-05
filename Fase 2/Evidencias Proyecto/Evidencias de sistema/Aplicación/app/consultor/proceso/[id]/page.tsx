@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
 import { solicitudService, descripcionCargoService } from "@/lib/api"
+import { getHitosBySolicitud } from "@/lib/api-hitos"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,6 +17,7 @@ import { ProcessModule4 } from "@/components/consultor/process-module-4"
 import { ProcessModule5 } from "@/components/consultor/process-module-5"
 import { notFound } from "next/navigation"
 import { toast } from "sonner"
+import type { Hito } from "@/lib/types"
 
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
@@ -30,22 +32,110 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   const [activeTab, setActiveTab] = useState("modulo-1")
   const [process, setProcess] = useState<any>(null)
   const [descripcionCargo, setDescripcionCargo] = useState<any>(null)
+  const [hitos, setHitos] = useState<Hito[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [hasCandidatesWithReportStatus, setHasCandidatesWithReportStatus] = useState(false)
 
-  // Leer parámetro tab de la URL
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const tab = urlParams.get('tab')
-    if (tab && ['modulo-1', 'modulo-2', 'modulo-3', 'modulo-4', 'modulo-5'].includes(tab)) {
-      setActiveTab(tab)
+  // Función para determinar el módulo activo basado en la etapa
+  const getModuleFromStage = (etapa: string | null | undefined, serviceType: string | null | undefined): string => {
+    if (!etapa || etapa === 'Sin etapa') {
+      return 'modulo-1'
     }
-  }, [])
+
+    // Mapeo de etapas a módulos según el tipo de servicio
+    if (etapa === 'Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral') {
+      // Solo PC tiene módulo 5
+      if (serviceType === 'PC') {
+        return 'modulo-5'
+      }
+      // Si no es PC, no debería estar en módulo 5, pero por seguridad:
+      // TS y ES tienen módulo 4, LL y HH tienen módulo 3
+      if (serviceType === 'TS' || serviceType === 'ES') {
+        return 'modulo-4'
+      }
+      if (serviceType === 'LL' || serviceType === 'HH') {
+        return 'modulo-3'
+      }
+      return 'modulo-1'
+    }
+
+    if (etapa === 'Módulo 4: Evaluación Psicolaboral') {
+      // Solo PC, TS y ES tienen módulo 4
+      if (serviceType === 'PC' || serviceType === 'TS' || serviceType === 'ES') {
+        return 'modulo-4'
+      }
+      // LL y HH no tienen módulo 4, mostrar módulo 3 como máximo
+      if (serviceType === 'LL' || serviceType === 'HH') {
+        return 'modulo-3'
+      }
+      return 'modulo-1'
+    }
+
+    if (etapa === 'Módulo 3: Presentación de Candidatos') {
+      // Solo PC, LL y HH tienen módulo 3
+      if (serviceType === 'PC' || serviceType === 'LL' || serviceType === 'HH') {
+        return 'modulo-3'
+      }
+      // TS y ES no tienen módulo 3 (esto sería un error de datos)
+      // Mostrar el módulo más alto disponible para ese servicio
+      if (serviceType === 'TS' || serviceType === 'ES') {
+        return 'modulo-4' // TS y ES tienen módulo 4
+      }
+      return 'modulo-1'
+    }
+
+    if (etapa === 'Módulo 2: Publicación y Registro de Candidatos') {
+      // Solo PC, LL y HH tienen módulo 2
+      if (serviceType === 'PC' || serviceType === 'LL' || serviceType === 'HH') {
+        return 'modulo-2'
+      }
+      // TS y ES no tienen módulo 2 (esto sería un error de datos)
+      // Mostrar el módulo más alto disponible para ese servicio
+      if (serviceType === 'TS' || serviceType === 'ES') {
+        return 'modulo-4' // TS y ES tienen módulo 4
+      }
+      return 'modulo-1'
+    }
+
+    // Por defecto, módulo 1
+    return 'modulo-1'
+  }
 
   useEffect(() => {
     if (user?.id) {
       loadProcessData()
     }
   }, [params.id, user])
+
+  // Establecer módulo activo basado en la etapa o parámetro tab de la URL cuando se carga el proceso
+  useEffect(() => {
+    if (process && !isLoading) {
+      const urlParams = new URLSearchParams(window.location.search)
+      const tabFromUrl = urlParams.get('tab')
+      
+      // Si hay parámetro tab en la URL, usarlo (tiene prioridad)
+      if (tabFromUrl && ['modulo-1', 'modulo-2', 'modulo-3', 'modulo-4', 'modulo-5', 'timeline'].includes(tabFromUrl)) {
+        setActiveTab(tabFromUrl)
+      } else {
+        // Si no hay parámetro tab, determinar el módulo basado en la etapa
+        const moduleFromStage = getModuleFromStage(process.etapa, process.tipo_servicio || process.service_type)
+        setActiveTab(moduleFromStage)
+      }
+    }
+  }, [process, isLoading])
+
+  // Recargar verificación de candidatos con estado de informe cuando cambie el proceso o el tab activo
+  useEffect(() => {
+    if (process && !isLoading) {
+      const serviceType = process.tipo_servicio || process.service_type
+      const currentStage = process.etapa || process.stage
+      if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
+        checkCandidatesWithReportStatus(parseInt(params.id))
+      } else {
+        setHasCandidatesWithReportStatus(false)
+      }
+    }
+  }, [process, activeTab, isLoading])
 
   const loadProcessData = async () => {
     try {
@@ -72,6 +162,51 @@ export default function ProcessPage({ params }: ProcessPageProps) {
             setDescripcionCargo(dcResponse.data)
           }
         }
+
+        // Cargar hitos del proceso
+        const hitosData = await getHitosBySolicitud(processId)
+        const hitosMapeados: Hito[] = hitosData.map((hito) => {
+          // Determinar estado: primero verificar si está completado (tiene fecha_cumplimiento)
+          let status: Hito['status'] = 'pendiente'
+          
+          if (hito.fecha_cumplimiento) {
+            // Si tiene fecha de cumplimiento, está completado
+            status = 'completado'
+          } else if (hito.estado === 'vencido' || (hito.fecha_limite && new Date(hito.fecha_limite) < new Date())) {
+            // Si está vencido o la fecha límite ya pasó
+            status = 'vencido'
+          } else if (hito.fecha_base && hito.fecha_limite) {
+            // Si tiene fecha de inicio y límite, está en progreso
+            status = 'en_progreso'
+          } else {
+            // Por defecto, pendiente
+            status = 'pendiente'
+          }
+
+          return {
+            id: hito.id_hito_solicitud.toString(),
+            process_id: processId.toString(),
+            name: hito.nombre_hito,
+            description: hito.descripcion || '',
+            start_trigger: hito.tipo_ancla || '',
+            duration_days: hito.duracion_dias || 0,
+            anticipation_days: hito.avisar_antes_dias || 0,
+            status: status,
+            start_date: hito.fecha_base ? new Date(hito.fecha_base).toISOString() : undefined,
+            due_date: hito.fecha_limite ? new Date(hito.fecha_limite).toISOString() : undefined,
+            completed_date: hito.fecha_cumplimiento ? new Date(hito.fecha_cumplimiento).toISOString() : undefined,
+          }
+        })
+        setHitos(hitosMapeados)
+
+        // Verificar si hay candidatos con estado de informe definido (solo para procesos PC)
+        const serviceType = response.data.tipo_servicio || response.data.service_type
+        const currentStage = response.data.etapa || response.data.stage
+        if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
+          await checkCandidatesWithReportStatus(processId)
+        } else {
+          setHasCandidatesWithReportStatus(false)
+        }
       } else {
         toast.error("No se pudo cargar la solicitud")
         notFound()
@@ -81,6 +216,50 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       toast.error("Error al cargar los datos")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const checkCandidatesWithReportStatus = async (processId: number) => {
+    try {
+      // Obtener candidatos del proceso
+      const { postulacionService, evaluacionPsicolaboralService } = await import('@/lib/api')
+      const candidatesResponse = await postulacionService.getBySolicitudOptimized(processId)
+      const allCandidates = candidatesResponse.data || []
+      
+      // Filtrar solo candidatos aprobados por el cliente (para procesos PC)
+      const candidatesToCheck = allCandidates.filter((c: any) => c.client_response === "aprobado")
+      
+      if (candidatesToCheck.length === 0) {
+        setHasCandidatesWithReportStatus(false)
+        return
+      }
+
+      // Verificar si hay al menos un candidato con estado de informe definido
+      let hasReportStatus = false
+      for (const candidate of candidatesToCheck) {
+        try {
+          const evaluationResponse = await evaluacionPsicolaboralService.getByPostulacion(Number(candidate.id_postulacion))
+          const evaluation = evaluationResponse.data?.[0]
+          
+          if (evaluation && evaluation.estado_informe) {
+            const estadoInforme = evaluation.estado_informe
+            // Solo avanzan los que tienen estado: Recomendable, No recomendable, o Recomendable con observaciones
+            if (estadoInforme === "Recomendable" || 
+                estadoInforme === "No recomendable" || 
+                estadoInforme === "Recomendable con observaciones") {
+              hasReportStatus = true
+              break
+            }
+          }
+        } catch (error) {
+          console.error(`Error al verificar evaluación para candidato ${candidate.id}:`, error)
+        }
+      }
+      
+      setHasCandidatesWithReportStatus(hasReportStatus)
+    } catch (error) {
+      console.error("Error al verificar candidatos con estado de informe:", error)
+      setHasCandidatesWithReportStatus(false)
     }
   }
 
@@ -144,7 +323,9 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         id: "modulo-3", 
         label: "Presentación de Candidatos", 
         icon: Target, 
-        enabled: currentStage === "Módulo 3: Presentación de Candidatos" || currentStage === "Módulo 4: Evaluación Psicolaboral",
+        enabled: currentStage === "Módulo 3: Presentación de Candidatos" || 
+                  currentStage === "Módulo 4: Evaluación Psicolaboral" ||
+                  currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral",
         isActive: activeTab === "modulo-3"
       })
     }
@@ -160,11 +341,17 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
 
     if (serviceType === "PC") {
+      // El módulo 5 solo está habilitado si:
+      // 1. Ya estás en el módulo 5, O
+      // 2. Estás en el módulo 4 Y hay candidatos con estado de informe definido
+      const module5Enabled = currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral" || 
+                             (currentStage === "Módulo 4: Evaluación Psicolaboral" && hasCandidatesWithReportStatus)
+      
       modules.push({ 
         id: "modulo-5", 
         label: "Seguimiento Posterior a la Evaluación Psicolaboral", 
         icon: Clock, 
-        enabled: currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral" || currentStage === "Módulo 4: Evaluación Psicolaboral",
+        enabled: module5Enabled,
         isActive: activeTab === "modulo-5"
       })
     }
@@ -332,7 +519,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
               )}
 
               <TabsContent value="timeline" className="mt-0">
-                <ProcessTimeline process={process} hitos={[]} />
+                <ProcessTimeline process={process} hitos={hitos} />
               </TabsContent>
             </div>
           </Tabs>

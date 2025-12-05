@@ -32,6 +32,19 @@ export type HitoStatus =
   | 'completado' 
   | 'vencido';
 
+  export type TipoAncla = 
+  | 'inicio_proceso'
+  | 'publicacion'
+  | 'primera_presentacion'
+  | 'feedback_cliente'
+  | 'evaluacion_psicolaboral'
+  | 'entrevista'
+  | 'test_psicolaboral'
+  | 'contratacion'
+  | 'filtro_inteligente'
+  | 'publicacion_portales'
+  | 'evaluacion_potencial';
+
 // ===========================================
 // INTERFACES DE RESPUESTA API
 // ===========================================

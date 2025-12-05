@@ -1,5 +1,6 @@
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+import { getCurrentUserContext } from '@/utils/userContext';
 
 dotenv.config();
 
@@ -22,10 +23,10 @@ const sequelize = new Sequelize({
   dialect: 'postgres',
   logging: NODE_ENV === 'development' ? console.log : false,
   pool: {
-    max: 20,
-    min: 2,
+    max: 10, // Reducido de 20 a 10 para evitar exceder límites
+    min: 1,  // Reducido de 2 a 1 para conservar conexiones
     acquire: 30000,
-    idle: 10000,
+    idle: 5000,  // Reducido de 10000 a 5000 para liberar conexiones más rápido
     evict: 1000
   },
   define: {
@@ -38,6 +39,54 @@ const sequelize = new Sequelize({
       rejectUnauthorized: false
     }
   } : {}
+});
+
+// ===========================================
+// HOOK GLOBAL PARA CONFIGURAR USUARIO EN CADA QUERY
+// ===========================================
+
+/**
+ * Hook que se ejecuta antes de cada query para configurar el usuario responsable
+ * Lee el contexto del usuario establecido por el middleware captureUserContext
+ * IMPORTANTE: No ejecutar queries dentro del hook para evitar conexiones adicionales
+ */
+sequelize.addHook('beforeQuery', async (options: any) => {
+  const currentUser = getCurrentUserContext();
+  
+  // Solo configurar usuario si hay contexto y no es una query de configuración interna
+  if (currentUser && !options.skipUserContext) {
+    try {
+      // Escapar el RUT para prevenir SQL injection
+      const rutEscapado = currentUser.replace(/'/g, "''");
+      
+      if (options.transaction) {
+        // Configurar variable de sesión LOCAL para esta transacción
+        // Usar la misma conexión de la transacción sin crear una nueva
+        await sequelize.query(
+          `SET LOCAL app.current_user = '${rutEscapado}'`,
+          { 
+            transaction: options.transaction,
+            skipUserContext: true // Evitar recursión
+          } as any
+        );
+      } else {
+        // Si no hay transacción, usar SET normal (dura toda la conexión)
+        // Usar la misma conexión del pool sin crear una nueva
+        await sequelize.query(
+          `SET app.current_user = '${rutEscapado}'`,
+          { 
+            skipUserContext: true // Evitar recursión
+          } as any
+        );
+      }
+    } catch (error) {
+      // No interrumpir la query si falla la configuración del usuario
+      // Solo loguear en desarrollo para no saturar logs
+      if (NODE_ENV === 'development') {
+        console.error('⚠️ Error configurando usuario en query:', error);
+      }
+    }
+  }
 });
 
 // Función para probar la conexión

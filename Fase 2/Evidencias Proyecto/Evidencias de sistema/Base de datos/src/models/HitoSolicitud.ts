@@ -9,8 +9,8 @@ interface HitoSolicitudAttributes {
     id_hito_solicitud: number;
     nombre_hito: string;
     tipo_ancla: string;
-    duracion_horas: number;
-    avisar_antes_horas: number;
+    duracion_dias: number;
+    avisar_antes_dias: number;
     descripcion: string;
     codigo_servicio: string;
     fecha_base?: Date;
@@ -29,8 +29,8 @@ class HitoSolicitud extends Model<HitoSolicitudAttributes, HitoSolicitudCreation
     public id_hito_solicitud!: number;
     public nombre_hito!: string;
     public tipo_ancla!: string;
-    public duracion_horas!: number;
-    public avisar_antes_horas!: number;
+    public duracion_dias!: number;
+    public avisar_antes_dias!: number;
     public descripcion!: string;
     public codigo_servicio!: string;
     public fecha_base?: Date;
@@ -73,13 +73,42 @@ class HitoSolicitud extends Model<HitoSolicitudAttributes, HitoSolicitudCreation
     }
 
     /**
-     * Calcula cuántas horas faltan para la fecha límite
+     * Calcula cuántos días hábiles faltan para la fecha límite
      */
-    public horasRestantes(): number | null {
+    public diasHabilesRestantes(): number | null {
         if (!this.estaActivo()) return null;
         const ahora = new Date();
         const diff = this.fecha_limite!.getTime() - ahora.getTime();
-        return Math.floor(diff / (1000 * 60 * 60));
+        
+        // Si ya pasó la fecha, retornar negativo
+        if (diff < 0) {
+            const diasAtrasados = Math.ceil(Math.abs(diff) / (1000 * 60 * 60 * 24));
+            return -diasAtrasados;
+        }
+        
+        // Calcular días hábiles restantes (aproximado)
+        const diasCalendario = Math.floor(diff / (1000 * 60 * 60 * 24));
+        
+        // Ajustar por fines de semana (simplificado)
+        let diasHabiles = diasCalendario;
+        const fechaActual = new Date(ahora);
+        
+        // Si la fecha límite es muy próxima, calcular exactamente
+        if (diasCalendario <= 14) {
+            let contador = 0;
+            while (fechaActual < this.fecha_limite!) {
+                const diaSemana = fechaActual.getDay();
+                if (diaSemana !== 0 && diaSemana !== 6) { // No es domingo ni sábado
+                    contador++;
+                }
+                fechaActual.setDate(fechaActual.getDate() + 1);
+            }
+            return contador;
+        }
+        
+        // Para fechas lejanas, estimar (restar aprox. 2 días por semana)
+        diasHabiles = Math.max(0, Math.floor(diasCalendario * 5 / 7));
+        return diasHabiles;
     }
 
     /**
@@ -87,9 +116,18 @@ class HitoSolicitud extends Model<HitoSolicitudAttributes, HitoSolicitudCreation
      */
     public debeAvisar(): boolean {
         if (!this.estaActivo() || this.estaCompletado()) return false;
-        const horasRestantes = this.horasRestantes();
-        if (horasRestantes === null) return false;
-        return horasRestantes <= this.avisar_antes_horas && horasRestantes >= 0;
+        const diasRestantes = this.diasHabilesRestantes();
+        if (diasRestantes === null) return false;
+        // Debe avisar si está dentro del rango de aviso (por venir o vencido)
+        return Math.abs(diasRestantes) <= this.avisar_antes_dias;
+    }
+
+    /**
+     * Genera mensaje de alerta dinámico según los días restantes
+     */
+    public getMensajeAlerta(): string {
+        // Solo devolver la descripción base del hito, sin prefijos de días
+        return this.descripcion;
     }
 
     /**
@@ -132,14 +170,14 @@ HitoSolicitud.init({
             len: [3, 50]
         }
     },
-    duracion_horas: {
+    duracion_dias: {
         type: DataTypes.INTEGER,
         allowNull: false,
         validate: {
-            min: 1
+            min: 0
         }
     },
-    avisar_antes_horas: {
+    avisar_antes_dias: {
         type: DataTypes.INTEGER,
         allowNull: false,
         validate: {

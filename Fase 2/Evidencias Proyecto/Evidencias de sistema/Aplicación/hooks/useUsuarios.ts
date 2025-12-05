@@ -102,7 +102,7 @@ export function useUsuarios() {
     }
   }
 
-  const createUser = async (): Promise<{ success: boolean; message?: string }> => {
+  const createUser = async (): Promise<{ success: boolean; message?: string; fieldErrors?: Record<string, string> }> => {
     try {
       const res = await fetch(`${API_URL}/api/users/register`, {
         method: "POST",
@@ -120,7 +120,16 @@ export function useUsuarios() {
           contrasena_usuario: newUser.password,
         }),
       })
-      const data = await res.json()
+      
+      // Intentar parsear la respuesta JSON sin importar el código de estado
+      let data
+      try {
+        const text = await res.text()
+        data = text ? JSON.parse(text) : {}
+      } catch (err) {
+        data = {}
+      }
+      
       if (res.ok && data?.success) {
         const created = data.data
         setUsers([
@@ -143,11 +152,36 @@ export function useUsuarios() {
         setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
         return { success: true, message: data?.message }
       } else {
-        return { success: false, message: data?.message || "Error creando usuario" }
+        // Manejar errores de validación del servidor
+        const serverMessage = data?.message || "Ha ocurrido un error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente."
+        const fieldErrors: Record<string, string> = {}
+        
+        // Mapear mensajes del servidor al campo correspondiente
+        // Mensajes esperados del backend:
+        // - "El RUT ya está registrado en el sistema"
+        // - "El correo electrónico ya está registrado en el sistema"
+        // - "Este email ya está registrado"
+        if (serverMessage.includes("RUT") || serverMessage.includes("rut_usuario")) {
+          fieldErrors.rut = serverMessage
+        } else if (serverMessage.includes("email") || serverMessage.includes("Email") || serverMessage.includes("correo electrónico")) {
+          fieldErrors.email = serverMessage
+        } else if (serverMessage.includes("contraseña") || serverMessage.includes("password")) {
+          fieldErrors.password = serverMessage
+        } else if (serverMessage.includes("nombre")) {
+          fieldErrors.nombre = serverMessage
+        } else if (serverMessage.includes("apellido")) {
+          fieldErrors.apellido = serverMessage
+        }
+        
+        return { success: false, message: serverMessage, fieldErrors }
       }
-    } catch (err) {
-      console.error(err)
-      return { success: false, message: "Error creando usuario" }
+    } catch (err: any) {
+      console.error('Error creating user:', err)
+      // Mensaje amigable para errores no contemplados
+      return { 
+        success: false, 
+        message: "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde." 
+      }
     }
   }
 
@@ -164,7 +198,7 @@ export function useUsuarios() {
     })
   }
 
-  const updateUser = async (): Promise<{ success: boolean; message?: string }> => {
+  const updateUser = async (): Promise<{ success: boolean; message?: string; fieldErrors?: Record<string, string> }> => {
     if (!editingUser) return { success: false, message: "No hay usuario seleccionado para editar" }
     
     try {
@@ -191,7 +225,16 @@ export function useUsuarios() {
         },
         body: JSON.stringify(updateData),
       })
-      const data = await res.json()
+      
+      // Intentar parsear la respuesta JSON sin importar el código de estado
+      let data
+      try {
+        const text = await res.text()
+        data = text ? JSON.parse(text) : {}
+      } catch (err) {
+        data = {}
+      }
+      
       if (res.ok && data?.success) {
         // Actualizar la lista local con el usuario modificado
         setUsers(users.map((user) => 
@@ -214,11 +257,33 @@ export function useUsuarios() {
         setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
         return { success: true, message: data?.message }
       } else {
-        return { success: false, message: data?.message || "Error actualizando usuario" }
+        // Manejar errores de validación del servidor
+        const serverMessage = data?.message || "Ha ocurrido un error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente."
+        const fieldErrors: Record<string, string> = {}
+        
+        // Mapear mensajes del servidor al campo correspondiente
+        // Mensajes esperados del backend:
+        // - "El correo electrónico ya está registrado en el sistema"
+        // - "Este email ya está registrado"
+        if (serverMessage.includes("email") || serverMessage.includes("Email") || serverMessage.includes("correo electrónico")) {
+          fieldErrors.email = serverMessage
+        } else if (serverMessage.includes("contraseña") || serverMessage.includes("password")) {
+          fieldErrors.password = serverMessage
+        } else if (serverMessage.includes("nombre")) {
+          fieldErrors.nombre = serverMessage
+        } else if (serverMessage.includes("apellido")) {
+          fieldErrors.apellido = serverMessage
+        }
+        
+        return { success: false, message: serverMessage, fieldErrors }
       }
-    } catch (err) {
-      console.error(err)
-      return { success: false, message: "Error actualizando usuario" }
+    } catch (err: any) {
+      console.error('Error updating user:', err)
+      // Mensaje amigable para errores no contemplados
+      return { 
+        success: false, 
+        message: "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde." 
+      }
     }
   }
 
@@ -260,6 +325,11 @@ export function useUsuarios() {
     setCurrentPage(1) // Reset to first page when changing page size
   }
 
+  const clearEditingUser = () => {
+    setEditingUser(null)
+    setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
+  }
+
   return {
     users,
     filteredUsers,
@@ -290,5 +360,6 @@ export function useUsuarios() {
     nextPage,
     prevPage,
     handlePageSizeChange,
+    clearEditingUser,
   }
 }

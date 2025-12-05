@@ -16,20 +16,67 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { toast } from "sonner"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 import { validateRut } from "@/lib/utils"
-import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import type { ServiceType } from "@/lib/types"
-import { descripcionCargoService, solicitudService, regionService, comunaService, candidatoService, postulacionService } from "@/lib/api"
+import { descripcionCargoService, solicitudService, regionService, comunaService, candidatoService, postulacionService, getCandidatesByProcess } from "@/lib/api"
 import * as XLSX from 'xlsx'
 import { useFormValidation, validationSchemas, validateCandidates } from "@/hooks/useFormValidation"
 import { ValidatedInput, ValidatedTextarea, ValidatedSelect, ValidatedSelectItem, ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
+
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
 
 interface CreateProcessDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   solicitudToEdit?: any // Solicitud a editar (opcional, si no se pasa es modo creación)
+  onSuccess?: () => void // Callback para ejecutar después de crear/actualizar exitosamente
 }
 
 interface FormDataApi {
@@ -54,7 +101,8 @@ interface FormDataApi {
   comunas: string[];
 }
 
-export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: CreateProcessDialogProps) {
+export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuccess }: CreateProcessDialogProps) {
+  const { showToast } = useToastNotification()
   const isEditMode = !!solicitudToEdit
   const [formData, setFormData] = useState({
     client_id: "",
@@ -107,11 +155,6 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
   const [loadingRegionComuna, setLoadingRegionComuna] = useState(true)
   const [loadingSolicitudData, setLoadingSolicitudData] = useState(false)
   
-  // Estados para alertas
-  const [alertOpen, setAlertOpen] = useState(false)
-  const [alertType, setAlertType] = useState<"success" | "error" | "confirm">("success")
-  const [alertTitle, setAlertTitle] = useState("")
-  const [alertDescription, setAlertDescription] = useState("")
 
   // Hook de validación
   const { errors: validationErrors, validateField, validateAllFields, clearAllErrors } = useFormValidation()
@@ -190,7 +233,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
       setTodasLasComunas(comunasRes.data || [])
     } catch (error) {
       console.error('Error al cargar regiones y comunas:', error)
-      toast.error('Error al cargar regiones y comunas')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "Error al cargar regiones y comunas",
+      })
     } finally {
       setLoadingRegionComuna(false)
     }
@@ -223,11 +270,19 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
       if (response.success && response.data) {
         setApiData(response.data)
       } else {
-        toast.error('Error al cargar los datos del formulario')
+        showToast({
+          type: "error",
+          title: "Error",
+          description: "Error al cargar los datos del formulario",
+        })
       }
     } catch (error) {
       console.error('Error loading form data:', error)
-      toast.error('Error al cargar los datos del formulario')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "Error al cargar los datos del formulario",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -278,10 +333,70 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           cv_file: null,
           excel_file: null,
         })
+
+        // Si es evaluación/test psicolaboral, cargar candidatos existentes
+        const isEvaluationProcess = solicitud.service_type === 'ES' || solicitud.service_type === 'TS' || solicitud.service_type === 'AP'
+        if (isEvaluationProcess) {
+          try {
+            const candidatosExistentes = await getCandidatesByProcess(solicitudToEdit.id)
+            
+            if (candidatosExistentes && candidatosExistentes.length > 0) {
+              // Transformar candidatos al formato del formulario
+              const candidatosFormateados = candidatosExistentes.map((candidato: any) => {
+                // Usar los campos separados del backend si están disponibles, sino dividir el nombre completo
+                const nombre = candidato.nombre || ''
+                const primerApellido = candidato.primer_apellido || ''
+                const segundoApellido = candidato.segundo_apellido || ''
+
+                return {
+                  rut_candidato: candidato.rut || "",
+                  nombre_candidato: nombre,
+                  primer_apellido_candidato: primerApellido,
+                  segundo_apellido_candidato: segundoApellido,
+                  telefono_candidato: candidato.phone || "",
+                  email_candidato: candidato.email || "",
+                  discapacidad: candidato.has_disability_credential || false,
+                  cv_file: null // Los CVs no se pueden pre-cargar en el formulario
+                }
+              })
+
+              setCandidatos(candidatosFormateados)
+            } else {
+              // Si no hay candidatos, mantener el array con un candidato vacío
+              setCandidatos([{
+                rut_candidato: "",
+                nombre_candidato: "",
+                primer_apellido_candidato: "",
+                segundo_apellido_candidato: "",
+                telefono_candidato: "",
+                email_candidato: "",
+                discapacidad: false,
+                cv_file: null
+              }])
+            }
+          } catch (error) {
+            console.error('Error al cargar candidatos:', error)
+            // No mostrar error al usuario, solo dejar el array vacío
+            setCandidatos([{
+              rut_candidato: "",
+              nombre_candidato: "",
+              primer_apellido_candidato: "",
+              segundo_apellido_candidato: "",
+              telefono_candidato: "",
+              email_candidato: "",
+              discapacidad: false,
+              cv_file: null
+            }])
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading solicitud data:', error)
-      toast.error('Error al cargar los datos de la solicitud')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "Error al cargar los datos de la solicitud",
+      })
     } finally {
       setLoadingSolicitudData(false)
     }
@@ -378,6 +493,41 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     })
   }
 
+  // Función para subir CVs después de crear/actualizar la solicitud
+  const uploadCVsForCandidates = async (
+    candidatosPostulaciones: Array<{ email: string; postulacion_id: number }>,
+    candidatosForm: Array<{ email_candidato: string; cv_file: File | null }>
+  ) => {
+    const uploadPromises: Promise<void>[] = []
+
+    for (const candidatoForm of candidatosForm) {
+      if (!candidatoForm.cv_file) continue
+
+      // Buscar la postulación correspondiente por email
+      const postulacionInfo = candidatosPostulaciones.find(
+        cp => cp.email.toLowerCase() === candidatoForm.email_candidato.toLowerCase()
+      )
+
+      if (postulacionInfo) {
+        uploadPromises.push(
+          postulacionService.uploadCV(postulacionInfo.postulacion_id, candidatoForm.cv_file)
+            .then(() => {
+              console.log(`CV subido exitosamente para postulación ${postulacionInfo.postulacion_id}`)
+            })
+            .catch((error) => {
+              console.error(`Error al subir CV para postulación ${postulacionInfo.postulacion_id}:`, error)
+              const errorMsg = processApiErrorMessage(error.message, 'Error desconocido')
+              throw new Error(`Error al subir CV para ${candidatoForm.email_candidato}: ${errorMsg}`)
+            })
+        )
+      } else {
+        console.warn(`No se encontró postulación para candidato con email ${candidatoForm.email_candidato}`)
+      }
+    }
+
+    await Promise.all(uploadPromises)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -450,157 +600,206 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
 
       // Si hay errores, no continuar
       if (hasErrors) {
-        toast.error('Por favor corrige los errores antes de continuar')
+        setIsSubmitting(false)
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Por favor completa todos los campos obligatorios y corrige los errores antes de continuar.",
+        })
         return
       }
 
       let response
 
       if (isEditMode && solicitudToEdit) {
-        // Modo edición: actualizar la solicitud existente
-        response = await solicitudService.update(parseInt(solicitudToEdit.id), {
-          contact_id: formData.contact_id,
-          service_type: formData.service_type,
-          position_title: formData.position_title,
-          ciudad: formData.ciudad,
-          description: isEvaluationProcess && formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
-          requirements: formData.requirements || undefined,
-          vacancies: formData.vacancies,
-          consultant_id: formData.consultant_id,
-          deadline_days: 30
-        })
+        // Modo edición: decidir si usar endpoint normal o con transacción atómica
+        if (isEvaluationProcess && candidatos.length > 0) {
+          // Si es evaluación/test y hay candidatos nuevos, usar transacción atómica
+          showToast({
+            type: "info",
+            title: "Procesando",
+            description: "Actualizando solicitud con candidatos nuevos...",
+          })
+          
+          response = await solicitudService.actualizarConCandidatos(parseInt(solicitudToEdit.id), {
+            contact_id: parseInt(formData.contact_id),
+            service_type: formData.service_type,
+            position_title: formData.position_title,
+            ciudad: formData.ciudad,
+            description: formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
+            requirements: formData.requirements || undefined,
+            consultant_id: formData.consultant_id,
+            deadline_days: 30,
+            candidatos: candidatos.map(c => ({
+              nombre: c.nombre_candidato,
+              primer_apellido: c.primer_apellido_candidato,
+              segundo_apellido: c.segundo_apellido_candidato,
+              email: c.email_candidato,
+              phone: c.telefono_candidato,
+              rut: c.rut_candidato || undefined,
+              has_disability_credential: c.discapacidad
+            }))
+          })
+        } else {
+          // Actualizar solicitud normal (sin candidatos nuevos o no es evaluación)
+          response = await solicitudService.update(parseInt(solicitudToEdit.id), {
+            contact_id: formData.contact_id,
+            service_type: formData.service_type,
+            position_title: formData.position_title,
+            ciudad: formData.ciudad,
+            description: isEvaluationProcess && formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
+            requirements: formData.requirements || undefined,
+            vacancies: formData.vacancies,
+            consultant_id: formData.consultant_id,
+            deadline_days: 30
+          })
+        }
       } else {
-        // Modo creación: crear nueva solicitud
-        // Para evaluación/test psicolaboral, el número de vacantes es igual al número de candidatos
-        const vacanciesCount = isEvaluationProcess ? candidatos.length : formData.vacancies;
-        
-        response = await solicitudService.create({
-        contact_id: formData.contact_id,
-        service_type: formData.service_type,
-        position_title: formData.position_title,
-        ciudad: formData.ciudad,
-        description: isEvaluationProcess && formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
-        requirements: formData.requirements || undefined,
-        vacancies: vacanciesCount,
-        consultant_id: formData.consultant_id,
-        deadline_days: 30 // Por defecto 30 días
-      })
+        // Modo creación: decidir si usar endpoint normal o con transacción atómica
+        if (isEvaluationProcess) {
+          // Usar endpoint con transacción atómica para evaluación/test psicolaboral
+          showToast({
+            type: "info",
+            title: "Procesando",
+            description: "Creando solicitud con candidatos...",
+          })
+          
+          response = await solicitudService.crearConCandidatos({
+            contact_id: parseInt(formData.contact_id),
+            service_type: formData.service_type,
+            position_title: formData.position_title,
+            ciudad: formData.ciudad,
+            description: formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
+            requirements: formData.requirements || undefined,
+            consultant_id: formData.consultant_id,
+            deadline_days: 30,
+            candidatos: candidatos.map(c => ({
+              nombre: c.nombre_candidato,
+              primer_apellido: c.primer_apellido_candidato,
+              segundo_apellido: c.segundo_apellido_candidato,
+              email: c.email_candidato,
+              phone: c.telefono_candidato,
+              rut: c.rut_candidato || undefined,
+              has_disability_credential: c.discapacidad
+            }))
+          })
+        } else {
+          // Crear solicitud normal (PC, LL, HH)
+          response = await solicitudService.create({
+            contact_id: formData.contact_id,
+            service_type: formData.service_type,
+            position_title: formData.position_title,
+            ciudad: formData.ciudad,
+            description: formData.description || undefined,
+            requirements: formData.requirements || undefined,
+            vacancies: formData.vacancies,
+            consultant_id: formData.consultant_id,
+            deadline_days: 30
+          })
+        }
       }
 
       if (response.success) {
-        // Si es evaluación/test psicolaboral, crear candidatos y postulaciones con rollback
+        // Para evaluación, ya se creó/actualizó todo en la transacción atómica
         if (isEvaluationProcess && !isEditMode) {
-          const solicitudId = response.data?.id
-          
-          if (!solicitudId) {
-            console.error('Response data:', response.data)
-            throw new Error('No se pudo obtener el ID de la solicitud creada')
-          }
-          
-          const candidatosCreados: number[] = []
-          const postulacionesCreadas: number[] = []
-          
-          try {
-            toast.info('Creando candidatos y postulaciones...')
-            console.log('Solicitud ID:', solicitudId)
-            
-            // Crear cada candidato y su postulación
-            for (const candidato of candidatos) {
-              console.log('Creando candidato:', candidato)
-              
-              const candidatoPayload = {
-                name: `${candidato.nombre_candidato} ${candidato.primer_apellido_candidato} ${candidato.segundo_apellido_candidato}`.trim(),
-                email: candidato.email_candidato,
-                phone: candidato.telefono_candidato,
-                rut: candidato.rut_candidato || undefined,
-                has_disability_credential: candidato.discapacidad
-              }
-              console.log('Datos a enviar:', candidatoPayload)
-              
-              // Crear candidato usando el servicio
-              const candidatoResponse = await candidatoService.create(candidatoPayload)
-              
-              if (!candidatoResponse.success || !candidatoResponse.data) {
-                console.error('Error response:', candidatoResponse)
-                throw new Error(`Error al crear candidato ${candidato.nombre_candidato}: ${candidatoResponse.message || 'Error desconocido'}`)
-              }
-              
-              const candidatoId = parseInt(candidatoResponse.data.id)
-              candidatosCreados.push(candidatoId)
-              console.log('Candidato creado exitosamente con ID:', candidatoId)
-              
-              // Crear postulación usando el servicio
-              // Para evaluación/test psicolaboral, no se envía id_portal_postulacion
-              const postulacionPayload: any = {
-                id_candidato: candidatoId,
-                id_solicitud: Number(solicitudId),
-                id_estado_candidato: 1, // 1 = "Presentado" (estado inicial)
-              }
-              
-              // Adjuntar CV si existe
-              if (candidato.cv_file) {
-                postulacionPayload.cv_file = candidato.cv_file
-              }
-              
-              console.log('Creando postulación con datos:', {
-                ...postulacionPayload,
-                cv_file: candidato.cv_file ? 'Archivo adjunto' : 'Sin archivo'
-              })
-              
-              const postulacionResponse = await postulacionService.create(postulacionPayload)
-              
-              if (!postulacionResponse.success || !postulacionResponse.data) {
-                console.error('Error response postulación:', postulacionResponse)
-                throw new Error(`Error al crear postulación para candidato ${candidato.nombre_candidato}: ${postulacionResponse.message || 'Error desconocido'}`)
-              }
-              
-              const postulacionId = postulacionResponse.data.id_postulacion
-              postulacionesCreadas.push(parseInt(postulacionId))
-              console.log('Postulación creada exitosamente con ID:', postulacionId)
-            }
-            
-            // Si todo salió bien, mostrar éxito
-            setAlertType("success")
-            setAlertTitle("¡Proceso completado exitosamente!")
-            setAlertDescription(`Se creó la solicitud con ${candidatos.length} candidato(s) y sus respectivas postulaciones.`)
-            setAlertOpen(true)
-            
-          } catch (error: any) {
-            console.error('Error creating candidatos/postulaciones:', error)
-            
-            // Rollback: eliminar candidatos y postulaciones creadas
+          // Creación con candidatos - subir CVs si hay
+          if (response.data.candidatos_postulaciones && candidatos.some(c => c.cv_file)) {
             try {
-              // Eliminar postulaciones creadas
-              for (const postulacionId of postulacionesCreadas) {
-                await fetch(`/api/postulaciones/${postulacionId}`, { method: 'DELETE' })
+              showToast({
+                type: "info",
+                title: "Procesando",
+                description: "Subiendo CVs...",
+              })
+              await uploadCVsForCandidates(response.data.candidatos_postulaciones, candidatos)
+              showToast({
+                type: "success",
+                title: "¡Éxito!",
+                description: `Solicitud creada exitosamente con ${response.data.candidatos_creados} candidato(s) y CVs subidos`,
+              })
+            } catch (cvError: any) {
+              console.error('Error al subir CVs:', cvError)
+              const errorMsg = processApiErrorMessage(cvError.message, 'Error desconocido al subir CVs')
+              showToast({
+                type: "warning",
+                title: "Advertencia",
+                description: `Solicitud creada exitosamente, pero hubo errores al subir algunos CVs: ${errorMsg}`,
+              })
+            }
+          } else {
+            showToast({
+              type: "success",
+              title: "¡Éxito!",
+              description: `Solicitud creada exitosamente con ${response.data.candidatos_creados} candidato(s)`,
+            })
+          }
+          onOpenChange(false)
+          onSuccess?.() // Recargar datos
+        } else if (isEvaluationProcess && isEditMode && candidatos.length > 0) {
+          // Actualización con candidatos nuevos - subir CVs si hay
+          const candidatosNuevos = response.data.candidatos_creados || 0
+          if (response.data.candidatos_postulaciones && candidatos.some(c => c.cv_file)) {
+            try {
+              showToast({
+                type: "info",
+                title: "Procesando",
+                description: "Subiendo CVs...",
+              })
+              await uploadCVsForCandidates(response.data.candidatos_postulaciones, candidatos)
+              if (candidatosNuevos > 0) {
+                showToast({
+                  type: "success",
+                  title: "¡Éxito!",
+                  description: `Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s) y CVs subidos`,
+                })
+              } else {
+                showToast({
+                  type: "success",
+                  title: "¡Éxito!",
+                  description: "Solicitud actualizada exitosamente con CVs subidos",
+                })
               }
-              
-              // Eliminar candidatos creados
-              for (const candidatoId of candidatosCreados) {
-                await fetch(`/api/candidatos/${candidatoId}`, { method: 'DELETE' })
+            } catch (cvError: any) {
+              console.error('Error al subir CVs:', cvError)
+              if (candidatosNuevos > 0) {
+                showToast({
+                  type: "warning",
+                  title: "Advertencia",
+                  description: `Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s), pero hubo errores al subir algunos CVs`,
+                })
+              } else {
+                showToast({
+                  type: "warning",
+                  title: "Advertencia",
+                  description: "Solicitud actualizada exitosamente, pero hubo errores al subir algunos CVs",
+                })
               }
-              
-              // Eliminar la solicitud creada
-              await fetch(`/api/solicitudes/${solicitudId}`, { method: 'DELETE' })
-              
-              setAlertType("error")
-              setAlertTitle("Error en el proceso")
-              setAlertDescription(`Hubo un error al crear los candidatos/postulaciones. Se realizó rollback completo: ${error.message}`)
-              setAlertOpen(true)
-              
-            } catch (rollbackError: any) {
-              console.error('Error during rollback:', rollbackError)
-              setAlertType("error")
-              setAlertTitle("Error crítico")
-              setAlertDescription(`Error al crear candidatos/postulaciones y falló el rollback. Contacte al administrador. Error: ${error.message}`)
-              setAlertOpen(true)
+            }
+          } else {
+            if (candidatosNuevos > 0) {
+              showToast({
+                type: "success",
+                title: "¡Éxito!",
+                description: `Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s)`,
+              })
+            } else {
+              showToast({
+                type: "success",
+                title: "¡Éxito!",
+                description: "Solicitud actualizada exitosamente",
+              })
             }
           }
+          onOpenChange(false)
+          onSuccess?.() // Recargar datos
         } else {
           // Si hay archivo Excel, procesarlo y enviarlo
           if (formData.excel_file) {
             try {
-              toast.info('Procesando archivo Excel...')
+              showToast({
+                type: "info",
+                title: "Procesando",
+                description: "Procesando archivo Excel...",
+              })
               const excelData = await processExcelFile(formData.excel_file)
               
               // Obtener el ID de la descripción de cargo creada
@@ -610,29 +809,39 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                 const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
                 
                 if (excelResponse.success) {
-                  setAlertType("success")
-                  setAlertTitle("¡Proceso completado exitosamente!")
-                  setAlertDescription(isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente')
-                  setAlertOpen(true)
+                  showToast({
+                    type: "success",
+                    title: "¡Éxito!",
+                    description: isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente',
+                  })
+                  onOpenChange(false)
+                  onSuccess?.() // Recargar datos
                 } else {
-                  setAlertType("error")
-                  setAlertTitle("Error parcial")
-                  setAlertDescription(isEditMode ? 'Solicitud actualizada, pero hubo un error al guardar los datos del Excel' : 'Solicitud creada, pero hubo un error al guardar los datos del Excel')
-                  setAlertOpen(true)
+                  const errorMsg = processApiErrorMessage(excelResponse.message, isEditMode ? 'Error al guardar los datos del Excel' : 'Error al guardar los datos del Excel')
+                  showToast({
+                    type: "error",
+                    title: "Error",
+                    description: isEditMode ? `Solicitud actualizada, pero ${errorMsg}` : `Solicitud creada, pero ${errorMsg}`,
+                  })
                 }
               }
             } catch (excelError: any) {
               console.error('Error processing Excel:', excelError)
-              setAlertType("error")
-              setAlertTitle("Error al procesar Excel")
-              setAlertDescription((isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + excelError.message)
-              setAlertOpen(true)
+              const errorMsg = processApiErrorMessage(excelError.message, 'Error al procesar el archivo Excel')
+              showToast({
+                type: "error",
+                title: "Error",
+                description: (isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + errorMsg,
+              })
             }
           } else {
-            setAlertType("success")
-            setAlertTitle("¡Proceso completado exitosamente!")
-            setAlertDescription(isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente')
-            setAlertOpen(true)
+            showToast({
+              type: "success",
+              title: "¡Éxito!",
+              description: isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente',
+            })
+            onOpenChange(false)
+            onSuccess?.() // Recargar datos
           }
         }
         
@@ -672,19 +881,23 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           cv_file: null
         }])
         
-        // No cerrar automáticamente, las alertas manejarán el cierre
+        // No cerrar automáticamente si hay errores
       } else {
-        setAlertType("error")
-        setAlertTitle("Error en la operación")
-        setAlertDescription(response.message || 'Error al crear la solicitud')
-        setAlertOpen(true)
+        const errorMsg = processApiErrorMessage(response.message, 'Error al crear la solicitud')
+        showToast({
+          type: "error",
+          title: "Error",
+          description: errorMsg,
+        })
       }
     } catch (error: any) {
       console.error('Error creating request:', error)
-      setAlertType("error")
-      setAlertTitle("Error en la operación")
-      setAlertDescription(error.message || 'Error al crear la solicitud')
-      setAlertOpen(true)
+      const errorMsg = processApiErrorMessage(error.message, 'Error al crear la solicitud')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -700,7 +913,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     
     // Validar que el cliente tenga al menos un contacto
     if (client && (!client.contactos || client.contactos.length === 0)) {
-      toast.error(`El cliente "${client.nombre}" no tiene contactos registrados. Por favor, agregue al menos un contacto antes de crear una solicitud.`)
+      showToast({
+        type: "error",
+        title: "Error",
+        description: `El cliente "${client.nombre}" no tiene contactos registrados. Por favor, agregue al menos un contacto antes de crear una solicitud.`,
+      })
       setFormData({ ...formData, client_id: "", contact_id: "" })
       // Validar con mensaje personalizado
       validateField('client_id', '', { 
@@ -852,15 +1069,6 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
     return null
   }
 
-  // Función para manejar el cierre de alertas
-  const handleAlertClose = () => {
-    setAlertOpen(false)
-    // Si fue exitoso, cerrar el diálogo y recargar
-    if (alertType === "success") {
-      onOpenChange(false)
-      window.location.reload()
-    }
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -990,7 +1198,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Sin cargo">Sin cargo</SelectItem>
-                  {apiData?.cargos.map((cargo) => (
+                  {apiData?.cargos.filter(cargo => cargo !== "Sin cargo").map((cargo) => (
                     <SelectItem key={cargo} value={cargo}>
                       {cargo}
                     </SelectItem>
@@ -1350,11 +1558,19 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
               id="vacancies"
               label="Número de Vacantes"
               type="number"
-              value={formData.vacancies.toString()}
+              value={isNaN(formData.vacancies) ? '' : formData.vacancies.toString()}
               onChange={(value) => {
-                const numValue = parseInt(value)
-                setFormData({ ...formData, vacancies: numValue })
-                validateSpecificField('vacancies', numValue)
+                if (value === '') {
+                  setFormData({ ...formData, vacancies: 0 })
+                  validateSpecificField('vacancies', '')
+                  return
+                }
+                
+                const numValue = parseInt(value, 10)
+                if (!isNaN(numValue)) {
+                  setFormData({ ...formData, vacancies: numValue })
+                  validateSpecificField('vacancies', numValue)
+                }
               }}
               required
               error={typeof validationErrors.vacancies === 'string' ? validationErrors.vacancies : undefined}
@@ -1492,17 +1708,6 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
           </DialogFooter>
         </form>
       </DialogContent>
-      
-      {/* CustomAlertDialog para mostrar resultados */}
-      <CustomAlertDialog
-        open={alertOpen}
-        onOpenChange={handleAlertClose}
-        type={alertType}
-        title={alertTitle}
-        description={alertDescription}
-        confirmText="Aceptar"
-        onConfirm={handleAlertClose}
-      />
     </Dialog>
   )
 }

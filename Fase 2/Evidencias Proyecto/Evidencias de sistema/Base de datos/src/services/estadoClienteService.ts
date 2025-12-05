@@ -4,6 +4,7 @@ import EstadoCliente from '@/models/EstadoCliente';
 import EstadoClientePostulacion from '@/models/EstadoClientePostulacion';
 import EstadoCandidato from '@/models/EstadoCandidato';
 import Postulacion from '@/models/Postulacion';
+import { setDatabaseUser } from '@/utils/databaseUser';
 
 export class EstadoClienteService {
     /**
@@ -31,11 +32,17 @@ export class EstadoClienteService {
             comentarios?: string;
             fecha_presentacion?: string;
             fecha_feedback_cliente?: string;
-        }
+        },
+        usuarioRut?: string
     ) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la sesión para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const { id_estado_cliente, comentarios, fecha_presentacion, fecha_feedback_cliente } = data;
 
             // Verificar que la postulación existe
@@ -55,48 +62,58 @@ export class EstadoClienteService {
                 throw new Error(`Los comentarios son obligatorios para el estado "${estadoCliente.nombre_estado}"`);
             }
 
-            // Verificar si el estado realmente cambió
-            // Obtener el último estado de cliente para esta postulación
-            const ultimoEstadoCliente = await EstadoClientePostulacion.findOne({
-                where: { id_postulacion },
-                order: [['fecha_cambio_estado_cliente', 'DESC']]
+            // Buscar si ya existe un registro con este estado para esta postulación
+            const registroExistente = await EstadoClientePostulacion.findOne({
+                where: {
+                    id_estado_cliente,
+                    id_postulacion
+                },
+                transaction
             });
 
-            // Solo crear registro en estado_cliente_postulacion si el estado cambió
-            let fechaCambio: Date | null = null;
-            if (!ultimoEstadoCliente || ultimoEstadoCliente.id_estado_cliente !== id_estado_cliente) {
-                // El estado cambió o es el primer estado, crear registro
-                fechaCambio = new Date();
+            // Preparar datos para fecha_feedback_cliente_m3 (convertir string a Date solo si se proporciona)
+            let fechaFeedbackDate: Date | undefined = undefined;
+            if (fecha_feedback_cliente && typeof fecha_feedback_cliente === 'string' && fecha_feedback_cliente.trim() !== '') {
+                fechaFeedbackDate = new Date(fecha_feedback_cliente);
+            }
+
+            // Preparar datos para comentario_rech_obs_cliente
+            const comentarioRechObs = comentarios && comentarios.trim() !== '' ? comentarios.trim() : undefined;
+
+            if (registroExistente) {
+                // El registro existe con el mismo estado → UPDATE (solo actualizar fecha/comentario si se proporcionan)
+                const updateData: any = {};
+
+                if (fechaFeedbackDate !== undefined) {
+                    updateData.fecha_feedback_cliente_m3 = fechaFeedbackDate;
+                }
+
+                if (comentarioRechObs !== undefined) {
+                    updateData.comentario_rech_obs_cliente = comentarioRechObs;
+                }
+
+                // Actualizar updated_at manualmente
+                updateData.updated_at = new Date();
+
+                if (Object.keys(updateData).length > 0) {
+                    await registroExistente.update(updateData, { transaction });
+                }
+            } else {
+                // El registro NO existe → CREATE nuevo registro (el estado cambió o es el primero)
+                // La columna updated_at se establece automáticamente por el DEFAULT en la BD
                 await EstadoClientePostulacion.create({
                     id_postulacion,
                     id_estado_cliente,
-                    fecha_cambio_estado_cliente: fechaCambio
+                    fecha_feedback_cliente_m3: fechaFeedbackDate,
+                    comentario_rech_obs_cliente: comentarioRechObs
                 }, { transaction });
-            } else {
-                // El estado no cambió, usar la fecha del último cambio
-                fechaCambio = ultimoEstadoCliente.fecha_cambio_estado_cliente;
             }
 
-            // Preparar datos para actualizar la postulación
-            const updateData: any = {};
-
-            // Actualizar comentarios si se proporcionan
-            if (comentarios && comentarios.trim() !== '') {
-                updateData.comentario_rech_obs_cliente = comentarios.trim();
-            }
-
-            // Actualizar fechas si se proporcionan
+            // Actualizar fecha_envio en postulacion si se proporciona fecha_presentacion
             if (fecha_presentacion) {
-                updateData.fecha_envio = new Date(fecha_presentacion);
-            }
-
-            if (fecha_feedback_cliente) {
-                updateData.fecha_feedback_cliente = new Date(fecha_feedback_cliente);
-            }
-
-            // Actualizar la postulación con los nuevos datos
-            if (Object.keys(updateData).length > 0) {
-                await postulacion.update(updateData, { transaction });
+                await postulacion.update({
+                    fecha_envio: new Date(fecha_presentacion)
+                }, { transaction });
             }
 
             // Sincronizar EstadoCandidato si el estado del cliente es "Aprobado"
@@ -120,7 +137,6 @@ export class EstadoClienteService {
                 id_postulacion,
                 id_estado_cliente,
                 nombre_estado: estadoCliente.nombre_estado,
-                fecha_cambio_estado_cliente: fechaCambio,
                 comentarios: comentarios || null,
                 fecha_presentacion: fecha_presentacion || null,
                 fecha_feedback_cliente: fecha_feedback_cliente || null,
@@ -145,22 +161,24 @@ export class EstadoClienteService {
                     attributes: ['id_estado_cliente', 'nombre_estado']
                 }
             ],
-            order: [['fecha_cambio_estado_cliente', 'DESC']]
+            order: [['id_estado_cliente', 'ASC']]
         });
 
         return historial.map(registro => ({
             id_postulacion: registro.id_postulacion,
             id_estado_cliente: registro.id_estado_cliente,
             nombre_estado: (registro as any).estadoCliente?.nombre_estado,
-            fecha_cambio_estado_cliente: registro.fecha_cambio_estado_cliente
+            fecha_feedback_cliente_m3: registro.fecha_feedback_cliente_m3 || null,
+            comentario_rech_obs_cliente: registro.comentario_rech_obs_cliente || null
         }));
     }
 
     /**
      * Obtener el estado actual de una postulación
+     * Retorna el estado que tenga fecha_feedback_cliente_m3 más reciente, o cualquier estado si no hay fechas
      */
     static async getEstadoActual(id_postulacion: number) {
-        const ultimoEstado = await EstadoClientePostulacion.findOne({
+        const todosLosEstados = await EstadoClientePostulacion.findAll({
             where: { id_postulacion },
             include: [
                 {
@@ -168,19 +186,31 @@ export class EstadoClienteService {
                     as: 'estadoCliente',
                     attributes: ['id_estado_cliente', 'nombre_estado']
                 }
-            ],
-            order: [['fecha_cambio_estado_cliente', 'DESC']]
+            ]
         });
 
-        if (!ultimoEstado) {
+        if (!todosLosEstados || todosLosEstados.length === 0) {
             return null;
         }
+
+        // Buscar el estado con fecha_feedback_cliente_m3 más reciente
+        const estadoConFecha = todosLosEstados
+            .filter(e => e.fecha_feedback_cliente_m3 !== null && e.fecha_feedback_cliente_m3 !== undefined)
+            .sort((a, b) => {
+                const fechaA = a.fecha_feedback_cliente_m3?.getTime() || 0;
+                const fechaB = b.fecha_feedback_cliente_m3?.getTime() || 0;
+                return fechaB - fechaA; // Más reciente primero
+            })[0];
+
+        // Si hay uno con fecha, retornarlo; si no, retornar el primero
+        const ultimoEstado = estadoConFecha || todosLosEstados[0];
 
         return {
             id_postulacion: ultimoEstado.id_postulacion,
             id_estado_cliente: ultimoEstado.id_estado_cliente,
             nombre_estado: (ultimoEstado as any).estadoCliente?.nombre_estado,
-            fecha_cambio_estado_cliente: ultimoEstado.fecha_cambio_estado_cliente
+            fecha_feedback_cliente_m3: ultimoEstado.fecha_feedback_cliente_m3 || null,
+            comentario_rech_obs_cliente: ultimoEstado.comentario_rech_obs_cliente || null
         };
     }
 }

@@ -2,21 +2,27 @@
 
 
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 import { Button } from "@/components/ui/button"
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+
 import { Input } from "@/components/ui/input"
 
 import { Label } from "@/components/ui/label"
+
+import { Checkbox } from "@/components/ui/checkbox"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 import { Badge } from "@/components/ui/badge"
+
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import {
 
@@ -48,19 +54,70 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Plus, Edit, Trash2, Star, Globe, Settings, FileText } from "lucide-react"
+import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2 } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
 
 import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, publicacionService, postulacionService, institucionService, solicitudService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
+import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
+import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
 import { AddPublicationDialog } from "./add-publication-dialog"
+import { EditPublicationDialog } from "./edit-publication-dialog"
 import CVViewerDialog from "./cv-viewer-dialog"
 import { ProcessBlocked } from "./ProcessBlocked"
 import { CandidateStatusDialog } from "./candidate-status-dialog"
+import { CandidateForm } from "./candidate-form"
 
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
 
 interface ProcessModule2Props {
 
@@ -73,7 +130,8 @@ interface ProcessModule2Props {
 export function ProcessModule2({ process }: ProcessModule2Props) {
 
   console.log('=== ProcessModule2 RENDERIZADO ===')
-  const { toast } = useToast()
+  const { showToast } = useToastNotification()
+  const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
 
   
 
@@ -106,13 +164,15 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [postgrados, setPostgrados] = useState<any[]>([])
 
   const [loadingLists, setLoadingLists] = useState(true)
-
+  const [isAdvancingToModule3, setIsAdvancingToModule3] = useState(false)
 
   // Estados para diálogos
   const [statusDialogOpen, setStatusDialogOpen] = useState(false)
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
 
   const [showAddPublication, setShowAddPublication] = useState(false)
+  const [editingPublication, setEditingPublication] = useState<any | null>(null)
+  const [showEditPublication, setShowEditPublication] = useState(false)
 
   const [showAddCandidate, setShowAddCandidate] = useState(false)
 
@@ -133,12 +193,33 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
 
   const [currentStep, setCurrentStep] = useState<"basic" | "education" | "experience" | "portal_responses">("basic")
+  
+  // Estado para rastrear si se ha intentado enviar el formulario
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
+  
+  // Estados para rastrear qué campos de profesión han sido "touched" por formulario
+  const [touchedProfessionFields, setTouchedProfessionFields] = useState<Record<string, {
+    profession: boolean,
+    profession_institution: boolean,
+    profession_date: boolean
+  }>>({})
 
   // Estado del proceso para verificar bloqueo
   const [processStatus, setProcessStatus] = useState<string>((process.estado_solicitud || process.status) as string)
   
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
+
+  // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
+  const isInAdvancedModule = process.etapa && (
+    process.etapa.includes("Módulo 4") || 
+    process.etapa.includes("Módulo 5")
+  )
+
+  // Verificar si hay al menos un candidato presentado
+  const hasPresentedCandidates = useMemo(() => {
+    return candidates.some(candidate => candidate.presentation_status === 'presentado')
+  }, [candidates])
 
   // Cargar datos reales desde el backend
 
@@ -250,10 +331,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         console.error('Error al cargar datos:', error)
 
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Error al cargar datos del módulo",
-        variant: "destructive",
       })
       } finally {
 
@@ -286,6 +367,42 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [portalesDB, setPortalesDB] = useState<any[]>([]) // Portales de la BD
   const [newPortalName, setNewPortalName] = useState("")
 
+  // Filtrar portales para mostrar solo los que tienen publicaciones activas
+  // Si estamos editando un candidato, también incluimos su portal actual aunque no esté activo
+  const portalesConPublicacionesActivas = useMemo(() => {
+    // Si portalesDB aún no está cargado, retornar array vacío
+    if (!portalesDB || portalesDB.length === 0) {
+      return []
+    }
+
+    // Obtener IDs de portales que tienen publicaciones activas
+    const portalesActivosIds = new Set(
+      publications
+        .filter((pub: any) => pub.estado_publicacion === "Activa")
+        .map((pub: any) => pub.id_portal_postulacion)
+    )
+    
+    // Si estamos editando un candidato, obtener su portal actual
+    let portalActualId: number | null = null
+    if (editingCandidate && editingCandidate.source_portal) {
+      // Buscar el portal en portalesDB por nombre o ID
+      const portalActual = portalesDB.find((p: any) => 
+        p.nombre === editingCandidate.source_portal || 
+        p.id.toString() === editingCandidate.source_portal?.toString()
+      )
+      if (portalActual) {
+        portalActualId = portalActual.id
+      }
+    }
+    
+    // Filtrar portalesDB para incluir solo los que tienen publicaciones activas
+    // o el portal actual del candidato que se está editando
+    return portalesDB.filter((portal: any) => 
+      portalesActivosIds.has(portal.id) || 
+      (portalActualId !== null && portal.id === portalActualId)
+    )
+  }, [publications, portalesDB, editingCandidate])
+
 
 
   const [newPublication, setNewPublication] = useState({
@@ -304,7 +421,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   const [newCandidate, setNewCandidate] = useState({
 
-    name: "",
+    nombre: "",
+
+    primer_apellido: "",
+
+    segundo_apellido: "",
 
     email: "",
 
@@ -335,12 +456,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     nacionalidad: "",
 
     rubro: "",
-
-    profession: "",
-
-    profession_institution: "",
-
-    profession_date: "",
 
     consultant_comment: "",
 
@@ -373,8 +488,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     } as PortalResponses,
 
   })
-
-
 
   // Filtrar comunas cuando cambia la región en newCandidate
 
@@ -472,6 +585,21 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       completion_date: ''
     }
   ])
+  const [professionForms, setProfessionForms] = useState<any[]>([
+    {
+      id: '1',
+      profession: '',
+      profession_institution: '',
+      profession_date: ''
+    }
+  ])
+
+  // Calcular si al menos un campo de profesión tiene valor (habilita validaciones)
+  const hasAnyProfessionField = useMemo(() => {
+    return professionForms.some(form => 
+      !!(form.profession?.trim() || form.profession_institution?.trim() || form.profession_date?.trim())
+    )
+  }, [professionForms])
 
   // Listener para sincronización con Módulo 3
 
@@ -585,7 +713,15 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   }
 
-
+  // Función para validar edad mínima
+  const validateAge = (birthDate: string) => {
+    if (!birthDate) return null
+    const age = calculateAge(birthDate)
+    if (age < 18) {
+      return 'El candidato debe ser mayor de 18 años'
+    }
+    return null
+  }
 
   const handleAddPublication = () => {
 
@@ -613,157 +749,195 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   }
 
+  // Función para descartar todas las profesiones
+  const handleDiscardProfession = () => {
+    // Limpiar todos los formularios de profesión
+    setProfessionForms([{
+      id: '1',
+      profession: '',
+      profession_institution: '',
+      profession_date: ''
+    }])
+    
+    // Limpiar todos los errores de profesión
+    professionForms.forEach((form) => {
+      clearError(`profession_${form.id}_profession`)
+      clearError(`profession_${form.id}_institution`)
+      clearError(`profession_${form.id}_date`)
+    })
+    
+    // Resetear el estado de touched
+    setTouchedProfessionFields({})
+  }
 
+  // Función para descartar una profesión individual
+  const handleDiscardSingleProfession = (formId: string) => {
+    // Si hay más de una profesión, eliminar el formulario completo
+    if (professionForms.length > 1) {
+      removeProfessionForm(formId)
+      return
+    }
+    
+    // Si hay solo una profesión, limpiar los campos del formulario
+    setProfessionForms(prevForms => 
+      prevForms.map(form => 
+        form.id === formId 
+          ? {
+              ...form,
+              profession: '',
+              profession_institution: '',
+              profession_date: ''
+            }
+          : form
+      )
+    )
+    
+    // Limpiar los errores de esa profesión específica
+    clearError(`profession_${formId}_profession`)
+    clearError(`profession_${formId}_institution`)
+    clearError(`profession_${formId}_date`)
+    
+    // Limpiar el estado touched para esa profesión específica
+    setTouchedProfessionFields(prev => {
+      const updated = { ...prev }
+      delete updated[`${formId}_profession`]
+      delete updated[`${formId}_institution`]
+      delete updated[`${formId}_date`]
+      return updated
+    })
+  }
 
-  const handleAddCandidate = async () => {
+  // Función para descartar una educación individual
+  const handleDiscardSingleEducation = (formId: string) => {
+    // Si hay más de una educación, eliminar el formulario completo
+    if (educationForms.length > 1) {
+      removeEducationForm(formId)
+      return
+    }
+    
+    // Si hay solo una educación, limpiar los campos del formulario
+    setEducationForms(prevForms => 
+      prevForms.map(form => 
+        form.id === formId 
+          ? {
+              ...form,
+              title: '',
+              institution: '',
+              start_date: '',
+              completion_date: ''
+            }
+          : form
+      )
+    )
+    
+    // Limpiar los errores de esa educación específica
+    clearError(`education_${formId}_title`)
+    clearError(`education_${formId}_institution`)
+    clearError(`education_${formId}_start_date`)
+    clearError(`education_${formId}_completion_date`)
+  }
 
-    console.log('=== INICIANDO handleAddCandidate ===')
+  // Función para descartar una experiencia laboral individual
+  const handleDiscardSingleWorkExperience = (formId: string) => {
+    // Si hay más de una experiencia, eliminar el formulario completo
+    if (workExperienceForms.length > 1) {
+      removeWorkExperienceForm(formId)
+      return
+    }
+    
+    // Si hay solo una experiencia, limpiar los campos del formulario
+    setWorkExperienceForms(prevForms => 
+      prevForms.map(form => 
+        form.id === formId 
+          ? {
+              ...form,
+              company: '',
+              position: '',
+              start_date: '',
+              end_date: '',
+              description: ''
+            }
+          : form
+      )
+    )
+    
+    // Limpiar los errores de esa experiencia específica
+    clearError(`work_experience_${formId}_company`)
+    clearError(`work_experience_${formId}_position`)
+    clearError(`work_experience_${formId}_start_date`)
+    clearError(`work_experience_${formId}_end_date`)
+    clearError(`work_experience_${formId}_description`)
+  }
 
-    console.log('Datos del formulario:', newCandidate)
+  const handleAddCandidateSubmit = async (
+    formData: any,
+    professionFormsData: any[],
+    educationFormsData: any[],
+    workExperienceFormsData: any[]
+  ) => {
+    console.log('=== INICIANDO handleAddCandidateSubmit ===')
+    console.log('Datos del formulario:', formData)
 
     console.log('Validando campos obligatorios...')
     
     // Validar que process.id sea válido
     const processId = parseInt(process.id)
     if (isNaN(processId)) {
-      console.error('ID de proceso inválido en handleAddCandidate:', process.id)
-        toast({
-
-          title: "Error",
-
+      console.error('ID de proceso inválido en handleAddCandidateSubmit:', process.id)
+      showToast({
+        type: "error",
+        title: "Error",
         description: "ID de proceso inválido",
-          variant: "destructive",
-
-        })
-
-        return
-
-      }
-
-
-
-    // Validar campos requeridos con mensajes específicos (FUERA del try)
-    console.log('Validando nombre:', newCandidate.name)
-    if (!newCandidate.name || newCandidate.name.trim() === "") {
-      console.log('❌ Nombre vacío - mostrando error')
-      toast({
-        title: "Campo obligatorio",
-        description: "El nombre del candidato es obligatorio",
-        variant: "destructive",
       })
       return
     }
-    console.log('✅ Nombre válido')
-    
-    console.log('Validando email:', newCandidate.email)
-    if (!newCandidate.email || newCandidate.email.trim() === "") {
-      console.log('❌ Email vacío - mostrando error')
-      toast({
-        title: "Campo obligatorio",
-        description: "El email del candidato es obligatorio",
-        variant: "destructive",
-      })
-      return
-    }
-    console.log('✅ Email válido')
-    
-    // Validar formato de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(newCandidate.email.trim())) {
-      toast({
-        title: "Campo obligatorio",
-        description: "Ingresa un email válido (ej: candidato@ejemplo.com)",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    // console.log('Validando teléfono:', newCandidate.phone)
-    if (!newCandidate.phone || newCandidate.phone.trim() === "") {
-      // console.log('❌ Teléfono vacío - mostrando error')
-      toast({
-        title: "Campo obligatorio",
-        description: "El teléfono del candidato es obligatorio",
-        variant: "destructive",
-      })
-      return
-    }
-    // console.log('✅ Teléfono válido')
-    
-    // Validar formato de teléfono (mínimo 8 dígitos)
-    const phoneRegex = /^[\+]?[0-9\s\-\(\)]{8,}$/
-    if (!phoneRegex.test(newCandidate.phone.trim())) {
-      toast({
-        title: "Campo obligatorio",
-        description: "Ingresa un teléfono válido (mínimo 8 dígitos)",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    // Validar formato de RUT si se proporciona (opcional)
-    if (newCandidate.rut && newCandidate.rut.trim() !== "") {
-      const rutRegex = /^[0-9]+-[0-9kK]$/
-      if (!rutRegex.test(newCandidate.rut.trim())) {
-        toast({
-          title: "Formato de RUT inválido",
-          description: "Ingresa un RUT válido (ej: 12345678-9)",
-          variant: "destructive",
-        })
-        return
-      }
-    }
-    
+
     // Validar que se haya seleccionado un portal
-    // console.log('Validando portal:', newCandidate.source_portal)
-    if (!newCandidate.source_portal || newCandidate.source_portal.trim() === "") {
-      // console.log('❌ Portal vacío - mostrando error')
-      toast({
+    if (!formData.source_portal || formData.source_portal.trim() === "") {
+      showToast({
+        type: "error",
         title: "Campo obligatorio",
         description: "El portal de origen es obligatorio",
-        variant: "destructive",
       })
       return
     }
     
     // Validar que el portal seleccionado ya haya sido publicado
-    const selectedPortalId = parseInt(newCandidate.source_portal)
+    const selectedPortalId = parseInt(formData.source_portal)
     const portalExistsInPublications = publications.some((publication: any) => 
       publication.id_portal_postulacion === selectedPortalId
     )
     
     if (!portalExistsInPublications) {
-      toast({
+      showToast({
+        type: "error",
         title: "Portal no publicado",
         description: "Debes publicar en este portal antes de agregar candidatos desde él. Ve a la sección 'Publicaciones en Portales' y agrega una publicación para este portal.",
-        variant: "destructive",
       })
       return
     }
-    // console.log('✅ Portal válido')
     
     try {
-      
       // Validar archivo CV si existe
-      if (newCandidate.cv_file) {
+      if (formData.cv_file) {
         // Validar formato de archivo CV
         const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessorml.document']
-        if (!allowedTypes.includes(newCandidate.cv_file.type)) {
-          toast({
+        if (!allowedTypes.includes(formData.cv_file.type)) {
+          showToast({
+            type: "error",
             title: "Campo obligatorio",
             description: "El CV debe ser un archivo PDF o Word (.pdf, .doc, .docx)",
-            variant: "destructive",
           })
           return
         }
         
         // Validar tamaño del archivo (máximo 5MB)
         const maxSize = 5 * 1024 * 1024 // 5MB
-        if (newCandidate.cv_file.size > maxSize) {
-          toast({
+        if (formData.cv_file.size > maxSize) {
+          showToast({
+            type: "error",
             title: "Campo obligatorio",
             description: "El archivo CV no puede superar los 5MB",
-            variant: "destructive",
           })
           return
         }
@@ -771,84 +945,68 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       // console.log('Validación OK - preparando datos...')
 
-
       // Preparar datos para enviar al backend
-      console.log('📊 Datos de experiencia (workExperienceForms):', workExperienceForms);
-      console.log('📊 Datos de educación (educationForms):', educationForms);
-      console.log('📊 Longitud de workExperienceForms:', workExperienceForms.length);
-      console.log('📊 Longitud de educationForms:', educationForms.length);
+      console.log('📊 Datos de experiencia (workExperienceFormsData):', workExperienceFormsData);
+      console.log('📊 Datos de educación (educationFormsData):', educationFormsData);
+      console.log('📊 Longitud de workExperienceFormsData:', workExperienceFormsData.length);
+      console.log('📊 Longitud de educationFormsData:', educationFormsData.length);
 
+      // ✅ CAMBIO: Enviar nombre, primer_apellido y segundo_apellido por separado
+      // Si segundo_apellido está vacío o es muy corto, usar "N/A"
+      const segundoApellidoCreate = formData.segundo_apellido && formData.segundo_apellido.trim().length >= 2 
+        ? formData.segundo_apellido.trim() 
+        : 'N/A';
+      
       const candidateData = {
+        nombre: formData.nombre,
+        primer_apellido: formData.primer_apellido,
+        segundo_apellido: segundoApellidoCreate,
+        email: formData.email,
+        phone: formData.phone,
+        rut: formData.rut || undefined,
+        birth_date: formData.birth_date || undefined,
+        comuna: formData.comuna || undefined,
+        nacionalidad: formData.nacionalidad || undefined,
+        rubro: formData.rubro || undefined,
 
-        name: newCandidate.name,
+        // Enviar múltiples profesiones como array
+        professions: professionFormsData.length > 0
+          ? professionFormsData
+            .filter(prof => prof.profession && prof.profession_institution) // Solo enviar formularios con datos válidos
+            .map(prof => ({
+              profession: prof.profession,
+              institution: prof.profession_institution,
+              date: prof.profession_date
+            }))
+          : undefined,
 
-        email: newCandidate.email,
+        english_level: formData.portal_responses?.english_level || undefined,
+        software_tools: formData.portal_responses?.software_tools || undefined,
+        has_disability_credential: formData.has_disability_credential,
+        licencia: formData.licencia,
 
-        phone: newCandidate.phone,
-
-        rut: newCandidate.rut || undefined,
-
-        birth_date: newCandidate.birth_date || undefined,
-
-        comuna: newCandidate.comuna || undefined,
-
-        nacionalidad: newCandidate.nacionalidad || undefined,
-
-        rubro: newCandidate.rubro || undefined,
-
-        // ✅ CORREGIDO: Enviar nombre de profesión, no ID
-        profession: newCandidate.profession || undefined,
-
-        // ✅ CORREGIDO: Enviar nombre de institución, no ID
-        profession_institution: newCandidate.profession_institution || undefined,
-
-        profession_date: newCandidate.profession_date || undefined,
-
-        english_level: newCandidate.portal_responses?.english_level || undefined,
-
-        software_tools: newCandidate.portal_responses?.software_tools || undefined,
-
-        has_disability_credential: newCandidate.has_disability_credential,
-
-        licencia: newCandidate.licencia,
-
-        work_experience: workExperienceForms.length > 0 
-
-          ? workExperienceForms
+        work_experience: workExperienceFormsData.length > 0 
+          ? workExperienceFormsData
             .filter(exp => exp.company && exp.position) // Solo enviar formularios con datos válidos
             .map(exp => ({
-
               company: exp.company,
-
               position: exp.position,
-
               start_date: exp.start_date,
-
               end_date: exp.end_date,
-
               description: exp.description,
-
             }))
-
           : undefined,
 
         // ✅ CORREGIDO: Enviar título e institución como nombres, no IDs
-        education: educationForms.length > 0
-
-          ? educationForms
+        education: educationFormsData.length > 0
+          ? educationFormsData
             .filter(edu => edu.title && edu.institution) // Solo enviar formularios con datos válidos
             .map(edu => ({
-
               title: edu.title, // ✅ Título del postgrado/capacitación
-
               institution: edu.institution, // ✅ Nombre de la institución
-
               completion_date: edu.completion_date,
-
             }))
-
           : undefined,
-
       }
 
 
@@ -881,47 +1039,43 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           const postulacionData = {
             id_candidato: parseInt(response.data.id),
             id_solicitud: processIdForPostulation,
-            id_portal_postulacion: newCandidate.source_portal ? parseInt(newCandidate.source_portal) : 1, // Por defecto: 1 = LinkedIn
-            id_estado_candidato: 1, // 1 = "Presentado" (estado inicial)
-            motivacion: newCandidate.portal_responses?.motivation || newCandidate.motivation,
-            expectativa_renta: newCandidate.portal_responses?.salary_expectation 
-              ? parseFloat(newCandidate.portal_responses.salary_expectation) 
-              : (newCandidate.salary_expectation ? parseFloat(newCandidate.salary_expectation.toString()) : undefined),
-            disponibilidad_postulacion: newCandidate.portal_responses?.availability || newCandidate.availability,
-            valoracion: newCandidate.consultant_rating,
-            comentario_no_presentado: newCandidate.consultant_comment,
+            id_portal_postulacion: formData.source_portal ? parseInt(formData.source_portal) : 1, // Por defecto: 1 = LinkedIn
+            id_estado_candidato: 6, // 6 = "Agregado" (estado inicial al crear candidato en módulo 2)
+            motivacion: formData.portal_responses?.motivation || formData.motivation,
+            expectativa_renta: formData.portal_responses?.salary_expectation 
+              ? parseFloat(formData.portal_responses.salary_expectation) 
+              : (formData.salary_expectation ? parseFloat(formData.salary_expectation.toString()) : undefined),
+            disponibilidad_postulacion: formData.portal_responses?.availability || formData.availability,
+            valoracion: formData.consultant_rating,
+            comentario_no_presentado: formData.consultant_comment,
             // Campos adicionales de postulación
-            comentario_rech_obs_cliente: newCandidate.portal_responses?.rejection_reason || undefined,
-            comentario_modulo5_cliente: newCandidate.portal_responses?.module5_comment || undefined,
-            situacion_familiar: newCandidate.portal_responses?.family_situation || undefined,
-            cv_file: newCandidate.cv_file || undefined // El archivo CV se maneja por separado
+            situacion_familiar: formData.portal_responses?.family_situation || undefined,
+            cv_file: formData.cv_file || undefined // El archivo CV se maneja por separado
           }
           
           const postulacionResponse = await postulacionService.create(postulacionData)
           
           if (postulacionResponse.success) {
             // console.log('¡Postulación creada exitosamente!')
-        toast({
-
-          title: "¡Éxito!",
-
+            showToast({
+              type: "success",
+              title: "¡Éxito!",
               description: "¡Candidato y postulación creados correctamente!",
-              variant: "default",
             })
           } else {
             console.error('Error al crear postulación:', postulacionResponse)
-            toast({
+            showToast({
+              type: "error",
               title: "Campo obligatorio",
               description: "Candidato creado, pero hubo un error al crear la postulación",
-              variant: "destructive",
             })
           }
         } catch (postError) {
           console.error('Error al crear postulación:', postError)
-          toast({
+          showToast({
+            type: "error",
             title: "Campo obligatorio",
             description: "Candidato creado, pero hubo un error al crear la postulación",
-            variant: "destructive",
           })
         }
 
@@ -929,79 +1083,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         // console.log('Recargando lista de candidatos...')
         await loadData()
 
-
-        // Limpiar formulario
-
-        setNewCandidate({
-
-          name: "",
-
-          email: "",
-
-          phone: "",
-
-          rut: "",
-
-          cv_file: null,
-
-          motivation: "",
-
-          salary_expectation: "",
-
-          availability: "",
-
-          source_portal: "",
-
-          consultant_rating: 3,
-
-          birth_date: "",
-
-          age: 0,
-
-          region: "",
-
-          comuna: "",
-
-          nacionalidad: "",
-
-          rubro: "",
-
-          profession: "",
-
-          profession_institution: "",
-
-          profession_date: "",
-
-          consultant_comment: "",
-
-          has_disability_credential: false,
-
-    licencia: false,
-
-          work_experience: [],
-
-          education: [],
-
-          portal_responses: {
-
-            motivation: "",
-
-            salary_expectation: "",
-
-            availability: "",
-
-            family_situation: "",
-
-            rating: 3,
-
-            english_level: "",
-
-            software_tools: "",
-
-          },
-
-        })
-
+        // Cerrar el diálogo
         setShowAddCandidate(false)
 
         // console.log('Proceso completado')
@@ -1009,13 +1091,14 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         console.error('La respuesta no fue exitosa:', response)
 
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al guardar candidato")
+        showToast({
+
+          type: "error",
 
           title: "Error",
 
-          description: response.message || "Error al guardar candidato",
-
-          variant: "destructive",
+          description: errorMsg,
 
         })
 
@@ -1033,13 +1116,14 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       
 
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo agregar el candidato. Intenta nuevamente.")
+      showToast({
+
+        type: "error",
 
         title: "Error",
 
-        description: error.message || "No se pudo agregar el candidato. Intenta nuevamente.",
-
-        variant: "destructive",
+        description: errorMsg,
 
       })
 
@@ -1048,6 +1132,88 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
 
+
+  // Función para preparar datos iniciales para el formulario de edición
+  const prepareInitialDataForEdit = (candidate: Candidate) => {
+    console.log('🔍 prepareInitialDataForEdit - candidato:', candidate)
+    console.log('🔍 prepareInitialDataForEdit - candidate.name:', candidate.name)
+    
+    // Dividir nombre completo en partes
+    const nameParts = candidate.name.split(' ')
+    const nombre = nameParts[0] || ''
+    const primer_apellido = nameParts[1] || ''
+    const segundo_apellido = nameParts.slice(2).join(' ') || ''
+
+    console.log('🔍 Nombre dividido - nombre:', nombre)
+    console.log('🔍 Nombre dividido - primer_apellido:', primer_apellido)
+    console.log('🔍 Nombre dividido - segundo_apellido:', segundo_apellido)
+
+    // Convertir el nombre del portal a su ID correspondiente
+    let portalId = ""
+    if (candidate.source_portal) {
+      console.log('🔍 candidate.source_portal:', candidate.source_portal)
+      console.log('🔍 portalesDB:', portalesDB)
+      
+      // Verificar si ya es un ID (número o string numérico)
+      if (!isNaN(Number(candidate.source_portal))) {
+        portalId = candidate.source_portal.toString()
+        console.log('🔍 Portal ya es ID:', portalId)
+      } else {
+        // Buscar por nombre
+        const portal = portalesDB.find(p => p.nombre === candidate.source_portal)
+        if (portal) {
+          portalId = portal.id.toString()
+          console.log('🔍 Portal encontrado por nombre - ID:', portalId, 'Nombre:', portal.nombre)
+        } else {
+          console.log('⚠️ Portal no encontrado en portalesDB')
+        }
+      }
+    }
+
+    const initialData = {
+      nombre,
+      primer_apellido,
+      segundo_apellido,
+      email: candidate.email || '',
+      phone: candidate.phone || '',
+      rut: candidate.rut || '',
+      birth_date: candidate.birth_date || '',
+      age: candidate.age || 0,
+      region: candidate.region || '',
+      comuna: candidate.comuna || '',
+      nacionalidad: candidate.nacionalidad || '',
+      rubro: candidate.rubro || '',
+      consultant_rating: candidate.consultant_rating || 3,
+      has_disability_credential: candidate.has_disability_credential || false,
+      licencia: candidate.licencia || false,
+      source_portal: portalId,
+      consultant_comment: candidate.consultant_comment || '',
+      // Agregar profesiones, educación y experiencia laboral
+      professions: candidate.professions || [],
+      education: candidate.education || [],
+      work_experience: candidate.work_experience || [],
+      portal_responses: {
+        motivation: candidate.portal_responses?.motivation || '',
+        salary_expectation: candidate.portal_responses?.salary_expectation || '',
+        availability: candidate.portal_responses?.availability || '',
+        family_situation: candidate.portal_responses?.family_situation || '',
+        rating: candidate.portal_responses?.rating || 3,
+        english_level: candidate.portal_responses?.english_level || '',
+        has_driving_license: candidate.portal_responses?.has_driving_license || false,
+        software_tools: candidate.portal_responses?.software_tools || '',
+      }
+    }
+    
+    console.log('🔍 initialData preparado:', initialData)
+    console.log('🔍 initialData.nombre:', initialData.nombre)
+    console.log('🔍 initialData.primer_apellido:', initialData.primer_apellido)
+    console.log('🔍 initialData.segundo_apellido:', initialData.segundo_apellido)
+    console.log('🔍 initialData.professions:', initialData.professions)
+    console.log('🔍 initialData.education:', initialData.education)
+    console.log('🔍 initialData.work_experience:', initialData.work_experience)
+    
+    return initialData
+  }
 
   const handleEditCandidate = (candidate: Candidate) => {
 
@@ -1173,58 +1339,115 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
 
 
-  const handleSaveEditedCandidate = async () => {
+  const handleEditCandidateSubmit = async (
+    formData: any,
+    professionFormsData: any[],
+    educationFormsData: any[],
+    workExperienceFormsData: any[]
+  ) => {
     if (!editingCandidate) return
 
-
+    console.log('=== INICIANDO handleEditCandidateSubmit ===')
+    console.log('Datos del formulario:', formData)
+    console.log('📝 formData.nombre:', formData.nombre)
+    console.log('📝 formData.primer_apellido:', formData.primer_apellido)
+    console.log('📝 formData.segundo_apellido:', formData.segundo_apellido)
 
     try {
-      console.log('Guardando cambios del candidato y postulación:', editingCandidate)
-
-      // 1. Actualizar datos del CANDIDATO
-      const candidateData = {
-        name: editingCandidate.name,
-        email: editingCandidate.email,
-        phone: editingCandidate.phone,
-        rut: editingCandidate.rut || undefined,
-        birth_date: editingCandidate.birth_date || undefined,
-        comuna: editingCandidate.comuna || undefined,
-        nacionalidad: editingCandidate.nacionalidad || undefined,
-        rubro: editingCandidate.rubro || undefined,
-        profession: editingCandidate.profession || undefined,
-        english_level: editingCandidate.portal_responses?.english_level || undefined,
-        software_tools: editingCandidate.portal_responses?.software_tools || undefined,
-        has_disability_credential: editingCandidate.has_disability_credential,
-        licencia: editingCandidate.licencia,
-        work_experience: editWorkExperienceForms.length > 0
-          ? editWorkExperienceForms
-            .filter(exp => exp.company && exp.position) // Solo enviar formularios con datos válidos
-            .map(exp => ({
-              company: exp.company,
-              position: exp.position,
-              start_date: exp.start_date,
-              end_date: exp.end_date,
-              description: exp.description,
-            }))
-          : undefined,
-        education: editEducationForms.length > 0
-          ? editEducationForms
-            .filter(edu => edu.title && edu.institution) // Solo enviar formularios con datos válidos
-            .map(edu => ({
-              title: edu.title,
-              institution: edu.institution,
-              completion_date: edu.completion_date,
-            }))
-          : undefined,
+      console.log('Guardando cambios del candidato y postulación:', formData)
+      console.log('📝 formData.nombre:', formData.nombre)
+      console.log('📝 formData.primer_apellido:', formData.primer_apellido)
+      console.log('📝 formData.segundo_apellido:', formData.segundo_apellido)
+      
+      // Validar que el nombre no esté vacío
+      if (!formData.nombre || formData.nombre.trim().length < 2) {
+        console.error('❌ Error: El nombre está vacío o es muy corto')
+        console.error('❌ formData completo:', JSON.stringify(formData, null, 2))
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "El nombre del candidato no puede estar vacío. Por favor verifica los campos de nombre.",
+        })
+        return
       }
+
+      if (!formData.primer_apellido || formData.primer_apellido.trim().length < 2) {
+        console.error('❌ Error: El primer apellido está vacío o es muy corto')
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "El primer apellido del candidato no puede estar vacío. Por favor verifica los campos de apellido.",
+        })
+        return
+      }
+
+      // ✅ CAMBIO: Enviar nombre, primer_apellido y segundo_apellido por separado
+      // Si segundo_apellido está vacío o es muy corto, usar "N/A"
+      const segundoApellido = formData.segundo_apellido && formData.segundo_apellido.trim().length >= 2 
+        ? formData.segundo_apellido.trim() 
+        : 'N/A';
+      
+      const candidateData = {
+        nombre: formData.nombre,
+        primer_apellido: formData.primer_apellido,
+        segundo_apellido: segundoApellido,
+        email: formData.email,
+        phone: formData.phone,
+        rut: formData.rut || undefined,
+        birth_date: formData.birth_date || undefined,
+        comuna: formData.comuna || undefined,
+        nacionalidad: formData.nacionalidad || undefined,
+        rubro: formData.rubro || undefined,
+        
+        // Enviar múltiples profesiones como array (vacío si no hay)
+        professions: professionFormsData
+          .filter(prof => prof.profession && prof.profession_institution)
+          .map(prof => ({
+            profession: prof.profession,
+            institution: prof.profession_institution,
+            date: prof.profession_date
+          })),
+          
+        english_level: formData.portal_responses?.english_level || undefined,
+        software_tools: formData.portal_responses?.software_tools || undefined,
+        has_disability_credential: formData.has_disability_credential,
+        licencia: formData.licencia,
+        
+        // Enviar experiencia laboral como array (vacío si no hay)
+        work_experience: workExperienceFormsData
+          .filter(exp => exp.company && exp.position)
+          .map(exp => ({
+            company: exp.company,
+            position: exp.position,
+            start_date: exp.start_date,
+            end_date: exp.end_date,
+            description: exp.description,
+          })),
+          
+        // Enviar educación como array (vacío si no hay)
+        education: educationFormsData
+          .filter(edu => edu.title && edu.institution)
+          .map(edu => ({
+            title: edu.title,
+            institution: edu.institution,
+            completion_date: edu.completion_date,
+          })),
+      }
+
+      console.log('📤 candidateData COMPLETO a enviar:', JSON.stringify(candidateData, null, 2))
+      console.log('📤 candidateData.nombre:', candidateData.nombre)
+      console.log('📤 candidateData.primer_apellido:', candidateData.primer_apellido)
+      console.log('📤 candidateData.segundo_apellido:', candidateData.segundo_apellido)
+      console.log('📤 ID del candidato a actualizar:', editingCandidate.id)
 
       const candidateResponse = await candidatoService.update(parseInt(editingCandidate.id), candidateData)
 
       if (!candidateResponse.success) {
-        toast({
+        const errorMsg = processApiErrorMessage(candidateResponse.message, 'Error al actualizar candidato')
+        showToast({
+          type: "error",
           title: "Error",
-          description: candidateResponse.message || 'Error al actualizar candidato',
-          variant: "destructive",
+          description: errorMsg,
         })
         return
       }
@@ -1238,21 +1461,31 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       }
       const postulaciones = await postulacionService.getBySolicitud(processId)
       
+      console.log('🔍 Buscando postulación para candidato:', editingCandidate.id)
+      console.log('🔍 formData.portal_responses:', formData.portal_responses)
+      console.log('🔍 family_situation:', formData.portal_responses?.family_situation)
+      
       // Buscar postulación por id_candidato (el "id" del objeto es el id_candidato)
       const postulacion = postulaciones.data?.find((p: any) => 
         p.id_candidato?.toString() === editingCandidate.id?.toString() || 
         p.id?.toString() === editingCandidate.id?.toString()
       )
 
+      console.log('🔍 Postulación encontrada:', postulacion ? 'SI' : 'NO')
+      if (postulacion) {
+        console.log('🔍 ID de postulación encontrado:', postulacion.id_postulacion)
+      }
+
       if (postulacion && postulacion.id_postulacion) {
         const postulacionData = {
-          motivacion: editingCandidate.portal_responses?.motivation || editingCandidate.motivation,
-          expectativa_renta: editingCandidate.portal_responses?.salary_expectation 
-            ? parseFloat(editingCandidate.portal_responses.salary_expectation) 
-            : (editingCandidate.salary_expectation ? parseFloat(editingCandidate.salary_expectation.toString()) : undefined),
-          disponibilidad_postulacion: editingCandidate.portal_responses?.availability || editingCandidate.availability,
-          valoracion: editingCandidate.consultant_rating,
-          comentario_no_presentado: editingCandidate.consultant_comment
+          motivacion: formData.portal_responses?.motivation || formData.motivation,
+          expectativa_renta: formData.portal_responses?.salary_expectation 
+            ? parseFloat(formData.portal_responses.salary_expectation) 
+            : (formData.salary_expectation ? parseFloat(formData.salary_expectation.toString()) : undefined),
+          disponibilidad_postulacion: formData.portal_responses?.availability || formData.availability,
+          situacion_familiar: formData.portal_responses?.family_situation || undefined,
+          valoracion: formData.consultant_rating,
+          comentario_no_presentado: formData.consultant_comment
         }
 
         console.log('📤 Datos de postulación a enviar:', postulacionData)
@@ -1270,10 +1503,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         }
       }
 
-      toast({
+      showToast({
+        type: "success",
         title: "¡Éxito!",
         description: "Candidato y postulación actualizados exitosamente",
-        variant: "default",
       })
       
       // Recargar los candidatos desde el backend
@@ -1285,10 +1518,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     } catch (error: any) {
       console.error('Error al actualizar:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, 'Error al actualizar')
+      showToast({
+        type: "error",
         title: "Error",
-        description: error.message || 'Error al actualizar',
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -1307,33 +1541,46 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const handleAdvanceToModule3 = async () => {
+    // Validar que haya al menos un candidato presentado
+    if (!hasPresentedCandidates) {
+      showToast({
+        type: "error",
+        title: "No se puede avanzar",
+        description: "Debe tener al menos un candidato con estado 'Presentado' para avanzar al Módulo 3",
+      })
+      return
+    }
+
+    setIsAdvancingToModule3(true)
     try {
       const response = await solicitudService.avanzarAModulo3(parseInt(process.id))
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Proceso avanzado al Módulo 3 exitosamente",
-          variant: "default",
         })
         // Navegar al módulo 3 usando URL con parámetro
         const currentUrl = new URL(window.location.href)
         currentUrl.searchParams.set('tab', 'modulo-3')
         window.location.href = currentUrl.toString()
       } else {
-        toast({
+        showToast({
+          type: "error",
           title: "Error",
           description: "Error al avanzar al Módulo 3",
-          variant: "destructive",
         })
+        setIsAdvancingToModule3(false)
       }
     } catch (error) {
       console.error("Error al avanzar al Módulo 3:", error)
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Error al avanzar al Módulo 3",
-        variant: "destructive",
       })
+      setIsAdvancingToModule3(false)
     }
   }
 
@@ -1431,10 +1678,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     // Validaciones
     if (!newPortalName || newPortalName.trim() === "") {
-      toast({
+      showToast({
+        type: "error",
         title: "Campo obligatorio",
         description: "El nombre del portal es obligatorio",
-        variant: "destructive",
       })
       return
     }
@@ -1443,20 +1690,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     
     // Validar longitud mínima
     if (portalName.length < 3) {
-      toast({
+      showToast({
+        type: "error",
         title: "Nombre muy corto",
         description: "El nombre del portal debe tener al menos 3 caracteres",
-        variant: "destructive",
       })
       return
     }
     
     // Validar que no exista
     if (customPortals.includes(portalName)) {
-      toast({
+      showToast({
+        type: "error",
         title: "Portal duplicado",
         description: "Este portal ya existe en la lista",
-        variant: "destructive",
       })
       return
     }
@@ -1464,10 +1711,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     // Validar que no sea un portal por defecto
     const defaultPortals = ["LinkedIn", "GetOnBoard", "Indeed", "Trabajando.com", "Laborum", "Behance"]
     if (defaultPortals.includes(portalName)) {
-      toast({
+      showToast({
+        type: "error",
         title: "Portal por defecto",
         description: "Este portal ya está disponible por defecto",
-        variant: "destructive",
       })
       return
     }
@@ -1476,10 +1723,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     setCustomPortals([...customPortals, portalName])
     setNewPortalName("")
     
-    toast({
+    showToast({
+      type: "success",
       title: "¡Éxito!",
       description: `Portal "${portalName}" agregado correctamente`,
-      variant: "default",
     })
   }
 
@@ -1617,15 +1864,173 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const updateWorkExperienceForm = (id: string, field: string, value: string) => {
-    setWorkExperienceForms(forms => 
-      forms.map(form => 
+    // Actualizar el formulario
+    setWorkExperienceForms(forms => {
+      const updatedForms = forms.map(form => 
         form.id === id ? { ...form, [field]: value } : form
       )
-    )
+      
+      // Obtener el formulario actualizado para validación
+      const updatedForm = updatedForms.find(f => f.id === id)
+      
+      if (updatedForm) {
+        // Validar el campo
+        validateWorkExperienceField(id, field, value, updatedForm)
+      }
+      
+      return updatedForms
+    })
   }
 
   const removeWorkExperienceForm = (id: string) => {
+    // Limpiar errores del formulario que se elimina
+    clearError(`work_experience_${id}_company`)
+    clearError(`work_experience_${id}_position`)
+    clearError(`work_experience_${id}_start_date`)
+    clearError(`work_experience_${id}_end_date`)
+    clearError(`work_experience_${id}_description`)
+    
+    // Remover el formulario
     setWorkExperienceForms(forms => forms.filter(form => form.id !== id))
+  }
+  
+  // Función para validar un campo de experiencia laboral
+  const validateWorkExperienceField = (formId: string, field: string, value: string, formData: any) => {
+    const fieldKey = `work_experience_${formId}_${field}`
+    
+    // Verificar si hay al menos un campo con valor en este formulario
+    const hasAnyField = !!(formData.company?.trim() || formData.position?.trim() || formData.start_date?.trim() || formData.end_date?.trim() || formData.description?.trim())
+    
+    if (!hasAnyField) {
+      // Si todos los campos están vacíos, limpiar errores de este formulario
+      clearError(`work_experience_${formId}_company`)
+      clearError(`work_experience_${formId}_position`)
+      clearError(`work_experience_${formId}_start_date`)
+      clearError(`work_experience_${formId}_end_date`)
+      clearError(`work_experience_${formId}_description`)
+      return
+    }
+    
+    // Validar campos con longitud máxima siempre (incluso antes de enviar)
+    if (field === 'company') {
+      const companyValue = value?.trim() || ''
+      if (companyValue.length > 100) {
+        setFieldError(fieldKey, 'El nombre de la empresa no puede tener más de 100 caracteres')
+      } else if (hasAttemptedSubmit && !companyValue) {
+        setFieldError(fieldKey, 'El nombre de la empresa es obligatorio')
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    if (field === 'position') {
+      const positionValue = value?.trim() || ''
+      if (positionValue.length > 100) {
+        setFieldError(fieldKey, 'El cargo no puede tener más de 100 caracteres')
+      } else if (hasAttemptedSubmit && !positionValue) {
+        setFieldError(fieldKey, 'El cargo es obligatorio')
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    if (field === 'description') {
+      const descriptionValue = value?.trim() || ''
+      if (descriptionValue.length > 500) {
+        setFieldError(fieldKey, 'La descripción no puede tener más de 500 caracteres')
+      } else if (hasAttemptedSubmit && !descriptionValue) {
+        setFieldError(fieldKey, 'La descripción es obligatoria')
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    // Solo mostrar errores obligatorios si se ha intentado enviar el formulario
+    // Pero siempre validar todos los campos cuando se intenta enviar
+    if (hasAttemptedSubmit) {
+      // Validar empresa (obligatorio si hay algún campo completado, máximo 100 caracteres)
+      const companyValue = formData.company?.trim() || ''
+      if (!companyValue) {
+        setFieldError(`work_experience_${formId}_company`, 'El nombre de la empresa es obligatorio')
+      } else if (companyValue.length > 100) {
+        setFieldError(`work_experience_${formId}_company`, 'El nombre de la empresa no puede tener más de 100 caracteres')
+      } else {
+        clearError(`work_experience_${formId}_company`)
+      }
+      
+      // Validar cargo (obligatorio si hay algún campo completado, máximo 100 caracteres)
+      const positionValue = formData.position?.trim() || ''
+      if (!positionValue) {
+        setFieldError(`work_experience_${formId}_position`, 'El cargo es obligatorio')
+      } else if (positionValue.length > 100) {
+        setFieldError(`work_experience_${formId}_position`, 'El cargo no puede tener más de 100 caracteres')
+      } else {
+        clearError(`work_experience_${formId}_position`)
+      }
+      
+      // Validar fecha de inicio (obligatoria si hay algún campo completado)
+      if (!formData.start_date?.trim()) {
+        setFieldError(`work_experience_${formId}_start_date`, 'La fecha de inicio es obligatoria')
+      } else {
+        clearError(`work_experience_${formId}_start_date`)
+      }
+      
+      // Validar descripción (obligatoria si hay algún campo completado, máximo 500 caracteres)
+      const descriptionValue = formData.description?.trim() || ''
+      if (!descriptionValue) {
+        setFieldError(`work_experience_${formId}_description`, 'La descripción es obligatoria')
+      } else if (descriptionValue.length > 500) {
+        setFieldError(`work_experience_${formId}_description`, 'La descripción no puede tener más de 500 caracteres')
+      } else {
+        clearError(`work_experience_${formId}_description`)
+      }
+    } else {
+      // Si no se ha intentado enviar, validar longitud máxima siempre
+      // Y limpiar errores cuando se completan campos
+      if (field === 'company') {
+        const companyValue = value?.trim() || ''
+        if (companyValue.length > 100) {
+          setFieldError(fieldKey, 'El nombre de la empresa no puede tener más de 100 caracteres')
+        } else {
+          clearError(fieldKey)
+        }
+      } else if (field === 'position') {
+        const positionValue = value?.trim() || ''
+        if (positionValue.length > 100) {
+          setFieldError(fieldKey, 'El cargo no puede tener más de 100 caracteres')
+        } else {
+          clearError(fieldKey)
+        }
+      } else if (field === 'description') {
+        const descriptionValue = value?.trim() || ''
+        if (descriptionValue.length > 500) {
+          setFieldError(fieldKey, 'La descripción no puede tener más de 500 caracteres')
+        } else {
+          clearError(fieldKey)
+        }
+      } else if (field === 'start_date' && value?.trim()) {
+        clearError(fieldKey)
+      } else if (field === 'end_date' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      // También limpiar errores de otros campos si están completados y son válidos
+      if (formData.company?.trim() && formData.company.trim().length <= 100) {
+        clearError(`work_experience_${formId}_company`)
+      }
+      
+      if (formData.position?.trim() && formData.position.trim().length <= 100) {
+        clearError(`work_experience_${formId}_position`)
+      }
+      
+      if (formData.start_date?.trim()) {
+        clearError(`work_experience_${formId}_start_date`)
+      }
+      
+      if (formData.description?.trim() && formData.description.trim().length <= 500) {
+        clearError(`work_experience_${formId}_description`)
+      }
+    }
   }
 
   // Funciones para manejar múltiples formularios de educación
@@ -1640,15 +2045,242 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   const updateEducationForm = (id: string, field: string, value: string) => {
-    setEducationForms(forms => 
-      forms.map(form => 
+    // Actualizar el formulario
+    setEducationForms(forms => {
+      const updatedForms = forms.map(form => 
         form.id === id ? { ...form, [field]: value } : form
       )
-    )
+      
+      // Obtener el formulario actualizado para validación
+      const updatedForm = updatedForms.find(f => f.id === id)
+      
+      if (updatedForm) {
+        // Validar el campo
+        validateEducationField(id, field, value, updatedForm)
+      }
+      
+      return updatedForms
+    })
   }
 
   const removeEducationForm = (id: string) => {
+    // Limpiar errores del formulario que se elimina
+    clearError(`education_${id}_title`)
+    clearError(`education_${id}_institution`)
+    clearError(`education_${id}_start_date`)
+    clearError(`education_${id}_completion_date`)
+    
+    // Remover el formulario
     setEducationForms(forms => forms.filter(form => form.id !== id))
+  }
+  
+  // Función para validar un campo de educación
+  const validateEducationField = (formId: string, field: string, value: string, formData: any) => {
+    const fieldKey = `education_${formId}_${field}`
+    
+    // Verificar si hay al menos un campo con valor en este formulario
+    const hasAnyField = !!(formData.title?.trim() || formData.institution?.trim() || formData.start_date?.trim() || formData.completion_date?.trim())
+    
+    if (!hasAnyField) {
+      // Si todos los campos están vacíos, limpiar errores de este formulario
+      clearError(`education_${formId}_title`)
+      clearError(`education_${formId}_institution`)
+      clearError(`education_${formId}_start_date`)
+      clearError(`education_${formId}_completion_date`)
+      return
+    }
+    
+    // Validar título: longitud máxima siempre se valida (incluso antes de enviar)
+    if (field === 'title') {
+      const titleValue = value?.trim() || ''
+      if (titleValue.length > 100) {
+        setFieldError(fieldKey, 'El nombre del postgrado/capacitación no puede tener más de 100 caracteres')
+      } else if (hasAttemptedSubmit && !titleValue) {
+        setFieldError(fieldKey, 'El nombre del postgrado/capacitación es obligatorio')
+      } else {
+        clearError(fieldKey)
+      }
+    }
+    
+    // Solo mostrar errores obligatorios si se ha intentado enviar el formulario
+    // Pero siempre validar todos los campos cuando se intenta enviar
+    if (hasAttemptedSubmit) {
+      // Validar título (obligatorio si hay algún campo completado, máximo 100 caracteres)
+      const titleValue = formData.title?.trim() || ''
+      if (!titleValue) {
+        setFieldError(`education_${formId}_title`, 'El nombre del postgrado/capacitación es obligatorio')
+      } else if (titleValue.length > 100) {
+        setFieldError(`education_${formId}_title`, 'El nombre del postgrado/capacitación no puede tener más de 100 caracteres')
+      } else {
+        clearError(`education_${formId}_title`)
+      }
+      
+      // Validar institución (obligatoria si hay algún campo completado)
+      if (!formData.institution?.trim()) {
+        setFieldError(`education_${formId}_institution`, 'La institución es obligatoria')
+      } else {
+        clearError(`education_${formId}_institution`)
+      }
+      
+      // Validar fecha de inicio (obligatoria si hay algún campo completado)
+      if (!formData.start_date?.trim()) {
+        setFieldError(`education_${formId}_start_date`, 'La fecha de inicio es obligatoria')
+      } else {
+        clearError(`education_${formId}_start_date`)
+      }
+    } else {
+      // Si no se ha intentado enviar, solo validar longitud máxima del título
+      // Y limpiar errores cuando se completan campos
+      if (field === 'title') {
+        const titleValue = value?.trim() || ''
+        if (titleValue.length > 100) {
+          setFieldError(fieldKey, 'El nombre del postgrado/capacitación no puede tener más de 100 caracteres')
+        } else {
+          clearError(fieldKey)
+        }
+      } else if (field === 'institution' && value?.trim()) {
+        clearError(fieldKey)
+      } else if (field === 'start_date' && value?.trim()) {
+        clearError(fieldKey)
+      } else if (field === 'completion_date' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      // También limpiar errores de otros campos si están completados y son válidos
+      if (formData.title?.trim() && formData.title.trim().length <= 100) {
+        clearError(`education_${formId}_title`)
+      }
+      
+      if (formData.institution?.trim()) {
+        clearError(`education_${formId}_institution`)
+      }
+      
+      if (formData.start_date?.trim()) {
+        clearError(`education_${formId}_start_date`)
+      }
+    }
+  }
+
+  // Funciones para manejar múltiples formularios de profesión
+  const addProfessionForm = () => {
+    const newForm = {
+      id: Date.now().toString(),
+      profession: "",
+      profession_institution: "",
+      profession_date: ""
+    }
+    setProfessionForms([...professionForms, newForm])
+  }
+
+  const updateProfessionForm = (id: string, field: string, value: string) => {
+    // Actualizar el formulario
+    setProfessionForms(forms => {
+      const updatedForms = forms.map(form => 
+        form.id === id ? { ...form, [field]: value } : form
+      )
+      
+      // Obtener el formulario actualizado para validación
+      const updatedForm = updatedForms.find(f => f.id === id)
+      
+      if (updatedForm) {
+        // Marcar el campo como touched
+        setTouchedProfessionFields(prev => ({
+          ...prev,
+          [id]: {
+            ...(prev[id] || { profession: false, profession_institution: false, profession_date: false }),
+            [field]: true
+          }
+        }))
+        
+        // Validar el campo
+        validateProfessionField(id, field, value, updatedForm)
+      }
+      
+      return updatedForms
+    })
+  }
+
+  const removeProfessionForm = (id: string) => {
+    // Limpiar errores del formulario que se elimina
+    clearError(`profession_${id}_profession`)
+    clearError(`profession_${id}_institution`)
+    clearError(`profession_${id}_date`)
+    
+    // Remover el estado touched del formulario
+    setTouchedProfessionFields(prev => {
+      const newTouched = { ...prev }
+      delete newTouched[id]
+      return newTouched
+    })
+    
+    // Remover el formulario
+    setProfessionForms(forms => forms.filter(form => form.id !== id))
+  }
+
+  // Función para validar un campo de profesión
+  const validateProfessionField = (formId: string, field: string, value: string, formData: any) => {
+    const fieldKey = `profession_${formId}_${field}`
+    
+    // Verificar si hay al menos un campo con valor en este formulario
+    const hasAnyField = !!(formData.profession?.trim() || formData.profession_institution?.trim() || formData.profession_date?.trim())
+    
+    if (!hasAnyField) {
+      // Si todos los campos están vacíos, limpiar errores de este formulario
+      clearError(`profession_${formId}_profession`)
+      clearError(`profession_${formId}_institution`)
+      clearError(`profession_${formId}_date`)
+      return
+    }
+    
+    // Solo mostrar errores si se ha intentado enviar el formulario
+    // Pero siempre limpiar errores cuando se completan los campos
+    if (hasAttemptedSubmit) {
+      // Validar todos los campos cuando se ha intentado enviar y hay algún campo completado
+      if (!formData.profession?.trim()) {
+        setFieldError(`profession_${formId}_profession`, 'La profesión es obligatoria si completa algún campo de profesión')
+      } else {
+        clearError(`profession_${formId}_profession`)
+      }
+      
+      if (!formData.profession_institution?.trim()) {
+        setFieldError(`profession_${formId}_institution`, 'La institución es obligatoria si completa algún campo de profesión')
+      } else {
+        clearError(`profession_${formId}_institution`)
+      }
+      
+      if (!formData.profession_date?.trim()) {
+        setFieldError(`profession_${formId}_date`, 'La fecha de obtención es obligatoria si completa algún campo de profesión')
+      } else {
+        clearError(`profession_${formId}_date`)
+      }
+    } else {
+      // Si no se ha intentado enviar, solo limpiar errores cuando se completan campos
+      // No mostrar nuevos errores
+      if (field === 'profession' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      if (field === 'profession_institution' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      if (field === 'profession_date' && value?.trim()) {
+        clearError(fieldKey)
+      }
+      
+      // También limpiar errores de otros campos si están completados
+      if (formData.profession?.trim()) {
+        clearError(`profession_${formId}_profession`)
+      }
+      
+      if (formData.profession_institution?.trim()) {
+        clearError(`profession_${formId}_institution`)
+      }
+      
+      if (formData.profession_date?.trim()) {
+        clearError(`profession_${formId}_date`)
+      }
+    }
   }
 
   // Funciones para manejar formularios múltiples de editar candidato
@@ -1781,15 +2413,17 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         );
 
         if (!response.success) {
-          throw new Error(response.message || 'Error al actualizar comentario');
+          const errorMsg = processApiErrorMessage(response.message, 'Error al actualizar comentario')
+          throw new Error(errorMsg);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al actualizar comentario:', error);
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo actualizar el comentario")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "No se pudo actualizar el comentario",
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -1838,18 +2472,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     <div className="space-y-6">
 
-      <div className="flex items-center justify-between">
       <div>
         <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
         <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
-        </div>
-        <Button
-          onClick={handleAdvanceToModule3}
-          className="bg-primary hover:bg-primary/90"
-          disabled={isBlocked}
-        >
-          Pasar a Módulo 3
-        </Button>
       </div>
 
       {/* Componente de bloqueo si el proceso está en estado final */}
@@ -1858,196 +2483,60 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         moduleName="Módulo 2" 
       />
 
+      {/* Card para avanzar al siguiente módulo */}
+      {hasPresentedCandidates && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-blue-800">Candidatos presentados</h3>
+                <p className="text-sm text-blue-600">
+                  Tienes candidatos con estado "Presentado". Puedes avanzar al Módulo 3 para presentación al cliente.
+                </p>
+              </div>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleAdvanceToModule3}
+                disabled={isBlocked || isAdvancingToModule3 || isInAdvancedModule}
+              >
+                {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Avanzar a Módulo 3
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!hasPresentedCandidates && !isBlocked && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-orange-800">Acción requerida</h3>
+                <p className="text-sm text-orange-600">
+                  Debe tener al menos un candidato con estado "Presentado" para avanzar al Módulo 3.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
 
         <CardHeader>
 
-          <div className="flex items-center justify-between">
+          <div>
 
-            <div>
+            <CardTitle className="flex items-center gap-2">
 
-              <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
 
-                <Settings className="h-5 w-5" />
+              Portales
 
-                Gestión de Portales
+            </CardTitle>
 
-              </CardTitle>
-
-              <CardDescription>Administra los portales de publicación disponibles</CardDescription>
-
-            </div>
-
-            <Dialog open={showPortalManager} onOpenChange={setShowPortalManager}>
-
-              <DialogTrigger asChild>
-
-                <Button variant="outline">
-
-                  <Settings className="mr-2 h-4 w-4" />
-
-                  Gestionar Portales
-
-                </Button>
-
-              </DialogTrigger>
-
-              <DialogContent className="max-w-2xl">
-
-                <DialogHeader>
-
-                  <DialogTitle>Gestión de Portales de Publicación</DialogTitle>
-
-                  <DialogDescription>
-
-                    Agrega nuevos portales o gestiona los existentes para las publicaciones
-
-                  </DialogDescription>
-
-                </DialogHeader>
-
-                <div className="space-y-4">
-
-                  <div className="flex gap-2">
-
-                    <div className="flex-1">
-
-                      <Label htmlFor="new_portal">Nuevo Portal <span className="text-red-500">*</span></Label>
-                      <Input
-
-                        id="new_portal"
-
-                        value={newPortalName}
-
-                        onChange={(e) => setNewPortalName(e.target.value)}
-
-                        placeholder="Nombre del portal (ej: CompuTrabajo, ZonaJobs)"
-
-                        onKeyPress={(e) => e.key === "Enter" && handleAddPortal()}
-
-                      />
-
-                    </div>
-
-                    <div className="flex items-end">
-
-                      <Button onClick={handleAddPortal} disabled={!newPortalName.trim()}>
-
-                        <Plus className="h-4 w-4" />
-
-                      </Button>
-
-                    </div>
-
-                  </div>
-
-
-
-                  <div className="space-y-2">
-
-                    <Label>Portales Disponibles</Label>
-
-                    <div className="border rounded-lg p-4 max-h-60 overflow-y-auto">
-
-                      {customPortals.length > 0 ? (
-
-                        <div className="space-y-2">
-
-                          {customPortals.map((portal) => {
-
-                            const isDefault = [
-
-                              "LinkedIn",
-
-                              "GetOnBoard",
-
-                              "Indeed",
-
-                              "Trabajando.com",
-
-                              "Laborum",
-
-                              "Behance",
-
-                            ].includes(portal)
-
-                            return (
-
-                              <div key={portal} className="flex items-center justify-between p-2 border rounded">
-
-                                <div className="flex items-center gap-2">
-
-                                  <Globe className="h-4 w-4 text-muted-foreground" />
-
-                                  <span className="font-medium">{portal}</span>
-
-                                  {isDefault && (
-
-                                    <Badge variant="secondary" className="text-xs">
-
-                                      Por defecto
-
-                                    </Badge>
-
-                                  )}
-
-                                </div>
-
-                                {!isDefault && (
-
-                                  <Button
-
-                                    variant="ghost"
-
-                                    size="sm"
-
-                                    onClick={() => handleDeletePortal(portal)}
-
-                                    className="text-destructive hover:text-destructive"
-
-                                  >
-
-                                    <Trash2 className="h-4 w-4" />
-
-                                  </Button>
-
-                                )}
-
-                              </div>
-
-                            )
-
-                          })}
-
-                        </div>
-
-                      ) : (
-
-                        <div className="text-center py-4">
-
-                          <Globe className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-
-                          <p className="text-muted-foreground">No hay portales configurados</p>
-
-                        </div>
-
-                      )}
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                <DialogFooter>
-
-                  <Button onClick={() => setShowPortalManager(false)}>Cerrar</Button>
-
-                </DialogFooter>
-
-              </DialogContent>
-
-            </Dialog>
+            <CardDescription>Portales de publicación disponibles</CardDescription>
 
           </div>
 
@@ -2055,7 +2544,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         <CardContent>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
 
             <div className="text-center p-4 border rounded-lg">
 
@@ -2064,28 +2553,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               <p className="text-2xl font-bold">{customPortals.length}</p>
 
               <p className="text-sm text-muted-foreground">Portales Disponibles</p>
-
-            </div>
-
-            <div className="text-center p-4 border rounded-lg">
-
-              <Settings className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-
-              <p className="text-2xl font-bold">
-
-                {
-
-                  customPortals.filter(
-
-                    (p) => !["LinkedIn", "GetOnBoard", "Indeed", "Trabajando.com", "Laborum", "Behance"].includes(p),
-
-                  ).length
-
-                }
-
-              </p>
-
-              <p className="text-sm text-muted-foreground">Portales Personalizados</p>
 
             </div>
 
@@ -2157,6 +2624,22 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               onOpenChange={setShowAddPublication}
               solicitudId={parseInt(process.id) || 0}
               onSuccess={loadData}
+            />
+
+            {/* Diálogo de Editar Publicación */}
+            <EditPublicationDialog
+              open={showEditPublication}
+              onOpenChange={(open) => {
+                setShowEditPublication(open)
+                if (!open) {
+                  setEditingPublication(null)
+                }
+              }}
+              publication={editingPublication}
+              onSuccess={() => {
+                loadData()
+                setEditingPublication(null)
+              }}
             />
           </div>
 
@@ -2234,29 +2717,13 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          onClick={async () => {
-                            try {
-                              const response = await publicacionService.delete(publication.id)
-                              if (response.success) {
-                                toast({
-                                  title: "¡Éxito!",
-                                  description: "Publicación eliminada",
-                                  variant: "default",
-                                })
-                                loadData()
-                              }
-                            } catch (error) {
-                              toast({
-                                title: "Error",
-                                description: "Error al eliminar publicación",
-                                variant: "destructive",
-                              })
-                            }
+                          onClick={() => {
+                            setEditingPublication(publication)
+                            setShowEditPublication(true)
                           }}
                           disabled={isBlocked}
                         >
-                          <Trash2 className="h-4 w-4" />
-
+                          <Edit className="h-4 w-4" />
                         </Button>
 
                       </div>
@@ -2307,7 +2774,21 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
             <div className="flex gap-2">
 
-              <Dialog open={showAddCandidate} onOpenChange={setShowAddCandidate}>
+              <Dialog open={showAddCandidate} onOpenChange={(open) => {
+                setShowAddCandidate(open)
+                if (!open) {
+                  // Resetear estados cuando se cierra el diálogo
+                  setHasAttemptedSubmit(false)
+                  setTouchedProfessionFields({})
+                  setProfessionForms([{
+                    id: '1',
+                    profession: '',
+                    profession_institution: '',
+                    profession_date: ''
+                  }])
+                  clearAllErrors()
+                }
+              }}>
 
                 <DialogTrigger asChild>
 
@@ -2335,1644 +2816,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                   </DialogHeader>
 
-                  <div className="space-y-6">
-
-                    {/* Información Básica */}
-
-                    <div className="space-y-4">
-
-                      <h3 className="text-lg font-semibold border-b pb-2">Información Básica</h3>
-
-                      <div className="grid grid-cols-2 gap-4">
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="candidate_name">Nombre Completo <span className="text-red-500">*</span></Label>
-                          <Input
-
-                            id="candidate_name"
-
-                            value={newCandidate.name}
-
-                            onChange={(e) => setNewCandidate({ ...newCandidate, name: e.target.value })}
-
-                            placeholder="Nombre del candidato"
-
-                          />
-
-                        </div>
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="candidate_email">Email <span className="text-red-500">*</span></Label>
-                          <Input
-
-                            id="candidate_email"
-
-                            type="email"
-
-                            value={newCandidate.email}
-
-                            onChange={(e) => setNewCandidate({ ...newCandidate, email: e.target.value })}
-
-                            placeholder="correo@ejemplo.com"
-
-                          />
-
-                        </div>
-
-                      </div>
-
-
-
-                      <div className="grid grid-cols-3 gap-4">
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="candidate_phone">Teléfono (8-12 caracteres) <span className="text-red-500">*</span></Label>
-                          <Input
-
-                            id="candidate_phone"
-
-                            value={newCandidate.phone}
-
-                            onChange={(e) => setNewCandidate({ ...newCandidate, phone: e.target.value })}
-
-                            placeholder="+56912345678"
-
-                          />
-
-                        </div>
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="candidate_rut">RUT (Opcional)</Label>
-                          <Input
-                            id="candidate_rut"
-                            value={newCandidate.rut || ""}
-                            onChange={(e) => setNewCandidate({ ...newCandidate, rut: e.target.value })}
-                            placeholder="12.345.678-9"
-                          />
-
-                        </div>
-
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4">
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
-
-                          <DatePicker
-                            selected={newCandidate.birth_date ? new Date(newCandidate.birth_date) : null}
-                            onChange={(date) => {
-                              if (date) {
-                                const age = calculateAge(date.toISOString().split('T')[0])
-                              setNewCandidate({
-
-                                ...newCandidate,
-
-                                  birth_date: date.toISOString().split('T')[0],
-                                age: age,
-
-                              })
-
-                              }
-                            }}
-                            dateFormat="dd/MM/yyyy"
-                            showYearDropdown
-                            showMonthDropdown
-                            dropdownMode="select"
-                            placeholderText="Selecciona fecha de nacimiento"
-                            className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            maxDate={new Date()}
-                            minDate={new Date("1900-01-01")}
-                            yearDropdownItemNumber={100}
-                            locale="es"
-                          />
-
-                        </div>
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="age">Edad</Label>
-
-                          <Input id="age" type="number" value={newCandidate.age} readOnly className="bg-muted" />
-
-                        </div>
-
-                      </div>
-
-
-
-                      <div className="grid grid-cols-3 gap-4">
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="region">Región</Label>
-
-                          <Select
-
-                            value={newCandidate.region}
-
-                            onValueChange={(value) => {
-
-                              setNewCandidate({ ...newCandidate, region: value, comuna: "" })
-
-                            }}
-
-                            disabled={loadingLists}
-
-                          >
-
-                            <SelectTrigger>
-
-                              <SelectValue placeholder="Seleccione región" />
-
-                            </SelectTrigger>
-
-                            <SelectContent>
-
-                              {regiones.map((region) => (
-
-                                <SelectItem key={region.id_region} value={region.nombre_region}>
-
-                                  {region.nombre_region}
-
-                                </SelectItem>
-
-                              ))}
-
-                            </SelectContent>
-
-                          </Select>
-
-                        </div>
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="comuna">Comuna</Label>
-
-                          <Select
-
-                            value={newCandidate.comuna}
-
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, comuna: value })}
-
-                            disabled={loadingLists || !newCandidate.region}
-
-                          >
-
-                            <SelectTrigger>
-
-                              <SelectValue placeholder={newCandidate.region ? "Seleccione comuna" : "Primero seleccione región"} />
-
-                            </SelectTrigger>
-
-                            <SelectContent>
-
-                              {comunasFiltradas.map((comuna) => (
-
-                                <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
-
-                                  {comuna.nombre_comuna}
-
-                                </SelectItem>
-
-                              ))}
-
-                            </SelectContent>
-
-                          </Select>
-
-                        </div>
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="nacionalidad">Nacionalidad</Label>
-
-                          <Select
-
-                            value={newCandidate.nacionalidad}
-
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, nacionalidad: value })}
-
-                            disabled={loadingLists}
-
-                          >
-
-                            <SelectTrigger>
-
-                              <SelectValue placeholder="Seleccione nacionalidad" />
-
-                            </SelectTrigger>
-
-                            <SelectContent>
-
-                              {nacionalidades.map((nac) => (
-
-                                <SelectItem key={nac.id_nacionalidad} value={nac.nombre_nacionalidad}>
-
-                                  {nac.nombre_nacionalidad}
-
-                                </SelectItem>
-
-                              ))}
-
-                            </SelectContent>
-
-                          </Select>
-
-                        </div>
-
-                      </div>
-
-
-
-                      <div className="grid grid-cols-2 gap-4">
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="rubro">Rubro</Label>
-
-                          <Select
-
-                            value={newCandidate.rubro}
-
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, rubro: value })}
-
-                            disabled={loadingLists}
-
-                          >
-
-                            <SelectTrigger>
-
-                              <SelectValue placeholder="Seleccione rubro" />
-
-                            </SelectTrigger>
-
-                            <SelectContent>
-
-                              {rubros.map((rubro) => (
-
-                                <SelectItem key={rubro.id_rubro} value={rubro.nombre_rubro}>
-
-                                  {rubro.nombre_rubro}
-
-                                </SelectItem>
-
-                              ))}
-
-                            </SelectContent>
-
-                          </Select>
-
-                        </div>
-
-
-                      </div>
-
-
-
-                      <div className="grid grid-cols-2 gap-4">
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="source_portal">
-                            Portal de Origen <span className="text-red-500">*</span>
-                          </Label>
-                          <Select
-
-                            value={newCandidate.source_portal}
-
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, source_portal: value })}
-
-                            disabled={loadingLists}
-                          >
-
-                            <SelectTrigger>
-
-                              <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
-                            </SelectTrigger>
-
-                            <SelectContent>
-
-                              {portalesDB.map((portal) => (
-                                <SelectItem key={portal.id} value={portal.id.toString()}>
-                                  {portal.nombre}
-                                </SelectItem>
-
-                              ))}
-
-                            </SelectContent>
-
-                          </Select>
-
-                          <p className="text-xs text-muted-foreground">
-                            Portal desde donde proviene el candidato
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-
-                          <Label htmlFor="cv_file">CV (Archivo) <span className="text-red-500">*</span></Label>
-                          <Input
-
-                            id="cv_file"
-
-                            type="file"
-
-                            accept=".pdf,.doc,.docx"
-
-                            onChange={(e) => setNewCandidate({ ...newCandidate, cv_file: e.target.files?.[0] || null })}
-
-                            className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-
-                          />
-
-                        </div>
-
-                      </div>
-
-
-
-                      <div className="flex items-center space-x-2">
-
-                        <input
-
-                          type="checkbox"
-
-                          id="has_disability_credential"
-
-                          checked={newCandidate.has_disability_credential}
-
-                          onChange={(e) => setNewCandidate({ ...newCandidate, has_disability_credential: e.target.checked })}
-
-                        />
-
-                        <Label htmlFor="has_disability_credential">Cuenta con credencial de discapacidad</Label>
-
-                      </div>
-
-                    </div>
-
-
-
-                    {/* Profesión */}
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold border-b pb-2">Profesión (Opcional)</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="profession">Profesión</Label>
-                          <Input
-                            id="profession"
-                            value={newCandidate.profession || ''}
-                            onChange={(e) => setNewCandidate({ ...newCandidate, profession: e.target.value })}
-                            placeholder="Ej: Ingeniero en Sistemas"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="profession_institution">Institución</Label>
-                          <Select
-                            value={newCandidate.profession_institution || ''}
-                            onValueChange={(value) => setNewCandidate({ ...newCandidate, profession_institution: value })}
-                            disabled={loadingLists}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccione institución" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {instituciones.map((inst) => (
-                                <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
-                                  {inst.nombre_institucion}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="profession_date">Fecha de Obtención</Label>
-                        <DatePicker
-                          selected={newCandidate.profession_date ? new Date(newCandidate.profession_date) : null}
-                          onChange={(date) => {
-                            if (date) {
-                              setNewCandidate({ ...newCandidate, profession_date: date.toISOString().split('T')[0] })
-                            }
-                          }}
-                          dateFormat="dd/MM/yyyy"
-                          showYearDropdown
-                          showMonthDropdown
-                          dropdownMode="select"
-                          placeholderText="Selecciona fecha de obtención"
-                          className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          maxDate={new Date()}
-                          minDate={new Date("1900-01-01")}
-                          yearDropdownItemNumber={100}
-                          locale="es"
-                        />
-                      </div>
-                    </div>
-
-
-
-                    {/* Formación Académica */}
-
-                    <div className="space-y-4">
-
-                      <div className="flex items-center justify-between">
-
-                        <h3 className="text-lg font-semibold border-b pb-2">Postgrados o Capacitaciones (Opcional)</h3>
-
-                        <Button
-
-                          type="button"
-
-                          variant="outline"
-
-                          size="sm"
-
-                          onClick={addEducationForm}
-
-                        >
-
-                          <Plus className="mr-2 h-4 w-4" />
-
-                          Agregar Otra Capacitación
-
-                        </Button>
-
-                      </div>
-
-
-
-                      {/* Multiple Education Forms */}
-
-                      {educationForms.map((form, index) => (
-
-                        <Card key={form.id}>
-
-                          <CardHeader>
-
-                            <div className="flex items-center justify-between">
-
-                              <CardTitle className="text-base">
-
-                                Capacitación {index + 1}
-
-                              </CardTitle>
-
-                              {educationForms.length > 1 && (
-
-                                <Button
-
-                                  type="button"
-
-                                  variant="ghost"
-
-                                  size="sm"
-
-                                  onClick={() => removeEducationForm(form.id)}
-
-                                >
-
-                                  <Trash2 className="h-4 w-4" />
-
-                                </Button>
-
-                              )}
-
-                            </div>
-
-                          </CardHeader>
-
-                          <CardContent className="space-y-4">
-
-                            <div className="grid grid-cols-2 gap-4">
-
-                              <div className="space-y-2">
-
-                                <Label>Nombre del Postgrado/Capacitación</Label>
-
-                                <Input
-
-                                  value={form.title}
-
-                                  onChange={(e) => updateEducationForm(form.id, 'title', e.target.value)}
-
-                                  placeholder="Ej: Magíster en Administración"
-
-                                />
-
-                              </div>
-
-                              <div className="space-y-2">
-
-                                <Label>Institución</Label>
-
-                                <Select
-
-                                  value={form.institution}
-
-                                  onValueChange={(value) => updateEducationForm(form.id, 'institution', value)}
-
-                                  disabled={loadingLists}
-
-                                >
-
-                                  <SelectTrigger>
-
-                                    <SelectValue placeholder="Seleccione institución" />
-
-                                  </SelectTrigger>
-
-                                  <SelectContent>
-
-                                    {instituciones.map((inst) => (
-
-                                      <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
-
-                                        {inst.nombre_institucion}
-
-                                      </SelectItem>
-
-                                    ))}
-
-                                  </SelectContent>
-
-                                </Select>
-
-                              </div>
-
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-
-                              <div className="space-y-2">
-
-                                <Label>Fecha de Inicio</Label>
-
-                                <DatePicker
-                                  selected={form.start_date ? new Date(form.start_date) : null}
-                                  onChange={(date) => {
-                                    if (date) {
-                                      updateEducationForm(form.id, 'start_date', date.toISOString().split('T')[0])
-                                    }
-                                  }}
-                                  dateFormat="dd/MM/yyyy"
-                                  showYearDropdown
-                                  showMonthDropdown
-                                  dropdownMode="select"
-                                  placeholderText="Selecciona fecha de inicio"
-                                  className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                  maxDate={new Date()}
-                                  minDate={new Date("1900-01-01")}
-                                  yearDropdownItemNumber={100}
-                                  locale="es"
-                                />
-
-                              </div>
-
-                              <div className="space-y-2">
-
-                                <Label>Fecha Fin</Label>
-
-                                <DatePicker
-                                  selected={form.completion_date ? new Date(form.completion_date) : null}
-                                  onChange={(date) => {
-                                    if (date) {
-                                      updateEducationForm(form.id, 'completion_date', date.toISOString().split('T')[0])
-                                    }
-                                  }}
-                                  dateFormat="dd/MM/yyyy"
-                                  showYearDropdown
-                                  showMonthDropdown
-                                  dropdownMode="select"
-                                  placeholderText="Selecciona fecha final"
-                                  className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                  maxDate={new Date()}
-                                  minDate={form.start_date ? new Date(form.start_date) : new Date("1900-01-01")}
-                                  yearDropdownItemNumber={100}
-                                  locale="es"
-                                />
-
-                              </div>
-
-                            </div>
-
-                          </CardContent>
-
-                        </Card>
-
-                      ))}
-
-                      {/* Formulario antiguo de educación eliminado - ahora se usan educationForms */}
-
-                      {/* 
-                      <Card>
-
-                        <CardHeader>
-
-                          <CardTitle className="text-base">Agregar Formación</CardTitle>
-
-                        </CardHeader>
-
-                        <CardContent className="space-y-4">
-
-                          <div className="space-y-2">
-
-                            <Label>Institución</Label>
-
-                            <Select
-
-                              value={newEducation.institution}
-
-                              onValueChange={(value) => setNewEducation({ ...newEducation, institution: value })}
-
-                              disabled={loadingLists}
-
-                            >
-
-                              <SelectTrigger>
-
-                                <SelectValue placeholder="Seleccione institución" />
-
-                              </SelectTrigger>
-
-                              <SelectContent>
-
-                                {instituciones.map((inst) => (
-
-                                  <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
-
-                                    {inst.nombre_institucion}
-
-                                  </SelectItem>
-
-                                ))}
-
-                              </SelectContent>
-
-                            </Select>
-
-                          </div>
-
-                          <div className="space-y-2">
-
-                            <Label>Título/Nombre</Label>
-
-                            <Input
-
-                              value={newEducation.title}
-
-                              onChange={(e) => setNewEducation({ ...newEducation, title: e.target.value })}
-
-                              placeholder="Nombre del título, curso o capacitación"
-
-                            />
-
-                          </div>
-
-                          <div className="space-y-4">
-
-                            <div className="space-y-2">
-
-                              <Label>Fecha de Obtención</Label>
-
-                              <DatePicker
-                                selected={newEducation.completion_date ? new Date(newEducation.completion_date) : null}
-                                onChange={(date) => {
-                                  if (date) {
-                                    setNewEducation({ ...newEducation, completion_date: date.toISOString().split('T')[0] })
-                                  }
-                                }}
-                                dateFormat="dd/MM/yyyy"
-                                showYearDropdown
-                                showMonthDropdown
-                                dropdownMode="select"
-                                placeholderText="Selecciona fecha"
-                                className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                maxDate={new Date()}
-                                yearDropdownItemNumber={50}
-                                locale="es"
-                              />
-
-                            </div>
-
-                          </div>
-
-
-                          <Button
-
-                            type="button"
-
-                            onClick={() => {
-
-                              if (newEducation.institution && newEducation.title) {
-
-                                const education: Education = {
-
-                                  id: Date.now().toString(),
-
-                                  ...newEducation,
-
-                                }
-
-                                setNewCandidate({
-
-                                  ...newCandidate,
-
-                                  education: [...newCandidate.education, education],
-
-                                })
-
-                                setNewEducation({
-
-                                  institution: "",
-
-                                  title: "",
-
-                                  completion_date: "",
-
-                                })
-
-                              }
-
-                            }}
-
-                            disabled={!newEducation.institution || !newEducation.title}
-
-                          >
-
-                            <Plus className="mr-2 h-4 w-4" />
-
-                            Agregar Formación
-
-                          </Button>
-
-                        </CardContent>
-
-                      </Card>
-
-
-
-                      {/* Education List */}
-
-                      {newCandidate.education.length > 0 && (
-
-                        <div className="space-y-2">
-
-                          <h4 className="font-medium">Formaciones Agregadas</h4>
-
-                          {newCandidate.education.map((edu, index) => (
-
-                            <Card key={edu.id}>
-
-                              <CardContent className="pt-4">
-
-                                <div className="flex justify-between items-start">
-
-                                  <div>
-
-                                    <div className="flex items-center gap-2 mb-1">
-
-                                      <span className="font-medium">{edu.title}</span>
-
-                                    </div>
-
-                                    <p className="text-sm text-muted-foreground">{edu.institution}</p>
-
-                                    {(edu.start_date || edu.completion_date) && (
-
-                                      <p className="text-xs text-muted-foreground mt-1">
-
-                                        {edu.start_date && formatDate(edu.start_date)}
-
-                                        {edu.start_date && edu.completion_date && " - "}
-
-                                        {edu.completion_date && formatDate(edu.completion_date)}
-
-                                      </p>
-
-                                    )}
-
-                                  </div>
-
-                                  <Button
-
-                                    variant="ghost"
-
-                                    size="sm"
-
-                                    onClick={() => {
-
-                                      const updatedEducation = newCandidate.education.filter((_, i) => i !== index)
-
-                                      setNewCandidate({ ...newCandidate, education: updatedEducation })
-
-                                    }}
-
-                                  >
-
-                                    <Trash2 className="h-4 w-4" />
-
-                                  </Button>
-
-                                </div>
-
-                              </CardContent>
-
-                            </Card>
-
-                          ))}
-
-                        </div>
-
-                      )}
-
-                    </div>
-
-
-
-
-                                          {/* Experiencia Laboral */}
-
-                    <div className="space-y-4">
-
-                      <div className="flex items-center justify-between">
-
-                        <h3 className="text-lg font-semibold border-b pb-2">Experiencia Laboral (Opcional)</h3>
-
-                        <Button
-
-                          type="button"
-
-                          variant="outline"
-
-                          size="sm"
-
-                          onClick={addWorkExperienceForm}
-
-                        >
-
-                          <Plus className="mr-2 h-4 w-4" />
-
-                          Agregar Otra Experiencia
-
-                        </Button>
-
-                      </div>
-
-
-
-                      {/* Multiple Work Experience Forms */}
-
-                      {workExperienceForms.map((form, index) => (
-
-                        <Card key={form.id}>
-
-                          <CardHeader>
-
-                            <div className="flex items-center justify-between">
-
-                              <CardTitle className="text-base">
-
-                                Experiencia {index + 1}
-
-                              </CardTitle>
-
-                              {workExperienceForms.length > 1 && (
-
-                                <Button
-
-                                  type="button"
-
-                                  variant="ghost"
-
-                                  size="sm"
-
-                                  onClick={() => removeWorkExperienceForm(form.id)}
-
-                                >
-
-                                  <Trash2 className="h-4 w-4" />
-
-                                </Button>
-
-                              )}
-
-                            </div>
-
-                          </CardHeader>
-
-                          <CardContent className="space-y-4">
-
-                            <div className="grid grid-cols-2 gap-4">
-
-                              <div className="space-y-2">
-
-                                <Label>Empresa</Label>
-
-                                <Input
-
-                                  value={form.company}
-
-                                  onChange={(e) => updateWorkExperienceForm(form.id, 'company', e.target.value)}
-
-                                  placeholder="Nombre de la empresa"
-
-                                />
-
-                              </div>
-
-                              <div className="space-y-2">
-
-                                <Label>Cargo</Label>
-
-                                <Input
-
-                                  value={form.position}
-
-                                  onChange={(e) => updateWorkExperienceForm(form.id, 'position', e.target.value)}
-
-                                  placeholder="Título del cargo"
-
-                                />
-
-                              </div>
-
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-
-                              <div className="space-y-2">
-
-                                <Label>Fecha Inicio</Label>
-
-                                <DatePicker
-                                  selected={form.start_date ? new Date(form.start_date) : null}
-                                  onChange={(date) => {
-                                    if (date) {
-                                      updateWorkExperienceForm(form.id, 'start_date', date.toISOString().split('T')[0])
-                                    }
-                                  }}
-                                  dateFormat="dd/MM/yyyy"
-                                  showYearDropdown
-                                  showMonthDropdown
-                                  dropdownMode="select"
-                                  placeholderText="Selecciona fecha"
-                                  className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                  maxDate={new Date()}
-                                  yearDropdownItemNumber={50}
-                                  locale="es"
-                                />
-
-                              </div>
-
-                              <div className="space-y-2">
-
-                                <Label>Fecha Fin</Label>
-
-                                <DatePicker
-                                  selected={form.end_date ? new Date(form.end_date) : null}
-                                  onChange={(date) => {
-                                    if (date) {
-                                      updateWorkExperienceForm(form.id, 'end_date', date.toISOString().split('T')[0])
-                                    }
-                                  }}
-                                  dateFormat="dd/MM/yyyy"
-                                  showYearDropdown
-                                  showMonthDropdown
-                                  dropdownMode="select"
-                                  placeholderText="Selecciona fecha"
-                                  className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                  maxDate={new Date()}
-                                  minDate={form.start_date ? new Date(form.start_date) : undefined}
-                                  yearDropdownItemNumber={50}
-                                  locale="es"
-                                />
-
-                              </div>
-
-                            </div>
-
-                            <div className="space-y-2">
-
-                              <Label>Descripción de Funciones</Label>
-
-                              <Textarea
-
-                                value={form.description}
-
-                                onChange={(e) => updateWorkExperienceForm(form.id, 'description', e.target.value)}
-
-                                placeholder="Principales responsabilidades y logros"
-
-                                rows={3}
-
-                              />
-
-                            </div>
-
-                          </CardContent>
-
-                        </Card>
-
-                      ))}
-
-                      {/* Add Work Experience Form */}
-
-                      {/* Formulario antiguo de experiencia eliminado - ahora se usan workExperienceForms */}
-                      {/* 
-                      <Card>
-
-                        <CardHeader>
-
-                          <CardTitle className="text-base">Agregar Experiencia</CardTitle>
-
-                        </CardHeader>
-
-                        <CardContent className="space-y-4">
-
-                          <div className="grid grid-cols-2 gap-4">
-
-                            <div className="space-y-2">
-
-                              <Label>Empresa</Label>
-
-                              <Input
-
-                                value={newWorkExperience.company}
-
-                                onChange={(e) =>
-
-                                  setNewWorkExperience({ ...newWorkExperience, company: e.target.value })
-
-                                }
-
-                                placeholder="Nombre de la empresa"
-
-                              />
-
-                            </div>
-
-                            <div className="space-y-2">
-
-                              <Label>Cargo</Label>
-
-                              <Input
-
-                                value={newWorkExperience.position}
-
-                                onChange={(e) =>
-
-                                  setNewWorkExperience({ ...newWorkExperience, position: e.target.value })
-
-                                }
-
-                                placeholder="Título del cargo"
-
-                              />
-
-                            </div>
-
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-
-                            <div className="space-y-2">
-
-                              <Label>Fecha Inicio</Label>
-
-                              <DatePicker
-                                selected={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : null}
-                                onChange={(date) => {
-                                  if (date) {
-                                    setNewWorkExperience({ ...newWorkExperience, start_date: date.toISOString().split('T')[0] })
-                                  }
-                                }}
-                                dateFormat="dd/MM/yyyy"
-                                showYearDropdown
-                                showMonthDropdown
-                                dropdownMode="select"
-                                placeholderText="Selecciona fecha"
-                                className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                maxDate={new Date()}
-                                yearDropdownItemNumber={50}
-                                locale="es"
-                              />
-
-                            </div>
-
-                            <div className="space-y-2">
-
-                              <Label>Fecha Fin</Label>
-
-                              <DatePicker
-                                selected={newWorkExperience.end_date ? new Date(newWorkExperience.end_date) : null}
-                                onChange={(date) => {
-                                  if (date) {
-                                    setNewWorkExperience({ ...newWorkExperience, end_date: date.toISOString().split('T')[0] })
-                                  }
-                                }}
-                                dateFormat="dd/MM/yyyy"
-                                showYearDropdown
-                                showMonthDropdown
-                                dropdownMode="select"
-                                placeholderText="Selecciona fecha"
-                                className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                maxDate={new Date()}
-                                minDate={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : undefined}
-                                yearDropdownItemNumber={50}
-
-                                locale="es"
-                              />
-
-                            </div>
-
-                          </div>
-
-
-                          <div className="space-y-2">
-
-                            <Label>Descripción de Funciones</Label>
-
-                            <Textarea
-
-                              value={newWorkExperience.description}
-
-                              onChange={(e) =>
-
-                                setNewWorkExperience({ ...newWorkExperience, description: e.target.value })
-
-                              }
-
-                              placeholder="Principales responsabilidades y logros"
-
-                              rows={3}
-
-                            />
-
-                          </div>
-
-
-
-                          <Button
-
-                            type="button"
-
-                            onClick={() => {
-
-                              if (newWorkExperience.company && newWorkExperience.position) {
-
-                                const experience: WorkExperience = {
-
-                                  id: Date.now().toString(),
-
-                                  ...newWorkExperience,
-
-                                }
-
-                                setNewCandidate({
-
-                                  ...newCandidate,
-
-                                  work_experience: [...newCandidate.work_experience, experience],
-
-                                })
-
-                                setNewWorkExperience({
-
-                                  company: "",
-
-                                  position: "",
-
-                                  start_date: "",
-
-                                  end_date: "",
-
-                                  description: "",
-
-                                })
-
-                              }
-
-                            }}
-
-                            disabled={!newWorkExperience.company || !newWorkExperience.position}
-
-                          >
-
-                            <Plus className="mr-2 h-4 w-4" />
-
-                            Agregar Experiencia
-
-                          </Button>
-
-                        </CardContent>
-
-                      </Card>
-
-
-
-                      {/* Work Experience List */}
-
-                      {newCandidate.work_experience.length > 0 && (
-
-                        <div className="space-y-2">
-
-                          <h4 className="font-medium">Experiencias Agregadas</h4>
-
-                          {newCandidate.work_experience.map((exp, index) => (
-
-                            <Card key={exp.id}>
-
-                              <CardContent className="pt-4">
-
-                                <div className="flex justify-between items-start">
-
-                                  <div>
-
-                                    <div className="flex items-center gap-2 mb-1">
-
-                                      <span className="font-medium">{exp.position}</span>
-
-
-                                    </div>
-
-                                    <p className="text-sm text-muted-foreground">{exp.company}</p>
-
-                                    <p className="text-xs text-muted-foreground mt-1">
-
-                                      {formatDate(exp.start_date)} -{" "}
-
-                                      {exp.end_date
-
-                                        ? formatDate(exp.end_date)
-
-                                        : "No especificada"}
-
-                                    </p>
-
-                                  </div>
-
-                                  <Button
-
-                                    variant="ghost"
-
-                                    size="sm"
-
-                                    onClick={() => {
-
-                                      const updatedExperience = newCandidate.work_experience.filter(
-
-                                        (_, i) => i !== index,
-
-                                      )
-
-                                      setNewCandidate({ ...newCandidate, work_experience: updatedExperience })
-
-                                    }}
-
-                                  >
-
-                                    <Trash2 className="h-4 w-4" />
-
-                                  </Button>
-
-                                </div>
-
-                              </CardContent>
-
-                            </Card>
-
-                          ))}
-
-                        </div>
-
-                      )}
-
-                    </div>
-
-
-
-
-                    {/* Respuestas del Portal */}
-
-                    <div className="space-y-4">
-
-                      <h3 className="text-lg font-semibold border-b pb-2">Respuestas del Portal (Opcional)</h3>
-
-                      <p className="text-sm text-muted-foreground">
-
-                        Información adicional proporcionada por el candidato en el portal de empleo
-
-                      </p>
-
-
-
-                      <div className="space-y-4">
-
-                        <div className="space-y-2">
-
-                          <Label>Motivación</Label>
-
-                          <Textarea
-
-                            value={newCandidate.portal_responses.motivation}
-
-                            onChange={(e) =>
-
-                              setNewCandidate({
-
-                                ...newCandidate,
-
-                                portal_responses: { ...newCandidate.portal_responses, motivation: e.target.value },
-
-                              })
-
-                            }
-
-                            placeholder="¿Por qué está interesado en esta posición?"
-
-                            rows={3}
-
-                          />
-
-                        </div>
-
-
-
-                        <div className="grid grid-cols-2 gap-4">
-
-                          <div className="space-y-2">
-
-                            <Label>Expectativa de Renta</Label>
-
-                            <Input
-
-                              value={newCandidate.portal_responses.salary_expectation}
-
-                              onChange={(e) =>
-
-                                setNewCandidate({
-
-                                  ...newCandidate,
-
-                                  portal_responses: {
-
-                                    ...newCandidate.portal_responses,
-
-                                    salary_expectation: e.target.value,
-
-                                  },
-
-                                })
-
-                              }
-
-                              placeholder="Ej: $2.500.000 - $3.000.000"
-
-                            />
-
-                          </div>
-
-                          <div className="space-y-2">
-
-                            <Label>Disponibilidad del Postulante</Label>
-
-                            <Select
-
-                              value={newCandidate.portal_responses.availability}
-
-                              onValueChange={(value) =>
-
-                                setNewCandidate({
-
-                                  ...newCandidate,
-
-                                  portal_responses: { ...newCandidate.portal_responses, availability: value },
-
-                                })
-
-                              }
-
-                            >
-
-                              <SelectTrigger>
-
-                                <SelectValue placeholder="Seleccionar disponibilidad" />
-
-                              </SelectTrigger>
-
-                              <SelectContent>
-
-                                <SelectItem value="Inmediata">Inmediata</SelectItem>
-
-                                <SelectItem value="1 semana">1 semana</SelectItem>
-
-                                <SelectItem value="2 semanas">2 semanas</SelectItem>
-
-                                <SelectItem value="1 mes">1 mes</SelectItem>
-
-                                <SelectItem value="2 meses">2 meses</SelectItem>
-
-                                <SelectItem value="A convenir">A convenir</SelectItem>
-
-                              </SelectContent>
-
-                            </Select>
-
-                          </div>
-
-                        </div>
-
-
-
-                        <div className="space-y-2">
-
-                          <Label>Situación Familiar</Label>
-
-                          <Textarea
-
-                            value={newCandidate.portal_responses.family_situation}
-
-                            onChange={(e) =>
-
-                              setNewCandidate({
-
-                                ...newCandidate,
-
-                                portal_responses: {
-
-                                  ...newCandidate.portal_responses,
-
-                                  family_situation: e.target.value,
-
-                                },
-
-                              })
-
-                            }
-
-                            placeholder="Información sobre situación familiar que pueda afectar la disponibilidad"
-
-                            rows={2}
-
-                          />
-
-                        </div>
-
-
-
-                        <div className="grid grid-cols-2 gap-4">
-
-                          <div className="space-y-2">
-
-                            <Label>Manejo de Inglés (Nivel)</Label>
-
-                            <Input
-
-                              value={newCandidate.portal_responses.english_level}
-
-                              onChange={(e) =>
-
-                                setNewCandidate({
-
-                                  ...newCandidate,
-
-                                  portal_responses: { ...newCandidate.portal_responses, english_level: e.target.value },
-
-                                })
-
-                              }
-
-                              placeholder="Ej: Básico, Intermedio, Avanzado"
-
-                            />
-
-                          </div>
-
-                          <div className="space-y-2">
-
-                            <Label>Software o Herramientas</Label>
-
-                            <Input
-
-                              value={newCandidate.portal_responses.software_tools}
-
-                              onChange={(e) =>
-
-                                setNewCandidate({
-
-                                  ...newCandidate,
-
-                                  portal_responses: { ...newCandidate.portal_responses, software_tools: e.target.value },
-
-                                })
-
-                              }
-
-                              placeholder="Ej: Excel, Photoshop, AutoCAD"
-
-                            />
-
-                          </div>
-
-                        </div>
-
-
-
-                        <div className="flex items-center space-x-2">
-
-                          <input
-
-                            type="checkbox"
-
-                            id="licencia"
-
-                            checked={newCandidate.licencia}
-
-                            onChange={(e) =>
-
-                              setNewCandidate({
-
-                                ...newCandidate,
-
-                                licencia: e.target.checked,
-
-                              })
-
-                            }
-
-                          />
-
-                          <Label htmlFor="licencia">Licencia de Conducir</Label>
-
-                        </div>
-
-
-
-                      </div>
-
-                    </div>
-
-
-
-
-
-                    {/* Evaluación del Consultor */}
-
-                    <div className="space-y-4">
-
-
-
-                      <div className="space-y-2">
-
-                        <Label>Valoración del Consultor</Label>
-
-                        <div className="flex gap-1">
-
-                          {[1, 2, 3, 4, 5].map((star) => (
-
-                            <Star
-
-                              key={star}
-
-                              className={`h-6 w-6 cursor-pointer ${star <= newCandidate.consultant_rating
-
-                                  ? "fill-yellow-400 text-yellow-400"
-
-                                  : "text-gray-300"
-
-                              }`}
-
-                              onClick={() => setNewCandidate({ ...newCandidate, consultant_rating: star })}
-
-                            />
-
-                          ))}
-
-                        </div>
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                  <DialogFooter>
-
-                    <Button variant="outline" onClick={() => setShowAddCandidate(false)}>
-
-                      Cancelar
-
-                    </Button>
-
-                    <Button onClick={handleAddCandidate}>Agregar Candidato</Button>
-
-                  </DialogFooter>
+                  <CandidateForm
+                    mode="create"
+                    onSubmit={handleAddCandidateSubmit}
+                    onCancel={() => setShowAddCandidate(false)}
+                    regiones={regiones}
+                    todasLasComunas={todasLasComunas}
+                    profesiones={profesiones}
+                    rubros={rubros}
+                    nacionalidades={nacionalidades}
+                    instituciones={instituciones}
+                    portalesDB={portalesConPublicacionesActivas}
+                    loadingLists={loadingLists}
+                    calculateAge={calculateAge}
+                  />
 
                 </DialogContent>
 
@@ -3985,6 +2842,16 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         </CardHeader>
 
         <CardContent>
+
+          {/* Alerta cuando no hay candidatos presentados */}
+          {candidates.length > 0 && !hasPresentedCandidates && (
+            <Alert className="mb-4 bg-yellow-50 border-yellow-200">
+              <AlertDescription className="text-yellow-800">
+                ⚠️ Para avanzar al Módulo 3, debe tener al menos un candidato con estado &quot;Presentado&quot;. 
+                Cambie el estado de los candidatos agregados usando el botón &quot;Cambiar Estado&quot;.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {candidates.length > 0 ? (
 
@@ -4042,6 +2909,12 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                         {/* Mostrar estado actual */}
                           <div className="flex items-center gap-2">
 
+                          {candidate.presentation_status === "agregado" && (
+                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                              <span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+                              Agregado
+                            </Badge>
+                          )}
                           {candidate.presentation_status === "presentado" && (
                             <Badge variant="default" className="text-xs bg-green-600">
                               <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
@@ -4116,22 +2989,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                         </Button>
 
-                        <Button
-
-                          variant="ghost"
-
-                          size="sm"
-
-                          onClick={() => handleDeleteCandidate(candidate.id)}
-                          title="Eliminar candidato"
-                          className="text-destructive hover:text-destructive"
-                          disabled={isBlocked}
-                        >
-
-                          <Trash2 className="h-4 w-4" />
-
-                        </Button>
-
                       </div>
 
                     </TableCell>
@@ -4160,8 +3017,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       </Card>
 
-
-
       {/* Edit Candidate Dialog */}
 
       <Dialog open={showEditCandidate} onOpenChange={setShowEditCandidate}>
@@ -4178,939 +3033,33 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
           {editingCandidate && (
 
-            <div className="space-y-6">
-
-              {/* Información Básica - IGUAL QUE CREAR CANDIDATO */}
-              <div className="space-y-4">
-
-                <h3 className="text-lg font-semibold border-b pb-2">Información Básica</h3>
-                <div className="grid grid-cols-2 gap-4">
-
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_candidate_name">Nombre Completo</Label>
-
-                    <Input
-
-                      id="edit_candidate_name"
-
-                      value={editingCandidate.name}
-
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, name: e.target.value })}
-
-                      placeholder="Nombre del candidato"
-                    />
-
-                  </div>
-
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_candidate_email">Email</Label>
-
-                    <Input
-
-                      id="edit_candidate_email"
-
-                      type="email"
-
-                      value={editingCandidate.email}
-
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, email: e.target.value })}
-
-                      placeholder="correo@ejemplo.com"
-                    />
-
-                  </div>
-
-                </div>
-
-
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_candidate_phone">Teléfono (8-12 caracteres)</Label>
-
-                    <Input
-
-                      id="edit_candidate_phone"
-
-                      value={editingCandidate.phone}
-
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, phone: e.target.value })}
-
-                      placeholder="+56912345678"
-                    />
-
-                  </div>
-
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_candidate_rut">RUT (Opcional)</Label>
-
-                    <Input
-                      id="edit_candidate_rut"
-                      value={editingCandidate.rut || ""}
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, rut: e.target.value })}
-                      placeholder="12.345.678-9"
-                    />
-
-                  </div>
-
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_birth_date">Fecha de Nacimiento</Label>
-                     <DatePicker
-                       selected={editingCandidate.birth_date ? new Date(editingCandidate.birth_date) : null}
-                       onChange={(date) => {
-                         if (date) {
-                           const age = calculateAge(date.toISOString().split('T')[0])
-                           setEditingCandidate({
-                             ...editingCandidate,
-                             birth_date: date.toISOString().split('T')[0],
-                             age: age,
-                           })
-                         }
-                       }}
-                       dateFormat="dd/MM/yyyy"
-                       showYearDropdown
-                       showMonthDropdown
-                       dropdownMode="select"
-                       placeholderText="Selecciona fecha de nacimiento"
-                       className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                       maxDate={new Date()}
-                       minDate={new Date("1900-01-01")}
-                       yearDropdownItemNumber={100}
-                       locale="es"
-                    />
-
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_age">Edad</Label>
-                    <Input id="edit_age" type="number" value={editingCandidate.age} readOnly className="bg-muted" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_region">Región</Label>
-                    <Select
-                      value={editingCandidate.region || ""}
-                      onValueChange={(value) => {
-                        console.log('🔍 Región seleccionada:', value)
-                        setEditingCandidate({ ...editingCandidate, region: value })
-                        // Filtrar comunas por región seleccionada
-                        const comunasDeRegion = todasLasComunas.filter(comuna => 
-                          comuna.id_region === regiones.find(r => r.nombre_region === value)?.id_region
-                        )
-                        setComunasFiltradas(comunasDeRegion)
-                      }}
-                      disabled={loadingLists}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione región">
-                          {editingCandidate.region || "Seleccione región"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {regiones.map((region) => (
-                          <SelectItem key={region.id_region} value={region.nombre_region}>
-                            {region.nombre_region}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_candidate_comuna">Comuna</Label>
-                    <Select
-                      value={editingCandidate.comuna || ""}
-                      onValueChange={(value) => {
-                        console.log('🔍 Comuna seleccionada:', value)
-                        setEditingCandidate({ ...editingCandidate, comuna: value })
-                      }}
-                      disabled={loadingLists}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione comuna">
-                          {editingCandidate.comuna || "Seleccione comuna"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {comunasFiltradas.map((comuna) => (
-                          <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
-                            {comuna.nombre_comuna}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_nacionalidad">Nacionalidad</Label>
-                    <Select
-                      value={editingCandidate.nacionalidad || ""}
-                      onValueChange={(value) => setEditingCandidate({ ...editingCandidate, nacionalidad: value })}
-                      disabled={loadingLists}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione nacionalidad" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {nacionalidades.map((nac) => (
-                          <SelectItem key={nac.id_nacionalidad} value={nac.nombre_nacionalidad}>
-                            {nac.nombre_nacionalidad}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-
-
-                <div className="grid grid-cols-2 gap-4">
-
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_rubro">Rubro</Label>
-                    <Select
-                      value={editingCandidate.rubro || ""}
-                      onValueChange={(value) => setEditingCandidate({ ...editingCandidate, rubro: value })}
-                      disabled={loadingLists}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione rubro" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rubros.map((rubro) => (
-                          <SelectItem key={rubro.id_rubro} value={rubro.nombre_rubro}>
-                            {rubro.nombre_rubro}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_source_portal">
-                      Portal de Origen <span className="text-red-500">*</span>
-                    </Label>
-                    <Select
-
-                      value={editingCandidate.source_portal || ""}
-
-                      onValueChange={(value) => setEditingCandidate({ ...editingCandidate, source_portal: value })}
-
-                      disabled={loadingLists}
-                    >
-
-                      <SelectTrigger>
-
-                        <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
-                      </SelectTrigger>
-
-                      <SelectContent>
-
-                        {portalesDB.map((portal) => (
-                          <SelectItem key={portal.id} value={portal.id.toString()}>
-                            {portal.nombre}
-                          </SelectItem>
-
-                        ))}
-
-                      </SelectContent>
-
-                    </Select>
-
-                    <p className="text-xs text-muted-foreground">Portal desde donde proviene el candidato</p>
-                  </div>
-
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_cv_file">CV (Archivo)</Label>
-                    <Input
-
-                      id="edit_cv_file"
-                      type="file"
-                      accept=".pdf,.doc,.docx"
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, cv_file: e.target.files?.[0]?.name || editingCandidate.cv_file })}
-                      className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                    />
-
-                  </div>
-
-                </div>
-
-
-
-                <div className="flex items-center space-x-2">
-
-                  <input
-
-                    type="checkbox"
-
-                    id="edit_has_disability_credential"
-
-                    checked={editingCandidate.has_disability_credential || false}
-
-                    onChange={(e) => setEditingCandidate({ ...editingCandidate, has_disability_credential: e.target.checked })}
-
-                  />
-
-                  <Label htmlFor="edit_has_disability_credential">Cuenta con credencial de discapacidad</Label>
-
-                </div>
-
-              </div>
-
-
-
-              {/* Profesión (Opcional) */}
-
-              <div className="space-y-4">
-
-                <h3 className="text-lg font-semibold border-b pb-2">Profesión (Opcional)</h3>
-
-                <div className="grid grid-cols-2 gap-4">
-
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_profession">Profesión</Label>
-
-                    <Input
-
-                      id="edit_profession"
-
-                      value={editingCandidate.profession || ''}
-
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, profession: e.target.value })}
-
-                      placeholder="Ej: Ingeniero en Sistemas"
-
-                    />
-
-                  </div>
-
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_profession_institution">Institución</Label>
-
-                    <Select
-
-                      value={(editingCandidate as any).profession_institution || ''}
-
-                      onValueChange={(value) => setEditingCandidate({ ...editingCandidate, profession_institution: value } as any)}
-
-                      disabled={loadingLists}
-
-                    >
-
-                      <SelectTrigger>
-
-                        <SelectValue placeholder="Seleccione institución" />
-
-                      </SelectTrigger>
-
-                      <SelectContent>
-
-                        {instituciones.map((inst) => (
-
-                          <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
-
-                            {inst.nombre_institucion}
-
-                          </SelectItem>
-
-                        ))}
-
-                      </SelectContent>
-
-                    </Select>
-
-                </div>
-
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-
-                  <div className="space-y-2">
-
-                    <Label htmlFor="edit_profession_date">Fecha de Obtención</Label>
-
-                    <Input
-
-                      id="edit_profession_date"
-
-                      type="date"
-
-                      value={(editingCandidate as any).profession_date || ''}
-
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, profession_date: e.target.value } as any)}
-
-                    />
-
-                  </div>
-
-                </div>
-
-              </div>
-
-
-
-              {/* Formación Académica - Sistema Nuevo de Formularios Múltiples */}
-
-              <div className="space-y-4">
-
-                <div className="flex items-center justify-between">
-
-                  <h3 className="text-lg font-semibold">Formación Académica</h3>
-
-                      <Button
-
-                        type="button"
-
-                        variant="outline"
-
-                        size="sm"
-
-                    onClick={addEditEducationForm}
-
-                  >
-
-                    Agregar Educación
-
-                  </Button>
-
-                </div>
-
-                {/* Multiple Education Forms */}
-                {editEducationForms.map((form, index) => (
-
-                  <Card key={form.id}>
-
-                    <CardHeader>
-
-                      <div className="flex justify-between items-center">
-
-                        <CardTitle className="text-base">
-
-                          Formación {index + 1}
-
-                        </CardTitle>
-
-                        {editEducationForms.length > 1 && (
-
-                          <Button
-
-                            type="button"
-
-                            variant="outline"
-
-                            size="sm"
-
-                            onClick={() => removeEditEducationForm(form.id)}
-
-                      >
-
-                        Eliminar
-
-                      </Button>
-
-                        )}
-
-                    </div>
-
-                    </CardHeader>
-
-                    <CardContent className="space-y-4">
-
-                      <div className="grid grid-cols-2 gap-4">
-
-                      <div className="space-y-2">
-
-                        <Label>Institución</Label>
-
-                          <Select
-
-                            value={form.institution}
-
-                            onValueChange={(value) => updateEditEducationForm(form.id, 'institution', value)}
-
-                            disabled={loadingLists}
-
-                          >
-
-                            <SelectTrigger>
-
-                              <SelectValue placeholder="Seleccione institución" />
-
-                            </SelectTrigger>
-
-                            <SelectContent>
-
-                              {instituciones.map((inst) => (
-
-                                <SelectItem key={inst.id_institucion} value={inst.nombre_institucion}>
-
-                                  {inst.nombre_institucion}
-
-                                </SelectItem>
-
-                              ))}
-
-                            </SelectContent>
-
-                          </Select>
-
-                        </div>
-
-                        <div className="space-y-2">
-
-                          <Label>Título/Nombre</Label>
-
-                          <Input
-
-                            value={form.title}
-
-                            onChange={(e) => updateEditEducationForm(form.id, 'title', e.target.value)}
-
-                            placeholder="Nombre del título, curso o capacitación"
-
-                          />
-
-                        </div>
-
-                    </div>
-
-                    <div className="space-y-4">
-
-                      <div className="space-y-2">
-
-                          <Label>Fecha de Obtención</Label>
-
-                        <Input
-
-                          type="date"
-
-                            value={form.completion_date}
-
-                            onChange={(e) => updateEditEducationForm(form.id, 'completion_date', e.target.value)}
-
-                        />
-
-                      </div>
-
-                    </div>
-
-                    </CardContent>
-
-                  </Card>
-
-                ))}
-
-              </div>
-
-
-
-              {/* Experiencia Laboral */}
-
-              <div className="space-y-4">
-
-                <div className="flex items-center justify-between">
-
-                  <h3 className="text-lg font-semibold">Experiencia Laboral</h3>
-
-                  <Button
-
-                    type="button"
-
-                    variant="outline"
-
-                    size="sm"
-
-                    onClick={addEditWorkExperienceForm}
-
-                  >
-
-                    Agregar Experiencia
-
-                  </Button>
-
-                </div>
-
-                {/* Multiple Work Experience Forms */}
-                {editWorkExperienceForms.map((form, index) => (
-
-                  <Card key={form.id}>
-
-                    <CardHeader>
-
-                    <div className="flex justify-between items-center">
-
-                        <CardTitle className="text-base">
-
-                          Experiencia {index + 1}
-
-                        </CardTitle>
-
-                        {editWorkExperienceForms.length > 1 && (
-
-                      <Button
-
-                        type="button"
-
-                        variant="outline"
-
-                        size="sm"
-
-                            onClick={() => removeEditWorkExperienceForm(form.id)}
-
-                      >
-
-                        Eliminar
-
-                      </Button>
-
-                        )}
-
-                    </div>
-
-                    </CardHeader>
-
-                    <CardContent className="space-y-4">
-
-                    <div className="grid grid-cols-2 gap-4">
-
-                      <div className="space-y-2">
-
-                        <Label>Empresa</Label>
-
-                        <Input
-
-                            value={form.company}
-
-                            onChange={(e) => updateEditWorkExperienceForm(form.id, 'company', e.target.value)}
-
-                            placeholder="Nombre de la empresa"
-
-                        />
-
-                      </div>
-
-                      <div className="space-y-2">
-
-                        <Label>Cargo</Label>
-
-                        <Input
-
-                            value={form.position}
-
-                            onChange={(e) => updateEditWorkExperienceForm(form.id, 'position', e.target.value)}
-
-                            placeholder="Título del cargo"
-
-                        />
-
-                      </div>
-
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-
-                      <div className="space-y-2">
-
-                          <Label>Fecha Inicio</Label>
-
-                        <Input
-
-                          type="date"
-
-                            value={form.start_date}
-
-                            onChange={(e) => updateEditWorkExperienceForm(form.id, 'start_date', e.target.value)}
-
-                        />
-
-                      </div>
-
-                      <div className="space-y-2">
-
-                        <Label>Fecha Fin</Label>
-
-                        <Input
-
-                          type="date"
-
-                            value={form.end_date}
-
-                            onChange={(e) => updateEditWorkExperienceForm(form.id, 'end_date', e.target.value)}
-
-
-                        />
-
-                      </div>
-
-                    </div>
-
-
-                    <div className="space-y-2">
-
-                        <Label>Descripción de Funciones</Label>
-
-                      <Textarea
-
-                          value={form.description}
-
-                          onChange={(e) => updateEditWorkExperienceForm(form.id, 'description', e.target.value)}
-
-                          placeholder="Principales responsabilidades y logros"
-
-                        rows={3}
-
-                      />
-
-                    </div>
-
-                    </CardContent>
-
-                  </Card>
-
-                ))}
-
-              </div>
-
-
-
-              {/* Respuestas del Portal */}
-
-              <div className="space-y-4">
-
-                <h3 className="text-lg font-semibold">Respuestas del Portal</h3>
-
-                <div className="space-y-4">
-
-                  <div className="space-y-2">
-
-                    <Label>Motivación</Label>
-
-                    <Textarea
-
-                      value={editingCandidate.portal_responses?.motivation || ""}
-
-                      onChange={(e) => setEditingCandidate({
-
-                        ...editingCandidate,
-
-                        portal_responses: { ...editingCandidate.portal_responses, motivation: e.target.value }
-
-                      })}
-
-                      rows={3}
-
-                    />
-
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-
-                    <div className="space-y-2">
-
-                      <Label>Expectativa Salarial</Label>
-
-                      <Input
-
-                        value={editingCandidate.portal_responses?.salary_expectation || ""}
-
-                        onChange={(e) => setEditingCandidate({
-
-                          ...editingCandidate,
-
-                          portal_responses: { ...editingCandidate.portal_responses, salary_expectation: e.target.value }
-
-                        })}
-
-                        placeholder="Ej: $1,500,000 - $2,000,000"
-
-                      />
-
-                    </div>
-
-                    <div className="space-y-2">
-
-                      <Label>Disponibilidad</Label>
-
-                      <Input
-
-                        value={editingCandidate.portal_responses?.availability || ""}
-
-                        onChange={(e) => setEditingCandidate({
-
-                          ...editingCandidate,
-
-                          portal_responses: { ...editingCandidate.portal_responses, availability: e.target.value }
-
-                        })}
-
-                        placeholder="Ej: Inmediata, 2 semanas"
-
-                      />
-
-                    </div>
-
-                  </div>
-
-                  <div className="space-y-2">
-
-                    <Label>Situación Familiar</Label>
-
-                    <Textarea
-
-                      value={editingCandidate.portal_responses?.family_situation || ""}
-
-                      onChange={(e) => setEditingCandidate({
-
-                        ...editingCandidate,
-
-                        portal_responses: { ...editingCandidate.portal_responses, family_situation: e.target.value }
-
-                      })}
-
-                      rows={2}
-
-                    />
-
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-
-                    <div className="space-y-2">
-
-                      <Label>Manejo de Inglés (Nivel)</Label>
-
-                      <Input
-
-                        value={editingCandidate.portal_responses?.english_level || ""}
-
-                        onChange={(e) => setEditingCandidate({
-
-                          ...editingCandidate,
-
-                          portal_responses: { ...editingCandidate.portal_responses, english_level: e.target.value }
-
-                        })}
-
-                        placeholder="Ej: Básico, Intermedio, Avanzado"
-
-                      />
-
-                    </div>
-
-                    <div className="space-y-2">
-
-                      <Label>Software o Herramientas</Label>
-
-                      <Input
-
-                        value={editingCandidate.portal_responses?.software_tools || ""}
-
-                        onChange={(e) => setEditingCandidate({
-
-                          ...editingCandidate,
-
-                          portal_responses: { ...editingCandidate.portal_responses, software_tools: e.target.value }
-
-                        })}
-
-                        placeholder="Ej: Excel, Photoshop, AutoCAD"
-
-                      />
-
-                    </div>
-
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-
-                    <input
-
-                      type="checkbox"
-
-                      id="edit_licencia"
-
-                      checked={editingCandidate.licencia || false}
-
-                      onChange={(e) => setEditingCandidate({
-
-                        ...editingCandidate,
-
-                        licencia: e.target.checked
-
-                      })}
-
-                    />
-
-                    <Label htmlFor="edit_licencia">Licencia de Conducir</Label>
-
-                  </div>
-
-                  <div className="space-y-2">
-
-                    <Label>Valoración del Consultor</Label>
-
-                    <div className="flex gap-1">
-
-                      {[1, 2, 3, 4, 5].map((star) => (
-
-                        <Star
-
-                          key={star}
-
-                          className={`h-6 w-6 cursor-pointer ${star <= editingCandidate.consultant_rating
-
-                              ? "fill-yellow-400 text-yellow-400"
-
-                              : "text-gray-300"
-
-                          }`}
-
-                          onClick={() => setEditingCandidate({ ...editingCandidate, consultant_rating: star })}
-
-                        />
-
-                      ))}
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
+            <CandidateForm
+              mode="edit"
+              initialData={prepareInitialDataForEdit(editingCandidate)}
+              onSubmit={handleEditCandidateSubmit}
+              onCancel={() => {
+                setShowEditCandidate(false)
+                setEditingCandidate(null)
+              }}
+              regiones={regiones}
+              todasLasComunas={todasLasComunas}
+              profesiones={profesiones}
+              rubros={rubros}
+              nacionalidades={nacionalidades}
+              instituciones={instituciones}
+              portalesDB={portalesConPublicacionesActivas}
+              loadingLists={loadingLists}
+              calculateAge={calculateAge}
+            />
 
           )}
-
-          <DialogFooter>
-
-            <Button variant="outline" onClick={() => setShowEditCandidate(false)}>
-
-              Cancelar
-
-            </Button>
-
-            <Button onClick={handleSaveEditedCandidate}>Guardar Cambios</Button>
-
-          </DialogFooter>
 
         </DialogContent>
 
       </Dialog>
 
 
+  
       {/* Dialog para ver CV */}
       <CVViewerDialog
         candidate={viewingCV}

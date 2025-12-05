@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import type { Process } from "@/lib/types"
+import { descripcionCargoService, tipoServicioService } from "@/lib/api"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -38,8 +39,16 @@ export function useSolicitudes() {
   const [totalPages, setTotalPages] = useState(0)
   const [totalSolicitudes, setTotalSolicitudes] = useState(0)
   
-  // Estado para almacenar todos los tipos de servicio disponibles
-  const [allServiceTypes, setAllServiceTypes] = useState<string[]>([])
+  // Estado para almacenar todos los tipos de servicio disponibles (con código y nombre)
+  const [allServiceTypes, setAllServiceTypes] = useState<Array<{codigo: string, nombre: string}>>([])
+  
+  // Estado para almacenar las estadísticas
+  const [stats, setStats] = useState({
+    total: 0,
+    en_progreso: 0,
+    completadas: 0,
+    pendientes: 0,
+  })
 
   // Referencias para rastrear valores anteriores de filtros
   const prevSearchTerm = useRef(searchTerm)
@@ -75,7 +84,11 @@ export function useSolicitudes() {
       const data = await res.json()
       
       if (res.ok && data?.success) {
-        const transformedSolicitudes = data.data.solicitudes.map((solicitud: any) => ({
+        // Manejar diferentes estructuras de respuesta después del merge
+        const solicitudesArray = data.data?.solicitudes || data.data || []
+        const paginationInfo = data.data?.pagination || { total: solicitudesArray.length, totalPages: 1 }
+        
+        const transformedSolicitudes = solicitudesArray.map((solicitud: any) => ({
           id: solicitud.id.toString(),
           client_id: solicitud.client_id || solicitud.id.toString(),
           client: solicitud.client || {
@@ -112,48 +125,83 @@ export function useSolicitudes() {
         }))
         
         setSolicitudes(transformedSolicitudes)
-        setTotalSolicitudes(data.data.pagination.total)
-        setTotalPages(data.data.pagination.totalPages)
+        setTotalSolicitudes(paginationInfo.total || transformedSolicitudes.length)
+        setTotalPages(paginationInfo.totalPages || 1)
       } else {
-        console.error("Error fetching solicitudes:", data?.message)
+        console.error("Error fetching solicitudes:", data?.message || "Error desconocido")
+        setSolicitudes([])
+        setTotalSolicitudes(0)
+        setTotalPages(0)
       }
     } catch (error) {
       console.error("Error fetching solicitudes:", error)
+      setSolicitudes([])
+      setTotalSolicitudes(0)
+      setTotalPages(0)
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Efecto inicial para cargar todos los tipos de servicio disponibles
-  useEffect(() => {
-    const fetchAllServiceTypes = async () => {
-      try {
-        // Hacer una llamada sin filtros para obtener todos los tipos de servicio
-        const res = await fetch(`${API_URL}/api/solicitudes?page=1&limit=1000`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
-          },
-        })
+  // Función para cargar estadísticas y tipos de servicio
+  const fetchStatsAndServiceTypes = async () => {
+    try {
+      // Hacer una llamada sin paginación para obtener todas las solicitudes para estadísticas
+      const res = await fetch(`${API_URL}/api/solicitudes/all`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
+        },
+      })
 
-        const data = await res.json()
+      const data = await res.json()
+      
+      if (res.ok && data?.success) {
+        const allSolicitudes = data.data || []
         
-        if (res.ok && data?.success) {
-          const serviceTypes = Array.from(
-            new Set(
-              data.data.solicitudes
-                .map((s: any) => s.service_type || s.tipo_servicio)
-                .filter(Boolean)
-            )
-          ).sort() as string[]
-          
-          setAllServiceTypes(serviceTypes)
-        }
-      } catch (error) {
-        console.error("Error fetching service types:", error)
+        // Calcular estadísticas
+        const total = allSolicitudes.length
+        const en_progreso = allSolicitudes.filter((s: any) => 
+          s.status === 'en_progreso' || s.estado_solicitud === 'En Progreso'
+        ).length
+        const completadas = allSolicitudes.filter((s: any) => 
+          s.status === 'cerrado' || s.estado_solicitud === 'Cerrado'
+        ).length
+        const pendientes = allSolicitudes.filter((s: any) => 
+          s.status === 'creado' || s.estado_solicitud === 'Creado'
+        ).length
+        
+        setStats({
+          total,
+          en_progreso,
+          completadas,
+          pendientes,
+        })
       }
+      
+      // Obtener tipos de servicio completos desde la API
+      const serviceTypesResponse = await tipoServicioService.getAll()
+      if (serviceTypesResponse.success && serviceTypesResponse.data) {
+        setAllServiceTypes(serviceTypesResponse.data)
+      } else {
+        // Fallback: extraer tipos de servicio de las solicitudes si falla la API
+        const serviceTypes = Array.from(
+          new Set(
+            (data?.data || [])
+              .map((s: any) => s.service_type || s.tipo_servicio)
+              .filter(Boolean)
+          )
+        ).sort().map((codigo: string) => ({ codigo, nombre: codigo }))
+        
+        setAllServiceTypes(serviceTypes)
+      }
+    } catch (error) {
+      console.error("Error fetching stats and service types:", error)
     }
+  }
 
-    fetchAllServiceTypes()
+  // Efecto inicial para cargar estadísticas y tipos de servicio
+  useEffect(() => {
+    fetchStatsAndServiceTypes()
   }, []) // Solo ejecutar al montar el componente
 
   // Efecto para recargar solicitudes cuando cambien los filtros o paginación
@@ -228,12 +276,11 @@ export function useSolicitudes() {
     setCurrentPage(1) // Reset to first page when changing page size
   }
 
-  // Calcular estadísticas
-  const stats = {
-    total: totalSolicitudes,
-    en_progreso: 0, // Se calculará del servidor si es necesario
-    completadas: 0, // Se calculará del servidor si es necesario
-    pendientes: 0, // Se calculará del servidor si es necesario
+  // Función para refrescar todos los datos (solicitudes y estadísticas)
+  const refreshData = async () => {
+    await fetchSolicitudes()
+    // Recargar estadísticas y tipos de servicio
+    await fetchStatsAndServiceTypes()
   }
 
   return {
@@ -261,6 +308,7 @@ export function useSolicitudes() {
     
     // Funciones
     fetchSolicitudes,
+    refreshData,
     deleteSolicitud,
     goToPage,
     nextPage,

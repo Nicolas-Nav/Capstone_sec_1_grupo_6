@@ -3,7 +3,9 @@ import { config } from '@/config';
 import { testConnection, syncDatabase } from '@/config/database';
 import sequelize from '@/config/database';
 import { Logger } from '@/utils/logger';
+import { getPoolStats } from '@/middleware/connectionManager';
 import { cleanupConnections } from '@/middleware/connectionManager';
+import { FechasLaborales } from '@/utils/fechasLaborales';
 // Importar modelos para que Sequelize los reconozca
 import '@/models';
 
@@ -23,6 +25,13 @@ const startServer = async (): Promise<void> => {
             await syncDatabase();
         }
 
+        // Pre-cargar feriados de Chile para mejorar rendimiento
+        try {
+            await FechasLaborales.precargarFeriados();
+        } catch (error) {
+            // Los feriados se cargarán bajo demanda si falla la precarga
+        }
+
         // Iniciar el servidor
         const server = app.listen(config.server.port, () => {
             Logger.info(`Servidor iniciado en puerto ${config.server.port}`);
@@ -31,14 +40,17 @@ const startServer = async (): Promise<void> => {
             Logger.info(`API disponible en: http://localhost:${config.server.port}/api`);
         });
 
-        // Limpieza periódica de conexiones cada 15 minutos (menos frecuente para Aiven)
-        const cleanupInterval = setInterval(async () => {
-            await cleanupConnections();
+        // Log de estadísticas del pool cada 15 minutos (el pool se gestiona automáticamente)
+        const poolStatsInterval = setInterval(async () => {
+            const stats = getPoolStats();
+            if (stats) {
+                Logger.info(`Pool stats: ${stats.used}/${stats.max} conexiones activas`);
+            }
         }, 15 * 60 * 1000); // 15 minutos
 
         // Limpiar el intervalo cuando el servidor se cierre
         server.on('close', () => {
-            clearInterval(cleanupInterval);
+            clearInterval(poolStatsInterval);
         });
 
         // Manejo de cierre graceful

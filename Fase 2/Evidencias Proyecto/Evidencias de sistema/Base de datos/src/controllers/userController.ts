@@ -9,7 +9,10 @@ export const createUserController = async (req: Request, res: Response) => {
     const newUser = await createUser(userData);
     return sendSuccess(res, newUser, 'Usuario creado correctamente');
   } catch (error: any) {
-    return sendError(res, error.message || 'Error al crear usuario');
+    // Usar código 400 para errores de validación (RUT duplicado, email duplicado, etc.)
+    const statusCode = error.name === 'SequelizeUniqueConstraintError' || error.name === 'SequelizeValidationError' ? 400 : 500;
+    const message = error.customMessage || error.message || 'Error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente.';
+    return sendError(res, message, statusCode);
   }
 };
 
@@ -38,7 +41,10 @@ export const updateUserController = async (req: Request, res: Response) => {
     const updatedUser = await updateUser(userData);
     return sendSuccess(res, updatedUser, "Usuario actualizado correctamente");
   } catch (error: any) {
-    return sendError(res, error.message || "Error al actualizar usuario");
+    // Usar código 400 para errores de validación (email duplicado, etc.)
+    const statusCode = error.name === 'SequelizeUniqueConstraintError' || error.name === 'SequelizeValidationError' ? 400 : 500;
+    const message = error.customMessage || error.message || 'Error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente.';
+    return sendError(res, message, statusCode);
   }
 };
 
@@ -54,6 +60,16 @@ export const changePasswordController = async (req: Request, res: Response) => {
     const result = await changePassword(rut_usuario, currentPassword, newPassword);
     return sendSuccess(res, result, result.message);
   } catch (error: any) {
-    return sendError(res, error.message || "Error al cambiar contraseña");
+    // Mensajes específicos para errores conocidos
+    if (error.message === "Usuario no encontrado") {
+      return sendError(res, error.message, 404);
+    }
+    
+    if (error.message === "Contraseña actual incorrecta") {
+      return sendError(res, error.message, 400);
+    }
+    
+    // Mensaje genérico para errores no contemplados
+    return sendError(res, error.message || "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.", 500);
   }
 };

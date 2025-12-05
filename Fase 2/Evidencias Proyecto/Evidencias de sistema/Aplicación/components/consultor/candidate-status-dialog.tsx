@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { candidatoService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
-import { UserCheck, AlertCircle, XCircle } from "lucide-react"
+import { UserCheck, AlertCircle, XCircle, Plus } from "lucide-react"
 import type { Candidate } from "@/lib/types"
 
 interface CandidateStatusDialogProps {
@@ -29,8 +29,13 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
   // Cargar datos del candidato cuando se abre el diálogo
   useEffect(() => {
     if (open && candidate) {
+      // Si el estado es "agregado", usar "presentado" como valor inicial por defecto
+      const initialStatus = candidate.presentation_status === "agregado" 
+        ? "presentado" 
+        : (candidate.presentation_status || "presentado")
+      
       setFormData({
-        status: candidate.presentation_status || "no_presentado",
+        status: initialStatus,
         comment: candidate.rejection_reason || ""
       })
     }
@@ -40,6 +45,16 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
     e.preventDefault()
     
     if (!candidate) return
+
+    // Validar que no se permita enviar con estado "agregado"
+    if (formData.status === "agregado") {
+      toast({
+        title: "Estado no válido",
+        description: "No puede cambiar a estado 'Agregado'. Por favor seleccione 'Presentado' o 'No Presentado'.",
+        variant: "destructive",
+      })
+      return
+    }
 
     // Validar que si es "no_presentado" debe tener comentario
     if (formData.status === "no_presentado" && !formData.comment?.trim()) {
@@ -56,6 +71,16 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
       toast({
         title: "Campo obligatorio",
         description: "El comentario debe tener al menos 10 caracteres",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validar que el comentario no exceda 500 caracteres
+    if (formData.comment && formData.comment.length > 500) {
+      toast({
+        title: "Límite de caracteres excedido",
+        description: "El comentario no puede exceder 500 caracteres",
         variant: "destructive",
       })
       return
@@ -104,6 +129,8 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
 
   const getStatusIcon = (status: string) => {
     switch (status) {
+      case "agregado":
+        return <Plus className="h-4 w-4 text-blue-600" />
       case "presentado":
         return <UserCheck className="h-4 w-4 text-green-600" />
       case "no_presentado":
@@ -115,6 +142,8 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
 
   const getStatusLabel = (status: string) => {
     switch (status) {
+      case "agregado":
+        return "Agregado"
       case "presentado":
         return "Presentado"
       case "no_presentado":
@@ -183,15 +212,27 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
               id="comment"
               placeholder={getCommentPlaceholder(formData.status)}
               value={formData.comment}
-              onChange={(e) => setFormData(prev => ({ ...prev, comment: e.target.value }))}
+              onChange={(e) => {
+                const value = e.target.value
+                // Limitar a 500 caracteres
+                if (value.length <= 500) {
+                  setFormData(prev => ({ ...prev, comment: value }))
+                }
+              }}
               rows={3}
               className="resize-none"
+              maxLength={500}
             />
-            {formData.status === "no_presentado" && (
-              <p className="text-xs text-muted-foreground">
-                El comentario es obligatorio para este estado.
-              </p>
-            )}
+            <div className="flex items-center justify-between">
+              {formData.status === "no_presentado" && (
+                <p className="text-xs text-muted-foreground">
+                  El comentario es obligatorio para este estado (mínimo 10 caracteres).
+                </p>
+              )}
+              <div className="text-xs text-muted-foreground ml-auto">
+                {(formData.comment || "").length}/500 caracteres
+              </div>
+            </div>
           </div>
 
           <DialogFooter>

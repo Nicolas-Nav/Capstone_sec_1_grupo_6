@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Fragment } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,15 +17,69 @@ import { estadoClienteService, solicitudService } from "@/lib/api"
 import { getStatusColor, formatCurrency, isProcessBlocked } from "@/lib/utils"
 import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle, AlertCircle } from "lucide-react"
 import type { Process, Candidate, ProcessStatus } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "./ProcessBlocked"
+import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
+import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
+
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
 
 interface ProcessModule3Props {
   process: Process
 }
 
 export function ProcessModule3({ process }: ProcessModule3Props) {
-  const { toast } = useToast()
+  const { showToast } = useToastNotification()
+  const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [estadosCliente, setEstadosCliente] = useState<any[]>([])
@@ -40,6 +94,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     client_feedback_date: "",
     client_comments: ""
   })
+  const [feedbackDateError, setFeedbackDateError] = useState<string>("")
 
   // Estados para finalizar solicitud (solo Long List)
   const [processStatus, setProcessStatus] = useState<ProcessStatus>((process.estado_solicitud || process.status) as ProcessStatus)
@@ -48,9 +103,16 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [selectedEstado, setSelectedEstado] = useState<string>("")
   const [statusChangeReason, setStatusChangeReason] = useState("")
+  const [isAdvancingToModule4, setIsAdvancingToModule4] = useState(false)
   
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
+
+  // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
+  const isInAdvancedModule = process.etapa && (
+    process.etapa.includes("Módulo 4") || 
+    process.etapa.includes("Módulo 5")
+  )
 
   // Cargar datos reales desde el backend
   useEffect(() => {
@@ -67,9 +129,14 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         const estadosResponse = await estadoClienteService.getAll()
         if (estadosResponse.success && estadosResponse.data) {
           setEstadosCliente(estadosResponse.data)
+        } else if (!estadosResponse.success) {
+          // Si hay un error en la respuesta, procesarlo pero no bloquear la carga
+          const errorMsg = processApiErrorMessage(estadosResponse.message, "Error al cargar estados de cliente")
+          console.error('Error al cargar estados de cliente:', errorMsg)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error al cargar datos:', error)
+        // No mostrar toast aquí para no interrumpir la carga inicial, solo loguear
       } finally {
         setIsLoading(false)
       }
@@ -101,13 +168,21 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                    nombre === "cierre extraordinario"
           })
           setEstadosDisponibles(estadosCierre)
+        } else if (!response.success) {
+          const errorMsg = processApiErrorMessage(response.message, "Error al cargar estados disponibles")
+          showToast({
+            type: "error",
+            title: "Error",
+            description: errorMsg,
+          })
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar estados de solicitud:", error)
-        toast({
+        const errorMsg = processApiErrorMessage(error.message, "Error al cargar estados disponibles")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al cargar estados disponibles",
-          variant: "destructive",
+          description: errorMsg,
         })
       } finally {
         setLoadingEstados(false)
@@ -134,12 +209,26 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
   const handleOpenUpdateModal = (candidate: Candidate) => {
     setUpdatingCandidate(candidate)
+    const clientResponse = candidate.client_response || "pendiente"
+    const clientFeedbackDate = candidate.client_feedback_date?.split("T")[0] || ""
+    
     setUpdateFormData({
-      client_response: candidate.client_response || "pendiente",
+      client_response: clientResponse,
       presentation_date: candidate.presentation_date?.split("T")[0] || "",
-      client_feedback_date: candidate.client_feedback_date?.split("T")[0] || "",
+      client_feedback_date: clientFeedbackDate,
       client_comments: candidate.client_comments || ""
     })
+    
+    // Limpiar errores previos
+    clearAllErrors()
+    
+    // Validar si hay fecha pero el estado es pendiente
+    if (clientFeedbackDate && clientResponse === "pendiente") {
+      setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+    } else {
+      setFeedbackDateError("")
+    }
+    
     setShowUpdateModal(true)
   }
 
@@ -152,13 +241,66 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       client_feedback_date: "",
       client_comments: ""
     })
+    setFeedbackDateError("")
+    clearAllErrors()
   }
 
   const handleUpdateFormChange = (field: string, value: string) => {
-    setUpdateFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    setUpdateFormData(prev => {
+      const newData = {
+        ...prev,
+        [field]: value
+      }
+      
+      // Validar el campo usando useFormValidation
+      validateField(field, value, validationSchemas.module3UpdateCandidateForm, newData)
+      
+      // Validar fecha de feedback si se está actualizando
+      if (field === "client_feedback_date") {
+        if (value && prev.client_response === "pendiente") {
+          setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+        } else if (value && prev.presentation_date) {
+          // Validar que la fecha de feedback no sea anterior a la fecha de envío
+          const feedbackDate = new Date(value)
+          const presentationDate = new Date(prev.presentation_date)
+          feedbackDate.setHours(0, 0, 0, 0)
+          presentationDate.setHours(0, 0, 0, 0)
+          
+          if (feedbackDate < presentationDate) {
+            setFeedbackDateError("La fecha de feedback no puede ser anterior a la fecha de envío al cliente")
+          } else {
+            setFeedbackDateError("")
+          }
+        } else {
+          setFeedbackDateError("")
+        }
+      }
+      
+      // Si se cambia la fecha de envío, validar nuevamente la fecha de feedback
+      if (field === "presentation_date" && newData.client_feedback_date) {
+        const feedbackDate = new Date(newData.client_feedback_date)
+        const presentationDate = new Date(value)
+        feedbackDate.setHours(0, 0, 0, 0)
+        presentationDate.setHours(0, 0, 0, 0)
+        
+        if (feedbackDate < presentationDate) {
+          setFeedbackDateError("La fecha de feedback no puede ser anterior a la fecha de envío al cliente")
+        } else {
+          setFeedbackDateError("")
+        }
+      }
+      
+      // Limpiar error de fecha si se cambia el estado del cliente
+      if (field === "client_response") {
+        if (value !== "pendiente" && prev.client_feedback_date) {
+          setFeedbackDateError("")
+        } else if (value === "pendiente" && prev.client_feedback_date) {
+          setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+        }
+      }
+      
+      return newData
+    })
   }
 
   const handleUpdateCandidateState = async () => {
@@ -166,20 +308,56 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede actualizar candidatos en un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
 
+    // Validar todos los campos usando useFormValidation
+    const isValid = validateAllFields(updateFormData, validationSchemas.module3UpdateCandidateForm)
+    
+    if (!isValid) {
+      showToast({
+        type: "error",
+        title: "Faltan campos por completar",
+        description: "Por favor, corrija los errores en el formulario",
+      })
+      return
+    }
+
+    // Validar fecha de feedback si existe pero el estado es pendiente
+    if (updateFormData.client_feedback_date && updateFormData.client_response === "pendiente") {
+      setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+      return
+    }
+    
+    // Validar que la fecha de feedback no sea anterior a la fecha de envío
+    if (updateFormData.client_feedback_date && updateFormData.presentation_date) {
+      const feedbackDate = new Date(updateFormData.client_feedback_date)
+      const presentationDate = new Date(updateFormData.presentation_date)
+      feedbackDate.setHours(0, 0, 0, 0)
+      presentationDate.setHours(0, 0, 0, 0)
+      
+      if (feedbackDate < presentationDate) {
+        setFeedbackDateError("La fecha de feedback no puede ser anterior a la fecha de envío al cliente")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "La fecha de feedback no puede ser anterior a la fecha de envío al cliente",
+        })
+        return
+      }
+    }
+    
     // Validar comentarios si es necesario
     if ((updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && !updateFormData.client_comments?.trim()) {
-      toast({
+      showToast({
+        type: "error",
         title: "Validación requerida",
         description: `Los comentarios son obligatorios para el estado "${updateFormData.client_response}"`,
-        variant: "destructive",
       })
       return
     }
@@ -191,10 +369,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
     if (!estadoCliente) {
       console.error('Estado de cliente no encontrado:', updateFormData.client_response)
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Estado de cliente no encontrado",
-        variant: "destructive",
       })
       return
     }
@@ -236,33 +414,39 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         }
 
         // Recargar datos desde la base de datos para reflejar los cambios reales
+        // Agregar un pequeño delay para asegurar que el backend haya completado la transacción
+        await new Promise(resolve => setTimeout(resolve, 300))
         const allCandidates = await getCandidatesByProcess(process.id)
         const filteredCandidates = allCandidates.filter((c: Candidate) => c.presentation_status === "presentado")
         setCandidates(filteredCandidates)
+        // Forzar re-render
+        setCandidates(prev => [...prev])
 
         // Cerrar modal
         handleCloseUpdateModal()
 
         // Mostrar toast de éxito
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: `Estado del candidato ${updatingCandidate.name} actualizado correctamente`,
-          variant: "default",
         })
       } else {
         console.error('Error al guardar estado de cliente:', responseData.message)
-        toast({
+        const errorMsg = processApiErrorMessage(responseData.message, "No se pudo actualizar el estado del candidato")
+        showToast({
+          type: "error",
           title: "Error",
-          description: responseData.message || "No se pudo actualizar el estado del candidato",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al guardar estado de cliente:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Ocurrió un error al actualizar el estado del candidato")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Ocurrió un error al actualizar el estado del candidato",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setSavingState(prev => ({ ...prev, [updatingCandidate.id]: false }))
@@ -301,52 +485,121 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const handleAdvanceToModule4 = async () => {
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede avanzar un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
 
+    setIsAdvancingToModule4(true)
     try {
       const response = await solicitudService.avanzarAModulo4(parseInt(process.id))
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Proceso avanzado al Módulo 4 exitosamente",
-          variant: "default",
         })
         // Navegar al módulo 4 usando URL con parámetro
         const currentUrl = new URL(window.location.href)
         currentUrl.searchParams.set('tab', 'modulo-4')
         window.location.href = currentUrl.toString()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al avanzar al Módulo 4")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al avanzar al Módulo 4",
-          variant: "destructive",
+          description: errorMsg,
         })
+        setIsAdvancingToModule4(false)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al avanzar al Módulo 4:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al avanzar al Módulo 4")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al avanzar al Módulo 4",
-        variant: "destructive",
+        description: errorMsg,
       })
+      setIsAdvancingToModule4(false)
     }
+  }
+
+  // Función para obtener el label dinámico según el estado seleccionado
+  const getReasonLabel = (): string => {
+    if (!selectedEstado) {
+      return "Motivo del Cambio (Opcional)"
+    }
+
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+
+    if (!estadoSeleccionado) {
+      return "Motivo del Cambio (Opcional)"
+    }
+
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Motivo del cierre"
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Motivo del porqué se congela"
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Motivo de la cancelación"
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Motivo del cierre extraordinario"
+    }
+
+    return "Motivo del Cambio (Opcional)"
+  }
+
+  // Función para obtener el placeholder dinámico según el estado seleccionado
+  const getReasonPlaceholder = (): string => {
+    if (!selectedEstado) {
+      return "Explica el motivo de finalización..."
+    }
+
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+
+    if (!estadoSeleccionado) {
+      return "Explica el motivo de finalización..."
+    }
+
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Explica el motivo del cierre del proceso..."
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Explica el motivo por el cual se congela el proceso..."
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Explica el motivo de la cancelación del proceso..."
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Explica el motivo del cierre extraordinario del proceso..."
+    }
+
+    return "Explica el motivo de finalización..."
   }
 
   // Función para cambiar estado de la solicitud (finalizar)
   const handleStatusChange = async (estadoId: string) => {
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede cambiar el estado de un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
@@ -358,10 +611,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       )
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Solicitud finalizada exitosamente",
-          variant: "default",
         })
         setShowStatusChange(false)
         setSelectedEstado("")
@@ -369,18 +622,20 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al finalizar la solicitud")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al finalizar la solicitud",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cambiar estado:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al finalizar la solicitud")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al finalizar la solicitud",
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -490,8 +745,9 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule4}
-                disabled={isBlocked}
+                disabled={isBlocked || isAdvancingToModule4 || isInAdvancedModule}
               >
+                {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Avanzar a Módulo 4
               </Button>
             </div>
@@ -541,7 +797,8 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                 </Badge>
               </div>
               <Button
-                variant="outline"
+                variant="default"
+                className="hover:opacity-90 hover:scale-105 transition-all duration-200"
                 onClick={() => setShowStatusChange(!showStatusChange)}
                 disabled={loadingEstados}
               >
@@ -549,64 +806,76 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
               </Button>
             </div>
 
-            {showStatusChange && (
-              <div className="mt-4 space-y-4 p-4 border rounded-lg bg-muted/50">
-                <div>
-                  <Label htmlFor="new-estado">Estado Final</Label>
-                  <Select
-                    value={selectedEstado}
-                    onValueChange={setSelectedEstado}
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Selecciona un estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {estadosDisponibles.map((estado) => (
-                        <SelectItem 
-                          key={estado.id || estado.id_estado_solicitud} 
-                          value={(estado.id || estado.id_estado_solicitud).toString()}
-                        >
-                          {estado.nombre || estado.nombre_estado_solicitud}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="reason">Motivo del Cambio (Opcional)</Label>
-                  <Textarea
-                    id="reason"
-                    placeholder="Explica el motivo de finalización..."
-                    value={statusChangeReason}
-                    onChange={(e) => setStatusChangeReason(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => handleStatusChange(selectedEstado)}
-                    disabled={!selectedEstado}
-                  >
-                    Actualizar Estado
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowStatusChange(false)
-                      setSelectedEstado("")
-                      setStatusChangeReason("")
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
+
+      {/* Dialog para finalizar solicitud */}
+      <Dialog open={showStatusChange} onOpenChange={setShowStatusChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Finalizar Solicitud</DialogTitle>
+            <DialogDescription>
+              Selecciona el estado final del proceso y proporciona una razón si es necesario.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="new-estado">Estado Final</Label>
+              <Select
+                value={selectedEstado}
+                onValueChange={setSelectedEstado}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecciona un estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  {estadosDisponibles.map((estado) => (
+                    <SelectItem 
+                      key={estado.id || estado.id_estado_solicitud} 
+                      value={(estado.id || estado.id_estado_solicitud).toString()}
+                    >
+                      {estado.nombre || estado.nombre_estado_solicitud}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="reason">{getReasonLabel()}</Label>
+              <Textarea
+                id="reason"
+                placeholder={getReasonPlaceholder()}
+                value={statusChangeReason}
+                onChange={(e) => setStatusChangeReason(e.target.value)}
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowStatusChange(false)
+                setSelectedEstado("")
+                setStatusChangeReason("")
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => handleStatusChange(selectedEstado)}
+              disabled={!selectedEstado}
+            >
+              Actualizar Estado
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Candidates Presentation Table */}
       <Card>
@@ -633,9 +902,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {candidates.map((candidate) => (
-                    <>
-                      <TableRow key={candidate.id}>
+                  {candidates.map((candidate) => {
+                    return (
+                      <Fragment key={candidate.id}>
+                        <TableRow key={`row-${candidate.id}`}>
                         <TableCell>
                           <Collapsible>
                             <CollapsibleTrigger
@@ -719,7 +989,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                         </TableCell>
                       </TableRow>
                       {expandedCandidate === candidate.id && (
-                        <TableRow>
+                        <TableRow key={`expanded-${candidate.id}`}>
                           <TableCell colSpan={7} className="bg-muted/30">
                             <Collapsible open={expandedCandidate === candidate.id}>
                               <CollapsibleContent>
@@ -840,8 +1110,9 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
-                  ))}
+                      </Fragment>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -893,24 +1164,202 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
             {/* Fecha de Presentación */}
             <div className="space-y-2">
               <Label htmlFor="presentation_date">Fecha de Envío al Cliente</Label>
-              <Input
-                id="presentation_date"
-                type="date"
-                value={updateFormData.presentation_date}
-                onChange={(e) => handleUpdateFormChange("presentation_date", e.target.value)}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-full justify-start text-left font-normal ${!updateFormData.presentation_date ? "text-muted-foreground" : ""} ${errors.presentation_date ? "border-destructive" : ""}`}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {updateFormData.presentation_date 
+                      ? (() => {
+                          try {
+                            const [year, month, day] = updateFormData.presentation_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            if (isNaN(dateObj.getTime())) {
+                              return "Fecha inválida"
+                            }
+                            return format(dateObj, "PPP", { locale: es })
+                          } catch (error) {
+                            return "Fecha inválida"
+                          }
+                        })()
+                      : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    captionLayout="dropdown"
+                    fromYear={1900}
+                    toYear={new Date().getFullYear()}
+                    selected={updateFormData.presentation_date && updateFormData.presentation_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.presentation_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return undefined
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return undefined
+                      }
+                    })() : undefined}
+                    defaultMonth={updateFormData.presentation_date && updateFormData.presentation_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.presentation_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return new Date()
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return new Date()
+                      }
+                    })() : new Date()}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                        const year = date.getFullYear()
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const selectedDate = `${year}-${month}-${day}`
+                        handleUpdateFormChange("presentation_date", selectedDate)
+                      }
+                    }}
+                    disabled={(date) => {
+                      // Deshabilitar fechas futuras
+                      const today = new Date()
+                      today.setHours(23, 59, 59, 999)
+                      return date > today
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              <ValidationErrorDisplay error={errors.presentation_date} />
             </div>
 
             {/* Fecha de Feedback del Cliente */}
             <div className="space-y-2">
               <Label htmlFor="client_feedback_date">Fecha de Feedback del Cliente</Label>
-              <Input
-                id="client_feedback_date"
-                type="date"
-                value={updateFormData.client_feedback_date}
-                onChange={(e) => handleUpdateFormChange("client_feedback_date", e.target.value)}
-                disabled={!updateFormData.client_response || updateFormData.client_response === "pendiente"}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-full justify-start text-left font-normal ${!updateFormData.client_feedback_date ? "text-muted-foreground" : ""} ${errors.client_feedback_date || feedbackDateError ? "border-destructive" : ""}`}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {updateFormData.client_feedback_date 
+                      ? (() => {
+                          try {
+                            const [year, month, day] = updateFormData.client_feedback_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            if (isNaN(dateObj.getTime())) {
+                              return "Fecha inválida"
+                            }
+                            return format(dateObj, "PPP", { locale: es })
+                          } catch (error) {
+                            return "Fecha inválida"
+                          }
+                        })()
+                      : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    key={`feedback-calendar-${updateFormData.presentation_date || 'no-date'}`}
+                    mode="single"
+                    captionLayout="dropdown"
+                    fromYear={1900}
+                    toYear={new Date().getFullYear()}
+                    selected={updateFormData.client_feedback_date && updateFormData.client_feedback_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.client_feedback_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return undefined
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return undefined
+                      }
+                    })() : undefined}
+                    defaultMonth={updateFormData.client_feedback_date && updateFormData.client_feedback_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.client_feedback_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return new Date()
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return new Date()
+                      }
+                    })() : new Date()}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                        const year = date.getFullYear()
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const selectedDate = `${year}-${month}-${day}`
+                        handleUpdateFormChange("client_feedback_date", selectedDate)
+                      }
+                    }}
+                    disabled={(date) => {
+                      // Deshabilitar fechas futuras
+                      const today = new Date()
+                      today.setHours(23, 59, 59, 999)
+                      if (date > today) {
+                        return true
+                      }
+                      
+                      // Deshabilitar fechas anteriores a la fecha de envío al cliente
+                      if (updateFormData.presentation_date && updateFormData.presentation_date.trim() !== "") {
+                        try {
+                          // Parsear la fecha de envío usando componentes locales para evitar problemas de zona horaria
+                          const [presentationYear, presentationMonth, presentationDay] = updateFormData.presentation_date.split('-').map(Number)
+                          
+                          // Validar que los valores sean válidos
+                          if (isNaN(presentationYear) || isNaN(presentationMonth) || isNaN(presentationDay)) {
+                            return false
+                          }
+                          
+                          const presentationDate = new Date(presentationYear, presentationMonth - 1, presentationDay)
+                          presentationDate.setHours(0, 0, 0, 0)
+                          
+                          // Obtener componentes de la fecha a comparar usando métodos locales
+                          const compareYear = date.getFullYear()
+                          const compareMonth = date.getMonth()
+                          const compareDay = date.getDate()
+                          const compareDate = new Date(compareYear, compareMonth, compareDay)
+                          compareDate.setHours(0, 0, 0, 0)
+                          
+                          // Deshabilitar si la fecha es anterior (no igual) a la fecha de envío
+                          // Comparar usando getTime() para asegurar comparación correcta
+                          const isBefore = compareDate.getTime() < presentationDate.getTime()
+                          if (isBefore) {
+                            return true
+                          }
+                        } catch (error) {
+                          // Si hay error parseando, no deshabilitar
+                          console.error('Error parseando fecha de envío:', error)
+                        }
+                      }
+                      
+                      return false
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              {feedbackDateError && (
+                <p className="text-destructive text-sm">
+                  {feedbackDateError}
+                </p>
+              )}
+              <ValidationErrorDisplay error={errors.client_feedback_date} />
             </div>
 
             {/* Comentarios */}
@@ -933,19 +1382,26 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                     : "Comentarios adicionales del cliente..."
                 }
                 rows={4}
+                maxLength={1000}
                 className={
-                  updateFormData.client_response === "observado"
+                  errors.client_comments
+                    ? "border-destructive"
+                    : updateFormData.client_response === "observado"
                     ? "border-yellow-300 focus:border-yellow-500"
                     : updateFormData.client_response === "rechazado"
                     ? "border-red-300 focus:border-red-500"
                     : ""
                 }
               />
+              <div className="text-sm text-muted-foreground text-right">
+                {(updateFormData.client_comments || "").length}/1000 caracteres
+              </div>
               {(updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && (
                 <p className="text-xs text-muted-foreground">
                   Los comentarios son obligatorios para este estado
                 </p>
               )}
+              <ValidationErrorDisplay error={errors.client_comments} />
             </div>
           </div>
 

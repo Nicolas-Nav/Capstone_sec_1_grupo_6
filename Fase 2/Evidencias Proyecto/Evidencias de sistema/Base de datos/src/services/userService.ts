@@ -37,25 +37,25 @@ export const createUser = async (data: CreateUserPayload) => {
       activo: usuario.activo_usuario,
     };
   } catch (error: any) {
-    // Manejar errores de Sequelize de forma más específica
+    // Re-lanzar el error original para que el controlador pueda detectar el tipo
     if (error.name === 'SequelizeUniqueConstraintError') {
       // Error de clave única (RUT o email duplicado)
       const field = error.errors?.[0]?.path;
       if (field === 'rut_usuario') {
-        throw new Error('El RUT ya está registrado en el sistema');
+        error.customMessage = 'El RUT ya está registrado en el sistema';
       } else if (field === 'email_usuario') {
-        throw new Error('El correo electrónico ya está registrado en el sistema');
+        error.customMessage = 'El correo electrónico ya está registrado en el sistema';
       } else {
-        throw new Error('Ya existe un usuario con estos datos');
+        error.customMessage = 'Ya existe un usuario con estos datos';
       }
     } else if (error.name === 'SequelizeValidationError') {
       // Error de validación
       const messages = error.errors?.map((e: any) => e.message).join(', ');
-      throw new Error(messages || 'Error de validación en los datos del usuario');
-    } else {
-      // Otros errores
-      throw error;
+      error.customMessage = messages || 'Error de validación en los datos del usuario';
     }
+    
+    // Re-lanzar el error con su nombre original preservado
+    throw error;
   }
 };
 
@@ -77,23 +77,23 @@ export const updateUser = async (data: UserPayload) => {
       activo: usuario.activo_usuario,
     };
   } catch (error: any) {
-    // Manejar errores de Sequelize de forma más específica
+    // Re-lanzar el error original para que el controlador pueda detectar el tipo
     if (error.name === 'SequelizeUniqueConstraintError') {
       // Error de clave única (email duplicado en update)
       const field = error.errors?.[0]?.path;
       if (field === 'email_usuario') {
-        throw new Error('El correo electrónico ya está registrado en el sistema');
+        error.customMessage = 'El correo electrónico ya está registrado en el sistema';
       } else {
-        throw new Error('Ya existe un usuario con estos datos');
+        error.customMessage = 'Ya existe un usuario con estos datos';
       }
     } else if (error.name === 'SequelizeValidationError') {
       // Error de validación
       const messages = error.errors?.map((e: any) => e.message).join(', ');
-      throw new Error(messages || 'Error de validación en los datos del usuario');
-    } else {
-      // Otros errores (incluido "Usuario no encontrado")
-      throw error;
+      error.customMessage = messages || 'Error de validación en los datos del usuario';
     }
+    
+    // Re-lanzar el error con su nombre original preservado
+    throw error;
   }
 };
 

@@ -21,10 +21,96 @@ import { Label } from "@/components/ui/label"
 import { Plus, Search, Edit, Trash2, UserCheck, UserX, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import { useUsuarios } from "@/hooks/useUsuarios"
+import { useFormValidation, validationSchemas, type ValidationRule } from "@/hooks/useFormValidation"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
+
+// Helper function para validar un campo individual (copiado de useFormValidation)
+const validateSingleFieldHelper = (value: any, rule: ValidationRule): string | null => {
+  // Validación requerida
+  if (rule.required && (!value || (typeof value === 'string' && !value.trim()))) {
+    return rule.message || 'Este campo es requerido'
+  }
+
+  // Si el campo no es requerido y está vacío, no validar más
+  if (!rule.required && (!value || (typeof value === 'string' && !value.trim()))) {
+    return null
+  }
+
+  // Validación de longitud mínima
+  if (rule.minLength && typeof value === 'string' && value.trim().length < rule.minLength) {
+    return rule.message || `Debe tener al menos ${rule.minLength} caracteres`
+  }
+
+  // Validación de longitud máxima
+  if (rule.maxLength && typeof value === 'string' && value.length > rule.maxLength) {
+    return rule.message || `No puede exceder ${rule.maxLength} caracteres`
+  }
+
+  // Validación de patrón
+  if (rule.pattern && typeof value === 'string' && !rule.pattern.test(value.trim())) {
+    return rule.message || 'Formato inválido'
+  }
+
+  // Validación personalizada
+  if (rule.custom) {
+    return rule.custom(value)
+  }
+
+  return null
+}
+
 export default function UsuariosPage() {
+  const { showToast } = useToastNotification()
+  
   const {
     users,
     filteredUsers,
@@ -53,16 +139,18 @@ export default function UsuariosPage() {
     nextPage,
     prevPage,
     handlePageSizeChange,
+    clearEditingUser,
   } = useUsuarios()
+
+  // Hook de validación
+  const { errors, validateField, validateAllFields, clearError, clearAllErrors, setFieldError } = useFormValidation()
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Estados para alertas
-  const [isResultOpen, setIsResultOpen] = useState(false)
-  const [resultSuccess, setResultSuccess] = useState<boolean>(false)
-  const [resultMessage, setResultMessage] = useState<string>("")
-  
+  // Estados para alertas  
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<string | null>(null)
   
@@ -75,12 +163,15 @@ export default function UsuariosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Limpiar confirmPassword cuando se cierra el diálogo
+  // Limpiar confirmPassword y errores cuando se cierra el diálogo
   useEffect(() => {
     if (!isCreateDialogOpen) {
       setConfirmPassword("")
+      setPasswordError(null)
+      clearAllErrors()
+      setIsSubmitting(false)
     }
-  }, [isCreateDialogOpen])
+  }, [isCreateDialogOpen, clearAllErrors])
 
   // filteredUsers ya viene del hook
 
@@ -110,73 +201,174 @@ export default function UsuariosPage() {
     )
 
   const handleCreateUser = async () => {
-    // Validar que las contraseñas coincidan
+    setIsSubmitting(true)
+    
+    // Validar todos los campos con el esquema de validación
+    const isValid = validateAllFields({
+      rut: newUser.rut,
+      nombre: newUser.nombre,
+      apellido: newUser.apellido,
+      email: newUser.email,
+      password: newUser.password,
+      role: newUser.role,
+      status: newUser.status
+    }, validationSchemas.userForm)
+
+    // Validar coincidencia de contraseñas
+    let passwordMatch = true
     if (newUser.password !== confirmPassword) {
-      setResultSuccess(false)
-      setResultMessage("Las contraseñas no coinciden")
-      setIsResultOpen(true)
-      return
+      setPasswordError("Las contraseñas no coinciden")
+      passwordMatch = false
+    } else {
+      setPasswordError(null)
     }
 
-    // Validar longitud mínima de contraseña
-    if (newUser.password.length < 6) {
-      setResultSuccess(false)
-      setResultMessage("La contraseña debe tener al menos 6 caracteres")
-      setIsResultOpen(true)
+    if (!isValid || !passwordMatch) {
+      // Mostrar toast cuando hay errores de validación
+      if (!isValid) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Faltan campos por completar o existen datos incorrectos",
+        })
+      }
+      if (!passwordMatch) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Las contraseñas no coinciden",
+        })
+      }
+      setIsSubmitting(false)
       return
     }
 
     const res = await createUser()
+    setIsSubmitting(false)
+    
     if (res.success) {
+      showToast({
+        type: "success",
+        title: "¡Éxito!",
+        description: res.message || "Usuario creado correctamente",
+      })
       setIsCreateDialogOpen(false)
       setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
       setConfirmPassword("")
-      setResultSuccess(true)
-      setResultMessage(res.message || "Usuario creado correctamente")
-      setIsResultOpen(true)
+      clearAllErrors()
     } else {
-      setResultSuccess(false)
-      setResultMessage(res.message || "Error creando usuario")
-      setIsResultOpen(true)
+      // Mostrar toast con el mensaje de error de la API
+      const errorMsg = processApiErrorMessage(res.message, "Error creando usuario")
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
+      
+      // Si hay errores de campos específicos del servidor, aplicarlos al estado de errores
+      if (res.fieldErrors) {
+        Object.keys(res.fieldErrors).forEach(field => {
+          const fieldErrorMsg = processApiErrorMessage(res.fieldErrors![field], res.fieldErrors![field])
+          setFieldError(field, fieldErrorMsg)
+        })
+      }
     }
   }
 
   const handleEditUser = (user: any) => {
     editUser(user)
     setConfirmPassword("") // Limpiar confirmación al editar
+    clearAllErrors() // Limpiar errores previos
+    setPasswordError(null) // Limpiar error de contraseña
     setIsCreateDialogOpen(true)
   }
 
   const handleUpdateUser = async () => {
-    // Si se ingresó una nueva contraseña, validar que coincidan
+    setIsSubmitting(true)
+    
+    // Validar todos los campos excepto password y rut si está vacío (edición)
+    const dataToValidate: any = {
+      nombre: newUser.nombre,
+      apellido: newUser.apellido,
+      email: newUser.email,
+      role: newUser.role,
+      status: newUser.status
+    }
+
+    // Solo validar password si se ingresó una nueva contraseña
+    if (newUser.password && newUser.password.trim() !== "") {
+      dataToValidate.password = newUser.password
+    }
+
+    // Crear un esquema sin password y sin rut para el caso de edición
+    const schemaForEdit = { ...validationSchemas.userForm }
+    if (!newUser.password || newUser.password.trim() === "") {
+      delete (schemaForEdit as any).password
+    }
+    // No validar RUT en modo edición porque no se puede cambiar
+    delete (schemaForEdit as any).rut
+
+    const isValid = validateAllFields(dataToValidate, schemaForEdit)
+
+    // Validar coincidencia de contraseñas si se ingresó una nueva
+    let passwordMatch = true
     if (newUser.password && newUser.password.trim() !== "") {
       if (newUser.password !== confirmPassword) {
-        setResultSuccess(false)
-        setResultMessage("Las contraseñas no coinciden")
-        setIsResultOpen(true)
-        return
-      }
-
-      // Validar longitud mínima de contraseña
-      if (newUser.password.length < 6) {
-        setResultSuccess(false)
-        setResultMessage("La contraseña debe tener al menos 6 caracteres")
-        setIsResultOpen(true)
-        return
+        setPasswordError("Las contraseñas no coinciden")
+        passwordMatch = false
+      } else {
+        setPasswordError(null)
       }
     }
 
+    if (!isValid || !passwordMatch) {
+      // Mostrar toast cuando hay errores de validación
+      if (!isValid) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Faltan campos por completar o existen datos incorrectos",
+        })
+      }
+      if (!passwordMatch) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Las contraseñas no coinciden",
+        })
+      }
+      setIsSubmitting(false)
+      return
+    }
+
     const res = await updateUser()
+    setIsSubmitting(false)
+    
     if (res.success) {
+      showToast({
+        type: "success",
+        title: "¡Éxito!",
+        description: res.message || "Usuario actualizado correctamente",
+      })
       setIsCreateDialogOpen(false)
       setConfirmPassword("")
-      setResultSuccess(true)
-      setResultMessage(res.message || "Usuario actualizado correctamente")
-      setIsResultOpen(true)
+      clearAllErrors()
     } else {
-      setResultSuccess(false)
-      setResultMessage(res.message || "Error actualizando usuario")
-      setIsResultOpen(true)
+      // Mostrar toast con el mensaje de error de la API
+      const errorMsg = processApiErrorMessage(res.message, "Error actualizando usuario")
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
+      
+      // Si hay errores de campos específicos del servidor, aplicarlos al estado de errores
+      if (res.fieldErrors) {
+        Object.keys(res.fieldErrors).forEach(field => {
+          const fieldErrorMsg = processApiErrorMessage(res.fieldErrors![field], res.fieldErrors![field])
+          setFieldError(field, fieldErrorMsg)
+        })
+      }
     }
   }
 
@@ -215,87 +407,147 @@ export default function UsuariosPage() {
           <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
           <p className="text-muted-foreground">Administra los consultores y usuarios del sistema</p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+          setIsCreateDialogOpen(open)
+          if (!open) {
+            clearEditingUser()
+            setConfirmPassword("")
+            clearAllErrors()
+            setPasswordError(null)
+          }
+        }}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
+              Nuevo Usuario
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingUser ? "Editar Usuario" : "Crear Nuevo Usuario"}</DialogTitle>
               <DialogDescription>Ingresa los datos del usuario</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="rut">RUT</Label>
+                <Label htmlFor="rut">RUT *</Label>
                 <Input
                   id="rut"
                   value={newUser.rut}
-                  onChange={(e) => setNewUser({ ...newUser, rut: e.target.value })}
+                  onChange={(e) => {
+                    setNewUser({ ...newUser, rut: e.target.value })
+                    validateField('rut', e.target.value, validationSchemas.userForm)
+                  }}
                   placeholder="20994291-7"
                   disabled={!!editingUser} // no se edita rut al modificar
+                  className={errors.rut ? 'border-red-500' : ''}
                 />
+                {errors.rut && (
+                  <p className="text-sm text-red-500">{errors.rut as string}</p>
+                )}
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="nombre">Nombre</Label>
+                <Label htmlFor="nombre">Nombre *</Label>
                 <Input
                   id="nombre"
                   value={newUser.nombre}
-                  onChange={(e) => setNewUser({ ...newUser, nombre: e.target.value })}
+                  onChange={(e) => {
+                    setNewUser({ ...newUser, nombre: e.target.value })
+                    validateField('nombre', e.target.value, validationSchemas.userForm)
+                  }}
                   placeholder="Juan"
+                  className={errors.nombre ? 'border-red-500' : ''}
                 />
+                {errors.nombre && (
+                  <p className="text-sm text-red-500">{errors.nombre as string}</p>
+                )}
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="apellido">Apellido</Label>
+                <Label htmlFor="apellido">Apellido *</Label>
                 <Input
                   id="apellido"
                   value={newUser.apellido}
-                  onChange={(e) => setNewUser({ ...newUser, apellido: e.target.value })}
+                  onChange={(e) => {
+                    setNewUser({ ...newUser, apellido: e.target.value })
+                    validateField('apellido', e.target.value, validationSchemas.userForm)
+                  }}
                   placeholder="Pérez"
+                  className={errors.apellido ? 'border-red-500' : ''}
                 />
+                {errors.apellido && (
+                  <p className="text-sm text-red-500">{errors.apellido as string}</p>
+                )}
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="email">Correo Electrónico</Label>
+                <Label htmlFor="email">Correo Electrónico *</Label>
                 <Input
                   id="email"
                   type="email"
                   value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  onChange={(e) => {
+                    setNewUser({ ...newUser, email: e.target.value })
+                    validateField('email', e.target.value, validationSchemas.userForm)
+                  }}
                   placeholder="juan.perez@llconsulting.com"
+                  className={errors.email ? 'border-red-500' : ''}
                 />
+                {errors.email && (
+                  <p className="text-sm text-red-500">{errors.email as string}</p>
+                )}
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="password">Contraseña</Label>
+                <Label htmlFor="password">Contraseña {editingUser ? '' : '*'}</Label>
                 <Input
                   id="password"
                   type="password"
                   value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  onChange={(e) => {
+                    setNewUser({ ...newUser, password: e.target.value })
+                    // Validar solo si no está editando o si hay texto
+                    if (!editingUser || e.target.value.trim() !== '') {
+                      validateField('password', e.target.value, validationSchemas.userForm)
+                    }
+                  }}
                   placeholder={editingUser ? "Dejar vacío para mantener la contraseña actual" : "Ingresa una contraseña segura"}
+                  className={(errors.password || passwordError) ? 'border-red-500' : ''}
                 />
+                {errors.password && (
+                  <p className="text-sm text-red-500">{errors.password as string}</p>
+                )}
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
+                <Label htmlFor="confirmPassword">Confirmar Contraseña {editingUser ? '' : '*'}</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value)
+                    // Validar coincidencia de contraseñas
+                    if (newUser.password && e.target.value) {
+                      if (newUser.password !== e.target.value) {
+                        setPasswordError("Las contraseñas no coinciden")
+                      } else {
+                        setPasswordError(null)
+                      }
+                    }
+                  }}
                   placeholder={editingUser ? "Confirma la nueva contraseña" : "Repite la contraseña"}
+                  className={passwordError ? 'border-red-500' : ''}
                 />
-                {newUser.password && confirmPassword && newUser.password !== confirmPassword && (
-                  <p className="text-xs text-red-600">Las contraseñas no coinciden</p>
+                {passwordError && (
+                  <p className="text-sm text-red-500">{passwordError}</p>
                 )}
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="role">Rol</Label>
+                <Label htmlFor="role">Rol *</Label>
                 <Select
                   value={newUser.role}
-                  onValueChange={(value: "admin" | "consultor") => setNewUser({ ...newUser, role: value })}
+                  onValueChange={(value: "admin" | "consultor") => {
+                    setNewUser({ ...newUser, role: value })
+                    validateField('role', value, validationSchemas.userForm)
+                  }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={errors.role ? 'border-red-500' : ''}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -303,16 +555,20 @@ export default function UsuariosPage() {
                     <SelectItem value="admin">Administrador</SelectItem>
                   </SelectContent>
                 </Select>
+                {errors.role && (
+                  <p className="text-sm text-red-500">{errors.role as string}</p>
+                )}
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="status">Estado</Label>
+                <Label htmlFor="status">Estado *</Label>
                 <Select
                   value={newUser.status}
-                  onValueChange={(value: "habilitado" | "inhabilitado") =>
+                  onValueChange={(value: "habilitado" | "inhabilitado") => {
                     setNewUser({ ...newUser, status: value })
-                  }
+                    validateField('status', value, validationSchemas.userForm)
+                  }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={errors.status ? 'border-red-500' : ''}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -320,6 +576,9 @@ export default function UsuariosPage() {
                     <SelectItem value="inhabilitado">Inhabilitado</SelectItem>
                   </SelectContent>
                 </Select>
+                {errors.status && (
+                  <p className="text-sm text-red-500">{errors.status as string}</p>
+                )}
               </div>
             </div>
             <DialogFooter>
@@ -328,22 +587,23 @@ export default function UsuariosPage() {
                 onClick={() => {
                   setIsCreateDialogOpen(false)
                   setConfirmPassword("")
+                  clearEditingUser()
+                  clearAllErrors()
+                  setPasswordError(null)
                 }}
               >
                 Cancelar
               </Button>
               <Button
                 onClick={editingUser ? handleUpdateUser : handleCreateUser}
-                disabled={
-                  !newUser.rut || 
-                  !newUser.nombre || 
-                  !newUser.apellido || 
-                  !newUser.email || 
-                  (!editingUser && (!newUser.password || !confirmPassword)) ||
-                  (editingUser && newUser.password && !confirmPassword)
-                }
+                disabled={isSubmitting}
               >
-                {editingUser ? "Actualizar Usuario" : "Crear Usuario"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editingUser ? "Actualizando..." : "Creando..."}
+                  </>
+                ) : editingUser ? "Actualizar Usuario" : "Crear Usuario"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -556,16 +816,6 @@ export default function UsuariosPage() {
       </Card>
 
       {/* Alertas */}
-      
-      {/* Resultado de crear/editar usuario */}
-      <CustomAlertDialog
-        open={isResultOpen}
-        onOpenChange={setIsResultOpen}
-        type={resultSuccess ? "success" : "error"}
-        title={resultSuccess ? "Operación exitosa" : "Error en la operación"}
-        description={resultMessage}
-        confirmText="Aceptar"
-      />
 
       {/* Confirmación de eliminación */}
       <CustomAlertDialog

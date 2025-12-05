@@ -22,6 +22,8 @@ import Solicitud from './Solicitud';
 import EstadoCandidato from './EstadoCandidato';
 import EstadoCliente from './EstadoCliente';
 import EstadoClientePostulacion from './EstadoClientePostulacion';
+import EstadoClienteM5 from './EstadoClienteM5';
+import EstadoClientePostulacionM5 from './EstadoClientePostulacionM5';
 import PortalPostulacion from './PortalPostulacion';
 import Publicacion from './Publicacion';
 import Rubro from './Rubro';
@@ -262,6 +264,30 @@ EstadoClientePostulacion.belongsTo(Postulacion, {
 });
 
 // ===========================================
+// RELACIONES DEL MÓDULO 5
+// ===========================================
+
+// EstadoClienteM5 -> EstadoClientePostulacionM5 (1:N)
+EstadoClienteM5.hasMany(EstadoClientePostulacionM5, {
+    foreignKey: 'id_estado_cliente_postulacion_m5',
+    as: 'postulacionesEstado'
+});
+EstadoClientePostulacionM5.belongsTo(EstadoClienteM5, {
+    foreignKey: 'id_estado_cliente_postulacion_m5',
+    as: 'estadoClienteM5'
+});
+
+// Postulacion -> EstadoClientePostulacionM5 (1:N)
+Postulacion.hasMany(EstadoClientePostulacionM5, {
+    foreignKey: 'id_postulacion',
+    as: 'estadosClienteM5'
+});
+EstadoClientePostulacionM5.belongsTo(Postulacion, {
+    foreignKey: 'id_postulacion',
+    as: 'postulacion'
+});
+
+// ===========================================
 // RELACIONES DE CONTRATACIÓN
 // ===========================================
 
@@ -383,6 +409,8 @@ export {
     EstadoCandidato,
     EstadoCliente,
     EstadoClientePostulacion,
+    EstadoClienteM5,
+    EstadoClientePostulacionM5,
     PortalPostulacion,
     Publicacion,
     Rubro,

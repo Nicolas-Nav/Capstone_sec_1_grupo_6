@@ -80,7 +80,9 @@ export class CandidatoController {
             console.log('Body recibido:', JSON.stringify(req.body, null, 2));
             
             const {
-                name,
+                nombre,
+                primer_apellido,
+                segundo_apellido,
                 email,
                 phone,
                 rut,
@@ -91,6 +93,7 @@ export class CandidatoController {
                 profession,
                 profession_institution,
                 profession_date,
+                professions,
                 english_level,
                 software_tools,
                 has_disability_credential,
@@ -100,7 +103,9 @@ export class CandidatoController {
             } = req.body;
 
             const nuevoCandidato = await CandidatoService.createCandidato({
-                name,
+                nombre,
+                primer_apellido,
+                segundo_apellido,
                 email,
                 phone,
                 rut,
@@ -111,6 +116,7 @@ export class CandidatoController {
                 profession,
                 profession_institution,
                 profession_date,
+                professions,
                 english_level,
                 software_tools,
                 has_disability_credential,
@@ -145,7 +151,9 @@ export class CandidatoController {
         try {
             const { id } = req.params;
             const {
-                name,
+                nombre,
+                primer_apellido,
+                segundo_apellido,
                 email,
                 phone,
                 rut,
@@ -165,7 +173,9 @@ export class CandidatoController {
             } = req.body;
 
             const candidatoActualizado = await CandidatoService.updateCandidato(parseInt(id), {
-                name,
+                nombre,
+                primer_apellido,
+                segundo_apellido,
                 email,
                 phone,
                 rut,
@@ -182,7 +192,7 @@ export class CandidatoController {
                 licencia,
                 work_experience,
                 education
-            });
+            }, req.user?.id);
 
             Logger.info(`Candidato actualizado: ${id}`);
             return sendSuccess(res, candidatoActualizado, 'Candidato actualizado exitosamente');
